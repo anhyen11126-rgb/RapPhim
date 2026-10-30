@@ -51,3 +51,4 @@ showtimeSchema.virtual('movie', {
 
 const Showtime = mongoose.models.Showtime || mongoose.model('Showtime', showtimeSchema);
 export default Showtime;
+

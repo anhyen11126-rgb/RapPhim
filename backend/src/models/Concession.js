@@ -41,3 +41,4 @@ const concessionSchema = new mongoose.Schema(
 
 const Concession = mongoose.models.Concession || mongoose.model('Concession', concessionSchema);
 export default Concession;
+

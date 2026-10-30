@@ -10,7 +10,8 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
-    "db:seed:mongo": "node src/seedMongo.js"
+    "db:seed:mongo": "node src/seedMongo.js",
+    "test:all": "node src/testAll.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",

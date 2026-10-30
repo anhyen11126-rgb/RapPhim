@@ -65,3 +65,4 @@ showtimeSeatSchema.index({ showtimeId: 1, seatNumber: 1 }, { unique: true });
 
 const ShowtimeSeat = mongoose.models.ShowtimeSeat || mongoose.model('ShowtimeSeat', showtimeSeatSchema);
 export default ShowtimeSeat;
+

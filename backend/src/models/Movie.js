@@ -75,14 +75,14 @@ const movieSchema = new mongoose.Schema(
 );
 
 // Tự động gán poster = posterUrl trước khi lưu nếu chưa có
-movieSchema.pre('save', function (next) {
+movieSchema.pre('save', function () {
   if (this.posterUrl && !this.poster) {
     this.poster = this.posterUrl;
   } else if (this.poster && !this.posterUrl) {
     this.posterUrl = this.poster;
   }
-  next();
 });
 
 const Movie = mongoose.models.Movie || mongoose.model('Movie', movieSchema);
 export default Movie;
+
