@@ -1,6 +1,11 @@
-import prisma from '../prisma.js';
+import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import AdminUser from '../models/AdminUser.js';
+import Booking from '../models/Booking.js';
+import ShowtimeSeat from '../models/ShowtimeSeat.js';
+import Movie from '../models/Movie.js';
+import Showtime from '../models/Showtime.js';
 
 // Đăng nhập Admin
 export const adminLogin = async (req, res) => {
@@ -10,9 +15,7 @@ export const adminLogin = async (req, res) => {
       return res.status(400).json({ message: 'Vui lòng nhập email và mật khẩu' });
     }
 
-    const admin = await prisma.adminUser.findUnique({
-      where: { email },
-    });
+    const admin = await AdminUser.findOne({ email: email.toLowerCase().trim() });
 
     if (!admin) {
       return res.status(401).json({ message: 'Email hoặc mật khẩu không chính xác' });
@@ -24,7 +27,7 @@ export const adminLogin = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: admin.id, email: admin.email, role: admin.role },
+      { id: admin._id.toString(), email: admin.email, role: admin.role },
       process.env.JWT_SECRET || 'movietix_jwt_secret_key_2026_cdio',
       { expiresIn: '7d' }
     );
@@ -33,7 +36,7 @@ export const adminLogin = async (req, res) => {
       message: 'Đăng nhập thành công',
       token,
       admin: {
-        id: admin.id,
+        id: admin._id.toString(),
         email: admin.email,
         name: admin.name,
         role: admin.role,
@@ -48,30 +51,42 @@ export const adminLogin = async (req, res) => {
 export const getDashboardStats = async (req, res) => {
   try {
     // 1. Tổng doanh thu từ các đơn PAID
-    const revenueResult = await prisma.booking.aggregate({
-      _sum: { totalAmount: true },
-      where: { status: 'PAID' },
-    });
-    const totalRevenue = revenueResult._sum.totalAmount || 0;
+    const revenueResult = await Booking.aggregate([
+      { $match: { status: 'PAID' } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+    ]);
+    const totalRevenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
 
     // 2. Tổng số vé đã bán
-    const totalTickets = await prisma.showtimeSeat.count({
-      where: { status: 'BOOKED' },
-    });
+    const totalTickets = await ShowtimeSeat.countDocuments({ status: 'BOOKED' });
 
     // 3. Tổng số phim & suất chiếu
-    const totalMovies = await prisma.movie.count();
-    const totalShowtimes = await prisma.showtime.count();
+    const totalMovies = await Movie.countDocuments();
+    const totalShowtimes = await Showtime.countDocuments();
 
     // 4. Các đơn đặt vé gần nhất (5 đơn)
-    const recentBookings = await prisma.booking.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        showtime: {
-          include: { movie: true },
-        },
-      },
+    const rawRecentBookings = await Booking.find({})
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .populate({
+        path: 'showtimeId',
+        populate: { path: 'movieId' },
+      })
+      .lean();
+
+    const recentBookings = rawRecentBookings.map((b) => {
+      const showtime = b.showtimeId;
+      return {
+        ...b,
+        id: b._id.toString(),
+        showtime: showtime
+          ? {
+              ...showtime,
+              id: showtime._id.toString(),
+              movie: showtime.movieId ? { ...showtime.movieId, id: showtime.movieId._id.toString() } : null,
+            }
+          : null,
+      };
     });
 
     res.json({
@@ -91,32 +106,38 @@ export const getDashboardStats = async (req, res) => {
 // Quản lý Phim: Tạo phim mới
 export const createMovie = async (req, res) => {
   try {
-    const { title, posterUrl, trailerUrl, description, genre, duration, ageRating, releaseDate, status } = req.body;
+    const { title, posterUrl, trailerUrl, description, genre, duration, ageRating, releaseDate, status, price } = req.body;
 
-    const slug = title
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^\w\s-]/g, '')
-      .replace(/[\s_-]+/g, '-')
-      .replace(/^-+|-+$/g, '') + '-' + Date.now();
+    const slug =
+      title
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_-]+/g, '-')
+        .replace(/^-+|-+$/g, '') +
+      '-' +
+      Date.now();
 
-    const movie = await prisma.movie.create({
-      data: {
-        title,
-        slug,
-        posterUrl: posterUrl || 'https://via.placeholder.com/300x450',
-        trailerUrl,
-        description: description || '',
-        genre: genre || 'Chưa phân loại',
-        duration: parseInt(duration, 10) || 120,
-        ageRating: ageRating || 'P',
-        releaseDate: releaseDate ? new Date(releaseDate) : new Date(),
-        status: status || 'NOW_SHOWING',
-      },
+    const movie = await Movie.create({
+      title,
+      slug,
+      posterUrl: posterUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop',
+      poster: posterUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop',
+      trailerUrl: trailerUrl || '',
+      description: description || '',
+      genre: genre || 'Chưa phân loại',
+      duration: parseInt(duration, 10) || 120,
+      ageRating: ageRating || 'P',
+      releaseDate: releaseDate ? new Date(releaseDate) : new Date(),
+      status: status || 'NOW_SHOWING',
+      price: parseFloat(price) || 95000,
     });
 
-    res.status(201).json(movie);
+    res.status(201).json({
+      ...movie.toObject(),
+      id: movie._id.toString(),
+    });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi tạo phim mới', error: error.message });
   }
@@ -126,18 +147,23 @@ export const createMovie = async (req, res) => {
 export const updateMovie = async (req, res) => {
   try {
     const { id } = req.params;
-    const movieId = parseInt(id, 10);
-    const data = req.body;
+    const data = { ...req.body };
 
     if (data.duration) data.duration = parseInt(data.duration, 10);
     if (data.releaseDate) data.releaseDate = new Date(data.releaseDate);
+    if (data.posterUrl && !data.poster) data.poster = data.posterUrl;
+    if (data.poster && !data.posterUrl) data.posterUrl = data.poster;
 
-    const updated = await prisma.movie.update({
-      where: { id: movieId },
-      data,
+    const updated = await Movie.findByIdAndUpdate(id, data, { new: true }).lean();
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Không tìm thấy phim để cập nhật' });
+    }
+
+    res.json({
+      ...updated,
+      id: updated._id.toString(),
     });
-
-    res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Lỗi cập nhật phim', error: error.message });
   }
@@ -147,11 +173,14 @@ export const updateMovie = async (req, res) => {
 export const deleteMovie = async (req, res) => {
   try {
     const { id } = req.params;
-    const movieId = parseInt(id, 10);
 
-    await prisma.movie.delete({
-      where: { id: movieId },
-    });
+    // Xóa phim và các suất chiếu, ghế liên quan
+    const showtimes = await Showtime.find({ movieId: id });
+    const showtimeIds = showtimes.map((st) => st._id);
+
+    await ShowtimeSeat.deleteMany({ showtimeId: { $in: showtimeIds } });
+    await Showtime.deleteMany({ movieId: id });
+    await Movie.findByIdAndDelete(id);
 
     res.json({ success: true, message: 'Đã xóa phim thành công' });
   } catch (error) {
@@ -164,13 +193,15 @@ export const createShowtime = async (req, res) => {
   try {
     const { movieId, roomName, startTime, price } = req.body;
 
-    const showtime = await prisma.showtime.create({
-      data: {
-        movieId: parseInt(movieId, 10),
-        roomName: roomName || 'Phòng 01 - Tiêu chuẩn',
-        startTime: new Date(startTime),
-        price: parseFloat(price) || 85000,
-      },
+    if (!mongoose.Types.ObjectId.isValid(movieId)) {
+      return res.status(400).json({ message: 'ID phim không hợp lệ' });
+    }
+
+    const showtime = await Showtime.create({
+      movieId: new mongoose.Types.ObjectId(movieId),
+      roomName: roomName || 'Phòng 01 - Tiêu chuẩn',
+      startTime: new Date(startTime),
+      price: parseFloat(price) || 85000,
     });
 
     // Tạo tự động ma trận 48 ghế (A1 - F8)
@@ -180,9 +211,9 @@ export const createShowtime = async (req, res) => {
 
     for (const r of rows) {
       for (const c of cols) {
-        const isVip = ['C', 'D'].includes(r);
+        const isVip = ['E', 'F'].includes(r);
         seatsData.push({
-          showtimeId: showtime.id,
+          showtimeId: showtime._id,
           seatNumber: `${r}${c}`,
           row: r,
           col: c,
@@ -191,11 +222,14 @@ export const createShowtime = async (req, res) => {
         });
       }
     }
-    await prisma.showtimeSeat.createMany({ data: seatsData });
+    await ShowtimeSeat.insertMany(seatsData);
 
     res.status(201).json({
       message: 'Đã tạo suất chiếu và sinh sơ đồ ghế thành công',
-      showtime,
+      showtime: {
+        ...showtime.toObject(),
+        id: showtime._id.toString(),
+      },
     });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi tạo suất chiếu', error: error.message });
@@ -206,24 +240,37 @@ export const createShowtime = async (req, res) => {
 export const getAdminBookings = async (req, res) => {
   try {
     const { search } = req.query;
-    const where = {};
+    const filter = {};
 
     if (search) {
-      where.OR = [
-        { bookingCode: { contains: search } },
-        { customerPhone: { contains: search } },
-        { customerName: { contains: search } },
+      filter.$or = [
+        { bookingCode: { $regex: search, $options: 'i' } },
+        { customerPhone: { $regex: search, $options: 'i' } },
+        { customerName: { $regex: search, $options: 'i' } },
       ];
     }
 
-    const bookings = await prisma.booking.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        showtime: {
-          include: { movie: true },
-        },
-      },
+    const rawBookings = await Booking.find(filter)
+      .sort({ createdAt: -1 })
+      .populate({
+        path: 'showtimeId',
+        populate: { path: 'movieId' },
+      })
+      .lean();
+
+    const bookings = rawBookings.map((b) => {
+      const showtime = b.showtimeId;
+      return {
+        ...b,
+        id: b._id.toString(),
+        showtime: showtime
+          ? {
+              ...showtime,
+              id: showtime._id.toString(),
+              movie: showtime.movieId ? { ...showtime.movieId, id: showtime.movieId._id.toString() } : null,
+            }
+          : null,
+      };
     });
 
     res.json(bookings);
@@ -231,4 +278,3 @@ export const getAdminBookings = async (req, res) => {
     res.status(500).json({ message: 'Lỗi khi lấy danh sách đặt vé', error: error.message });
   }
 };
-

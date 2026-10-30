@@ -1,5 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import prisma from '../prisma.js';
+import Movie from '../models/Movie.js';
+import Showtime from '../models/Showtime.js';
+import ShowtimeSeat from '../models/ShowtimeSeat.js';
+import Concession from '../models/Concession.js';
 
 // Khởi tạo Gemini Model nếu có API Key
 const getGeminiModel = () => {
@@ -16,52 +19,44 @@ export const getCinemaCurrentContext = async () => {
   const now = new Date();
 
   // 1. Lấy danh sách phim đang chiếu kèm suất chiếu
-  const movies = await prisma.movie.findMany({
-    where: { status: 'NOW_SHOWING' },
-    include: {
-      showtimes: {
-        orderBy: { startTime: 'asc' },
-        include: {
-          _count: {
-            select: {
-              seats: {
-                where: { status: 'AVAILABLE' },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
+  const movies = await Movie.find({ status: 'NOW_SHOWING' }).lean();
 
-  // Định dạng lại thông tin phim và suất chiếu cho ngắn gọn, súc tích
-  const formattedMovies = movies.map((m) => ({
-    id: m.id,
-    title: m.title,
-    genre: m.genre,
-    ageRating: m.ageRating,
-    duration: `${m.duration} phút`,
-    description: m.description,
-    showtimes: m.showtimes.map((st) => ({
-      showtimeId: st.id,
-      room: st.roomName,
-      time: new Date(st.startTime).toLocaleTimeString('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      price: `${st.price.toLocaleString('vi-VN')} đ`,
-      availableSeats: st._count.seats,
-    })),
-  }));
+  const formattedMovies = await Promise.all(
+    movies.map(async (m) => {
+      const showtimes = await Showtime.find({ movieId: m._id }).sort({ startTime: 1 }).lean();
+      const showtimesWithSeats = await Promise.all(
+        showtimes.map(async (st) => {
+          const availableSeatsCount = await ShowtimeSeat.countDocuments({
+            showtimeId: st._id,
+            status: 'AVAILABLE',
+          });
+          return {
+            showtimeId: st._id.toString(),
+            room: st.roomName,
+            time: new Date(st.startTime).toLocaleTimeString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            price: `${(st.price || 95000).toLocaleString('vi-VN')} đ`,
+            availableSeats: availableSeatsCount,
+          };
+        })
+      );
+
+      return {
+        id: m._id.toString(),
+        title: m.title,
+        genre: m.genre,
+        ageRating: m.ageRating,
+        duration: `${m.duration} phút`,
+        description: m.description,
+        showtimes: showtimesWithSeats,
+      };
+    })
+  );
 
   // 2. Lấy bảng giá bắp nước
-  const concessions = await prisma.concession.findMany({
-    select: {
-      name: true,
-      price: true,
-      description: true,
-    },
-  });
+  const concessions = await Concession.find({}).select('name price description').lean();
 
   // 3. Quy định rạp & chính sách vé (Kho tri thức tĩnh)
   const policies = [
