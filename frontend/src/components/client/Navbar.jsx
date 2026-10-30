@@ -1,9 +1,17 @@
 
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 const Navbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [searchValue, setSearchValue] = useState('');
+
+  const handleSearchSubmit = (e) => {
+    if (e.key === 'Enter') {
+      navigate(`/?search=${encodeURIComponent(searchValue.trim())}`);
+    }
+  };
 
   return (
     <header className="bg-[#0b0f19] border-b border-slate-800/80 sticky top-0 z-50 transition-all">
@@ -62,7 +70,13 @@ const Navbar = () => {
             </span>
             <input
               type="text"
-              placeholder="Tìm kiếm phim, rạp, đạo diễn..."
+              placeholder="Tìm kiếm phim, rạp, thể loại..."
+              value={searchValue}
+              onChange={(e) => {
+                setSearchValue(e.target.value);
+                navigate(`/?search=${encodeURIComponent(e.target.value.trim())}`);
+              }}
+              onKeyDown={handleSearchSubmit}
               className="w-full bg-[#131926] border border-slate-800 rounded-full pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
             />
           </div>

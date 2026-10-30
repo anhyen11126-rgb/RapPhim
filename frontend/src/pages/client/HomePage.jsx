@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import MovieCard from '../../components/client/MovieCard';
 import api from '../../services/api';
 
@@ -154,15 +154,19 @@ const getAgeBadgeStyle = (ageRating) => {
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchUrlParam = searchParams.get('search') || '';
+  const [searchTerm, setSearchTerm] = useState(searchUrlParam);
+
   const [moviesList, setMoviesList] = useState(defaultMoviesList);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('NOW_SHOWING');
 
   // Quick Booking Bar State
-  const [selectedMovieId, setSelectedMovieId] = useState('1');
+  const [selectedMovieId, setSelectedMovieId] = useState('');
   const [selectedTheater, setSelectedTheater] = useState('MovieTix Landmark 81');
   const [selectedDate, setSelectedDate] = useState('Hôm nay, 24/10');
-  const [selectedShowtimeId, setSelectedShowtimeId] = useState('1');
+  const [selectedShowtimeId, setSelectedShowtimeId] = useState('');
   const [isMovieDropdownOpen, setIsMovieDropdownOpen] = useState(false);
   const movieDropdownRef = useRef(null);
 
@@ -172,6 +176,10 @@ const HomePage = () => {
   useEffect(() => {
     fetchMovies();
   }, []);
+
+  useEffect(() => {
+    setSearchTerm(searchUrlParam);
+  }, [searchUrlParam]);
 
   // Đóng dropdown khi click bên ngoài
   useEffect(() => {
@@ -189,22 +197,20 @@ const HomePage = () => {
       setLoading(true);
       const res = await api.get('/movies');
       if (res.data && res.data.length > 0) {
-        // Đồng bộ phim từ backend nếu có
-        const merged = defaultMoviesList.map((dm) => {
-          const apiMatch = res.data.find(
-            (am) => String(am.id) === String(dm.id) || am.title.toLowerCase().includes(dm.title.toLowerCase().slice(0, 5))
-          );
-          if (apiMatch) {
-            return {
-              ...dm,
-              id: apiMatch.id,
-              showtimes: apiMatch.showtimes && apiMatch.showtimes.length > 0 ? apiMatch.showtimes : dm.showtimes,
-            };
-          }
-          return dm;
-        });
-        setMoviesList(merged);
-        setSelectedMovieId(String(merged[0].id));
+        // Chuẩn hóa dữ liệu phim từ Database
+        const formatted = res.data.map((m) => ({
+          ...m,
+          id: m.id || m._id,
+          rating: m.rating || '4.8',
+          techFormat: m.techFormat || 'IMAX Laser',
+          formats: m.formats || ['2D', '3D', 'IMAX Laser'],
+          poster: m.posterUrl || m.poster || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500',
+        }));
+        setMoviesList(formatted);
+        setSelectedMovieId(String(formatted[0].id));
+        if (formatted[0].showtimes && formatted[0].showtimes.length > 0) {
+          setSelectedShowtimeId(String(formatted[0].showtimes[0].id));
+        }
       }
     } catch (err) {
       console.warn('Sử dụng danh sách phim mẫu mặc định:', err.message);
@@ -213,7 +219,7 @@ const HomePage = () => {
     }
   };
 
-  // Phim hiện đang được chọn
+  // Phim hiện đang được chọn cho thanh Đặt vé nhanh
   const activeMovie = moviesList.find((m) => String(m.id) === String(selectedMovieId)) || moviesList[0];
   const activeBadge = getAgeBadgeStyle(activeMovie?.ageRating);
 
@@ -221,8 +227,8 @@ const HomePage = () => {
   const availableShowtimes = activeMovie?.showtimes && activeMovie.showtimes.length > 0
     ? activeMovie.showtimes
     : [
-      { id: 1, roomName: 'IMAX Laser', time: '19:30' },
-      { id: 2, roomName: '2D Dolby Atmos', time: '21:45' },
+      { id: 1, roomName: 'Phòng 01 - IMAX Laser', time: '19:30' },
+      { id: 2, roomName: 'Phòng 02 - 2D Dolby Atmos', time: '21:45' },
     ];
 
   const handleQuickBooking = () => {
@@ -230,8 +236,31 @@ const HomePage = () => {
     navigate(`/booking/seat/${targetShowtimeId}`);
   };
 
-  // 4 phim hiển thị danh mục bên dưới
-  const mockDisplayList = moviesList.slice(0, 4);
+  // Lọc phim theo Tab và Từ khóa tìm kiếm
+  const filteredMovies = moviesList.filter((m) => {
+    let matchesTab = true;
+    if (activeTab === 'NOW_SHOWING') {
+      matchesTab = m.status === 'NOW_SHOWING' || !m.status;
+    } else if (activeTab === 'COMING_SOON') {
+      matchesTab = m.status === 'COMING_SOON';
+    } else if (activeTab === 'SPECIAL') {
+      matchesTab = true;
+    }
+
+    let matchesSearch = true;
+    if (searchTerm && searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      const title = (m.title || '').toLowerCase();
+      const genre = (m.genre || '').toLowerCase();
+      const desc = (m.description || '').toLowerCase();
+      matchesSearch = title.includes(term) || genre.includes(term) || desc.includes(term);
+    }
+
+    return matchesTab && matchesSearch;
+  });
+
+  const nowShowingCount = moviesList.filter((m) => m.status === 'NOW_SHOWING' || !m.status).length;
+  const comingSoonCount = moviesList.filter((m) => m.status === 'COMING_SOON').length;
 
   return (
     <div className="bg-[#0c1017] text-slate-100 min-h-screen">
@@ -585,65 +614,119 @@ const HomePage = () => {
             <h2 className="text-3xl font-black text-white">Phim Tại Rạp</h2>
           </div>
 
-          {/* Filter Tabs */}
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-            <button
-              onClick={() => setActiveTab('NOW_SHOWING')}
-              className={`px-4 py-1.5 rounded-full transition-all ${activeTab === 'NOW_SHOWING'
-                ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
-                : 'bg-[#131926] text-slate-400 hover:text-white border border-slate-800'
-                }`}
-            >
-              Đang chiếu (10)
-            </button>
-            <button
-              onClick={() => setActiveTab('COMING_SOON')}
-              className={`px-4 py-1.5 rounded-full transition-all ${activeTab === 'COMING_SOON'
-                ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
-                : 'bg-[#131926] text-slate-400 hover:text-white border border-slate-800'
-                }`}
-            >
-              Sắp chiếu (12)
-            </button>
-            <button
-              onClick={() => setActiveTab('SPECIAL')}
-              className={`px-4 py-1.5 rounded-full transition-all ${activeTab === 'SPECIAL'
-                ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
-                : 'bg-[#131926] text-slate-400 hover:text-white border border-slate-800'
-                }`}
-            >
-              Suất chiếu đặc biệt
-            </button>
-            <button
-              onClick={() => {
-                const chatBtn = document.querySelector('button[title="Trò chuyện với AI"]');
-                if (chatBtn) chatBtn.click();
-              }}
-              className="px-4 py-1.5 rounded-full bg-[#131926] border border-slate-800 text-slate-300 hover:text-white hover:border-blue-500 transition-colors flex items-center space-x-1.5"
-            >
-              <span className="text-blue-400">🤖</span>
-              <span>Trợ lý AI</span>
-            </button>
+          {/* Search Box & Filter Tabs */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {/* Ô tìm kiếm phim trực tiếp */}
+            <div className="relative min-w-[240px]">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 text-xs">
+                🔍
+              </span>
+              <input
+                type="text"
+                placeholder="Tìm phim theo tên hoặc thể loại..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  if (e.target.value) {
+                    setSearchParams({ search: e.target.value });
+                  } else {
+                    setSearchParams({});
+                  }
+                }}
+                className="w-full bg-[#131926] border border-slate-800 rounded-full pl-8 pr-7 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSearchParams({});
+                  }}
+                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-white text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+              <button
+                onClick={() => setActiveTab('NOW_SHOWING')}
+                className={`px-4 py-1.5 rounded-full transition-all ${activeTab === 'NOW_SHOWING'
+                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
+                  : 'bg-[#131926] text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+              >
+                Đang chiếu ({nowShowingCount})
+              </button>
+              <button
+                onClick={() => setActiveTab('COMING_SOON')}
+                className={`px-4 py-1.5 rounded-full transition-all ${activeTab === 'COMING_SOON'
+                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
+                  : 'bg-[#131926] text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+              >
+                Sắp chiếu ({comingSoonCount})
+              </button>
+              <button
+                onClick={() => setActiveTab('SPECIAL')}
+                className={`px-4 py-1.5 rounded-full transition-all ${activeTab === 'SPECIAL'
+                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
+                  : 'bg-[#131926] text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+              >
+                Tất cả ({moviesList.length})
+              </button>
+              <button
+                onClick={() => {
+                  const chatBtn = document.querySelector('button[title="Trò chuyện với AI"]');
+                  if (chatBtn) chatBtn.click();
+                }}
+                className="px-4 py-1.5 rounded-full bg-[#131926] border border-slate-800 text-slate-300 hover:text-white hover:border-blue-500 transition-colors flex items-center space-x-1.5"
+              >
+                <span className="text-blue-400">🤖</span>
+                <span>Trợ lý AI</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Danh sách thẻ phim 4 cột */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {mockDisplayList.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} />
-          ))}
-        </div>
+        {/* Danh sách thẻ phim */}
+        {filteredMovies.length === 0 ? (
+          <div className="py-16 text-center text-slate-400 bg-slate-900/40 rounded-2xl border border-slate-800/80">
+            <span className="text-4xl block mb-2">🔍</span>
+            <p className="text-sm font-semibold text-slate-300">
+              Không tìm thấy bộ phim nào phù hợp với từ khóa "{searchTerm}"
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Hãy thử tìm kiếm với tên khác hoặc bấm bên dưới để hiển thị toàn bộ phim.
+            </p>
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setSearchParams({});
+                setActiveTab('SPECIAL');
+              }}
+              className="mt-4 px-4 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md"
+            >
+              Xem tất cả phim
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {filteredMovies.map((movie) => (
+              <MovieCard key={movie.id} movie={movie} />
+            ))}
+          </div>
+        )}
 
-        {/* Nút Xem tất cả phim */}
-        <div className="mt-10 text-center">
-          <button
-            type="button"
-            className="px-6 py-2 rounded-full bg-[#131926] hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold border border-slate-800 transition-colors inline-flex items-center space-x-2"
-          >
-            <span>Xem tất cả 24 phim đang chiếu</span>
-            <span>→</span>
-          </button>
-        </div>
+        {/* Thông tin số lượng hiển thị */}
+        {filteredMovies.length > 0 && (
+          <div className="mt-8 text-center text-xs text-slate-500">
+            Hiển thị <span className="font-bold text-slate-300">{filteredMovies.length}</span> bộ phim trong danh mục
+          </div>
+        )}
       </section>
 
       {/* 4. TRẢI NGHIỆM ĐIỆN ẢNH ĐỈNH CAO (CÔNG NGHỆ HÀNG ĐẦU) */}

@@ -20,15 +20,29 @@ export const getMovies = async (req, res) => {
 
     const movies = await Movie.find(filter).sort({ releaseDate: -1 }).lean();
 
-    // Lấy thêm firstShowtimeId và số lượng showtime cho từng phim
+    // Lấy thêm showtimes, firstShowtimeId và số lượng showtime cho từng phim
     const moviesWithShowtimes = await Promise.all(
       movies.map(async (m) => {
-        const showtimes = await Showtime.find({ movieId: m._id }).sort({ startTime: 1 }).select('_id startTime').lean();
+        const rawShowtimes = await Showtime.find({ movieId: m._id })
+          .sort({ startTime: 1 })
+          .select('_id roomName startTime price')
+          .lean();
+
+        const formattedShowtimes = rawShowtimes.map((st) => ({
+          ...st,
+          id: st._id.toString(),
+          time: new Date(st.startTime).toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        }));
+
         return {
           ...m,
           id: m._id.toString(),
-          firstShowtimeId: showtimes.length > 0 ? showtimes[0]._id.toString() : null,
-          _count: { showtimes: showtimes.length },
+          showtimes: formattedShowtimes,
+          firstShowtimeId: formattedShowtimes.length > 0 ? formattedShowtimes[0].id : null,
+          _count: { showtimes: formattedShowtimes.length },
         };
       })
     );
