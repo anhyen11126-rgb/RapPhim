@@ -1,7 +1,6 @@
 import express from 'express';
 import {
   adminLogin,
-  adminRegister,
   getDashboardStats,
   createMovie,
   updateMovie,
@@ -13,9 +12,8 @@ import { authenticateAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Public route: Đăng nhập & Đăng ký
+// Public route: Đăng nhập
 router.post('/login', adminLogin);
-router.post('/register', adminRegister);
 
 // Protected routes (cần Bearer Token)
 router.get('/dashboard/stats', authenticateAdmin, getDashboardStats);

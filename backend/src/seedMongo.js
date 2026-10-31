@@ -13,6 +13,7 @@ import ShowtimeSeat from './models/ShowtimeSeat.js';
 import Booking from './models/Booking.js';
 import Promotion from './models/Promotion.js';
 import Faq from './models/Faq.js';
+import User from './models/User.js';
 
 async function seed() {
   console.log('🍃 [MongoDB] Bắt đầu kết nối & nạp dữ liệu mẫu vào Database...');
@@ -29,6 +30,7 @@ async function seed() {
     await Faq.deleteMany({});
     await Concession.deleteMany({});
     await AdminUser.deleteMany({});
+    await User.deleteMany({});
     console.log('🧹 Đã xóa sạch các collection cũ trong MongoDB');
 
     // 2. Tạo tài khoản Admin
@@ -40,6 +42,19 @@ async function seed() {
       role: 'ADMIN',
     });
     console.log(`👤 Đã tạo Admin: ${admin.email} (pass: admin123)`);
+
+    // Tạo tài khoản Khách hàng mẫu
+    const customerPassword = await bcrypt.hash('123456', 10);
+    const demoUser = await User.create({
+      name: 'Nguyễn Văn A',
+      email: 'nguyen.van.a@example.com',
+      phone: '0912345678',
+      password: customerPassword,
+      role: 'VIP',
+      tier: 'GOLD_TIER',
+      points: 250,
+    });
+    console.log(`👤 Đã tạo Khách hàng mẫu: ${demoUser.email} / ${demoUser.phone} (pass: 123456)`);
 
     // 3. Tạo danh mục Bắp Nước (Concessions)
     const concessions = await Concession.create([

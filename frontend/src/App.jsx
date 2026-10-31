@@ -15,6 +15,7 @@ import BookingSuccessPage from './pages/client/BookingSuccessPage';
 import TheatersPage from './pages/client/TheatersPage';
 import PromotionsPage from './pages/client/PromotionsPage';
 import SupportPage from './pages/client/SupportPage';
+import AuthPage from './pages/client/AuthPage';
 
 // Pages Admin (7-10)
 import AdminLoginPage from './pages/admin/AdminLoginPage';
@@ -52,6 +53,11 @@ function App() {
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/booking-success" element={<BookingSuccessPage />} />
         </Route>
+
+        {/* Cụm màn hình Đăng ký / Đăng nhập khách hàng */}
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/login" element={<AuthPage initialMode="login" />} />
+        <Route path="/register" element={<AuthPage initialMode="register" />} />
 
         {/* Cụm màn hình Quản trị viên */}
         <Route path="/admin/login" element={<AdminLoginPage />} />
