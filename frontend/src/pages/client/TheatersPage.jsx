@@ -9,6 +9,9 @@ const REGIONS = [
   'Đà Nẵng',
   'Hải Phòng',
   'Cần Thơ',
+  'Bình Dương',
+  'Đồng Nai',
+  'Khánh Hòa',
   'Hà Tĩnh',
 ];
 
@@ -17,10 +20,31 @@ const TECH_FILTERS = ['Tất cả', 'IMAX Laser', 'Dolby Atmos', 'Gold Class'];
 const TheatersPage = () => {
   const navigate = useNavigate();
 
-  // State bộ lọc
-  const [activeRegion, setActiveRegion] = useState('TP. Hồ Chí Minh');
+  // State bộ lọc (đồng bộ với Tỉnh/Thành phố đang chọn trên Navbar)
+  const [activeRegion, setActiveRegion] = useState(() => {
+    return localStorage.getItem('selectedCity') || 'TP. Hồ Chí Minh';
+  });
   const [searchKeyword, setSearchKeyword] = useState('');
   const [activeTech, setActiveTech] = useState('Tất cả');
+
+  // Lắng nghe thay đổi tỉnh thành từ Navbar
+  useEffect(() => {
+    const handleCitySync = (e) => {
+      if (e.detail) {
+        setActiveRegion(e.detail);
+      }
+    };
+    window.addEventListener('cityChange', handleCitySync);
+    return () => window.removeEventListener('cityChange', handleCitySync);
+  }, []);
+
+  const handleSelectRegion = (region) => {
+    setActiveRegion(region);
+    if (region !== 'Tất cả khu vực') {
+      localStorage.setItem('selectedCity', region);
+      window.dispatchEvent(new CustomEvent('cityChange', { detail: region }));
+    }
+  };
 
   // State dữ liệu rạp từ API
   const [cinemas, setCinemas] = useState([]);
@@ -118,12 +142,11 @@ const TheatersPage = () => {
             {REGIONS.map((region) => (
               <button
                 key={region}
-                onClick={() => setActiveRegion(region)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeRegion === region
+                onClick={() => handleSelectRegion(region)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${activeRegion === region
                     ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                }`}
+                  }`}
               >
                 {region}
               </button>
