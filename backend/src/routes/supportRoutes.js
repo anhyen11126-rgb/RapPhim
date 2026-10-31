@@ -12,3 +12,4 @@ router.post('/faqs/:id/vote', voteFaq);
 router.post('/tickets', submitSupportTicket);
 
 export default router;
+

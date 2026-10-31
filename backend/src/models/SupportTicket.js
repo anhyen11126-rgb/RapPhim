@@ -59,3 +59,4 @@ const supportTicketSchema = new mongoose.Schema(
 
 const SupportTicket = mongoose.models.SupportTicket || mongoose.model('SupportTicket', supportTicketSchema);
 export default SupportTicket;
+

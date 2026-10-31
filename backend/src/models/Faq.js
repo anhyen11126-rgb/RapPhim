@@ -55,3 +55,4 @@ const faqSchema = new mongoose.Schema(
 
 const Faq = mongoose.models.Faq || mongoose.model('Faq', faqSchema);
 export default Faq;
+

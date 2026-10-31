@@ -1,11 +1,35 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 const Navbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('adminUser');
+    if (stored) {
+      try {
+        setCurrentUser(JSON.parse(stored));
+      } catch {
+        setCurrentUser(null);
+      }
+    } else {
+      setCurrentUser(null);
+    }
+  }, [location]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('adminUser');
+    setCurrentUser(null);
+    setShowProfileMenu(false);
+    navigate('/');
+  };
 
   return (
-    <header className="bg-[#0b0f19] border-b border-slate-800/80 sticky top-0 z-50 transition-all">
+    <header className="bg-[#0b0f19] border-b border-slate-800/80 sticky top-0 z-50 transition-all select-none">
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 lg:px-10 h-16 flex items-center justify-between gap-4">
         {/* Left: Brand & Navigation */}
         <div className="flex items-center space-x-6 lg:space-x-8">
@@ -25,30 +49,40 @@ const Navbar = () => {
           <nav className="flex items-center space-x-1 sm:space-x-1.5 overflow-x-auto scrollbar-none">
             <Link
               to="/"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${location.pathname === '/'
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
+                location.pathname === '/'
                   ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
                   : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
-                }`}
+              }`}
             >
               Phim
             </Link>
 
             <Link
               to="/theaters"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${location.pathname === '/theaters'
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
+                location.pathname === '/theaters'
                   ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
                   : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
-                }`}
+              }`}
             >
               Rạp chiếu
             </Link>
 
+            <a
+              href="#pricing"
+              className="px-3 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-colors whitespace-nowrap hidden md:inline-block"
+            >
+              Giá vé
+            </a>
+
             <Link
               to="/promotions"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${location.pathname === '/promotions'
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
+                location.pathname === '/promotions'
                   ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
                   : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
-                }`}
+              }`}
             >
               Ưu đãi
             </Link>
@@ -77,7 +111,7 @@ const Navbar = () => {
           </nav>
         </div>
 
-        {/* Right: Search, Location, Login & Profile */}
+        {/* Right: Search, Location, Login/User Profile */}
         <div className="flex items-center space-x-3">
           {/* Search box */}
           <div className="relative hidden xl:block w-56">
@@ -98,18 +132,64 @@ const Navbar = () => {
             <span className="text-slate-500 text-[9px]">▼</span>
           </div>
 
-          {/* Đăng nhập Admin / User */}
-          <Link
-            to="/admin/login"
-            className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition-all"
-          >
-            Đăng nhập
-          </Link>
+          {/* Đăng nhập hoặc Menu Quản trị */}
+          {currentUser ? (
+            <div className="relative">
+              <div
+                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                className="flex items-center space-x-2 bg-[#141b2c] hover:bg-[#1a233a] border border-slate-700 px-3 py-1.5 rounded-xl cursor-pointer transition-colors"
+              >
+                <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-black">
+                  👤
+                </div>
+                <span className="text-xs font-bold text-white max-w-[100px] truncate">
+                  {currentUser.name || 'Admin'}
+                </span>
+                <span className="text-slate-400 text-[9px]">▼</span>
+              </div>
+
+              {/* Dropdown Menu */}
+              {showProfileMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-[#0f1424] border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 text-xs space-y-1">
+                  <div className="px-3 py-2 border-b border-slate-800">
+                    <span className="text-[10px] text-slate-400 block font-semibold">Tài khoản:</span>
+                    <span className="font-bold text-white truncate block">{currentUser.email}</span>
+                  </div>
+                  <Link
+                    to="/admin/dashboard"
+                    onClick={() => setShowProfileMenu(false)}
+                    className="flex items-center space-x-2 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+                  >
+                    <span>📊</span>
+                    <span>Bảng điều khiển Admin</span>
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left flex items-center space-x-2 px-3 py-2 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors font-bold"
+                  >
+                    <span>🚪</span>
+                    <span>Đăng xuất</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              to="/admin/login"
+              className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-sm transition-all"
+            >
+              Đăng nhập
+            </Link>
+          )}
 
           {/* Avatar Icon */}
-          <div className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-xs text-slate-300 cursor-pointer transition-colors">
+          <Link
+            to="/admin/login"
+            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-xs text-slate-300 cursor-pointer transition-colors"
+            title="Cổng Quản trị MovieTix"
+          >
             👤
-          </div>
+          </Link>
         </div>
       </div>
     </header>

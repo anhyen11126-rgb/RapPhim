@@ -47,6 +47,49 @@ export const adminLogin = async (req, res) => {
   }
 };
 
+// Đăng ký Tài khoản Quản trị / Quản lý cụm rạp
+export const adminRegister = async (req, res) => {
+  try {
+    const { email, password, name, role = 'ADMIN' } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ message: 'Vui lòng điền đầy đủ họ tên, email và mật khẩu' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const existing = await AdminUser.findOne({ email: cleanEmail });
+    if (existing) {
+      return res.status(409).json({ message: 'Email này đã tồn tại trong hệ thống. Vui lòng đăng nhập.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newAdmin = await AdminUser.create({
+      email: cleanEmail,
+      password: hashedPassword,
+      name: name.trim(),
+      role: role || 'ADMIN',
+    });
+
+    const token = jwt.sign(
+      { id: newAdmin._id.toString(), email: newAdmin.email, role: newAdmin.role },
+      process.env.JWT_SECRET || 'movietix_jwt_secret_key_2026_cdio',
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      message: 'Đăng ký tài khoản quản trị thành công!',
+      token,
+      admin: {
+        id: newAdmin._id.toString(),
+        email: newAdmin.email,
+        name: newAdmin.name,
+        role: newAdmin.role,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi đăng ký tài khoản', error: error.message });
+  }
+};
+
 // Thống kê Dashboard
 export const getDashboardStats = async (req, res) => {
   try {
