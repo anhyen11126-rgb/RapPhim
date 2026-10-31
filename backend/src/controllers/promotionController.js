@@ -102,3 +102,4 @@ export const createPromotion = async (req, res) => {
     res.status(500).json({ message: 'Lỗi tạo chương trình khuyến mãi', error: error.message });
   }
 };
+

@@ -25,50 +25,44 @@ const Navbar = () => {
           <nav className="flex items-center space-x-1 sm:space-x-1.5 overflow-x-auto scrollbar-none">
             <Link
               to="/"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
-                location.pathname === '/'
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${location.pathname === '/'
                   ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
                   : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
-              }`}
+                }`}
             >
               Phim
             </Link>
 
             <Link
               to="/theaters"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
-                location.pathname === '/theaters'
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${location.pathname === '/theaters'
                   ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
                   : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
-              }`}
+                }`}
             >
               Rạp chiếu
             </Link>
 
-            <a
-              href="#pricing"
-              className="px-3 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-colors whitespace-nowrap hidden md:inline-block"
-            >
-              Giá vé
-            </a>
-
             <Link
               to="/promotions"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
-                location.pathname === '/promotions'
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${location.pathname === '/promotions'
                   ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
                   : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
-              }`}
+                }`}
             >
               Ưu đãi
             </Link>
 
-            <a
-              href="#news"
-              className="px-3 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-colors whitespace-nowrap hidden lg:inline-block"
+            <Link
+              to="/support"
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
+                location.pathname === '/support'
+                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
+              }`}
             >
-              Tin tức
-            </a>
+              Hỗ trợ
+            </Link>
 
             <button
               onClick={() => {

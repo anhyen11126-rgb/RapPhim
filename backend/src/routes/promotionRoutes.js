@@ -12,3 +12,4 @@ router.post('/apply', applyVoucher);
 router.post('/', createPromotion);
 
 export default router;
+

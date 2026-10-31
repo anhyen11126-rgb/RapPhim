@@ -17,6 +17,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import cinemaRoutes from './routes/cinemaRoutes.js';
 import promotionRoutes from './routes/promotionRoutes.js';
+import supportRoutes from './routes/supportRoutes.js';
 import connectDB from './config/db.js';
 
 dotenv.config();
@@ -40,6 +41,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/cinemas', cinemaRoutes);
 app.use('/api/promotions', promotionRoutes);
+app.use('/api/support', supportRoutes);
 
 // Health Check API
 app.get('/api/health', async (req, res) => {

@@ -14,6 +14,7 @@ import CheckoutPage from './pages/client/CheckoutPage';
 import BookingSuccessPage from './pages/client/BookingSuccessPage';
 import TheatersPage from './pages/client/TheatersPage';
 import PromotionsPage from './pages/client/PromotionsPage';
+import SupportPage from './pages/client/SupportPage';
 
 // Pages Admin (7-10)
 import AdminLoginPage from './pages/admin/AdminLoginPage';
@@ -45,6 +46,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/theaters" element={<TheatersPage />} />
           <Route path="/promotions" element={<PromotionsPage />} />
+          <Route path="/support" element={<SupportPage />} />
           <Route path="/movie/:id" element={<MovieDetailPage />} />
           <Route path="/booking/seat/:showtimeId" element={<SeatSelectionPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />

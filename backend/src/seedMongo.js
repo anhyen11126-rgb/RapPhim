@@ -12,6 +12,7 @@ import Showtime from './models/Showtime.js';
 import ShowtimeSeat from './models/ShowtimeSeat.js';
 import Booking from './models/Booking.js';
 import Promotion from './models/Promotion.js';
+import Faq from './models/Faq.js';
 
 async function seed() {
   console.log('🍃 [MongoDB] Bắt đầu kết nối & nạp dữ liệu mẫu vào Database...');
@@ -25,6 +26,7 @@ async function seed() {
     await Cinema.deleteMany({});
     await Movie.deleteMany({});
     await Promotion.deleteMany({});
+    await Faq.deleteMany({});
     await Concession.deleteMany({});
     await AdminUser.deleteMany({});
     console.log('🧹 Đã xóa sạch các collection cũ trong MongoDB');
@@ -614,6 +616,71 @@ async function seed() {
       },
     ]);
     console.log(`🎁 Đã tạo toàn bộ Kho Khuyến Mãi & Voucher trong MongoDB`);
+
+    // 8. Tạo Danh mục Câu hỏi thường gặp (FAQ)
+    await Faq.create([
+      {
+        question: 'Tôi đã bị trừ tiền ngân hàng nhưng chưa nhận được mã vé hoặc SMS xác nhận?',
+        answer:
+          'Bạn hoàn toàn yên tâm, hệ thống MovieTix luôn bảo lưu giao dịch hợp lệ:\n• Vui lòng kiểm tra kỹ thư mục Hộp thư rác (Spam / Junk) hoặc SMS điện thoại đã đăng ký.\n• Mở mục "Vé của tôi" trên ứng dụng MovieTix để đối chiếu tức thì theo số điện thoại đặt vé.\n• Nếu sau 15 phút trạng thái chưa được cập nhật, hãy nhập Mã giao dịch ngân hàng vào biểu mẫu bên cạnh hoặc liên hệ tổng đài 1900 8866 để nhân viên kích hoạt giữ ghế khẩn cấp.',
+        category: 'PAYMENT',
+        likes: 428,
+        dislikes: 12,
+        isDefaultOpen: true,
+        order: 1,
+      },
+      {
+        question: 'Quy định độ tuổi xem phim T13, T16, T18 tại rạp MovieTix như thế nào?',
+        answer:
+          'Hệ thống rạp MovieTix áp dụng quy chuẩn phân loại độ tuổi của Bộ Văn hóa, Thể thao và Du lịch:\n• Nhãn P: Phim dành cho mọi đối tượng khán giả.\n• Nhãn T13: Dành cho khán giả từ đủ 13 tuổi trở lên.\n• Nhãn T16: Dành cho khán giả từ đủ 16 tuổi trở lên.\n• Nhãn T18: Dành cho khán giả từ đủ 18 tuổi trở lên.\n*Lưu ý: Quý khách vui lòng mang theo Căn cước công dân hoặc ứng dụng VNeID để nhân viên đối soát tại cửa vào.',
+        category: 'TICKET_CINEMA',
+        likes: 312,
+        dislikes: 5,
+        isDefaultOpen: false,
+        order: 2,
+      },
+      {
+        question: 'Vé đã thanh toán thành công có được hoàn tiền hoặc đổi suất chiếu không?',
+        answer:
+          'Theo quy định chung, vé xem phim đã thanh toán thành công KHÔNG thể hoàn tiền mặt. Tuy nhiên, khách hàng thành viên có thể được hỗ trợ đổi suất chiếu hoặc chuyển sang phim khác trước giờ chiếu ít nhất 60 phút tại quầy vé của cụm rạp đã đặt vé.',
+        category: 'TICKET_CINEMA',
+        likes: 245,
+        dislikes: 8,
+        isDefaultOpen: false,
+        order: 3,
+      },
+      {
+        question: 'Làm thế nào để áp dụng cùng lúc nhiều mã giảm giá và voucher bắp nước?',
+        answer:
+          'Tại bước Thanh toán (Checkout), hệ thống cho phép bạn áp dụng đồng thời tối đa 01 voucher giảm giá vé xem phim và 01 voucher ưu đãi bắp nước combo. Bạn chỉ cần nhập mã tại ô "Mã Voucher" hoặc chọn từ danh sách voucher đã lưu.',
+        category: 'PAYMENT',
+        likes: 189,
+        dislikes: 3,
+        isDefaultOpen: false,
+        order: 4,
+      },
+      {
+        question: 'Tôi đến rạp trễ thì có được vào phòng chiếu không?',
+        answer:
+          'Quý khách vẫn có thể vào phòng chiếu bình thường sau giờ chiếu phim. Tuy nhiên, để không làm ảnh hưởng đến trải nghiệm của các khán giả khác trong rạp, nhân viên soát vé sẽ hỗ trợ dùng đèn pin dẫn bạn vào chỗ ngồi đã đặt một cách nhanh chóng và trật tự.',
+        category: 'TICKET_CINEMA',
+        likes: 156,
+        dislikes: 2,
+        isDefaultOpen: false,
+        order: 5,
+      },
+      {
+        question: 'Làm sao để đặt vé nguyên phòng hoặc tổ chức sự kiện họp báo tại rạp MovieTix?',
+        answer:
+          'MovieTix cung cấp dịch vụ thuê trọn phòng chiếu (Hall Rental) cho sự kiện công ty, họp fanclub, sinh nhật hoặc chiếu phim riêng tư cho đoàn từ 20 người trở lên. Vui lòng liên hệ bộ phận B2B qua hotline 1900 8866 hoặc gửi yêu cầu vào form bên cạnh để nhận báo giá ưu đãi trong 2 giờ.',
+        category: 'MEMBERSHIP',
+        likes: 210,
+        dislikes: 4,
+        isDefaultOpen: false,
+        order: 6,
+      },
+    ]);
+    console.log(`❓ Đã tạo toàn bộ Danh mục FAQ Hỏi Đáp Trực Tiếp trong MongoDB`);
 
     console.log(`🎟️ Đã tạo ${createdShowtimesCount} suất chiếu và ${createdSeatsCount} ghế ngồi trong MongoDB`);
     console.log('🎉 [MongoDB] Toàn bộ dữ liệu Rạp, Phim, Suất chiếu & Ghế đã được lưu thành công vào Database!');
