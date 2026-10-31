@@ -6,6 +6,7 @@ const AdminLoginPage = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('admin@movietix.vn');
   const [password, setPassword] = useState('admin123');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -63,14 +64,28 @@ const AdminLoginPage = () => {
             <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
               Mật khẩu
             </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-red-500 text-sm"
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-4 pr-11 py-2.5 text-white focus:outline-none focus:border-red-500 text-sm"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white transition-colors text-xs cursor-pointer"
+                title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              >
+                {showPassword ? (
+                  <i className="fa-solid fa-eye-slash"></i>
+                ) : (
+                  <i className="fa-solid fa-eye"></i>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/50 text-[11px] text-slate-400">

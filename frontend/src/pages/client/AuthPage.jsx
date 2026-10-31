@@ -374,9 +374,14 @@ const AuthPage = ({ initialMode = 'login' }) => {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 text-xs"
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white transition-colors text-xs cursor-pointer"
+                        title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                       >
-                        {showPassword ? '🙈' : '👁️'}
+                        {showPassword ? (
+                          <i className="fa-solid fa-eye-slash"></i>
+                        ) : (
+                          <i className="fa-solid fa-eye"></i>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -496,9 +501,14 @@ const AuthPage = ({ initialMode = 'login' }) => {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 text-xs"
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white transition-colors text-xs cursor-pointer"
+                        title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                       >
-                        {showPassword ? '🙈' : '👁️'}
+                        {showPassword ? (
+                          <i className="fa-solid fa-eye-slash"></i>
+                        ) : (
+                          <i className="fa-solid fa-eye"></i>
+                        )}
                       </button>
                     </div>
                   </div>
