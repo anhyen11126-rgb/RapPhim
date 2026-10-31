@@ -15,7 +15,12 @@ export const getMovies = async (req, res) => {
       filter.genre = { $regex: genre, $options: 'i' };
     }
     if (search) {
-      filter.title = { $regex: search, $options: 'i' };
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { slug: { $regex: search, $options: 'i' } },
+        { genre: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+      ];
     }
 
     const movies = await Movie.find(filter).sort({ releaseDate: -1 }).lean();
