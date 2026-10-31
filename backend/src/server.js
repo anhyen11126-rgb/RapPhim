@@ -15,6 +15,7 @@ import concessionRoutes from './routes/concessionRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
+import cinemaRoutes from './routes/cinemaRoutes.js';
 import connectDB from './config/db.js';
 
 dotenv.config();
@@ -36,6 +37,7 @@ app.use('/api/concessions', concessionRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/cinemas', cinemaRoutes);
 
 // Health Check API
 app.get('/api/health', async (req, res) => {

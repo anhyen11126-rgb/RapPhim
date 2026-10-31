@@ -7,23 +7,25 @@ import connectDB from './config/db.js';
 import AdminUser from './models/AdminUser.js';
 import Concession from './models/Concession.js';
 import Movie from './models/Movie.js';
+import Cinema from './models/Cinema.js';
 import Showtime from './models/Showtime.js';
 import ShowtimeSeat from './models/ShowtimeSeat.js';
 import Booking from './models/Booking.js';
 
 async function seed() {
-  console.log('🍃 [MongoDB] Bắt đầu kết nối & nạp dữ liệu mẫu...');
+  console.log('🍃 [MongoDB] Bắt đầu kết nối & nạp dữ liệu mẫu vào Database...');
   await connectDB();
 
   try {
-    // 1. Xóa sạch dữ liệu cũ
+    // 1. Dọn dẹp sạch dữ liệu cũ
     await ShowtimeSeat.deleteMany({});
     await Booking.deleteMany({});
     await Showtime.deleteMany({});
+    await Cinema.deleteMany({});
     await Movie.deleteMany({});
     await Concession.deleteMany({});
     await AdminUser.deleteMany({});
-    console.log('🧹 Đã dọn dẹp các collection cũ');
+    console.log('🧹 Đã xóa sạch các collection cũ trong MongoDB');
 
     // 2. Tạo tài khoản Admin
     const hashedPassword = await bcrypt.hash('admin123', 10);
@@ -35,7 +37,7 @@ async function seed() {
     });
     console.log(`👤 Đã tạo Admin: ${admin.email} (pass: admin123)`);
 
-    // 3. Tạo danh mục Bắp Nước
+    // 3. Tạo danh mục Bắp Nước (Concessions)
     const concessions = await Concession.create([
       {
         name: 'Bắp Rang Bơ (Ngọt/Phô Mai)',
@@ -64,10 +66,100 @@ async function seed() {
     ]);
     console.log(`🍿 Đã tạo ${concessions.length} gói bắp nước`);
 
-    // 4. Tạo danh sách Phim
+    // 4. Tạo các Cụm rạp (Cinemas)
+    const cinemas = await Cinema.create([
+      {
+        name: 'MovieTix Landmark 81 IMAX',
+        slug: 'landmark-81-imax',
+        city: 'TP. Hồ Chí Minh',
+        address: 'Tầng B1 Vincom Landmark 81, 720A Điện Biên Phủ, P.22, Q.Bình Thạnh, TP.HCM',
+        distance: '1.8 km',
+        isFlagship: true,
+        rating: 4.9,
+        reviewsCount: 2410,
+        tags: ['IMAX Laser', 'Dolby Atmos', 'Gold Class'],
+        specialBadge: 'Màn chiếu Laser 22x11m lớn nhất VN',
+        image: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&auto=format&fit=crop',
+        openingHours: '08:00 - 02:00 sáng',
+        hotline: '1900 8899',
+        parking: 'Hầm B2 - B3 giữ xe 24/7 (Miễn phí 3h xem phim)',
+        roomCount: 7,
+      },
+      {
+        name: 'MovieTix Vincom Đồng Khởi',
+        slug: 'vincom-dong-khoi',
+        city: 'TP. Hồ Chí Minh',
+        address: 'Tầng 3 Vincom Center, 72 Lê Thánh Tôn, P.Bến Nghé, Quận 1, TP.HCM',
+        distance: '3.5 km',
+        isFlagship: false,
+        rating: 4.8,
+        reviewsCount: 1890,
+        tags: ['Dolby Atmos', '4DX Sound'],
+        specialBadge: 'Trải nghiệm 4DX rung lắc độc quyền',
+        image: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1200&auto=format&fit=crop',
+        openingHours: '08:30 - 01:30 sáng',
+        hotline: '1900 8899',
+        parking: 'Hầm B3 gửi xe máy & ô tô',
+        roomCount: 6,
+      },
+      {
+        name: 'MovieTix Sala Thủ Thiêm',
+        slug: 'sala-thu-thiem',
+        city: 'TP. Hồ Chí Minh',
+        address: 'Tầng 4 Thiso Mall, 10 Mai Chí Thọ, P.Thủ Thiêm, TP.Thủ Đức, TP.HCM',
+        distance: '4.2 km',
+        isFlagship: false,
+        rating: 4.9,
+        reviewsCount: 1420,
+        tags: ['IMAX Laser', 'Sweetbox Lounge'],
+        specialBadge: 'Cụm rạp mới khai trương chuẩn quốc tế',
+        image: 'https://images.unsplash.com/photo-1595769816263-9b910be24d5f?w=1200&auto=format&fit=crop',
+        openingHours: '09:00 - 01:00 sáng',
+        hotline: '1900 8899',
+        parking: 'Bãi xe Thiso Mall miễn phí 4h',
+        roomCount: 8,
+      },
+      {
+        name: 'MovieTix Crescent Mall',
+        slug: 'crescent-mall',
+        city: 'TP. Hồ Chí Minh',
+        address: 'Tầng 5 Crescent Mall, Nguyễn Văn Linh, P.Tân Phú, Quận 7, TP.HCM',
+        distance: '4.8 km',
+        isFlagship: false,
+        rating: 4.7,
+        reviewsCount: 980,
+        tags: ['Dolby Atmos', 'Kids Hall'],
+        specialBadge: 'Khu vực Kids Cinema & Family Lounge',
+        image: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200&auto=format&fit=crop',
+        openingHours: '08:30 - 24:00',
+        hotline: '1900 8899',
+        parking: 'Hầm B1 & B2 Crescent Mall',
+        roomCount: 6,
+      },
+      {
+        name: 'MovieTix Vạn Hạnh Mall',
+        slug: 'van-hanh-mall',
+        city: 'TP. Hồ Chí Minh',
+        address: 'Tầng 6 Vạn Hạnh Mall, 11 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM',
+        distance: '5.1 km',
+        isFlagship: false,
+        rating: 4.8,
+        reviewsCount: 2150,
+        tags: ['Dolby Atmos'],
+        specialBadge: 'Sảnh chờ phong cách Cyberpunk hiện đại',
+        image: 'https://images.unsplash.com/photo-1542204165-65bf26472b9b?w=1200&auto=format&fit=crop',
+        openingHours: '08:00 - 01:30 sáng',
+        hotline: '1900 8899',
+        parking: 'Nhà xe 9 tầng Vạn Hạnh Mall',
+        roomCount: 7,
+      },
+    ]);
+    console.log(`🏢 Đã tạo ${cinemas.length} cụm rạp trong Database`);
+
+    // 5. Tạo danh sách Phim mẫu
     const movies = await Movie.create([
       {
-        title: 'Dune: Hành Tinh Cát - Phần Hai',
+        title: 'Dune: Hành Tinh Cát – Phần 2',
         slug: 'dune-hanh-tinh-cat-phan-2',
         posterUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop',
         poster: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop',
@@ -75,10 +167,52 @@ async function seed() {
         description: 'Paul Atreides hợp nhất với Chani và người Fremen để trả thù những kẻ đã hủy hoại gia đình anh.',
         genre: 'Khoa học viễn tưởng, Hành động',
         duration: 166,
-        ageRating: 'T16',
+        ageRating: 'T18',
         releaseDate: new Date('2026-03-01'),
         status: 'NOW_SHOWING',
+        price: 110000,
+      },
+      {
+        title: 'Mai',
+        slug: 'mai',
+        posterUrl: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=500&auto=format&fit=crop',
+        poster: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=500&auto=format&fit=crop',
+        trailerUrl: 'https://www.youtube.com/watch?v=Way9Dexny3w',
+        description: 'Phim điện ảnh tình cảm kịch tính của đạo diễn Trấn Thành.',
+        genre: 'Tâm lý, Tình cảm',
+        duration: 131,
+        ageRating: 'T18',
+        releaseDate: new Date('2026-02-10'),
+        status: 'NOW_SHOWING',
         price: 95000,
+      },
+      {
+        title: 'Kung Fu Panda 4',
+        slug: 'kung-fu-panda-4',
+        posterUrl: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=500&auto=format&fit=crop',
+        poster: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=500&auto=format&fit=crop',
+        trailerUrl: 'https://www.youtube.com/watch?v=cqGjhVJWtEg',
+        description: 'Chú gấu Po bước vào cuộc hành trình mới tìm kiếm người kế thừa Thần Long Đại Hiệp.',
+        genre: 'Hoạt hình, Hài hước',
+        duration: 94,
+        ageRating: 'P',
+        releaseDate: new Date('2026-03-08'),
+        status: 'NOW_SHOWING',
+        price: 85000,
+      },
+      {
+        title: 'Quật Mộ Trùng Ma (Exhuma)',
+        slug: 'quat-mo-trung-ma',
+        posterUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=500&auto=format&fit=crop',
+        poster: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=500&auto=format&fit=crop',
+        trailerUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        description: 'Khai quật ngôi mộ tổ tiên bí ẩn giải phóng ác linh kinh hoàng.',
+        genre: 'Kinh dị, Bí ẩn, Giật gân',
+        duration: 134,
+        ageRating: 'T16',
+        releaseDate: new Date('2026-03-15'),
+        status: 'NOW_SHOWING',
+        price: 90000,
       },
       {
         title: 'Oppenheimer',
@@ -94,101 +228,223 @@ async function seed() {
         status: 'NOW_SHOWING',
         price: 95000,
       },
-      {
-        title: 'Spider-Man: Du Hành Vũ Trụ Nhện',
-        slug: 'spider-man-du-hanh-vu-tru-nhen',
-        posterUrl: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=500&auto=format&fit=crop',
-        poster: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=500&auto=format&fit=crop',
-        trailerUrl: 'https://www.youtube.com/watch?v=cqGjhVJWtEg',
-        description: 'Miles Morales du hành qua đa vũ trụ, đối mặt với nhóm Người Nhện bảo vệ thực tại.',
-        genre: 'Hoạt hình, Hành động, Gia đình',
-        duration: 140,
-        ageRating: 'P',
-        releaseDate: new Date('2026-06-02'),
-        status: 'NOW_SHOWING',
-        price: 85000,
-      },
-      {
-        title: 'Quật Mộ Trùng Ma (Exhuma)',
-        slug: 'quat-mo-trung-ma',
-        posterUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=500&auto=format&fit=crop',
-        poster: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=500&auto=format&fit=crop',
-        trailerUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-        description: 'Hai pháp sư, một thầy phong thủy và một chuyên viên mai táng cùng khai quật ngôi mộ bí ẩn.',
-        genre: 'Kinh dị, Bí ẩn, Giật gân',
-        duration: 134,
-        ageRating: 'T16',
-        releaseDate: new Date('2026-03-15'),
-        status: 'NOW_SHOWING',
-        price: 90000,
-      },
-      {
-        title: 'Avatar 3: Lửa Và Tro Tàn',
-        slug: 'avatar-3-lua-va-tro-tan',
-        posterUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&auto=format&fit=crop',
-        poster: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&auto=format&fit=crop',
-        trailerUrl: '',
-        description: 'Phần tiếp theo khám phá tộc người Tro Tàn (Ash People) đầy hiếu chiến trên hành tinh Pandora.',
-        genre: 'Khoa học viễn tưởng, Phiêu lưu',
-        duration: 190,
-        ageRating: 'T13',
-        releaseDate: new Date('2026-12-18'),
-        status: 'COMING_SOON',
-        price: 110000,
-      },
     ]);
     console.log(`🎬 Đã tạo ${movies.length} bộ phim`);
 
-    // 5. Tạo Suất Chiếu & Ma Trận 48 Ghế cho các phim NOW_SHOWING
-    const rows = ['A', 'B', 'C', 'D', 'E', 'F']; // 6 hàng
-    const cols = [1, 2, 3, 4, 5, 6, 7, 8]; // 8 cột -> 48 ghế/suất
+    // 6. Tạo Suất chiếu (Showtimes) và Ghế (ShowtimeSeat)
+    const landmarkCinema = cinemas[0];
+    const duneMovie = movies[0];
+    const maiMovie = movies[1];
+    const pandaMovie = movies[2];
 
-    const nowMovies = movies.filter((m) => m.status === 'NOW_SHOWING');
-    let totalShowtimes = 0;
-    let totalSeats = 0;
+    const showtimesToCreate = [
+      // Dune 2 tại Landmark 81 IMAX
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: duneMovie._id,
+        roomName: 'Phòng 01 - IMAX Laser 3D',
+        formatFeature: 'Màn hình cong 1.43:1',
+        hour: 18,
+        min: 30,
+        price: 160000,
+      },
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: duneMovie._id,
+        roomName: 'Phòng 01 - IMAX Laser 3D',
+        formatFeature: 'Màn hình cong 1.43:1',
+        hour: 21,
+        min: 15,
+        price: 160000,
+      },
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: duneMovie._id,
+        roomName: 'Phòng 03 - 2D Phụ Đề Atmos',
+        formatFeature: '64 kênh âm thanh vòm',
+        hour: 17,
+        min: 0,
+        price: 110000,
+      },
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: duneMovie._id,
+        roomName: 'Phòng 03 - 2D Phụ Đề Atmos',
+        formatFeature: '64 kênh âm thanh vòm',
+        hour: 19,
+        min: 45,
+        price: 110000,
+      },
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: duneMovie._id,
+        roomName: 'Phòng 03 - 2D Phụ Đề Atmos',
+        formatFeature: '64 kênh âm thanh vòm',
+        hour: 22,
+        min: 30,
+        price: 110000,
+      },
 
-    for (const movie of nowMovies) {
-      // Mỗi phim tạo 3 suất chiếu hôm nay
-      const times = [
-        { hour: 10, min: 0, room: 'Phòng 01 - 2D Dolby' },
-        { hour: 15, min: 30, room: 'Phòng 02 - 3D Laser' },
-        { hour: 20, min: 0, room: 'Phòng VIP - IMAX Laser' },
-      ];
+      // Mai tại Landmark 81 IMAX
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: maiMovie._id,
+        roomName: 'Phòng 02 - 2D Tiêu Chuẩn',
+        formatFeature: 'Màn chiếu sắc nét 4K',
+        hour: 18,
+        min: 0,
+        price: 95000,
+      },
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: maiMovie._id,
+        roomName: 'Phòng 02 - 2D Tiêu Chuẩn',
+        formatFeature: 'Màn chiếu sắc nét 4K',
+        hour: 19,
+        min: 30,
+        price: 95000,
+      },
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: maiMovie._id,
+        roomName: 'Phòng 02 - 2D Tiêu Chuẩn',
+        formatFeature: 'Màn chiếu sắc nét 4K',
+        hour: 20,
+        min: 45,
+        price: 95000,
+      },
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: maiMovie._id,
+        roomName: 'Phòng 02 - 2D Tiêu Chuẩn',
+        formatFeature: 'Màn chiếu sắc nét 4K',
+        hour: 22,
+        min: 15,
+        price: 95000,
+      },
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: maiMovie._id,
+        roomName: 'Phòng 05 - VIP Gold Class',
+        formatFeature: 'Ghế da Recliner ngả 180°',
+        hour: 19,
+        min: 15,
+        price: 250000,
+      },
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: maiMovie._id,
+        roomName: 'Phòng 05 - VIP Gold Class',
+        formatFeature: 'Ghế da Recliner ngả 180°',
+        hour: 21,
+        min: 40,
+        price: 250000,
+      },
 
-      for (const t of times) {
-        const startTime = new Date();
-        startTime.setHours(t.hour, t.min, 0, 0);
+      // Kung Fu Panda 4 tại Landmark 81 IMAX
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: pandaMovie._id,
+        roomName: 'Phòng 04 - 2D Lồng Tiếng',
+        formatFeature: 'Thích hợp cho trẻ em',
+        hour: 17,
+        min: 15,
+        price: 85000,
+      },
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: pandaMovie._id,
+        roomName: 'Phòng 04 - 2D Lồng Tiếng',
+        formatFeature: 'Thích hợp cho trẻ em',
+        hour: 18,
+        min: 45,
+        price: 85000,
+      },
+      {
+        cinemaId: landmarkCinema._id,
+        movieId: pandaMovie._id,
+        roomName: 'Phòng 04 - 2D Lồng Tiếng',
+        formatFeature: 'Thích hợp cho trẻ em',
+        hour: 20,
+        min: 15,
+        price: 85000,
+      },
+    ];
 
-        const showtime = await Showtime.create({
-          movieId: movie._id,
-          roomName: t.room,
-          startTime,
-          price: movie.price,
-        });
-        totalShowtimes++;
-
-        // Tạo 48 ghế
-        const seatDocs = [];
-        for (const r of rows) {
-          for (const c of cols) {
-            const isVip = r === 'E' || r === 'F';
-            seatDocs.push({
-              showtimeId: showtime._id,
-              seatNumber: `${r}${c}`,
-              row: r,
-              col: c,
-              type: isVip ? 'VIP' : 'STANDARD',
-              status: 'AVAILABLE',
-            });
-          }
+    // Thêm các suất chiếu cho các rạp còn lại
+    for (let i = 1; i < cinemas.length; i++) {
+      const c = cinemas[i];
+      showtimesToCreate.push(
+        {
+          cinemaId: c._id,
+          movieId: duneMovie._id,
+          roomName: 'Phòng 01 - 2D Dolby Atmos',
+          formatFeature: 'Âm thanh vòm sống động',
+          hour: 18,
+          min: 0,
+          price: 105000,
+        },
+        {
+          cinemaId: c._id,
+          movieId: duneMovie._id,
+          roomName: 'Phòng 01 - 2D Dolby Atmos',
+          formatFeature: 'Âm thanh vòm sống động',
+          hour: 21,
+          min: 0,
+          price: 105000,
+        },
+        {
+          cinemaId: c._id,
+          movieId: maiMovie._id,
+          roomName: 'Phòng 02 - 2D Tiêu Chuẩn',
+          formatFeature: 'Màn chiếu 4K Laser',
+          hour: 19,
+          min: 30,
+          price: 95000,
         }
-        await ShowtimeSeat.insertMany(seatDocs);
-        totalSeats += seatDocs.length;
-      }
+      );
     }
 
-    console.log(`🎟️ Đã tạo ${totalShowtimes} suất chiếu và ${totalSeats} ghế ngồi thời gian thực`);
-    console.log('🎉 [MongoDB] Hoàn tất nạp dữ liệu mẫu thành công!');
+    const rows = ['A', 'B', 'C', 'D', 'E', 'F'];
+    const cols = [1, 2, 3, 4, 5, 6, 7, 8];
+    let createdShowtimesCount = 0;
+    let createdSeatsCount = 0;
+
+    for (const item of showtimesToCreate) {
+      const startTime = new Date();
+      startTime.setHours(item.hour, item.min, 0, 0);
+
+      const showtime = await Showtime.create({
+        cinemaId: item.cinemaId,
+        movieId: item.movieId,
+        roomName: item.roomName,
+        formatFeature: item.formatFeature,
+        startTime,
+        price: item.price,
+      });
+      createdShowtimesCount++;
+
+      // Tự động sinh ma trận 48 ghế (A1 - F8)
+      const seatDocs = [];
+      for (const r of rows) {
+        for (const c of cols) {
+          const isVip = ['E', 'F'].includes(r);
+          seatDocs.push({
+            showtimeId: showtime._id,
+            seatNumber: `${r}${c}`,
+            row: r,
+            col: c,
+            type: isVip ? 'VIP' : 'STANDARD',
+            status: 'AVAILABLE',
+          });
+        }
+      }
+      await ShowtimeSeat.insertMany(seatDocs);
+      createdSeatsCount += seatDocs.length;
+    }
+
+    console.log(`🎟️ Đã tạo ${createdShowtimesCount} suất chiếu và ${createdSeatsCount} ghế ngồi trong MongoDB`);
+    console.log('🎉 [MongoDB] Toàn bộ dữ liệu Rạp, Phim, Suất chiếu & Ghế đã được lưu thành công vào Database!');
     process.exit(0);
   } catch (error) {
     console.error('❌ Lỗi khi nạp dữ liệu:', error);
@@ -197,4 +453,3 @@ async function seed() {
 }
 
 seed();
-
