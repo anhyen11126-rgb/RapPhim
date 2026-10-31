@@ -75,65 +75,45 @@ const Navbar = () => {
           <nav className="flex items-center space-x-1 sm:space-x-1.5 overflow-x-auto scrollbar-none">
             <Link
               to="/"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
-                location.pathname === '/'
-                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
-              }`}
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${location.pathname === '/'
+                ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
+                : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
+                }`}
             >
               Phim
             </Link>
 
             <Link
               to="/theaters"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
-                location.pathname === '/theaters'
-                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
-              }`}
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${location.pathname === '/theaters'
+                ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
+                : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
+                }`}
             >
               Rạp chiếu
             </Link>
 
-            <a
-              href="#pricing"
-              className="px-3 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-colors whitespace-nowrap hidden md:inline-block"
-            >
-              Giá vé
-            </a>
-
             <Link
               to="/promotions"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
-                location.pathname === '/promotions'
-                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
-              }`}
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${location.pathname === '/promotions'
+                ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
+                : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
+                }`}
             >
               Ưu đãi
             </Link>
 
             <Link
               to="/support"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
-                location.pathname === '/support'
-                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
-              }`}
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${location.pathname === '/support'
+                ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
+                : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
+                }`}
             >
               Hỗ trợ
             </Link>
 
-            <button
-              onClick={() => {
-                const chatTrigger = document.querySelector('[data-chat-toggle="true"]');
-                if (chatTrigger) chatTrigger.click();
-              }}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold text-blue-400 hover:text-white hover:bg-blue-600/20 transition-colors flex items-center space-x-1 whitespace-nowrap cursor-pointer"
-            >
-              <span>✨</span>
-              <span>AI Assistant</span>
-            </button>
+
           </nav>
         </div>
 
@@ -236,7 +216,7 @@ const Navbar = () => {
                 to="/login"
                 className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center space-x-1.5"
               >
-                <span>➔]</span>
+                <i className="fa-solid fa-arrow-right-from-bracket"></i>
                 <span>Đăng nhập</span>
               </Link>
 

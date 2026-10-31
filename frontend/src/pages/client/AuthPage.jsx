@@ -278,13 +278,12 @@ const AuthPage = ({ initialMode = 'login' }) => {
                     setErrorMsg('');
                     setSuccessMsg('');
                   }}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
-                    mode === 'login'
-                      ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${mode === 'login'
+                    ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
+                    : 'text-slate-400 hover:text-white'
+                    }`}
                 >
-                  <span>➔]</span>
+                  <i className="fa-solid fa-arrow-right-from-bracket"></i>
                   <span>Đăng nhập</span>
                 </button>
 
@@ -295,13 +294,12 @@ const AuthPage = ({ initialMode = 'login' }) => {
                     setErrorMsg('');
                     setSuccessMsg('');
                   }}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
-                    mode === 'register'
-                      ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${mode === 'register'
+                    ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
+                    : 'text-slate-400 hover:text-white'
+                    }`}
                 >
-                  <span>👤+</span>
+                  <span>👤</span>
                   <span>Đăng ký</span>
                 </button>
               </div>
@@ -609,3 +607,4 @@ const AuthPage = ({ initialMode = 'login' }) => {
 };
 
 export default AuthPage;
+
