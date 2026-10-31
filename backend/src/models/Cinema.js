@@ -89,3 +89,4 @@ const cinemaSchema = new mongoose.Schema(
 
 const Cinema = mongoose.models.Cinema || mongoose.model('Cinema', cinemaSchema);
 export default Cinema;
+

@@ -52,12 +52,16 @@ const Navbar = () => {
               Giá vé
             </a>
 
-            <a
-              href="#promotions"
-              className="px-3 py-1.5 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-900 transition-colors whitespace-nowrap hidden md:inline-block"
+            <Link
+              to="/promotions"
+              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
+                location.pathname === '/promotions'
+                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
+              }`}
             >
               Ưu đãi
-            </a>
+            </Link>
 
             <a
               href="#news"

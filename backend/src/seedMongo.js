@@ -11,6 +11,7 @@ import Cinema from './models/Cinema.js';
 import Showtime from './models/Showtime.js';
 import ShowtimeSeat from './models/ShowtimeSeat.js';
 import Booking from './models/Booking.js';
+import Promotion from './models/Promotion.js';
 
 async function seed() {
   console.log('🍃 [MongoDB] Bắt đầu kết nối & nạp dữ liệu mẫu vào Database...');
@@ -23,6 +24,7 @@ async function seed() {
     await Showtime.deleteMany({});
     await Cinema.deleteMany({});
     await Movie.deleteMany({});
+    await Promotion.deleteMany({});
     await Concession.deleteMany({});
     await AdminUser.deleteMany({});
     console.log('🧹 Đã xóa sạch các collection cũ trong MongoDB');
@@ -442,6 +444,176 @@ async function seed() {
       await ShowtimeSeat.insertMany(seatDocs);
       createdSeatsCount += seatDocs.length;
     }
+
+    // 7. Tạo Kho Khuyến Mãi & Voucher
+    await Promotion.create([
+      // Hero Deal
+      {
+        type: 'HERO_DEAL',
+        badgeTop: '⚡ SIÊU BÃO THỨ 3 TOÀN QUỐC',
+        title: 'THỨ 3 VUI VẺ — ĐỒNG GIÁ VÉ 45K',
+        description:
+          'Thưởng thức mọi bom tấn màn ảnh rộng Laser hiện đại nhất MovieTix với giá vé chỉ 45.000đ. Tặng kèm 01 bắp ngọt Caramel thơm lừng khi áp dụng mua vé đôi online hôm nay.',
+        discountValue: '-50%',
+        subtitle: 'Bắp Lớn + Nước Ngọt',
+        conditions: 'Miễn phí cho bạn và đối tác/bạn bè',
+        image: 'https://images.unsplash.com/photo-1585647347384-2593bc35786b?w=600&auto=format&fit=crop',
+        buttonText: 'Săn ưu đãi ngay',
+        buttonAction: '/theaters',
+        order: 1,
+      },
+
+      // Vouchers đổi thưởng
+      {
+        type: 'VOUCHER',
+        title: 'Giảm 20K Vé Phim',
+        badgeTop: 'VÉ PHIM',
+        expiryDate: 'HSD: 15/12',
+        discountValue: 'GIẢM 20K',
+        conditions: 'Đơn từ 120.000đ áp dụng cho mọi định dạng phim 2D.',
+        code: 'MTX20K',
+        order: 1,
+      },
+      {
+        type: 'VOUCHER',
+        title: 'Giảm 15% Bắp Nước',
+        badgeTop: 'BẮP NƯỚC',
+        expiryDate: 'HSD: 18/12',
+        discountValue: 'GIẢM 15%',
+        conditions: 'Áp dụng trực tiếp Combo Bắp Nước đơn từ 1 phần.',
+        code: 'POPCORN15',
+        order: 2,
+      },
+      {
+        type: 'VOUCHER',
+        title: 'Vé 45.000đ Học Sinh U22',
+        badgeTop: 'HỌC SINH U22',
+        expiryDate: 'HSD: 30/12',
+        discountValue: 'VÉ 45.000Đ',
+        conditions: 'Áp dụng thẻ HSSV & CCCD mọi khung giờ trong ngày.',
+        code: 'STUDENT45',
+        order: 3,
+      },
+      {
+        type: 'VOUCHER',
+        title: 'Hoàn 30K VNPAY-QR',
+        badgeTop: 'VNPAY-QR',
+        expiryDate: 'HSD: 28/12',
+        discountValue: 'HOÀN 30K',
+        conditions: 'Thanh toán qua ví điện tử VNPAY-QR cho đơn từ 150.000đ.',
+        code: 'VNPAY30',
+        order: 4,
+      },
+      {
+        type: 'VOUCHER',
+        title: 'Tặng Nước IMAX Laser',
+        badgeTop: 'IMAX LASER',
+        expiryDate: 'HSD: 24/12',
+        discountValue: 'TẶNG NƯỚC',
+        conditions: 'Nhận 01 ly nước ngọt 32oz khi xem tại Landmark 81.',
+        code: 'IMAXFREE',
+        order: 5,
+      },
+
+      // 6 Chương trình khuyến mãi nổi bật
+      {
+        type: 'PROGRAM',
+        category: 'TICKET',
+        badgeTop: '📅 Mỗi thứ 4 hàng tuần',
+        badgeSpecial: '50.000đ',
+        badgeColor: 'amber',
+        title: 'Thứ 4 Happy Day – Đồng Giá 50K Mọi Định Dạng',
+        description:
+          'Thưởng thức tất cả các bom tấn điện ảnh với mức giá ưu đãi đồng nhất 50.000đ/vé vào mỗi thứ Tư hàng tuần tại toàn bộ cụm rạp.',
+        image: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600&auto=format&fit=crop',
+        metadataLeft: '📍 Tất cả cụm rạp',
+        metadataRight: '📅 Cả ngày Thứ 4',
+        buttonText: 'Đặt vé ngay',
+        buttonAction: '/theaters',
+        order: 1,
+      },
+      {
+        type: 'PROGRAM',
+        category: 'CONCESSION',
+        badgeTop: '🥤 15/11 - 30/11/2026',
+        badgeSpecial: 'TẶNG LY VIP',
+        badgeColor: 'emerald',
+        title: 'Combo Bắp Nước Avatar Limited Edition – Tặng Bình Nước',
+        description:
+          'Sở hữu ngay ly nước phiên bản cực kỳ tinh xảo kèm bắp nước lớn, tặng kèm voucher giảm giá 20% cho lần xem phim tiếp theo.',
+        image: 'https://images.unsplash.com/photo-1505686994434-e3cc5abf1330?w=600&auto=format&fit=crop',
+        metadataLeft: '🍿 Bắp Jumbo + Nước 32oz',
+        metadataRight: '🎁 Còn 150 bộ',
+        buttonText: 'Mua combo',
+        buttonAction: '/checkout',
+        order: 2,
+      },
+      {
+        type: 'PROGRAM',
+        category: 'VIP',
+        badgeTop: '👑 Dành riêng hội viên VIP',
+        badgeSpecial: 'X3 POINTS',
+        badgeColor: 'amber',
+        title: 'Đặc Quyền Hội Viên MovieTix Prime – Nhân 3 Điểm Tích Lũy',
+        description:
+          'Tích lũy gấp 3 lần điểm thưởng cho tất cả các giao dịch vé và bắp nước trực tuyến, đổi vé miễn phí dễ dàng trong tháng sinh nhật.',
+        image: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=600&auto=format&fit=crop',
+        metadataLeft: '⭐ Hạng Vàng & Kim Cương',
+        metadataRight: '🎁 Tặng vé sinh nhật',
+        buttonText: 'Nâng cấp VIP',
+        buttonAction: '/admin/login',
+        order: 3,
+      },
+      {
+        type: 'PROGRAM',
+        category: 'STUDENT',
+        badgeTop: '🎒 Thứ 2 - Thứ 6 (Trước 17:00)',
+        badgeSpecial: '45.000đ',
+        badgeColor: 'blue',
+        title: 'Ưu Đãi Học Sinh - Sinh Viên & U22: Giá Vé Đồng Nhất',
+        description:
+          'Xuất trình thẻ HSSV hoặc CCCD dưới 22 tuổi để nhận ngay giá vé ưu đãi 45.000đ áp dụng cho tất cả suất chiếu 2D trước 17h00.',
+        image: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=600&auto=format&fit=crop',
+        metadataLeft: '🎓 Thẻ HSSV / CCCD',
+        metadataRight: 'Không giới hạn số vé',
+        buttonText: 'Đặt vé áp dụng',
+        buttonAction: '/theaters',
+        order: 4,
+      },
+      {
+        type: 'PROGRAM',
+        category: 'PAYMENT',
+        badgeTop: '💳 Thứ 6, Thứ 7 & CN',
+        badgeSpecial: '-25.000đ',
+        badgeColor: 'amber',
+        title: 'Quét VNPAY-QR – Giảm Ngay 25.000đ Vào Cuối Tuần',
+        description:
+          'Nhập mã VNPAYMOVIE khi thanh toán đơn hàng từ 150.000đ tại cổng thanh toán trực tuyến MovieTix (số lượng có hạn mỗi tuần).',
+        image: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=600&auto=format&fit=crop',
+        metadataLeft: '🏦 Cổng VNPAY',
+        metadataRight: '🎁 Còn 420 suất tuần này',
+        buttonText: 'Đặt vé ngay',
+        buttonAction: '/theaters',
+        order: 5,
+      },
+      {
+        type: 'PROGRAM',
+        category: 'EXPERIENCE',
+        badgeTop: '📍 Landmark 81 & Sala',
+        badgeSpecial: 'GIẢM 20%',
+        badgeColor: 'amber',
+        title: 'Gói Trải Nghiệm IMAX Laser & Gold Class – Sang Trọng Đẳng Cấp',
+        description:
+          'Trải nghiệm công nghệ chiếu phim đỉnh cao màn hình cực đại và ghế sofa VIP ngả khoang riêng với mức giá ưu đãi đặc biệt cho cặp đôi.',
+        image: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=600&auto=format&fit=crop',
+        metadataLeft: '🎬 Định dạng IMAX Laser & Gold',
+        metadataRight: '🍷 Tặng cồn & nước cao cấp',
+        buttonText: 'Chọn ghế IMAX',
+        buttonAction: '/theaters',
+        order: 6,
+      },
+    ]);
+    console.log(`🎁 Đã tạo toàn bộ Kho Khuyến Mãi & Voucher trong MongoDB`);
 
     console.log(`🎟️ Đã tạo ${createdShowtimesCount} suất chiếu và ${createdSeatsCount} ghế ngồi trong MongoDB`);
     console.log('🎉 [MongoDB] Toàn bộ dữ liệu Rạp, Phim, Suất chiếu & Ghế đã được lưu thành công vào Database!');

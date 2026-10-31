@@ -196,3 +196,4 @@ export const createCinema = async (req, res) => {
     res.status(500).json({ message: 'Lỗi tạo rạp mới', error: error.message });
   }
 };
+

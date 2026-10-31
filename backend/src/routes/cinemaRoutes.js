@@ -12,3 +12,4 @@ router.get('/:id/showtimes', getCinemaShowtimes);
 router.post('/', createCinema);
 
 export default router;
+
