@@ -79,6 +79,14 @@ const AuthPage = ({ initialMode = 'login' }) => {
       return;
     }
 
+    // Kiểm tra định dạng số điện thoại Việt Nam (10 số, bắt đầu bằng 03, 05, 07, 08, 09 hoặc +84)
+    const cleanPhone = registerForm.phone.replace(/[\s.-]/g, '');
+    const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+    if (!phoneRegex.test(cleanPhone)) {
+      setErrorMsg('Số điện thoại không hợp lệ! Vui lòng nhập số điện thoại Việt Nam gồm 10 chữ số (bắt đầu bằng 03, 05, 07, 08, 09 hoặc +84).');
+      return;
+    }
+
     if (registerForm.password.length < 6) {
       setErrorMsg('Mật khẩu phải có ít nhất 6 ký tự.');
       return;
@@ -94,7 +102,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
       const res = await api.post('/auth/register', {
         name: registerForm.name.trim(),
         email: registerForm.email.trim(),
-        phone: registerForm.phone.trim(),
+        phone: cleanPhone,
         password: registerForm.password,
       });
 
@@ -378,9 +386,9 @@ const AuthPage = ({ initialMode = 'login' }) => {
                         title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                       >
                         {showPassword ? (
-                          <i className="fa-solid fa-eye-slash"></i>
-                        ) : (
                           <i className="fa-solid fa-eye"></i>
+                        ) : (
+                          <i className="fa-solid fa-eye-slash"></i>
                         )}
                       </button>
                     </div>
@@ -476,9 +484,18 @@ const AuthPage = ({ initialMode = 'login' }) => {
                           value={registerForm.phone}
                           onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
                           placeholder="0912 345 678"
-                          className="w-full bg-[#111726] border border-slate-700/80 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          className={`w-full bg-[#111726] border rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors ${registerForm.phone && !/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(registerForm.phone.replace(/[\s.-]/g, ''))
+                              ? 'border-amber-500/80 focus:border-amber-500'
+                              : 'border-slate-700/80 focus:border-blue-500'
+                            }`}
                         />
                       </div>
+                      {registerForm.phone && !/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(registerForm.phone.replace(/[\s.-]/g, '')) && (
+                        <p className="text-[10px] text-amber-400 mt-1 flex items-center space-x-1">
+                          <span>⚠️</span>
+                          <span>SĐT phải gồm 10 chữ số (đầu 03, 05, 07, 08, 09 hoặc +84)</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -505,9 +522,9 @@ const AuthPage = ({ initialMode = 'login' }) => {
                         title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                       >
                         {showPassword ? (
-                          <i className="fa-solid fa-eye-slash"></i>
-                        ) : (
                           <i className="fa-solid fa-eye"></i>
+                        ) : (
+                          <i className="fa-solid fa-eye-slash"></i>
                         )}
                       </button>
                     </div>

@@ -18,7 +18,15 @@ export const register = async (req, res) => {
     }
 
     const cleanEmail = email.toLowerCase().trim();
-    const cleanPhone = phone.trim();
+    const cleanPhone = phone.toString().replace(/[\s.-]/g, '');
+
+    // Kiểm tra định dạng số điện thoại Việt Nam (10 số, bắt đầu 03, 05, 07, 08, 09 hoặc +84)
+    const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+    if (!phoneRegex.test(cleanPhone)) {
+      return res.status(400).json({
+        message: 'Số điện thoại không đúng định dạng Việt Nam (phải gồm 10 chữ số, bắt đầu bằng 03, 05, 07, 08, 09 hoặc +84)',
+      });
+    }
 
     // Kiểm tra xem Email hoặc SĐT đã tồn tại chưa
     const existingUser = await User.findOne({

@@ -21,6 +21,12 @@ const userSchema = new mongoose.Schema(
       unique: true,
       trim: true,
       index: true,
+      validate: {
+        validator: function (v) {
+          return /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(v.replace(/[\s.-]/g, ''));
+        },
+        message: (props) => `${props.value} không phải là số điện thoại hợp lệ tại Việt Nam!`,
+      },
     },
     password: {
       type: String,
