@@ -6,12 +6,13 @@ import Navbar from './components/client/Navbar';
 import Footer from './components/client/Footer';
 import ChatWidget from './components/chat/ChatWidget';
 
-// Pages Client (1-5)
+// Pages Client (1-5 + Rạp chiếu)
 import HomePage from './pages/client/HomePage';
 import MovieDetailPage from './pages/client/MovieDetailPage';
 import SeatSelectionPage from './pages/client/SeatSelectionPage';
 import CheckoutPage from './pages/client/CheckoutPage';
 import BookingSuccessPage from './pages/client/BookingSuccessPage';
+import TheatersPage from './pages/client/TheatersPage';
 
 // Pages Admin (7-10)
 import AdminLoginPage from './pages/admin/AdminLoginPage';
@@ -41,6 +42,7 @@ function App() {
         {/* Cụm màn hình Khách hàng */}
         <Route element={<ClientLayout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/theaters" element={<TheatersPage />} />
           <Route path="/movie/:id" element={<MovieDetailPage />} />
           <Route path="/booking/seat/:showtimeId" element={<SeatSelectionPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />

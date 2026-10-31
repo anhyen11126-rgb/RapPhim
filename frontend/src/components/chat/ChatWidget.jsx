@@ -227,6 +227,7 @@ const ChatWidget = () => {
       {!isOpen && (
         <button
           type="button"
+          data-chat-toggle="true"
           onClick={() => {
             setIsOpen(true);
             setIsMinimized(false);

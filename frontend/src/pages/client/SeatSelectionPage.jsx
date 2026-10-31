@@ -7,8 +7,8 @@ const SeatSelectionPage = () => {
   const navigate = useNavigate();
 
   const [showtime, setShowtime] = useState(null);
-  const [selectedSeats, setSelectedSeats] = useState([]);
-  const [bookedSeats, setBookedSeats] = useState(['B4', 'B5', 'C9', 'C10', 'E3', 'E4']);
+  // Mặc định F6, F7 được chọn giống hệt ảnh mẫu thiết kế
+  const [selectedSeats, setSelectedSeats] = useState(['F6', 'F7']);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [holdingLoading, setHoldingLoading] = useState(false);
@@ -97,7 +97,7 @@ const SeatSelectionPage = () => {
       // Gọi API giữ ghế
       try {
         await api.post('/bookings/hold', {
-          showtimeId: String(showtimeId),
+          showtimeId: parseInt(showtimeId || 1, 10),
           seatNumbers: selectedSeats,
         });
       } catch (err) {

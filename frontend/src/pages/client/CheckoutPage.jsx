@@ -131,7 +131,7 @@ const CheckoutPage = () => {
         .map((c) => `${comboQuantities[c.id]}x ${c.title} (${popcornFlavors.find(f => f.id === selectedFlavor)?.name})`);
 
       const payload = {
-        showtimeId: String(showtimeId),
+        showtimeId: parseInt(showtimeId, 10),
         seatNumbers: selectedSeats,
         customerName,
         customerPhone,
