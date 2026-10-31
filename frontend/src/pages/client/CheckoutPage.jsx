@@ -74,10 +74,31 @@ const CheckoutPage = () => {
   // Phương thức thanh toán: VNPAY (mặc định), MOMO, ATM, VISA
   const [paymentMethod, setPaymentMethod] = useState('VNPAY');
 
-  // Thông tin liên hệ
-  const [customerName, setCustomerName] = useState('Nguyễn Văn An');
-  const [customerPhone, setCustomerPhone] = useState('0988 123 456');
-  const [customerEmail, setCustomerEmail] = useState('nguyenvanan@gmail.com');
+  // Thông tin liên hệ (tự động lấy từ tài khoản đã đăng nhập nếu có)
+  const [customerName, setCustomerName] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      return u.name || '';
+    } catch {
+      return '';
+    }
+  });
+  const [customerPhone, setCustomerPhone] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      return u.phone || '';
+    } catch {
+      return '';
+    }
+  });
+  const [customerEmail, setCustomerEmail] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      return u.email || '';
+    } catch {
+      return '';
+    }
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
 

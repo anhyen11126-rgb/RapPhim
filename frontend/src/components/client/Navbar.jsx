@@ -169,7 +169,7 @@ const Navbar = () => {
                   </div>
 
                   <Link
-                    to="/booking-success"
+                    to="/my-tickets"
                     onClick={() => setIsDropdownOpen(false)}
                     className="flex items-center space-x-2 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors"
                   >

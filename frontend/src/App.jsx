@@ -12,6 +12,7 @@ import MovieDetailPage from './pages/client/MovieDetailPage';
 import SeatSelectionPage from './pages/client/SeatSelectionPage';
 import CheckoutPage from './pages/client/CheckoutPage';
 import BookingSuccessPage from './pages/client/BookingSuccessPage';
+import MyTicketsPage from './pages/client/MyTicketsPage';
 import TheatersPage from './pages/client/TheatersPage';
 import PromotionsPage from './pages/client/PromotionsPage';
 import SupportPage from './pages/client/SupportPage';
@@ -52,6 +53,7 @@ function App() {
           <Route path="/booking/seat/:showtimeId" element={<SeatSelectionPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/booking-success" element={<BookingSuccessPage />} />
+          <Route path="/my-tickets" element={<MyTicketsPage />} />
         </Route>
 
         {/* Cụm màn hình Đăng ký / Đăng nhập khách hàng */}

@@ -1,8 +1,11 @@
 import mongoose from 'mongoose';
+import jwt from 'jsonwebtoken';
 import Booking from '../models/Booking.js';
 import ShowtimeSeat from '../models/ShowtimeSeat.js';
 import Showtime from '../models/Showtime.js';
 import Movie from '../models/Movie.js';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'movietix_jwt_secret_key_2026_cdio';
 
 // Khóa ghế tạm thời trong 5 phút khi khách chuyển sang màn hình thanh toán
 export const holdSeats = async (req, res) => {
@@ -157,6 +160,72 @@ export const checkoutBooking = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi thanh toán đặt vé', error: error.message });
+  }
+};
+
+// Lấy danh sách vé & lịch sử đặt vé của người dùng hiện tại
+export const getMyBookings = async (req, res) => {
+  try {
+    let email = req.query.email;
+    let phone = req.query.phone;
+
+    // Nếu client gửi kèm Bearer JWT Token
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded.email) email = decoded.email;
+        if (decoded.phone) phone = decoded.phone;
+      } catch (e) {
+        // Token không hợp lệ thì tiếp tục dựa vào query
+      }
+    }
+
+    if (!email && !phone) {
+      return res.json([]);
+    }
+
+    const queryConditions = [];
+    if (email) {
+      queryConditions.push({ customerEmail: email.toLowerCase().trim() });
+    }
+    if (phone) {
+      queryConditions.push({ customerPhone: phone.toString().replace(/[\s.-]/g, '') });
+      queryConditions.push({ customerPhone: phone.trim() });
+    }
+
+    const bookings = await Booking.find({ $or: queryConditions })
+      .sort({ createdAt: -1 })
+      .populate({
+        path: 'showtimeId',
+        populate: [
+          { path: 'movieId' },
+          { path: 'cinemaId' },
+        ],
+      })
+      .lean();
+
+    const formatted = bookings.map((b) => ({
+      ...b,
+      id: b._id.toString(),
+      showtime: b.showtimeId
+        ? {
+            ...b.showtimeId,
+            id: b.showtimeId._id.toString(),
+            movie: b.showtimeId.movieId
+              ? { ...b.showtimeId.movieId, id: b.showtimeId.movieId._id.toString() }
+              : null,
+            cinema: b.showtimeId.cinemaId
+              ? { ...b.showtimeId.cinemaId, id: b.showtimeId.cinemaId._id.toString() }
+              : null,
+          }
+        : null,
+    }));
+
+    res.json(formatted);
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi lấy danh sách vé của người dùng', error: error.message });
   }
 };
 

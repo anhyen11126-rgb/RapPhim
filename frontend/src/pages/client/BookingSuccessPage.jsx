@@ -6,26 +6,33 @@ const BookingSuccessPage = () => {
   const navigate = useNavigate();
   const booking = location.state?.booking;
 
+  // Nếu truy cập thẳng trang này mà không qua bước checkout, chuyển hướng sang trang Vé Của Tôi
+  useEffect(() => {
+    if (!booking) {
+      navigate('/my-tickets', { replace: true });
+    }
+  }, [booking, navigate]);
+
   // Dữ liệu đặt vé chuẩn xác từ kết quả thực tế
   const ticketData = {
-    bookingCode: booking?.bookingCode || 'MTX-98234-VN',
-    customerName: booking?.customerName || 'Nguyễn Văn An',
-    customerEmail: booking?.customerEmail || 'nguyenvanan@gmail.com',
-    customerPhone: booking?.customerPhone || '(+84) 0912 345 678',
-    movieTitle: booking?.showtime?.movie?.title || 'Dune: Hành Tinh Cát 2',
+    bookingCode: booking?.bookingCode || '',
+    customerName: booking?.customerName || '',
+    customerEmail: booking?.customerEmail || '',
+    customerPhone: booking?.customerPhone || '',
+    movieTitle: booking?.showtime?.movie?.title || '',
     movieAgeRating: booking?.showtime?.movie?.ageRating || 'T16',
     theaterName: 'MovieTix Center',
-    roomName: booking?.showtime?.roomName || 'Phòng IMAX 03',
+    roomName: booking?.showtime?.roomName || 'Phòng chiếu',
     time: booking?.showtime?.startTime
       ? new Date(booking.showtime.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
       : (booking?.time || '19:15'),
     date: booking?.showtime?.startTime
       ? new Date(booking.showtime.startTime).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })
-      : (booking?.date || 'Hôm nay (Thứ 6)'),
-    seats: Array.isArray(booking?.seatNumbers) ? booking.seatNumbers.join(', ') : (booking?.seats || 'F6, F7'),
-    concessions: booking?.concessions || '1x Combo Solo (bắp phô mai + Coca-Cola L)',
-    totalAmount: booking?.totalAmount || 299000,
-    paymentMethod: booking?.paymentMethod === 'VNPAY' ? 'VNPAY-QR OK' : (booking?.paymentMethod || 'VNPAY-QR OK'),
+      : (booking?.date || 'Hôm nay'),
+    seats: Array.isArray(booking?.seatNumbers) ? booking.seatNumbers.join(', ') : (booking?.seats || ''),
+    concessions: booking?.concessions || '',
+    totalAmount: booking?.totalAmount || 0,
+    paymentMethod: booking?.paymentMethod === 'VNPAY' ? 'VNPAY-QR' : (booking?.paymentMethod || 'MOMO'),
   };
 
   const [copied, setCopied] = useState(false);
@@ -387,7 +394,7 @@ const BookingSuccessPage = () => {
                   <span>Chia sẻ bạn bè</span>
                 </button>
                 <Link
-                  to="/"
+                  to="/my-tickets"
                   className="bg-[#141b2c] hover:bg-[#1c263d] border border-slate-700/80 text-slate-300 hover:text-white font-semibold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors text-center"
                 >
                   <span>🕒</span>
