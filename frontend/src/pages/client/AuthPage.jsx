@@ -36,10 +36,27 @@ const AuthPage = ({ initialMode = 'login' }) => {
   // 1. Kiểm tra nếu đã có phiên đăng nhập hợp lệ thì tự động chuyển hướng
   useEffect(() => {
     const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const user = localStorage.getItem('user') || sessionStorage.getItem('user');
-    if (token && user) {
-      const redirectTarget = location.state?.from || '/';
-      navigate(redirectTarget, { replace: true });
+    const user = (() => {
+      try {
+        return JSON.parse(
+          localStorage.getItem('user') ||
+          localStorage.getItem('adminUser') ||
+          sessionStorage.getItem('user') ||
+          '{}'
+        );
+      } catch {
+        return null;
+      }
+    })();
+
+    if (token && user?.id) {
+      if (user.role === 'ADMIN') {
+        const target = location.state?.from || '/admin/dashboard';
+        navigate(target, { replace: true });
+      } else {
+        const target = location.state?.from?.startsWith('/admin') ? '/' : (location.state?.from || '/');
+        navigate(target, { replace: true });
+      }
     }
   }, [navigate, location.state]);
 
@@ -103,30 +120,45 @@ const AuthPage = ({ initialMode = 'login' }) => {
       });
 
       if (res.data.token) {
+        const isAdmin = res.data.user.role === 'ADMIN';
+
         // Áp dụng đúng chuẩn "Ghi nhớ đăng nhập":
         if (loginForm.rememberMe) {
           localStorage.setItem('token', res.data.token);
           localStorage.setItem('user', JSON.stringify(res.data.user));
+          if (isAdmin) localStorage.setItem('adminUser', JSON.stringify(res.data.user));
           sessionStorage.removeItem('token');
           sessionStorage.removeItem('user');
+          sessionStorage.removeItem('adminUser');
         } else {
           sessionStorage.setItem('token', res.data.token);
           sessionStorage.setItem('user', JSON.stringify(res.data.user));
+          if (isAdmin) sessionStorage.setItem('adminUser', JSON.stringify(res.data.user));
           localStorage.removeItem('token');
           localStorage.removeItem('user');
+          localStorage.removeItem('adminUser');
         }
-
-        const target = location.state?.from || '/';
-        const isRedirectingBack = target !== '/' && target !== '/login' && target !== '/register';
-
-        setSuccessMsg(
-          isRedirectingBack
-            ? `${res.data.message || 'Đăng nhập thành công!'} Đang chuyển bạn trở lại trang bạn vừa xem...`
-            : (res.data.message || 'Đăng nhập thành công! Chào mừng bạn trở lại.')
-        );
 
         // Bắn sự kiện đồng bộ toàn bộ app
         window.dispatchEvent(new Event('authChange'));
+
+        // Xác định trang chuyển tiếp
+        let target = location.state?.from || (isAdmin ? '/admin/dashboard' : '/');
+        
+        // Nếu là khách hàng bình thường nhưng cố truy cập admin -> điều hướng về trang chủ
+        if (!isAdmin && target.startsWith('/admin')) {
+          target = '/';
+        }
+
+        const isRedirectingBack = target !== '/' && target !== '/login' && target !== '/register';
+
+        setSuccessMsg(
+          isAdmin
+            ? 'Đăng nhập Ban Quản Trị thành công! Đang chuyển hướng vào Bảng điều khiển...'
+            : isRedirectingBack
+            ? `${res.data.message || 'Đăng nhập thành công!'} Đang chuyển bạn trở lại trang bạn vừa xem...`
+            : (res.data.message || 'Đăng nhập thành công! Chào mừng bạn trở lại.')
+        );
 
         setTimeout(() => {
           navigate(target, { replace: true });
@@ -420,6 +452,29 @@ const AuthPage = ({ initialMode = 'login' }) => {
                 ✕ Đóng
               </Link>
             </div>
+
+            {/* Thông báo nếu được chuyển từ trang Quản trị Admin */}
+            {location.state?.adminRequired && (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-red-500/20 via-amber-500/15 to-red-500/20 border border-red-500/40 text-red-200 text-xs space-y-1.5 animate-in fade-in">
+                <div className="flex items-center space-x-1.5 font-bold text-red-400">
+                  <span>🛡️</span>
+                  <span>YÊU CẦU XÁC THỰC QUẢN TRỊ VIÊN</span>
+                </div>
+                <p className="text-[11px] text-slate-300">
+                  {location.state?.message || 'Trang bạn đang truy cập yêu cầu tài khoản Ban Quản Trị. Vui lòng đăng nhập để tiếp tục.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginForm({ identifier: 'admin@davenor.vn', password: 'admin123', rememberMe: true });
+                    setErrorMsg('');
+                  }}
+                  className="text-[11px] text-amber-400 hover:text-amber-300 font-bold underline inline-flex items-center space-x-1 cursor-pointer pt-0.5"
+                >
+                  <span>⚡ Bấm để điền nhanh tài khoản Admin mặc định (admin@davenor.vn)</span>
+                </button>
+              </div>
+            )}
 
             {/* Thông báo Lỗi / Thành công */}
             {errorMsg && (

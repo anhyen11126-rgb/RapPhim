@@ -646,6 +646,18 @@ const Navbar = () => {
             )}
           </div>
 
+          {/* Nút tắt chuyển nhanh sang trang Admin nếu là tài khoản Quản trị */}
+          {currentUser?.role === 'ADMIN' && (
+            <Link
+              to="/admin/dashboard"
+              className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black shadow-md shadow-red-600/30 border border-red-400/40 transition-all hover:scale-105 shrink-0 cursor-pointer"
+              title="Vào Bảng điều khiển Quản trị viên Admin"
+            >
+              <span>🛡️</span>
+              <span>Trang Admin</span>
+            </Link>
+          )}
+
           {/* Người dùng đã đăng nhập HOẶC Nút Đăng nhập / Đăng ký */}
           {currentUser ? (
             <div className="relative" ref={dropdownRef}>
@@ -672,7 +684,7 @@ const Navbar = () => {
                     {currentUser.name}
                   </span>
                   <span className="text-[10px] text-amber-400 font-semibold block leading-none">
-                    {currentUser.tier === 'GOLD_TIER' ? '⭐ GOLD TIER' : 'Hội viên'} • {currentUser.points || 100}p
+                    {currentUser.role === 'ADMIN' ? '🛡️ BAN QUẢN TRỊ' : (currentUser.tier === 'GOLD_TIER' ? '⭐ GOLD TIER' : 'Hội viên')} • {currentUser.points || (currentUser.role === 'ADMIN' ? 'Admin' : 100)}
                   </span>
                 </div>
                 <span className="text-slate-500 text-[9px]">▼</span>
@@ -751,10 +763,13 @@ const Navbar = () => {
                     <Link
                       to="/admin/dashboard"
                       onClick={() => setIsDropdownOpen(false)}
-                      className="flex items-center space-x-2 px-4 py-2 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-600/10 transition-colors font-bold"
+                      className="flex items-center justify-between px-3.5 py-2.5 mx-2 my-1.5 text-xs text-amber-200 hover:text-white bg-gradient-to-r from-red-600/30 via-amber-600/25 to-red-600/30 hover:from-red-600/50 hover:to-amber-600/50 border border-amber-500/40 rounded-xl transition-all font-black shadow-md shadow-amber-500/10 cursor-pointer"
                     >
-                      <span>🪪</span>
-                      <span>Trang Quản trị Admin</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-base">🪪</span>
+                        <span>Vào Trang Quản Trị Admin</span>
+                      </div>
+                      <span className="text-amber-400 text-xs">➔</span>
                     </Link>
                   )}
 

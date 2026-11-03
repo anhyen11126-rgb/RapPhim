@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import AdminUser from '../models/AdminUser.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'movietix_jwt_secret_key_2026_cdio';
 
@@ -107,12 +108,28 @@ export const login = async (req, res) => {
     const cleanIdentifier = identifier.trim();
 
     // Tìm kiếm người dùng theo Email HOẶC Số điện thoại
-    const user = await User.findOne({
+    let user = await User.findOne({
       $or: [
         { email: cleanIdentifier.toLowerCase() },
         { phone: cleanIdentifier },
       ],
     });
+
+    let isAdminUser = false;
+    // Nếu không tìm thấy trong User, thử tìm trong AdminUser để hỗ trợ đăng nhập Admin từ giao diện chung
+    if (!user) {
+      const admin = await AdminUser.findOne({
+        $or: [
+          { email: cleanIdentifier.toLowerCase() },
+          { email: cleanIdentifier.toLowerCase().replace('@davenor.vn', '@movietix.vn') },
+          { email: cleanIdentifier.toLowerCase().replace('@movietix.vn', '@davenor.vn') },
+        ],
+      });
+      if (admin) {
+        user = admin;
+        isAdminUser = true;
+      }
+    }
 
     if (!user) {
       return res.status(401).json({ message: 'Tài khoản không tồn tại. Vui lòng kiểm tra lại hoặc chuyển sang Đăng ký.' });
@@ -130,8 +147,8 @@ export const login = async (req, res) => {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
-        phone: user.phone,
-        role: user.role,
+        phone: user.phone || '',
+        role: user.role || (isAdminUser ? 'ADMIN' : 'CUSTOMER'),
       },
       JWT_SECRET,
       { expiresIn: '30d' }
@@ -139,16 +156,18 @@ export const login = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Đăng nhập thành công! Chào mừng ${user.name} trở lại.`,
+      message: isAdminUser
+        ? `Đăng nhập Ban Quản Trị thành công! Chào mừng ${user.name}.`
+        : `Đăng nhập thành công! Chào mừng ${user.name} trở lại.`,
       token,
       user: {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
-        phone: user.phone,
-        role: user.role,
-        tier: user.tier,
-        points: user.points,
+        phone: user.phone || '',
+        role: user.role || (isAdminUser ? 'ADMIN' : 'CUSTOMER'),
+        tier: isAdminUser ? 'ADMIN' : (user.tier || 'GOLD_TIER'),
+        points: isAdminUser ? 'Quản trị viên' : (user.points || 100),
         avatar: user.avatar || '',
       },
     });

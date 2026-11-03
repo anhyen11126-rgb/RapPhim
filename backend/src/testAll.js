@@ -225,7 +225,9 @@ async function runTests() {
     );
 
     // TC09: Đăng nhập Quản trị viên & Bảo mật JWT
-    const adminUser = await AdminUser.findOne({ email: 'admin@movietix.vn' });
+    const adminUser = await AdminUser.findOne({
+      $or: [{ email: 'admin@davenor.vn' }, { email: 'admin@movietix.vn' }],
+    });
     let isPasswordCorrect = false;
     let jwtToken = '';
     if (adminUser) {
@@ -239,7 +241,7 @@ async function runTests() {
     recordResult(
       'TC09: Đăng nhập Quản trị & Xác thực JWT Token',
       isPasswordCorrect && Boolean(jwtToken),
-      `Tài khoản admin@movietix.vn khớp mật khẩu băm bcrypt, sinh Token JWT hợp lệ (${jwtToken.slice(0, 20)}...)`
+      `Tài khoản ${adminUser?.email || 'admin@davenor.vn'} khớp mật khẩu băm bcrypt, sinh Token JWT hợp lệ (${jwtToken.slice(0, 20)}...)`
     );
 
     // TC10: Bảng điều khiển Thống kê Dashboard (Doanh thu & Số vé)
