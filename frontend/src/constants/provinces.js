@@ -78,7 +78,7 @@ export const POPULAR_CITIES = [
   'Hà Tĩnh',
 ];
 
-// Các tỉnh/thành hiện có cụm rạp MovieTix đang hoạt động
+// Các tỉnh/thành hiện có cụm rạp D'AVENOR CINEMA đang hoạt động
 export const CITIES_WITH_CINEMAS = [
   'TP. Hồ Chí Minh',
   'Hà Nội',

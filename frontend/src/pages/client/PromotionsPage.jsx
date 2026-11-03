@@ -174,7 +174,7 @@ const PromotionsPage = () => {
 
               <p className="text-sm text-slate-300 leading-relaxed max-w-2xl">
                 {heroDeal?.description ||
-                  'Thưởng thức mọi bom tấn màn ảnh rộng Laser hiện đại nhất MovieTix với giá vé chỉ 45.000đ. Tặng kèm 01 bắp ngọt Caramel thơm lừng khi áp dụng mua vé đôi online hôm nay.'}
+                  'Thưởng thức mọi bom tấn màn ảnh rộng Laser hiện đại nhất D\'AVENOR CINEMA với giá vé chỉ 45.000đ. Tặng kèm 01 bắp ngọt Caramel thơm lừng khi áp dụng mua vé đôi online hôm nay.'}
               </p>
 
               {/* Bộ đếm ngược thời gian (Countdown Timer) */}
@@ -300,9 +300,9 @@ const PromotionsPage = () => {
               className="bg-[#111624] border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500 cursor-pointer"
             >
               <option value="Tất cả rạp chiếu">🏢 Tất cả rạp chiếu</option>
-              <option value="MovieTix Landmark 81 IMAX">MovieTix Landmark 81</option>
-              <option value="MovieTix Vincom Đồng Khởi">Vincom Đồng Khởi</option>
-              <option value="MovieTix Sala Thủ Thiêm">Sala Thủ Thiêm</option>
+              <option value="D'AVENOR Landmark 81 IMAX">D'AVENOR Landmark 81</option>
+              <option value="D'AVENOR Vincom Đồng Khởi">Vincom Đồng Khởi</option>
+              <option value="D'AVENOR Sala Thủ Thiêm">Sala Thủ Thiêm</option>
             </select>
           </div>
         </div>
@@ -530,7 +530,7 @@ const PromotionsPage = () => {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-200 flex items-center space-x-2">
               <span className="text-blue-400">ℹ️</span>
-              <span>Một số lưu ý khi sử dụng mã ưu đãi MovieTix</span>
+              <span>Một số lưu ý khi sử dụng mã ưu đãi D'AVENOR CINEMA</span>
             </h3>
             <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
               Quy chế chung áp dụng toàn quốc
@@ -564,7 +564,7 @@ const PromotionsPage = () => {
                 <span>Nhận bắp nước tại quầy</span>
               </div>
               <p className="text-slate-400 leading-relaxed text-[11px]">
-                Đưa mã QR trên ứng dụng MovieTix tại làn F&B FastTrack để nhận combo nhanh không cần xếp hàng.
+                Đưa mã QR trên ứng dụng D'AVENOR CINEMA tại làn F&B FastTrack để nhận combo nhanh không cần xếp hàng.
               </p>
             </div>
           </div>

@@ -18,11 +18,16 @@ import PromotionsPage from './pages/client/PromotionsPage';
 import SupportPage from './pages/client/SupportPage';
 import AuthPage from './pages/client/AuthPage';
 
-// Pages Admin (7-10)
+// Pages Admin (7-10 & Mở rộng đầy đủ)
 import AdminLoginPage from './pages/admin/AdminLoginPage';
 import DashboardPage from './pages/admin/DashboardPage';
 import MovieManagePage from './pages/admin/MovieManagePage';
 import BookingManagePage from './pages/admin/BookingManagePage';
+import CinemaManagePage from './pages/admin/CinemaManagePage';
+import ShowtimeManagePage from './pages/admin/ShowtimeManagePage';
+import UserManagePage from './pages/admin/UserManagePage';
+import ConcessionManagePage from './pages/admin/ConcessionManagePage';
+import PromotionManagePage from './pages/admin/PromotionManagePage';
 
 // Client Layout bọc Navbar, Footer và Chatbot AI (Màn hình 6)
 const ClientLayout = () => {
@@ -61,11 +66,17 @@ function App() {
         <Route path="/login" element={<AuthPage initialMode="login" />} />
         <Route path="/register" element={<AuthPage initialMode="register" />} />
 
-        {/* Cụm màn hình Quản trị viên */}
+        {/* Cụm màn hình Quản trị viên (Đầy đủ chức năng) */}
+        <Route path="/admin" element={<DashboardPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/admin/dashboard" element={<DashboardPage />} />
         <Route path="/admin/movies" element={<MovieManagePage />} />
+        <Route path="/admin/cinemas" element={<CinemaManagePage />} />
+        <Route path="/admin/showtimes" element={<ShowtimeManagePage />} />
         <Route path="/admin/bookings" element={<BookingManagePage />} />
+        <Route path="/admin/users" element={<UserManagePage />} />
+        <Route path="/admin/concessions" element={<ConcessionManagePage />} />
+        <Route path="/admin/promotions" element={<PromotionManagePage />} />
       </Routes>
     </BrowserRouter>
   );

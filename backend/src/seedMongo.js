@@ -36,8 +36,8 @@ async function seed() {
     // 2. Tạo tài khoản Admin
     const hashedPassword = await bcrypt.hash('admin123', 10);
     const admin = await AdminUser.create({
-      email: 'admin@movietix.vn',
-      name: 'Ban Quản Trị MovieTix',
+      email: 'admin@D'AVENOR.vn',
+      name: 'Ban Quản Trị D'AVENOR',
       password: hashedPassword,
       role: 'ADMIN',
     });
@@ -88,7 +88,7 @@ async function seed() {
     // 4. Tạo các Cụm rạp (Cinemas)
     const cinemas = await Cinema.create([
       {
-        name: 'MovieTix Landmark 81 IMAX',
+        name: 'D'AVENOR Landmark 81 IMAX',
         slug: 'landmark-81-imax',
         city: 'TP. Hồ Chí Minh',
         address: 'Tầng B1 Vincom Landmark 81, 720A Điện Biên Phủ, P.22, Q.Bình Thạnh, TP.HCM',
@@ -105,7 +105,7 @@ async function seed() {
         roomCount: 7,
       },
       {
-        name: 'MovieTix Vincom Đồng Khởi',
+        name: 'D'AVENOR Vincom Đồng Khởi',
         slug: 'vincom-dong-khoi',
         city: 'TP. Hồ Chí Minh',
         address: 'Tầng 3 Vincom Center, 72 Lê Thánh Tôn, P.Bến Nghé, Quận 1, TP.HCM',
@@ -122,7 +122,7 @@ async function seed() {
         roomCount: 6,
       },
       {
-        name: 'MovieTix Sala Thủ Thiêm',
+        name: 'D'AVENOR Sala Thủ Thiêm',
         slug: 'sala-thu-thiem',
         city: 'TP. Hồ Chí Minh',
         address: 'Tầng 4 Thiso Mall, 10 Mai Chí Thọ, P.Thủ Thiêm, TP.Thủ Đức, TP.HCM',
@@ -139,7 +139,7 @@ async function seed() {
         roomCount: 8,
       },
       {
-        name: 'MovieTix Crescent Mall',
+        name: 'D'AVENOR Crescent Mall',
         slug: 'crescent-mall',
         city: 'TP. Hồ Chí Minh',
         address: 'Tầng 5 Crescent Mall, Nguyễn Văn Linh, P.Tân Phú, Quận 7, TP.HCM',
@@ -156,7 +156,7 @@ async function seed() {
         roomCount: 6,
       },
       {
-        name: 'MovieTix Vạn Hạnh Mall',
+        name: 'D'AVENOR Vạn Hạnh Mall',
         slug: 'van-hanh-mall',
         city: 'TP. Hồ Chí Minh',
         address: 'Tầng 6 Vạn Hạnh Mall, 11 Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM',
@@ -174,7 +174,7 @@ async function seed() {
       },
       // Hà Nội
       {
-        name: 'MovieTix Vincom Bà Triệu',
+        name: 'D'AVENOR Vincom Bà Triệu',
         slug: 'vincom-ba-trieu',
         city: 'Hà Nội',
         address: 'Tầng 6 Vincom Center, 191 Bà Triệu, Q.Hai Bà Trưng, Hà Nội',
@@ -191,7 +191,7 @@ async function seed() {
         roomCount: 8,
       },
       {
-        name: 'MovieTix Lotte Mall Tây Hồ',
+        name: 'D'AVENOR Lotte Mall Tây Hồ',
         slug: 'lotte-mall-tay-ho',
         city: 'Hà Nội',
         address: 'Tầng 4 Lotte Mall, 272 Võ Chí Công, Tây Hồ, Hà Nội',
@@ -209,7 +209,7 @@ async function seed() {
       },
       // Đà Nẵng
       {
-        name: 'MovieTix Vincom Ngô Quyền',
+        name: 'D'AVENOR Vincom Ngô Quyền',
         slug: 'vincom-ngo-quyen-danang',
         city: 'Đà Nẵng',
         address: 'Tầng 4 Vincom Plaza, 910A Ngô Quyền, Q.Sơn Trà, Đà Nẵng',
@@ -227,7 +227,7 @@ async function seed() {
       },
       // Hải Phòng
       {
-        name: 'MovieTix Aeon Mall Lê Chân',
+        name: 'D'AVENOR Aeon Mall Lê Chân',
         slug: 'aeon-mall-le-chan-haiphong',
         city: 'Hải Phòng',
         address: 'Tầng 3 Aeon Mall, Số 10 Võ Nguyên Giáp, Q.Lê Chân, Hải Phòng',
@@ -245,7 +245,7 @@ async function seed() {
       },
       // Cần Thơ
       {
-        name: 'MovieTix Vincom Hùng Vương',
+        name: 'D'AVENOR Vincom Hùng Vương',
         slug: 'vincom-hung-vuong-cantho',
         city: 'Cần Thơ',
         address: 'Số 2 Hùng Vương, P.Thới Bình, Q.Ninh Kiều, Cần Thơ',
@@ -263,7 +263,7 @@ async function seed() {
       },
       // Hà Tĩnh
       {
-        name: 'MovieTix Vincom Hà Tĩnh',
+        name: 'D'AVENOR Vincom Hà Tĩnh',
         slug: 'vincom-ha-tinh',
         city: 'Hà Tĩnh',
         address: 'Tầng 3 Vincom Plaza Hà Tĩnh, Ngã tư Hà Huy Tập - Hàm Nghi, TP.Hà Tĩnh',
@@ -281,7 +281,7 @@ async function seed() {
       },
       // Bình Dương
       {
-        name: 'MovieTix Aeon Mall Bình Dương',
+        name: 'D'AVENOR Aeon Mall Bình Dương',
         slug: 'aeon-mall-binh-duong',
         city: 'Bình Dương',
         address: 'Số 01 Đại lộ Bình Dương, Khu phố Bình Giao, TP.Thuận An, Bình Dương',
@@ -299,7 +299,7 @@ async function seed() {
       },
       // Đồng Nai
       {
-        name: 'MovieTix Vincom Biên Hòa',
+        name: 'D'AVENOR Vincom Biên Hòa',
         slug: 'vincom-bien-hoa',
         city: 'Đồng Nai',
         address: '1096 Phạm Văn Thuận, P.Tân Mai, TP.Biên Hòa, Đồng Nai',
@@ -317,7 +317,7 @@ async function seed() {
       },
       // Khánh Hòa
       {
-        name: 'MovieTix Vincom Nha Trang',
+        name: 'D'AVENOR Vincom Nha Trang',
         slug: 'vincom-nha-trang',
         city: 'Khánh Hòa',
         address: 'Tầng 4 Vincom Plaza Trần Phú, 78-80 Trần Phú, Lộc Thọ, Nha Trang, Khánh Hòa',
@@ -367,18 +367,18 @@ async function seed() {
         price: 95000,
       },
       {
-        title: 'Kung Fu Panda 4',
-        slug: 'kung-fu-panda-4',
-        posterUrl: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=500&auto=format&fit=crop',
-        poster: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=500&auto=format&fit=crop',
-        trailerUrl: 'https://www.youtube.com/watch?v=cqGjhVJWtEg',
-        description: 'Chú gấu Po bước vào cuộc hành trình mới tìm kiếm người kế thừa Thần Long Đại Hiệp.',
-        genre: 'Hoạt hình, Hài hước',
-        duration: 94,
-        ageRating: 'P',
-        releaseDate: new Date('2026-03-08'),
+        title: 'Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)',
+        slug: 'spider-man-no-way-home',
+        posterUrl: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=800&auto=format&fit=crop',
+        poster: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=800&auto=format&fit=crop',
+        trailerUrl: 'https://www.youtube.com/watch?v=JfVOs4VSpmA',
+        description: 'Sau khi danh tính Người Nhện bị bại lộ trước toàn thế giới, Peter Parker tìm đến Doctor Strange để làm phép xóa ký ức mọi người. Sự cố phép thuật bất ngờ mở toang cánh cổng Đa Vũ Trụ, giải phóng hàng loạt phản diện huyền thoại từ các dòng thời gian khác.',
+        genre: 'Hành động, Phiêu lưu, Siêu anh hùng',
+        duration: 148,
+        ageRating: 'T13',
+        releaseDate: new Date('2026-04-10'),
         status: 'NOW_SHOWING',
-        price: 85000,
+        price: 95000,
       },
       {
         title: 'Quật Mộ Trùng Ma (Exhuma)',
@@ -631,7 +631,7 @@ async function seed() {
         badgeTop: '⚡ SIÊU BÃO THỨ 3 TOÀN QUỐC',
         title: 'THỨ 3 VUI VẺ — ĐỒNG GIÁ VÉ 45K',
         description:
-          'Thưởng thức mọi bom tấn màn ảnh rộng Laser hiện đại nhất MovieTix với giá vé chỉ 45.000đ. Tặng kèm 01 bắp ngọt Caramel thơm lừng khi áp dụng mua vé đôi online hôm nay.',
+          'Thưởng thức mọi bom tấn màn ảnh rộng Laser hiện đại nhất D'AVENOR với giá vé chỉ 45.000đ. Tặng kèm 01 bắp ngọt Caramel thơm lừng khi áp dụng mua vé đôi online hôm nay.',
         discountValue: '-50%',
         subtitle: 'Bắp Lớn + Nước Ngọt',
         conditions: 'Miễn phí cho bạn và đối tác/bạn bè',
@@ -732,7 +732,7 @@ async function seed() {
         badgeTop: '👑 Dành riêng hội viên VIP',
         badgeSpecial: 'X3 POINTS',
         badgeColor: 'amber',
-        title: 'Đặc Quyền Hội Viên MovieTix Prime – Nhân 3 Điểm Tích Lũy',
+        title: 'Đặc Quyền Hội Viên D'AVENOR Prime – Nhân 3 Điểm Tích Lũy',
         description:
           'Tích lũy gấp 3 lần điểm thưởng cho tất cả các giao dịch vé và bắp nước trực tuyến, đổi vé miễn phí dễ dàng trong tháng sinh nhật.',
         image: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=600&auto=format&fit=crop',
@@ -766,7 +766,7 @@ async function seed() {
         badgeColor: 'amber',
         title: 'Quét VNPAY-QR – Giảm Ngay 25.000đ Vào Cuối Tuần',
         description:
-          'Nhập mã VNPAYMOVIE khi thanh toán đơn hàng từ 150.000đ tại cổng thanh toán trực tuyến MovieTix (số lượng có hạn mỗi tuần).',
+          'Nhập mã VNPAYMOVIE khi thanh toán đơn hàng từ 150.000đ tại cổng thanh toán trực tuyến D'AVENOR (số lượng có hạn mỗi tuần).',
         image: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=600&auto=format&fit=crop',
         metadataLeft: '🏦 Cổng VNPAY',
         metadataRight: '🎁 Còn 420 suất tuần này',
@@ -798,7 +798,7 @@ async function seed() {
       {
         question: 'Tôi đã bị trừ tiền ngân hàng nhưng chưa nhận được mã vé hoặc SMS xác nhận?',
         answer:
-          'Bạn hoàn toàn yên tâm, hệ thống MovieTix luôn bảo lưu giao dịch hợp lệ:\n• Vui lòng kiểm tra kỹ thư mục Hộp thư rác (Spam / Junk) hoặc SMS điện thoại đã đăng ký.\n• Mở mục "Vé của tôi" trên ứng dụng MovieTix để đối chiếu tức thì theo số điện thoại đặt vé.\n• Nếu sau 15 phút trạng thái chưa được cập nhật, hãy nhập Mã giao dịch ngân hàng vào biểu mẫu bên cạnh hoặc liên hệ tổng đài 1900 8866 để nhân viên kích hoạt giữ ghế khẩn cấp.',
+          'Bạn hoàn toàn yên tâm, hệ thống D'AVENOR luôn bảo lưu giao dịch hợp lệ:\n• Vui lòng kiểm tra kỹ thư mục Hộp thư rác (Spam / Junk) hoặc SMS điện thoại đã đăng ký.\n• Mở mục "Vé của tôi" trên ứng dụng D'AVENOR để đối chiếu tức thì theo số điện thoại đặt vé.\n• Nếu sau 15 phút trạng thái chưa được cập nhật, hãy nhập Mã giao dịch ngân hàng vào biểu mẫu bên cạnh hoặc liên hệ tổng đài 1900 8866 để nhân viên kích hoạt giữ ghế khẩn cấp.',
         category: 'PAYMENT',
         likes: 428,
         dislikes: 12,
@@ -806,9 +806,9 @@ async function seed() {
         order: 1,
       },
       {
-        question: 'Quy định độ tuổi xem phim T13, T16, T18 tại rạp MovieTix như thế nào?',
+        question: 'Quy định độ tuổi xem phim T13, T16, T18 tại rạp D'AVENOR như thế nào?',
         answer:
-          'Hệ thống rạp MovieTix áp dụng quy chuẩn phân loại độ tuổi của Bộ Văn hóa, Thể thao và Du lịch:\n• Nhãn P: Phim dành cho mọi đối tượng khán giả.\n• Nhãn T13: Dành cho khán giả từ đủ 13 tuổi trở lên.\n• Nhãn T16: Dành cho khán giả từ đủ 16 tuổi trở lên.\n• Nhãn T18: Dành cho khán giả từ đủ 18 tuổi trở lên.\n*Lưu ý: Quý khách vui lòng mang theo Căn cước công dân hoặc ứng dụng VNeID để nhân viên đối soát tại cửa vào.',
+          'Hệ thống rạp D'AVENOR áp dụng quy chuẩn phân loại độ tuổi của Bộ Văn hóa, Thể thao và Du lịch:\n• Nhãn P: Phim dành cho mọi đối tượng khán giả.\n• Nhãn T13: Dành cho khán giả từ đủ 13 tuổi trở lên.\n• Nhãn T16: Dành cho khán giả từ đủ 16 tuổi trở lên.\n• Nhãn T18: Dành cho khán giả từ đủ 18 tuổi trở lên.\n*Lưu ý: Quý khách vui lòng mang theo Căn cước công dân hoặc ứng dụng VNeID để nhân viên đối soát tại cửa vào.',
         category: 'TICKET_CINEMA',
         likes: 312,
         dislikes: 5,
@@ -846,9 +846,9 @@ async function seed() {
         order: 5,
       },
       {
-        question: 'Làm sao để đặt vé nguyên phòng hoặc tổ chức sự kiện họp báo tại rạp MovieTix?',
+        question: 'Làm sao để đặt vé nguyên phòng hoặc tổ chức sự kiện họp báo tại rạp D'AVENOR?',
         answer:
-          'MovieTix cung cấp dịch vụ thuê trọn phòng chiếu (Hall Rental) cho sự kiện công ty, họp fanclub, sinh nhật hoặc chiếu phim riêng tư cho đoàn từ 20 người trở lên. Vui lòng liên hệ bộ phận B2B qua hotline 1900 8866 hoặc gửi yêu cầu vào form bên cạnh để nhận báo giá ưu đãi trong 2 giờ.',
+          'D'AVENOR cung cấp dịch vụ thuê trọn phòng chiếu (Hall Rental) cho sự kiện công ty, họp fanclub, sinh nhật hoặc chiếu phim riêng tư cho đoàn từ 20 người trở lên. Vui lòng liên hệ bộ phận B2B qua hotline 1900 8866 hoặc gửi yêu cầu vào form bên cạnh để nhận báo giá ưu đãi trong 2 giờ.',
         category: 'MEMBERSHIP',
         likes: 210,
         dislikes: 4,
@@ -868,3 +868,4 @@ async function seed() {
 }
 
 seed();
+

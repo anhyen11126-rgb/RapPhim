@@ -31,7 +31,8 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Gắn các API Routes chính
 app.use('/api/movies', movieRoutes);
@@ -62,7 +63,7 @@ app.get('/api/health', async (req, res) => {
     res.json({
       status: isConnected ? 'OK' : 'DISCONNECTED',
       message: isConnected
-        ? 'MovieTix Backend API (MongoDB Atlas) đang hoạt động bình thường'
+        ? "D'AVENOR CINEMA Backend API (MongoDB Atlas) đang hoạt động bình thường"
         : 'Chưa kết nối được tới MongoDB Database',
       database: {
         type: 'MongoDB Atlas',
@@ -79,7 +80,7 @@ app.get('/api/health', async (req, res) => {
 
 // Khởi chạy Server
 app.listen(PORT, () => {
-  console.log(`🚀 MovieTix Backend chạy thành công tại http://localhost:${PORT}`);
+  console.log(`🚀 D'AVENOR CINEMA Backend chạy thành công tại http://localhost:${PORT}`);
   console.log(`🎬 API Phim: http://localhost:${PORT}/api/movies`);
   console.log(`🍿 API Bắp nước: http://localhost:${PORT}/api/concessions`);
   console.log(`🤖 API Trợ lý ảo AI: http://localhost:${PORT}/api/ai/chat`);

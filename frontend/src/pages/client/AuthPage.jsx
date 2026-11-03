@@ -139,14 +139,17 @@ const AuthPage = ({ initialMode = 'login' }) => {
           <span>Back to Movies</span>
         </Link>
 
-        {/* Logo MovieTix */}
+        {/* Logo D'AVENOR CINEMA */}
         <Link to="/" className="flex items-center space-x-2.5">
-          <div className="bg-[#2563eb] text-white text-[11px] font-black px-2.5 py-1 rounded-md flex items-center space-x-1 shadow-sm">
-            <span className="text-[9px]">▶</span>
-            <span>MovieTix</span>
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-[#101726] border border-slate-700/80 flex items-center justify-center shadow-md">
+            <img
+              src="/Logo.png"
+              alt="D'AVENOR CINEMA Logo"
+              className="w-full h-full object-cover"
+            />
           </div>
-          <span className="text-lg font-black tracking-tight text-white hidden sm:inline">
-            MovieTix
+          <span className="text-sm sm:text-base font-black tracking-tight text-white hidden sm:inline">
+            D'AVENOR CINEMA
           </span>
         </Link>
 
@@ -173,7 +176,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                 </div>
                 <div>
                   <div className="flex items-center space-x-2">
-                    <span className="font-black text-white text-sm">MovieTix</span>
+                    <span className="font-black text-white text-sm">D'AVENOR</span>
                     <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
                       VIP PASS
                     </span>
@@ -424,7 +427,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
               /* FORM ĐĂNG KÝ (REGISTER) */
               <form onSubmit={handleRegister} className="space-y-4">
                 <div>
-                  <h3 className="text-xl sm:text-2xl font-black text-white">Tạo tài khoản MovieTix mới!</h3>
+                  <h3 className="text-xl sm:text-2xl font-black text-white">Tạo tài khoản D'AVENOR CINEMA mới!</h3>
                   <p className="text-xs text-slate-400 mt-1">
                     Trở thành hội viên để nhận ngay voucher 50.000đ và tích điểm xem phim.
                   </p>
@@ -539,7 +542,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                         className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-0 mt-0.5"
                       />
                       <span>
-                        Tôi đồng ý với <a href="#terms" className="text-blue-400 hover:underline">Điều khoản sử dụng</a> và <a href="#privacy" className="text-blue-400 hover:underline">Chính sách bảo mật</a> của MovieTix.
+                        Tôi đồng ý với <a href="#terms" className="text-blue-400 hover:underline">Điều khoản sử dụng</a> và <a href="#privacy" className="text-blue-400 hover:underline">Chính sách bảo mật</a> của D'AVENOR CINEMA.
                       </span>
                     </label>
                   </div>
@@ -627,7 +630,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
 
       {/* 3. FOOTER */}
       <div className="text-center py-2 text-[11px] text-slate-500">
-        © 2026 MovieTix Entertainment Group. Secure Cinematic Gateway.
+        © 2026 D'AVENOR CINEMA Entertainment Group. Secure Cinematic Gateway.
       </div>
     </div>
   );

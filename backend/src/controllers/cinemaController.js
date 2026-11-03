@@ -11,7 +11,7 @@ export const getCinemas = async (req, res) => {
     const filter = {};
 
     if (city && city !== 'Tất cả khu vực') {
-      filter.city = city;
+      filter.city = { $regex: new RegExp(`^${city.trim()}$`, 'i') };
     }
 
     if (tech && tech !== 'Tất cả') {

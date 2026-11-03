@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import SidebarAdmin from '../../components/admin/SidebarAdmin';
 import TopbarAdmin from '../../components/admin/TopbarAdmin';
 import api from '../../services/api';
@@ -10,6 +11,8 @@ const DashboardPage = () => {
       totalTickets: 0,
       totalMovies: 0,
       totalShowtimes: 0,
+      totalCinemas: 0,
+      totalUsers: 0,
     },
     recentBookings: [],
   });
@@ -37,25 +40,52 @@ const DashboardPage = () => {
       value: `${(data.stats.totalRevenue || 0).toLocaleString('vi-VN')} đ`,
       sub: 'Hóa đơn đã thanh toán',
       icon: '💰',
+      color: 'from-amber-500/20 to-amber-600/10 border-amber-500/30 text-amber-400',
     },
     {
       title: 'Số Vé Đã Bán',
       value: `${data.stats.totalTickets || 0} vé`,
-      sub: 'Ghế đã khóa vĩnh viễn',
+      sub: 'Ghế đã hoàn tất đặt',
       icon: '🎟️',
+      color: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/30 text-emerald-400',
     },
     {
-      title: 'Số Phim Đang Chiếu',
-      value: `${data.stats.totalMovies || 0} phim`,
-      sub: 'Trong cơ sở dữ liệu',
-      icon: '🎬',
+      title: 'Hệ Thống Cụm Rạp',
+      value: `${data.stats.totalCinemas || 22} rạp`,
+      sub: 'Trên 9 tỉnh thành',
+      icon: '🏢',
+      color: 'from-blue-500/20 to-blue-600/10 border-blue-500/30 text-blue-400',
     },
     {
       title: 'Số Suất Chiếu Đã Mở',
       value: `${data.stats.totalShowtimes || 0} suất`,
       sub: 'Hôm nay & sắp tới',
       icon: '🕒',
+      color: 'from-purple-500/20 to-purple-600/10 border-purple-500/30 text-purple-400',
     },
+    {
+      title: 'Phim Đang Chiếu',
+      value: `${data.stats.totalMovies || 0} phim`,
+      sub: 'Spider-Man, Dune 2, Mai...',
+      icon: '🎬',
+      color: 'from-rose-500/20 to-rose-600/10 border-rose-500/30 text-rose-400',
+    },
+    {
+      title: 'Hội Viên D\'AVENOR',
+      value: `${data.stats.totalUsers || 0} thành viên`,
+      sub: 'Tích điểm & Hạng thẻ',
+      icon: '👥',
+      color: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/30 text-cyan-400',
+    },
+  ];
+
+  const quickActions = [
+    { to: '/admin/cinemas', title: 'Quản Lý Cụm Rạp', icon: '🏢', desc: 'Thêm/sửa 22 cụm rạp toàn quốc' },
+    { to: '/admin/showtimes', title: 'Mở Suất Chiếu', icon: '🕒', desc: 'Lên lịch chiếu & ma trận 48 ghế' },
+    { to: '/admin/movies', title: 'Quản Lý Phim', icon: '🎬', desc: 'Thêm phim bom tấn, trailer, poster' },
+    { to: '/admin/bookings', title: 'Duyệt Đơn Đặt Vé', icon: '🎟️', desc: 'Tra cứu mã vé & xác nhận thanh toán' },
+    { to: '/admin/concessions', title: 'Bắp Nước & Combo', icon: '🍿', desc: 'Cập nhật giá combo F&B' },
+    { to: '/admin/promotions', title: 'Mã Giảm Giá', icon: '🏷️', desc: 'Tạo voucher khuyến mãi mới' },
   ];
 
   return (
@@ -81,19 +111,50 @@ const DashboardPage = () => {
           {loading ? (
             <div className="py-12 text-center text-slate-400">Đang tải số liệu thống kê...</div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {statCards.map((s, idx) => (
-                <div key={idx} className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg flex items-center justify-between">
+                <div
+                  key={idx}
+                  className={`bg-slate-900 border p-5 rounded-2xl shadow-lg flex items-center justify-between transition-all hover:border-slate-700 ${s.color}`}
+                >
                   <div>
                     <p className="text-xs text-slate-400 font-semibold">{s.title}</p>
                     <h3 className="text-xl sm:text-2xl font-black text-white mt-1.5">{s.value}</h3>
-                    <p className="text-[11px] text-slate-500 mt-1">{s.sub}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{s.sub}</p>
                   </div>
-                  <div className="text-3xl p-3 bg-slate-800 rounded-2xl">{s.icon}</div>
+                  <div className="text-3xl p-3 bg-slate-800/80 rounded-2xl shrink-0 border border-slate-700/50">
+                    {s.icon}
+                  </div>
                 </div>
               ))}
             </div>
           )}
+
+          {/* Lối tắt quản trị nhanh */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center space-x-2">
+              <span>⚡ Lối Tắt Quản Trị Hệ Thống D'AVENOR</span>
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {quickActions.map((action, idx) => (
+                <Link
+                  key={idx}
+                  to={action.to}
+                  className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 hover:bg-slate-800 hover:border-red-500/50 transition-all flex items-center space-x-3 group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-xl group-hover:scale-110 transition-transform shrink-0">
+                    {action.icon}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-white group-hover:text-red-400 transition-colors">
+                      {action.title}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">{action.desc}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
 
           {/* Bảng đơn vé gần nhất */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">

@@ -68,14 +68,22 @@ const MyTicketsPage = () => {
               Vé Của Tôi & Lịch Sử Đặt Vé
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Quản lý vé điện tử, mã check-in phòng chiếu và lịch sử giao dịch tại MovieTix.
+              Quản lý vé điện tử, mã check-in phòng chiếu và lịch sử giao dịch tại D'AVENOR CINEMA.
             </p>
           </div>
 
           {currentUser && (
             <div className="flex items-center space-x-3 bg-[#111728] border border-slate-800 px-4 py-2.5 rounded-2xl">
-              <div className="w-9 h-9 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-bold text-sm uppercase shadow">
-                {currentUser.name ? currentUser.name[0] : 'U'}
+              <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2563eb] text-white flex items-center justify-center font-bold text-sm uppercase shadow border border-slate-700 shrink-0">
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  currentUser.name ? currentUser.name[0] : 'U'
+                )}
               </div>
               <div>
                 <span className="text-xs font-bold text-white block">{currentUser.name}</span>
@@ -91,7 +99,7 @@ const MyTicketsPage = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24 space-y-3">
             <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-            <p className="text-xs text-slate-400">Đang đồng bộ dữ liệu vé từ hệ thống MovieTix...</p>
+            <p className="text-xs text-slate-400">Đang đồng bộ dữ liệu vé từ hệ thống D'AVENOR CINEMA...</p>
           </div>
         ) : !currentUser ? (
           /* TRƯỜNG HỢP CHƯA ĐĂNG NHẬP */
@@ -144,7 +152,7 @@ const MyTicketsPage = () => {
             <div className="p-4 rounded-2xl bg-[#121929] border border-slate-800/90 max-w-md mx-auto text-left flex items-start space-x-3 text-xs text-slate-400">
               <span className="text-amber-400 text-base shrink-0">💡</span>
               <p className="leading-relaxed">
-                Hãy chọn ngay các bộ phim bom tấn đang chiếu tại hệ thống MovieTix để trải nghiệm công nghệ màn chiếu laser đỉnh cao và tích điểm thăng hạng hội viên!
+                Hãy chọn ngay các bộ phim bom tấn đang chiếu tại hệ thống D'AVENOR CINEMA để trải nghiệm công nghệ màn chiếu laser đỉnh cao và tích điểm thăng hạng hội viên!
               </p>
             </div>
 
@@ -226,10 +234,10 @@ const MyTicketsPage = () => {
                             </span>
                           </div>
                           <h3 className="text-sm font-black text-white line-clamp-1">
-                            {movie?.title || 'Vé xem phim MovieTix'}
+                            {movie?.title || 'Vé xem phim D\'AVENOR'}
                           </h3>
                           <p className="text-[11px] text-slate-400">
-                            {b.showtime?.roomName || 'Phòng chiếu MovieTix'} • Ghế: <strong className="text-amber-400">{b.seats}</strong>
+                            {b.showtime?.roomName || 'Phòng chiếu D\'AVENOR'} • Ghế: <strong className="text-amber-400">{b.seats}</strong>
                           </p>
                         </div>
 
@@ -292,7 +300,7 @@ const MyTicketsPage = () => {
                       {selectedBooking.showtime?.movie?.ageRating || 'T16'} • IMAX LASER
                     </span>
                     <h3 className="text-xl font-black text-white">
-                      {selectedBooking.showtime?.movie?.title || 'Vé Xem Phim MovieTix'}
+                      {selectedBooking.showtime?.movie?.title || 'Vé Xem Phim D\'AVENOR'}
                     </h3>
                     <p className="text-xs text-slate-400">
                       {selectedBooking.showtime?.movie?.genre || 'Điện ảnh đặc sắc'} • {selectedBooking.showtime?.movie?.duration || 120} phút
@@ -357,7 +365,7 @@ const MyTicketsPage = () => {
                     />
                   </div>
                   <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-                    Xuất trình mã QR tại cửa phòng chiếu hoặc quầy MovieTix Express để vào xem phim.
+                    Xuất trình mã QR tại cửa phòng chiếu hoặc quầy D'AVENOR Express để vào xem phim.
                   </p>
                 </div>
               </div>

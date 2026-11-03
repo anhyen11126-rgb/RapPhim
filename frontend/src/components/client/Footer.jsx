@@ -8,13 +8,15 @@ const Footer = () => {
           {/* Logo & Giới thiệu */}
           <div className="space-y-4">
             <div className="flex items-center space-x-3">
-              {/* Blue pill logo icon */}
-              <div className="bg-[#2563eb] text-white text-[11px] font-black px-2.5 py-1 rounded-md flex items-center space-x-1 shadow-sm">
-                <span className="text-[9px]">▶</span>
-                <span>MovieTix</span>
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-[#101726] border border-slate-700/80 flex items-center justify-center shadow-md">
+                <img
+                  src="/Logo.png"
+                  alt="D'AVENOR CINEMA"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <span className="text-xl font-black tracking-tight text-white">
-                MovieTix
+                D'AVENOR CINEMA
               </span>
             </div>
             <p className="text-slate-400 text-xs leading-relaxed">
@@ -37,10 +39,10 @@ const Footer = () => {
           <div className="space-y-3">
             <h4 className="font-bold text-white tracking-wide text-sm">Hệ thống Rạp</h4>
             <ul className="space-y-2 text-slate-400 text-xs">
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">MovieTix Landmark 81 (IMAX)</li>
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">MovieTix Westlake Hà Nội</li>
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">MovieTix Sala Thủ Thiêm</li>
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">MovieTix Dragon Beach Đà Nẵng</li>
+              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Landmark 81 (IMAX)</li>
+              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Westlake Hà Nội</li>
+              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Sala Thủ Thiêm</li>
+              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Dragon Beach Đà Nẵng</li>
               <li className="hover:text-slate-200 transition-colors cursor-pointer">Phòng chiếu VIP Premiere Lounge</li>
             </ul>
           </div>
@@ -81,7 +83,7 @@ const Footer = () => {
 
         {/* Bản quyền */}
         <div className="border-t border-slate-900 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
-          <p>© 2025 MovieTix Vietnam Cinema Corporation. Tất cả quyền được bảo lưu.</p>
+          <p>© 2026 D'AVENOR CINEMA Vietnam Corporation. Tất cả quyền được bảo lưu.</p>
           <div className="flex space-x-6">
             <span className="hover:text-slate-400 cursor-pointer transition-colors">Quyền riêng tư</span>
             <span className="hover:text-slate-400 cursor-pointer transition-colors">Bảo mật</span>

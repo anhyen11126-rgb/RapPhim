@@ -8,6 +8,58 @@ import {
   removeVietnameseTones,
 } from '../../constants/provinces';
 
+// Bộ sưu tập ảnh đại diện phim hot và nhân vật cinema
+const PRESET_AVATARS = [
+  {
+    id: 'spiderman',
+    name: 'Spider-Man',
+    url: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=300&auto=format&fit=crop',
+    tag: 'Marvel',
+  },
+  {
+    id: 'dune',
+    name: 'Dune Sci-Fi',
+    url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&auto=format&fit=crop',
+    tag: 'Sci-Fi',
+  },
+  {
+    id: 'cyberpunk',
+    name: 'Cyberpunk Hero',
+    url: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300&auto=format&fit=crop',
+    tag: 'Action',
+  },
+  {
+    id: 'batman',
+    name: 'Dark Knight',
+    url: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=300&auto=format&fit=crop',
+    tag: 'DC',
+  },
+  {
+    id: 'vip_gold',
+    name: 'D\'Avenor VIP Gold',
+    url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&auto=format&fit=crop',
+    tag: 'VIP',
+  },
+  {
+    id: 'popart',
+    name: 'Pop Art Cinema',
+    url: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=300&auto=format&fit=crop',
+    tag: 'Art',
+  },
+  {
+    id: 'retro_3d',
+    name: '3D Glasses Movie',
+    url: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=300&auto=format&fit=crop',
+    tag: 'Cinema',
+  },
+  {
+    id: 'filmreel',
+    name: 'Film Director',
+    url: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=300&auto=format&fit=crop',
+    tag: 'Director',
+  },
+];
+
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -16,6 +68,15 @@ const Navbar = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+
+  // State Modal Đổi Ảnh Đại Diện (Avatar)
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [avatarActiveTab, setAvatarActiveTab] = useState('presets'); // 'presets' | 'upload' | 'url'
+  const [selectedAvatarUrl, setSelectedAvatarUrl] = useState('');
+  const [customAvatarInput, setCustomAvatarInput] = useState('');
+  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+  const [avatarMessage, setAvatarMessage] = useState({ type: '', text: '' });
+  const fileInputRef = useRef(null);
 
   // State vị trí tỉnh / thành phố
   const [selectedCity, setSelectedCity] = useState(
@@ -147,6 +208,104 @@ const Navbar = () => {
     return provinceNorm.includes(searchNorm);
   });
 
+  const handleOpenAvatarModal = () => {
+    setIsDropdownOpen(false);
+    setSelectedAvatarUrl(currentUser?.avatar || '');
+    setCustomAvatarInput(
+      currentUser?.avatar && currentUser.avatar.startsWith('http') ? currentUser.avatar : ''
+    );
+    setAvatarMessage({ type: '', text: '' });
+    setIsAvatarModalOpen(true);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarMessage({
+        type: 'error',
+        text: 'Vui lòng chọn file hình ảnh hợp lệ (PNG, JPG, WEBP, JPEG)!',
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarMessage({
+        type: 'error',
+        text: 'Kích thước file ảnh không được vượt quá 5MB!',
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setSelectedAvatarUrl(event.target.result);
+      setAvatarMessage({
+        type: 'success',
+        text: 'Đã tải ảnh lên thành công. Bấm "Lưu Thay Đổi" để áp dụng ảnh mới!',
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveAvatar = async () => {
+    try {
+      setIsUpdatingAvatar(true);
+      setAvatarMessage({ type: '', text: '' });
+
+      const newAvatar = selectedAvatarUrl ? selectedAvatarUrl.trim() : '';
+
+      const token = localStorage.getItem('token');
+      const payload = {
+        avatar: newAvatar,
+        userId: currentUser?.id || currentUser?._id,
+        email: currentUser?.email,
+      };
+
+      const res = await api.put('/auth/avatar', payload, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      // Cập nhật localStorage
+      const updatedUser = {
+        ...currentUser,
+        avatar: newAvatar,
+      };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setCurrentUser(updatedUser);
+
+      // Bắn sự kiện đồng bộ toàn bộ app
+      window.dispatchEvent(new Event('authChange'));
+
+      setAvatarMessage({
+        type: 'success',
+        text: res.data?.message || 'Cập nhật ảnh đại diện thành công!',
+      });
+
+      setTimeout(() => {
+        setIsAvatarModalOpen(false);
+      }, 900);
+    } catch (err) {
+      console.error('Lỗi cập nhật ảnh đại diện:', err);
+      setAvatarMessage({
+        type: 'error',
+        text: err.response?.data?.message || 'Không thể cập nhật ảnh đại diện. Vui lòng thử lại!',
+      });
+    } finally {
+      setIsUpdatingAvatar(false);
+    }
+  };
+
+  const handleResetToDefaultAvatar = () => {
+    setSelectedAvatarUrl('');
+    setCustomAvatarInput('');
+    setAvatarMessage({
+      type: 'info',
+      text: 'Đã chọn ảnh đại diện con người mặc định. Bấm "Lưu Thay Đổi" để xác nhận.',
+    });
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -160,16 +319,22 @@ const Navbar = () => {
     <header className="bg-[#0b0f19] border-b border-slate-800/80 sticky top-0 z-50 transition-all">
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 lg:px-10 h-16 flex items-center justify-between gap-4">
         {/* Left: Brand & Navigation */}
-        <div className="flex items-center space-x-6 lg:space-x-8">
-          <Link to="/" className="flex items-center space-x-3">
-            {/* Blue pill logo icon */}
-            <div className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-[11px] font-black px-2.5 py-1 rounded-md flex items-center space-x-1 shadow-sm transition-colors">
-              <span className="text-[9px]">▶</span>
-              <span>MovieTix</span>
+        <div className="flex items-center space-x-5 lg:space-x-7">
+          <Link
+            to="/"
+            className="group flex items-center space-x-3 transition-all duration-300"
+            title="D'AVENOR CINEMA"
+          >
+            {/* Logo hình chữ nhật bo viền phát sáng tràn viền */}
+            <div className="h-9 sm:h-10 w-[86px] sm:w-[96px] rounded-xl overflow-hidden border border-slate-700/80 group-hover:border-blue-400 group-hover:shadow-[0_0_18px_rgba(59,130,246,0.65),0_0_35px_rgba(37,99,235,0.3)] group-hover:ring-1 group-hover:ring-blue-400/50 transition-all duration-300 shrink-0">
+              <img
+                src="/Logo.png"
+                alt="D'AVENOR CINEMA Logo"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 block"
+              />
             </div>
-            {/* White Brand Text */}
-            <span className="text-lg font-black tracking-tight text-white hidden sm:inline">
-              MovieTix
+            <span className="text-sm sm:text-base font-black tracking-tight text-white uppercase group-hover:text-blue-100 transition-colors hidden sm:inline whitespace-nowrap">
+              D'AVENOR CINEMA
             </span>
           </Link>
 
@@ -277,7 +442,7 @@ const Navbar = () => {
                         Không tìm thấy phim với từ khóa "{movieSearchQuery}"
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        Thử tìm theo tên khác như 'Dune', 'Mai', 'Kung Fu Panda', 'Godzilla'...
+                        Thử tìm theo tên khác như 'Spider-Man', 'Dune', 'Mai', 'Godzilla'...
                       </p>
                     </div>
                   ) : (
@@ -353,7 +518,7 @@ const Navbar = () => {
                         Chọn Tỉnh / Thành Phố Xem Rạp
                       </h4>
                       <p className="text-[10px] text-slate-400">
-                        Chọn khu vực để hiển thị cụm rạp MovieTix và lịch chiếu gần bạn nhất
+                        Chọn khu vực để hiển thị cụm rạp D'AVENOR CINEMA và lịch chiếu gần bạn nhất
                       </p>
                     </div>
                   </div>
@@ -405,8 +570,8 @@ const Navbar = () => {
                           type="button"
                           onClick={() => handleSelectCity(city)}
                           className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${selectedCity === city
-                              ? 'bg-[#2563eb] text-white font-bold shadow-md shadow-blue-600/30'
-                              : 'bg-[#141b2c] text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800'
+                            ? 'bg-[#2563eb] text-white font-bold shadow-md shadow-blue-600/30'
+                            : 'bg-[#141b2c] text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800'
                             }`}
                         >
                           {city}
@@ -420,7 +585,7 @@ const Navbar = () => {
                 <div className="pt-3">
                   <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                     <span>Toàn bộ 63 tỉnh thành ({filteredProvinces.length})</span>
-                    <span className="text-emerald-400 font-medium">● Có rạp MovieTix</span>
+                    <span className="text-emerald-400 font-medium">● Có rạp D'AVENOR</span>
                   </div>
 
                   <div className="max-h-56 overflow-y-auto pr-1 space-y-1">
@@ -440,8 +605,8 @@ const Navbar = () => {
                               type="button"
                               onClick={() => handleSelectCity(city)}
                               className={`p-2 rounded-xl text-left text-xs transition-all flex items-center justify-between group cursor-pointer ${isSelected
-                                  ? 'bg-blue-600/20 border border-blue-500 text-blue-300 font-bold'
-                                  : 'bg-[#12192a]/80 hover:bg-[#182238] border border-slate-800/80 text-slate-300 hover:text-white'
+                                ? 'bg-blue-600/20 border border-blue-500 text-blue-300 font-bold'
+                                : 'bg-[#12192a]/80 hover:bg-[#182238] border border-slate-800/80 text-slate-300 hover:text-white'
                                 }`}
                             >
                               <span className="truncate pr-1">{city}</span>
@@ -449,7 +614,7 @@ const Navbar = () => {
                                 {hasCinema && (
                                   <span
                                     className="w-1.5 h-1.5 rounded-full bg-emerald-400"
-                                    title="Có rạp MovieTix đang hoạt động"
+                                    title="Có rạp D'AVENOR CINEMA đang hoạt động"
                                   />
                                 )}
                                 {isSelected && (
@@ -487,10 +652,21 @@ const Navbar = () => {
             <div className="relative" ref={dropdownRef}>
               <div
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center space-x-2.5 bg-[#121929] hover:bg-slate-800 border border-slate-700/80 px-3 py-1.5 rounded-xl cursor-pointer transition-all"
+                className="flex items-center space-x-2.5 bg-[#121929] hover:bg-slate-800 border border-slate-700/80 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all hover:border-slate-600 shadow-sm"
               >
-                <div className="w-6 h-6 rounded-full bg-[#2563eb] text-white flex items-center justify-center text-[10px] font-black uppercase">
-                  {currentUser.name ? currentUser.name[0] : 'U'}
+                {/* Avatar cá nhân HOẶC Icon hình con người chuẩn */}
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-slate-800 to-slate-700 border border-slate-600/80 flex items-center justify-center shrink-0 shadow-inner">
+                  {currentUser.avatar ? (
+                    <img
+                      src={currentUser.avatar}
+                      alt={currentUser.name || 'User Avatar'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <svg className="w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                      <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
+                    </svg>
+                  )}
                 </div>
                 <div className="text-left hidden sm:block">
                   <span className="text-xs font-bold text-white block leading-tight">
@@ -505,11 +681,43 @@ const Navbar = () => {
 
               {/* Dropdown Menu */}
               {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-[#0f1422] border border-slate-800 rounded-2xl shadow-2xl py-2 z-50 space-y-1">
-                  <div className="px-4 py-2 border-b border-slate-800/80">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Tài khoản MovieTix</span>
-                    <strong className="text-xs text-white block">{currentUser.name}</strong>
-                    <span className="text-[11px] text-slate-400 block truncate">{currentUser.email}</span>
+                <div className="absolute right-0 mt-2 w-64 bg-[#0f1422] border border-slate-800 rounded-2xl shadow-2xl py-2 z-50 space-y-1">
+                  <div className="px-4 py-3 border-b border-slate-800/80 flex items-center space-x-3">
+                    {/* Bấm vào avatar để đổi ảnh đại diện */}
+                    <div
+                      onClick={handleOpenAvatarModal}
+                      title="Bấm để đổi ảnh đại diện"
+                      className="relative group w-11 h-11 rounded-full overflow-hidden bg-gradient-to-tr from-slate-800 to-slate-700 border-2 border-slate-600 hover:border-blue-400 flex items-center justify-center shrink-0 cursor-pointer shadow-md transition-all hover:scale-105"
+                    >
+                      {currentUser.avatar ? (
+                        <img
+                          src={currentUser.avatar}
+                          alt={currentUser.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <svg className="w-5 h-5 text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                          <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[9px] font-bold">
+                        📷 Đổi
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">TÀI KHOẢN D'AVENOR</span>
+                        <button
+                          type="button"
+                          onClick={handleOpenAvatarModal}
+                          className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold underline cursor-pointer"
+                        >
+                          Đổi ảnh
+                        </button>
+                      </div>
+                      <strong className="text-xs text-white block truncate">{currentUser.name}</strong>
+                      <span className="text-[11px] text-slate-400 block truncate">{currentUser.email}</span>
+                    </div>
                   </div>
 
                   <Link
@@ -529,6 +737,16 @@ const Navbar = () => {
                     <span>🎁</span>
                     <span>Kho Voucher đổi thưởng</span>
                   </Link>
+
+                  {/* Nút Đổi ảnh đại diện */}
+                  <button
+                    type="button"
+                    onClick={handleOpenAvatarModal}
+                    className="w-full text-left flex items-center space-x-2 px-4 py-2 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors font-medium cursor-pointer"
+                  >
+                    <span>🖼️</span>
+                    <span>Đổi ảnh đại diện</span>
+                  </button>
 
                   {currentUser.role === 'ADMIN' && (
                     <Link
@@ -574,6 +792,284 @@ const Navbar = () => {
           )}
         </div>
       </div>
+
+      {/* MODAL THAY ĐỔI ẢNH ĐẠI DIỆN */}
+      {isAvatarModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            className="w-full max-w-lg bg-[#0e1424] border border-slate-800 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-5 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Modal */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center space-x-2.5">
+                <span className="text-xl">🖼️</span>
+                <div>
+                  <h3 className="text-base font-black text-white uppercase tracking-wider">
+                    Đổi Ảnh Đại Diện
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Cá nhân hóa tài khoản D'AVENOR CINEMA của bạn
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAvatarModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xs transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Xem trước Avatar hiện tại / mới */}
+            <div className="flex flex-col sm:flex-row items-center gap-4 bg-[#141b2e] p-4 rounded-2xl border border-slate-800/80">
+              <div className="relative group w-20 h-20 rounded-full overflow-hidden bg-gradient-to-tr from-slate-800 to-slate-700 border-2 border-blue-500 shadow-lg shadow-blue-500/20 shrink-0 flex items-center justify-center">
+                {selectedAvatarUrl ? (
+                  <img
+                    src={selectedAvatarUrl}
+                    alt="Preview Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <svg className="w-10 h-10 text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex-1 text-center sm:text-left space-y-1">
+                <span className="text-xs font-bold text-white block">
+                  {currentUser?.name}
+                </span>
+                <p className="text-[11px] text-slate-400">
+                  {selectedAvatarUrl
+                    ? 'Đang xem trước ảnh bạn vừa chọn. Hãy bấm "Lưu Thay Đổi" để cập nhật.'
+                    : 'Đang dùng hình đại diện mặc định (icon con người).'}
+                </p>
+                {selectedAvatarUrl && (
+                  <button
+                    type="button"
+                    onClick={handleResetToDefaultAvatar}
+                    className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold underline inline-flex items-center space-x-1 cursor-pointer pt-0.5"
+                  >
+                    <span>↺ Gỡ ảnh (Về icon con người mặc định)</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Thông báo phản hồi */}
+            {avatarMessage.text && (
+              <div
+                className={`p-3 rounded-xl text-xs flex items-center space-x-2 ${
+                  avatarMessage.type === 'success'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                    : avatarMessage.type === 'info'
+                    ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
+                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                }`}
+              >
+                <span>
+                  {avatarMessage.type === 'success' ? '✓' : avatarMessage.type === 'info' ? 'ℹ️' : '⚠️'}
+                </span>
+                <span>{avatarMessage.text}</span>
+              </div>
+            )}
+
+            {/* Tùy chọn nguồn ảnh */}
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setAvatarActiveTab('presets')}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    avatarActiveTab === 'presets'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  🎬 Kho Phim Hot ({PRESET_AVATARS.length})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAvatarActiveTab('upload')}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    avatarActiveTab === 'upload'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  📁 Tải từ máy tính
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAvatarActiveTab('url')}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    avatarActiveTab === 'url'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  🔗 Dán link ảnh
+                </button>
+              </div>
+
+              {/* Tab 1: Kho nhân vật phim */}
+              {avatarActiveTab === 'presets' && (
+                <div className="space-y-2">
+                  <span className="text-[11px] text-slate-400 block">
+                    Bấm vào nhân vật điện ảnh bạn muốn làm hình đại diện:
+                  </span>
+                  <div className="grid grid-cols-4 gap-2.5 max-h-48 overflow-y-auto pr-1">
+                    {PRESET_AVATARS.map((item) => {
+                      const isSelected = selectedAvatarUrl === item.url;
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            setSelectedAvatarUrl(item.url);
+                            setAvatarMessage({
+                              type: 'info',
+                              text: `Đã chọn "${item.name}". Bấm "Lưu Thay Đổi" để cập nhật.`,
+                            });
+                          }}
+                          className={`relative rounded-2xl overflow-hidden p-1.5 flex flex-col items-center cursor-pointer transition-all border ${
+                            isSelected
+                              ? 'bg-blue-600/20 border-blue-500 shadow-md shadow-blue-500/20'
+                              : 'bg-[#121929] border-slate-800 hover:border-slate-700 hover:bg-[#182238]'
+                          }`}
+                        >
+                          <div className="w-12 h-12 rounded-full overflow-hidden mb-1 border border-slate-700">
+                            <img
+                              src={item.url}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <span className="text-[10px] font-bold text-white text-center truncate w-full">
+                            {item.name}
+                          </span>
+                          <span className="text-[9px] text-blue-400 font-semibold">
+                            {item.tag}
+                          </span>
+                          {isSelected && (
+                            <span className="absolute top-1 right-1 bg-blue-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                              ✓
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Tải file từ máy tính */}
+              {avatarActiveTab === 'upload' && (
+                <div className="space-y-3">
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-slate-700 hover:border-blue-500 bg-[#121929] hover:bg-[#152035] rounded-2xl p-6 text-center cursor-pointer transition-colors space-y-2"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center mx-auto text-xl">
+                      📤
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-white">
+                        Bấm để chọn tệp ảnh từ máy tính
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Hỗ trợ PNG, JPG, JPEG, WEBP (Tối đa 5MB)
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/20 cursor-pointer pointer-events-none"
+                    >
+                      Duyệt file ảnh
+                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Nhập link ảnh trực tiếp */}
+              {avatarActiveTab === 'url' && (
+                <div className="space-y-3">
+                  <span className="text-[11px] text-slate-400 block">
+                    Dán đường dẫn URL trực tiếp của hình ảnh (từ Google, Imgur, Unsplash...):
+                  </span>
+                  <div className="flex space-x-2">
+                    <input
+                      type="url"
+                      value={customAvatarInput}
+                      onChange={(e) => setCustomAvatarInput(e.target.value)}
+                      placeholder="https://example.com/avatar.jpg"
+                      className="flex-1 bg-[#121929] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!customAvatarInput.trim()) {
+                          setAvatarMessage({ type: 'error', text: 'Vui lòng dán liên kết ảnh trước khi bấm Xem thử!' });
+                          return;
+                        }
+                        setSelectedAvatarUrl(customAvatarInput.trim());
+                        setAvatarMessage({
+                          type: 'success',
+                          text: 'Đã tải bản xem trước từ liên kết. Bấm "Lưu Thay Đổi" để cập nhật!',
+                        });
+                      }}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 cursor-pointer transition-colors"
+                    >
+                      Xem thử
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Modal Actions */}
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setIsAvatarModalOpen(false)}
+                disabled={isUpdatingAvatar}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveAvatar}
+                disabled={isUpdatingAvatar}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white text-xs font-bold shadow-lg shadow-blue-600/30 transition-all flex items-center space-x-1.5 cursor-pointer"
+              >
+                {isUpdatingAvatar ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>💾</span>
+                    <span>Lưu Thay Đổi</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

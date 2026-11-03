@@ -21,7 +21,7 @@ const BookingSuccessPage = () => {
     customerPhone: booking?.customerPhone || '',
     movieTitle: booking?.showtime?.movie?.title || '',
     movieAgeRating: booking?.showtime?.movie?.ageRating || 'T16',
-    theaterName: 'MovieTix Center',
+    theaterName: booking?.showtime?.theater?.name || "D'AVENOR Landmark 81 IMAX",
     roomName: booking?.showtime?.roomName || 'Phòng chiếu',
     time: booking?.showtime?.startTime
       ? new Date(booking.showtime.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
@@ -123,7 +123,7 @@ const BookingSuccessPage = () => {
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-400 mt-2.5 leading-relaxed">
-            Mã vé điện tử đã gửi tới <strong className="text-white font-semibold">{ticketData.customerEmail}</strong> và SĐT <strong className="text-white font-semibold">{ticketData.customerPhone}</strong>. Xuất trình mã QR tại cửa kiểm soát hoặc quầy MovieTix Express.
+            Mã vé điện tử đã gửi tới <strong className="text-white font-semibold">{ticketData.customerEmail}</strong> và SĐT <strong className="text-white font-semibold">{ticketData.customerPhone}</strong>. Xuất trình mã QR tại cửa kiểm soát hoặc quầy D'AVENOR Express.
           </p>
         </div>
 
@@ -193,7 +193,7 @@ const BookingSuccessPage = () => {
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="currentColor" fillOpacity="0.15"></path>
                       <path d="m9 12 2 2 4-4" strokeWidth="2.5"></path>
                     </svg>
-                    <span>Bảo hiểm hủy vé MovieTix Protection kích hoạt</span>
+                    <span>Bảo hiểm hủy vé D'AVENOR Protection kích hoạt</span>
                   </div>
                 </div>
               </div>
@@ -293,7 +293,7 @@ const BookingSuccessPage = () => {
                   MÃ CHECK-IN NHANH
                 </span>
                 <p className="text-[11px] sm:text-xs text-slate-400 mt-1.5 max-w-sm mx-auto leading-relaxed">
-                  Quét mã bên dưới để vào phòng chiếu và nhận bắp nước tại line ưu tiên MovieTix Express.
+                  Quét mã bên dưới để vào phòng chiếu và nhận bắp nước tại line ưu tiên D'AVENOR Express.
                 </p>
               </div>
 
@@ -301,7 +301,7 @@ const BookingSuccessPage = () => {
               <div className="inline-block p-5 sm:p-6 bg-white rounded-3xl shadow-2xl relative border-4 border-slate-800/80 my-2">
                 <img
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${ticketData.bookingCode}`}
-                  alt="MovieTix Fast Check-in QR"
+                  alt="D'AVENOR Fast Check-in QR"
                   className="w-48 h-48 sm:w-56 sm:h-56 object-contain rounded-xl mx-auto"
                 />
                 {/* Logo icon cuộn phim xanh ở tâm mã QR chuẩn ảnh mẫu */}

@@ -27,6 +27,15 @@ const BookingManagePage = () => {
     }
   };
 
+  const handleStatusChange = async (id, newStatus) => {
+    try {
+      await api.put(`/admin/bookings/${id}/status`, { status: newStatus });
+      fetchBookings();
+    } catch (err) {
+      alert('Lỗi cập nhật trạng thái: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-950 text-white">
       <SidebarAdmin />
@@ -59,6 +68,7 @@ const BookingManagePage = () => {
                   <th className="px-4 py-3">Tổng tiền</th>
                   <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3">Ngày đặt</th>
+                  <th className="px-4 py-3 text-center">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -108,6 +118,32 @@ const BookingManagePage = () => {
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">
                         {new Date(b.createdAt).toLocaleString('vi-VN')}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center space-x-1.5">
+                          {b.status !== 'PAID' && (
+                            <button
+                              onClick={() => handleStatusChange(b.id || b._id, 'PAID')}
+                              className="px-2 py-1 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded text-[11px] font-bold transition-all"
+                              title="Xác nhận thanh toán"
+                            >
+                              ✓ Duyệt
+                            </button>
+                          )}
+                          {b.status !== 'CANCELLED' && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Bạn có chắc muốn hủy đơn vé này không?')) {
+                                  handleStatusChange(b.id || b._id, 'CANCELLED');
+                                }
+                              }}
+                              className="px-2 py-1 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white rounded text-[11px] font-bold transition-all"
+                              title="Hủy vé"
+                            >
+                              ✕ Hủy
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))

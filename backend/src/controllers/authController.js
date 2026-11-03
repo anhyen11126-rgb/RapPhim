@@ -68,7 +68,7 @@ export const register = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Đăng ký tài khoản thành công! Chào mừng bạn đến với MovieTix.',
+      message: "Đăng ký tài khoản thành công! Chào mừng bạn đến với D'AVENOR CINEMA.",
       token,
       user: {
         id: newUser._id.toString(),
@@ -78,6 +78,7 @@ export const register = async (req, res) => {
         role: newUser.role,
         tier: newUser.tier,
         points: newUser.points,
+        avatar: newUser.avatar || '',
       },
     });
   } catch (error) {
@@ -139,6 +140,7 @@ export const login = async (req, res) => {
         role: user.role,
         tier: user.tier,
         points: user.points,
+        avatar: user.avatar || '',
       },
     });
   } catch (error) {
@@ -171,10 +173,65 @@ export const getMe = async (req, res) => {
         role: user.role,
         tier: user.tier,
         points: user.points,
+        avatar: user.avatar || '',
       },
     });
   } catch (error) {
     res.status(401).json({ message: 'Phiên đăng nhập đã hết hạn', error: error.message });
+  }
+};
+
+// 4. Cập nhật ảnh đại diện (Avatar) cho người dùng
+export const updateAvatar = async (req, res) => {
+  try {
+    const { avatar, email, userId } = req.body;
+
+    if (avatar === undefined || avatar === null) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp thông tin ảnh đại diện' });
+    }
+
+    let targetUserId = userId;
+
+    // Lấy ID từ Token nếu có
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+        targetUserId = decoded.id;
+      } catch {
+        // Tiếp tục thử fallback theo email/userId
+      }
+    }
+
+    let user = null;
+    const cleanAvatar = typeof avatar === 'string' ? avatar.trim() : '';
+    if (targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
+      user = await User.findByIdAndUpdate(targetUserId, { avatar: cleanAvatar }, { new: true });
+    } else if (email) {
+      user = await User.findOneAndUpdate({ email: email.toLowerCase().trim() }, { avatar: cleanAvatar }, { new: true });
+    }
+
+    if (!user) {
+      return res.status(404).json({ message: 'Không tìm thấy tài khoản người dùng để đổi avatar' });
+    }
+
+    res.json({
+      success: true,
+      message: cleanAvatar ? 'Cập nhật ảnh đại diện thành công!' : 'Đã đưa ảnh đại diện về mặc định!',
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        tier: user.tier,
+        points: user.points,
+        avatar: user.avatar || '',
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi cập nhật ảnh đại diện', error: error.message });
   }
 };
 

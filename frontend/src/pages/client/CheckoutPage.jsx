@@ -11,7 +11,7 @@ const CheckoutPage = () => {
   const showtimeId = stateData.showtimeId || 1;
   const showtime = stateData.showtime || {
     movie: { title: 'Dune: Hành Tinh Cát 2', ageRating: 'T16' },
-    roomName: 'MovieTix Center (P.3)',
+    roomName: 'D\'AVENOR Center (P.3)',
     startTime: new Date(),
   };
   const selectedSeats = stateData.selectedSeats && stateData.selectedSeats.length > 0
@@ -50,7 +50,7 @@ const CheckoutPage = () => {
     },
     {
       id: 'family',
-      title: 'Combo Gia đình MovieTix',
+      title: 'Combo Gia đình D\'AVENOR',
       badge: 'Tiết kiệm 35%',
       desc: '2 Bắp rang bơ lớn (tuỳ chọn vị) + 3 Ly nước ngọt giải khát lớn + 1 Gói snack khoai tây sấy giòn cao cấp.',
       price: 189000,
@@ -67,7 +67,7 @@ const CheckoutPage = () => {
   });
 
   // Mã giảm giá voucher
-  const [voucherCode, setVoucherCode] = useState('MOVIETIX50');
+  const [voucherCode, setVoucherCode] = useState('DAVENOR50');
   const [isVoucherApplied, setIsVoucherApplied] = useState(true);
   const [discountAmount, setDiscountAmount] = useState(30000);
 
@@ -103,7 +103,7 @@ const CheckoutPage = () => {
   const [showQRModal, setShowQRModal] = useState(false);
 
   const handleApplyVoucher = () => {
-    if (voucherCode.trim().toUpperCase() === 'MOVIETIX50') {
+    if (voucherCode.trim().toUpperCase() === 'DAVENOR50' || voucherCode.trim().toUpperCase() === 'MOVIETIX50') {
       setIsVoucherApplied(true);
       setDiscountAmount(30000);
     } else if (voucherCode.trim().toUpperCase() === 'VIP20') {
@@ -189,7 +189,7 @@ const CheckoutPage = () => {
                 title: showtime?.movie?.title || 'Dune: Hành Tinh Cát 2',
                 ageRating: showtime?.movie?.ageRating || 'T16',
               },
-              roomName: showtime?.roomName || 'MovieTix Center (Phòng IMAX 03)',
+              roomName: showtime?.roomName || 'D\'AVENOR Center (Phòng IMAX 03)',
               startTime: showtime?.startTime || new Date(),
             },
           },
@@ -329,7 +329,7 @@ const CheckoutPage = () => {
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-400 mt-2 leading-relaxed max-w-2xl">
-                Tiết kiệm tới 25% khi đặt trước combo F&B online. Nhận đồ ăn nhanh chóng tại làn ưu tiên MovieTix Express không cần xếp hàng.
+                Tiết kiệm tới 25% khi đặt trước combo F&B online. Nhận đồ ăn nhanh chóng tại làn ưu tiên D'AVENOR Express không cần xếp hàng.
               </p>
             </div>
 
@@ -501,7 +501,7 @@ const CheckoutPage = () => {
               <div className="flex items-center gap-3 text-xs text-slate-300 mt-2.5 pb-4 border-b border-slate-800">
                 <span className="flex items-center gap-1 font-medium">
                   <span className="text-blue-400">📽️</span>
-                  <span>{showtime?.roomName || 'MovieTix Center (P.3)'}</span>
+                  <span>{showtime?.roomName || 'D\'AVENOR Center (P.3)'}</span>
                 </span>
                 <span className="text-slate-600">•</span>
                 <span className="flex items-center gap-1 font-medium">
@@ -554,7 +554,7 @@ const CheckoutPage = () => {
               {/* Ô NHẬP MÃ GIẢM GIÁ (VOUCHER) */}
               <div className="py-4 border-b border-slate-800 space-y-2">
                 <label className="block text-[11px] font-bold text-slate-400">
-                  Mã ưu đãi / Voucher MovieTix
+                  Mã ưu đãi / Voucher D'AVENOR
                 </label>
                 <div className="flex items-center space-x-2">
                   <input
@@ -821,7 +821,7 @@ const CheckoutPage = () => {
               <p className="text-[10px] text-slate-500 text-center leading-normal pt-1">
                 Nhấn 'Tiến hành thanh toán' đồng nghĩa bạn đồng ý với{' '}
                 <span className="text-slate-400 underline cursor-pointer">Điều khoản đặt vé</span> &{' '}
-                <span className="text-slate-400 underline cursor-pointer">Chính sách hoàn huỷ</span> của MovieTix.
+                <span className="text-slate-400 underline cursor-pointer">Chính sách hoàn huỷ</span> của D'AVENOR CINEMA.
               </p>
             </div>
           </div>

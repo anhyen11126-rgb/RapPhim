@@ -60,7 +60,7 @@ export const getCinemaCurrentContext = async () => {
 
   // 3. Quy định rạp & chính sách vé (Kho tri thức tĩnh)
   const policies = [
-    'Địa chỉ rạp: Tầng 5, MovieTix Plaza, 123 Đường Điện Ảnh, TP.HCM.',
+    'Địa chỉ rạp: Tầng 5, D\'AVENOR Landmark 81, TP.HCM & hệ thống cụm rạp D\'AVENOR CINEMA toàn quốc.',
     'Quy định độ tuổi: P (Mọi độ tuổi), T13 (Từ 13 tuổi trở lên), T16 (Từ 16 tuổi trở lên), T18 (Từ 18 tuổi trở lên - cần xuất trình CCCD).',
     'Chính sách vé: Vé đã mua không thể hoàn tiền nhưng có thể hỗ trợ đổi suất chiếu trước giờ chiếu ít nhất 60 phút tại quầy vé.',
     'Quy định rạp: Không mang thức ăn/thức uống có mùi nặng từ ngoài vào; vui lòng giữ trật tự và chuyển điện thoại sang chế độ rung.',
@@ -88,7 +88,7 @@ export const generateChatResponse = async (userMessage, history = []) => {
 
   // Tăng cường ngữ cảnh (Augmentation)
   const systemInstruction = `
-Bạn là "MovieTix AI" - Trợ lý ảo tư vấn rạp chiếu phim chuyên nghiệp, thân thiện và nhiệt tình của hệ thống MovieTix.
+Bạn là "D'AVENOR AI" - Trợ lý ảo tư vấn rạp chiếu phim chuyên nghiệp, thân thiện và nhiệt tình của hệ thống D'AVENOR CINEMA.
 Dưới đây là DỮ LIỆU THỰC TẾ TRONG HỆ THỐNG RẠP NGAY LÚC NÀY:
 ----------------------------
 CẬP NHẬT LÚC: ${context.updatedAt}
@@ -123,7 +123,7 @@ QUY TẮC PHẢN HỒI BẮT BUỘC:
         },
         {
           role: 'model',
-          parts: [{ text: 'Xin chào! Tôi là Trợ lý AI MovieTix. Tôi đã nắm rõ toàn bộ lịch chiếu, giá vé, số ghế trống và quy định rạp hôm nay. Tôi sẵn sàng hỗ trợ bạn!' }],
+          parts: [{ text: "Xin chào! Tôi là Trợ lý AI D'AVENOR. Tôi đã nắm rõ toàn bộ lịch chiếu, giá vé, số ghế trống và quy định rạp hôm nay. Tôi sẵn sàng hỗ trợ bạn!" }],
         },
       ],
     });
@@ -152,7 +152,7 @@ function generateLocalFallbackResponse(query, context) {
     const list = context.concessions.map((c) => `• ${c}`).join('\n');
     return {
       success: true,
-      reply: `🍿 **Bảng giá Bắp Nước tại rạp MovieTix:**\n${list}\n\nBạn có thể chọn bắp nước ngay tại bước Thanh toán vé nhé!`,
+      reply: `🍿 **Bảng giá Bắp Nước tại rạp D'AVENOR CINEMA:**\n${list}\n\nBạn có thể chọn bắp nước ngay tại bước Thanh toán vé nhé!`,
       source: 'LOCAL_RULE_ENGINE',
     };
   }
@@ -179,7 +179,7 @@ function generateLocalFallbackResponse(query, context) {
 
     return {
       success: true,
-      reply: `✨ **Gợi ý hoàn hảo nhất tối nay:**\n\nSuất chiếu lý tưởng nhất cho bạn là **${duneMovie?.title || 'Dune: Hành Tinh Cát 2'}** lúc **${imaxShowtime?.time || '19:15'}** tại **${imaxShowtime?.room || 'Phòng chiếu IMAX Laser 03, MovieTix Center Landmark'}**!\n\n💺 **Tư vấn ghế VIP:** Dãy ghế hàng F (F6, F7) ở vị trí trung tâm, tầm nhìn thẳng góc 135° và trọn vẹn trường nhìn siêu rộng của màn hình IMAX 22m x 12m với âm thanh vòm Dolby Atmos 128 kênh sống động.\n\n[👉 Đặt vé ngay suất ${imaxShowtime?.time || '19:15'} - Ghế VIP F6, F7](/booking/seat/${imaxShowtime?.showtimeId || 1})`,
+      reply: `✨ **Gợi ý hoàn hảo nhất tối nay:**\n\nSuất chiếu lý tưởng nhất cho bạn là **${duneMovie?.title || 'Dune: Hành Tinh Cát 2'}** lúc **${imaxShowtime?.time || '19:15'}** tại **${imaxShowtime?.room || 'Phòng chiếu IMAX Laser 03, D\'AVENOR Landmark 81'}**!\n\n💺 **Tư vấn ghế VIP:** Dãy ghế hàng F (F6, F7) ở vị trí trung tâm, tầm nhìn thẳng góc 135° và trọn vẹn trường nhìn siêu rộng của màn hình IMAX 22m x 12m với âm thanh vòm Dolby Atmos 128 kênh sống động.\n\n[👉 Đặt vé ngay suất ${imaxShowtime?.time || '19:15'} - Ghế VIP F6, F7](/booking/seat/${imaxShowtime?.showtimeId || 1})`,
       movieCard: {
         title: duneMovie?.title || 'Dune: Part Two',
         rating: '8.9',
@@ -213,7 +213,7 @@ function generateLocalFallbackResponse(query, context) {
   }
 
   // 4. Mặc định: Giới thiệu toàn bộ phim đang chiếu kèm suất chiếu
-  let defaultReply = `Chào bạn! Hôm nay tại **MovieTix** đang có các bộ phim chiếu rạp hấp dẫn sau:\n\n`;
+  let defaultReply = `Chào bạn! Hôm nay tại **D'AVENOR CINEMA** đang có các bộ phim chiếu rạp hấp dẫn sau:\n\n`;
   context.movies.forEach((m) => {
     defaultReply += `🎬 **${m.title}** (${m.ageRating} • ${m.duration} • ${m.genre})\n`;
     if (m.showtimes.length > 0) {

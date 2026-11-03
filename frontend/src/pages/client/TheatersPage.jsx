@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { FALLBACK_CINEMAS } from '../../constants/cinemas';
 
 const REGIONS = [
   'Tất cả khu vực',
@@ -79,21 +80,57 @@ const TheatersPage = () => {
         if (searchKeyword.trim()) params.search = searchKeyword.trim();
 
         const res = await api.get('/cinemas', { params });
-        setCinemas(res.data || []);
+        const data = res.data && res.data.length > 0 ? res.data : null;
 
-        // Mặc định chọn rạp đầu tiên nếu chưa chọn hoặc rạp cũ không nằm trong danh sách
-        if (res.data && res.data.length > 0) {
-          const isCurrentSelectedStillInList = res.data.some((c) => c.id === selectedCinemaId);
+        if (data) {
+          setCinemas(data);
+          const isCurrentSelectedStillInList = data.some((c) => c.id === selectedCinemaId);
           if (!selectedCinemaId || !isCurrentSelectedStillInList) {
-            setSelectedCinemaId(res.data[0].id);
+            setSelectedCinemaId(data[0].id);
           }
+        } else {
+          // Lọc từ danh sách chuẩn nếu backend trả về rỗng
+          let fallback = [...FALLBACK_CINEMAS];
+          if (activeRegion && activeRegion !== 'Tất cả khu vực') {
+            fallback = fallback.filter((c) => c.city.toLowerCase() === activeRegion.toLowerCase());
+          }
+          if (activeTech && activeTech !== 'Tất cả') {
+            fallback = fallback.filter((c) => c.tags?.includes(activeTech));
+          }
+          if (searchKeyword.trim()) {
+            const kw = searchKeyword.toLowerCase();
+            fallback = fallback.filter((c) => c.name.toLowerCase().includes(kw) || c.address.toLowerCase().includes(kw));
+          }
+          setCinemas(fallback);
+          if (fallback.length > 0) {
+            setSelectedCinemaId(fallback[0].id);
+          } else {
+            setSelectedCinemaId(null);
+            setCinemaDetails(null);
+            setMoviesWithShowtimes([]);
+          }
+        }
+      } catch (err) {
+        console.warn('Backend chưa phản hồi, sử dụng danh sách cụm rạp chuẩn:', err.message);
+        let fallback = [...FALLBACK_CINEMAS];
+        if (activeRegion && activeRegion !== 'Tất cả khu vực') {
+          fallback = fallback.filter((c) => c.city.toLowerCase() === activeRegion.toLowerCase());
+        }
+        if (activeTech && activeTech !== 'Tất cả') {
+          fallback = fallback.filter((c) => c.tags?.includes(activeTech));
+        }
+        if (searchKeyword.trim()) {
+          const kw = searchKeyword.toLowerCase();
+          fallback = fallback.filter((c) => c.name.toLowerCase().includes(kw) || c.address.toLowerCase().includes(kw));
+        }
+        setCinemas(fallback);
+        if (fallback.length > 0) {
+          setSelectedCinemaId(fallback[0].id);
         } else {
           setSelectedCinemaId(null);
           setCinemaDetails(null);
           setMoviesWithShowtimes([]);
         }
-      } catch (err) {
-        console.error('Lỗi khi tải danh sách rạp từ Database:', err);
       } finally {
         setLoadingCinemas(false);
       }
@@ -119,7 +156,11 @@ const TheatersPage = () => {
           setMoviesWithShowtimes(res.data.movies || []);
         }
       } catch (err) {
-        console.error('Lỗi khi tải lịch chiếu rạp:', err);
+        console.warn('Lỗi khi tải lịch chiếu rạp:', err.message);
+        const currentCinema = cinemas.find((c) => c.id === selectedCinemaId) || FALLBACK_CINEMAS.find((c) => c.id === selectedCinemaId);
+        if (currentCinema) {
+          setCinemaDetails(currentCinema);
+        }
       } finally {
         setLoadingShowtimes(false);
       }
@@ -514,7 +555,7 @@ const TheatersPage = () => {
                         Chưa có suất chiếu trong ngày đã chọn tại rạp này
                       </h4>
                       <p className="text-xs text-slate-400 max-w-md mx-auto">
-                        Bạn có thể chọn rạp <strong>MovieTix Landmark 81 IMAX</strong> hoặc chọn ngày khác để xem các suất chiếu có sẵn trong Database.
+                        Bạn có thể chọn rạp <strong>D'AVENOR Landmark 81 IMAX</strong> hoặc chọn ngày khác để xem các suất chiếu có sẵn trong Database.
                       </p>
                     </div>
                   )}

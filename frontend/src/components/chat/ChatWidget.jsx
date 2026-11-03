@@ -16,7 +16,7 @@ const ChatWidget = () => {
       id: 1,
       sender: 'bot',
       time: '18:42',
-      text: 'Xin chào **An**! Tôi là trợ lý ảo MovieTix. Tôi có thể giúp bạn tìm phim hay theo sở thích, tra cứu suất chiếu rạp gần nhất, kiểm tra ghế VIP trống hoặc gợi ý combo bắp nước giá tốt! 🍿 ✨',
+      text: 'Xin chào **An**! Tôi là trợ lý ảo D\'AVENOR CINEMA. Tôi có thể giúp bạn tìm phim hay theo sở thích, tra cứu suất chiếu rạp gần nhất, kiểm tra ghế VIP trống hoặc gợi ý combo bắp nước giá tốt! 🍿 ✨',
     },
   ]);
 
@@ -35,10 +35,10 @@ const ChatWidget = () => {
 
   // Các gợi ý nhanh dạng viên thuốc
   const quickChips = [
-    { label: '🎬 Top phim tuần này', query: 'Cho tôi xem top phim bom tấn hay nhất tuần này tại MovieTix' },
-    { label: '🎟️ Giá vé IMAX tối nay', query: 'Tối nay khoảng sau 19h ở rạp MovieTix Center còn phim nào bom tấn xem IMAX được không bạn? Tư vấn ghế đẹp giúp mình luôn nhé!' },
+    { label: '🎬 Top phim tuần này', query: 'Cho tôi xem top phim bom tấn hay nhất tuần này tại D\'AVENOR CINEMA' },
+    { label: '🎟️ Giá vé IMAX tối nay', query: 'Tối nay khoảng sau 19h ở rạp D\'AVENOR còn phim nào bom tấn xem IMAX được không bạn? Tư vấn ghế đẹp giúp mình luôn nhé!' },
     { label: '🍿 Combo bắp nước giá tốt', query: 'Có combo bắp nước nào ngon và giá tiết kiệm nhất hiện nay không?' },
-    { label: '📍 Suất chiếu sau 19h', query: 'Các suất chiếu sau 19h tối nay tại rạp MovieTix Landmark 81' },
+    { label: '📍 Suất chiếu sau 19h', query: 'Các suất chiếu sau 19h tối nay tại rạp D\'AVENOR Landmark 81' },
   ];
 
   const handleSend = async (e, customText = null) => {
@@ -89,7 +89,7 @@ const ChatWidget = () => {
       let fallbackCard = null;
 
       if (textToSend.toLowerCase().includes('imax') || textToSend.toLowerCase().includes('19h') || textToSend.toLowerCase().includes('ghế')) {
-        fallbackText = `✨ **Gợi ý hoàn hảo nhất tối nay:**\n\nSuất chiếu lý tưởng nhất cho bạn là **Dune: Hành Tinh Cát 2 (Dune: Part Two)** lúc **19:15** tại **Phòng chiếu IMAX Laser 03, MovieTix Center Landmark**!\n\n💺 **Tư vấn ghế VIP:** Dãy ghế hàng F (F6, F7) ở vị trí trung tâm, tầm nhìn thẳng góc 135° và trọn vẹn trường nhìn siêu rộng của màn hình IMAX 22m x 12m với âm thanh vòm Dolby Atmos 128 kênh sống động.`;
+        fallbackText = `✨ **Gợi ý hoàn hảo nhất tối nay:**\n\nSuất chiếu lý tưởng nhất cho bạn là **Dune: Hành Tinh Cát 2 (Dune: Part Two)** lúc **19:15** tại **Phòng chiếu IMAX Laser 03, D'AVENOR Landmark**!\n\n💺 **Tư vấn ghế VIP:** Dãy ghế hàng F (F6, F7) ở vị trí trung tâm, tầm nhìn thẳng góc 135° và trọn vẹn trường nhìn siêu rộng của màn hình IMAX 22m x 12m với âm thanh vòm Dolby Atmos 128 kênh sống động.`;
         fallbackCard = {
           title: 'Dune: Part Two',
           rating: '8.9',
@@ -122,7 +122,7 @@ const ChatWidget = () => {
   // Giả lập hoặc kích hoạt nhận diện giọng nói Speech-to-Text
   const handleToggleVoice = () => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      setInput('Tối nay khoảng sau 19h ở rạp MovieTix Center còn phim nào bom tấn xem IMAX được không bạn?');
+      setInput('Tối nay khoảng sau 19h ở rạp D\'AVENOR CINEMA còn phim nào bom tấn xem IMAX được không bạn?');
       return;
     }
 
@@ -144,7 +144,7 @@ const ChatWidget = () => {
         recognition.start();
       }
     } catch {
-      setInput('Tối nay khoảng sau 19h ở rạp MovieTix Center còn phim nào bom tấn xem IMAX được không bạn?');
+      setInput('Tối nay khoảng sau 19h ở rạp D\'AVENOR CINEMA còn phim nào bom tấn xem IMAX được không bạn?');
     }
   };
 
@@ -155,7 +155,7 @@ const ChatWidget = () => {
         id: Date.now(),
         sender: 'bot',
         time: '18:42',
-        text: 'Xin chào **An**! Tôi là trợ lý ảo MovieTix. Tôi có thể giúp bạn tìm phim hay theo sở thích, tra cứu suất chiếu rạp gần nhất, kiểm tra ghế VIP trống hoặc gợi ý combo bắp nước giá tốt! 🍿 ✨',
+        text: 'Xin chào **An**! Tôi là trợ lý ảo D\'AVENOR CINEMA. Tôi có thể giúp bạn tìm phim hay theo sở thích, tra cứu suất chiếu rạp gần nhất, kiểm tra ghế VIP trống hoặc gợi ý combo bắp nước giá tốt! 🍿 ✨',
       },
     ]);
   };
@@ -233,7 +233,7 @@ const ChatWidget = () => {
             setIsMinimized(false);
           }}
           className="bg-[#121929]/95 hover:bg-[#1a253f] border border-blue-500/40 text-white rounded-full pl-2 pr-4 py-2 shadow-[0_0_25px_rgba(37,99,235,0.35)] flex items-center space-x-2.5 transition-all hover:scale-105 group backdrop-blur-xl cursor-pointer"
-          title="Trò chuyện cùng Trợ lý AI MovieTix"
+          title="Trò chuyện cùng Trợ lý AI D'AVENOR CINEMA"
         >
           <div className="relative w-8 h-8 rounded-full bg-[#2563eb] text-white flex items-center justify-center text-sm font-bold shadow-md group-hover:scale-110 transition-transform">
             <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
@@ -255,9 +255,8 @@ const ChatWidget = () => {
       {/* 2. CỬA SỔ CHATBOX ĐỈNH CAO (CHUẨN 100% THEO ẢNH MẪU) */}
       {isOpen && (
         <div
-          className={`w-[360px] sm:w-[420px] bg-[#0c111d]/98 backdrop-blur-2xl border border-slate-700/80 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden transition-all duration-300 ${
-            isMinimized ? 'h-[64px]' : 'h-[580px] sm:h-[630px]'
-          }`}
+          className={`w-[360px] sm:w-[420px] bg-[#0c111d]/98 backdrop-blur-2xl border border-slate-700/80 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden transition-all duration-300 ${isMinimized ? 'h-[64px]' : 'h-[580px] sm:h-[630px]'
+            }`}
         >
           {/* HEADER CHATBOX */}
           <div className="bg-[#121826] border-b border-slate-800/90 px-4 py-3.5 flex items-center justify-between text-white shadow-md">
@@ -273,7 +272,7 @@ const ChatWidget = () => {
               <div>
                 <div className="flex items-center space-x-1.5">
                   <h4 className="font-extrabold text-sm text-white tracking-wide">
-                    Trợ lý AI MovieTix
+                    Trợ lý AI D'AVENOR
                   </h4>
                   <span className="text-[10px] font-bold text-blue-400 bg-blue-500/15 border border-blue-500/30 px-1.5 py-0.2 rounded">
                     Concierge v2.4

@@ -1,12 +1,7 @@
 import mongoose from 'mongoose';
-import dns from 'node:dns';
+import dotenv from 'dotenv';
 
-// Đảm bảo phân giải tên miền SRV MongoDB Atlas ổn định trên Windows
-try {
-  dns.setServers(['8.8.8.8', '8.8.4.4']);
-} catch {
-  // Bỏ qua nếu môi trường không cho phép set server
-}
+dotenv.config();
 
 const connectDB = async () => {
   const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/movietix_db';

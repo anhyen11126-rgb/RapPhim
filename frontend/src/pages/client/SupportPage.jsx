@@ -148,11 +148,11 @@ const SupportPage = () => {
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
-            MovieTix có thể giúp gì cho bạn hôm nay?
+            D'AVENOR CINEMA có thể giúp gì cho bạn hôm nay?
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-xl mx-auto">
-            Tìm kiếm câu trả lời nhanh chóng hoặc kết nối trực tiếp với đội ngũ Chăm sóc Khách hàng & Trợ lý ảo AI của MovieTix.
+            Tìm kiếm câu trả lời nhanh chóng hoặc kết nối trực tiếp với đội ngũ Chăm sóc Khách hàng & Trợ lý ảo AI của D'AVENOR CINEMA.
           </p>
 
           {/* Ô Tìm Kiếm Lớn */}
@@ -214,7 +214,7 @@ const SupportPage = () => {
                 </span>
               </div>
               <h3 className="text-sm sm:text-base font-black text-white">
-                Cần tra cứu lịch chiếu, giá vé hoặc giải đáp tức thì trong 3 giây? Hãy hỏi Trợ lý AI MovieTix!
+                Cần tra cứu lịch chiếu, giá vé hoặc giải đáp tức thì trong 3 giây? Hãy hỏi Trợ lý AI D'AVENOR CINEMA!
               </h3>
               <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
                 Hệ thống RAG AI thông minh được huấn luyện trên dữ liệu 12 cụm rạp, cập nhật giá vé, suất chiếu IMAX Laser và chính sách khuyến mãi theo thời gian thực.
@@ -563,8 +563,8 @@ const SupportPage = () => {
                   <span className="text-[10px] text-slate-400 block font-semibold">
                     Email giải quyết khiếu nại:
                   </span>
-                  <a href="mailto:support@movietix.vn" className="text-xs font-bold text-blue-400 hover:underline">
-                    support@movietix.vn
+                  <a href="mailto:support@davenor.vn" className="text-xs font-bold text-blue-400 hover:underline">
+                    support@davenor.vn
                   </a>
                 </div>
               </div>

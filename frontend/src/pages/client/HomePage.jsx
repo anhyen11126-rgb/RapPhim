@@ -160,7 +160,7 @@ const HomePage = () => {
 
   // Quick Booking Bar State
   const [selectedMovieId, setSelectedMovieId] = useState('1');
-  const [selectedTheater, setSelectedTheater] = useState('MovieTix Landmark 81');
+  const [selectedTheater, setSelectedTheater] = useState('D\'AVENOR Landmark 81');
   const [selectedDate, setSelectedDate] = useState('Hôm nay, 24/10');
   const [selectedShowtimeId, setSelectedShowtimeId] = useState('1');
   const [isMovieDropdownOpen, setIsMovieDropdownOpen] = useState(false);
@@ -508,10 +508,10 @@ const HomePage = () => {
                   onChange={(e) => setSelectedTheater(e.target.value)}
                   className="w-full bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7"
                 >
-                  <option value="MovieTix Landmark 81">MovieTix Landmark 81</option>
-                  <option value="MovieTix Westlake Hà Nội">MovieTix Westlake Hà Nội</option>
-                  <option value="MovieTix Sala Thủ Thiêm">MovieTix Sala Thủ Thiêm</option>
-                  <option value="MovieTix Pong Đà Nẵng">MovieTix Pong Đà Nẵng</option>
+                  <option value="D'AVENOR Landmark 81">D'AVENOR Landmark 81</option>
+                  <option value="D'AVENOR Westlake Hà Nội">D'AVENOR Westlake Hà Nội</option>
+                  <option value="D'AVENOR Sala Thủ Thiêm">D'AVENOR Sala Thủ Thiêm</option>
+                  <option value="D'AVENOR Đà Nẵng">D'AVENOR Đà Nẵng</option>
                 </select>
                 <span className="absolute right-3 top-2.5 text-slate-500 text-[10px] pointer-events-none">⌵</span>
               </div>
@@ -658,7 +658,7 @@ const HomePage = () => {
             </h2>
           </div>
           <p className="text-xs text-slate-400 max-w-md">
-            MovieTix trang bị hệ thống phòng chiếu hiện đại tiêu chuẩn Hollywood, mang lại cảm xúc thị giác và thính giác siêu thực.
+            D'AVENOR CINEMA trang bị hệ thống phòng chiếu hiện đại tiêu chuẩn Hollywood, mang lại cảm xúc thị giác và thính giác siêu thực.
           </p>
         </div>
 
@@ -722,7 +722,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* 5. PROMOTION BANNER (HỘI VIÊN MOVIETIX CLUB) */}
+      {/* 5. PROMOTION BANNER (HỘI VIÊN D'AVENOR CLUB) */}
       <section id="promotions" className="max-w-[1560px] mx-auto px-6 sm:px-10 lg:px-14 py-6">
         <div className="bg-gradient-to-b from-[#222f44]/90 to-[#172233]/90 backdrop-blur-xl border border-slate-600/60 rounded-3xl p-6 sm:p-7 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-2xl">
           <div className="flex items-center space-x-4">
@@ -731,7 +731,7 @@ const HomePage = () => {
             </div>
             <div>
               <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest block">
-                ĐẶC QUYỀN HỘI VIÊN MOVIETIX CLUB
+                ĐẶC QUYỀN HỘI VIÊN D'AVENOR CLUB
               </span>
               <h3 className="text-lg sm:text-xl font-black text-white mt-0.5">
                 Tặng ngay 01 vé xem phim 2D & Bắp nước miễn phí

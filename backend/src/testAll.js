@@ -39,7 +39,7 @@ function recordResult(name, passed, details = '') {
 
 async function runTests() {
   console.log(`\n======================================================`);
-  console.log(`🎬 ${colors.bold}MovieTix - BỘ TEST KIỂM THỬ TOÀN DIỆN HỆ THỐNG${colors.reset}`);
+  console.log(`🎬 ${colors.bold}D'AVENOR CINEMA - BỘ TEST KIỂM THỬ TOÀN DIỆN HỆ THỐNG${colors.reset}`);
   console.log(`======================================================\n`);
 
   try {
