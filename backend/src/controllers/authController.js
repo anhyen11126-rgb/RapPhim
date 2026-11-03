@@ -7,7 +7,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'movietix_jwt_secret_key_2026_cdio'
 // 1. Đăng ký tài khoản khách hàng mới
 export const register = async (req, res) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, confirmPassword } = req.body;
 
     if (!name || !email || !phone || !password) {
       return res.status(400).json({ message: 'Vui lòng điền đầy đủ tất cả các trường (*)' });
@@ -17,7 +17,16 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự' });
     }
 
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({ message: 'Mật khẩu xác nhận không khớp. Vui lòng kiểm tra lại.' });
+    }
+
     const cleanEmail = email.toLowerCase().trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({ message: 'Địa chỉ Email không đúng định dạng hợp lệ' });
+    }
+
     const cleanPhone = phone.toString().replace(/[\s.-]/g, '');
 
     // Kiểm tra định dạng số điện thoại Việt Nam (10 số, bắt đầu 03, 05, 07, 08, 09 hoặc +84)

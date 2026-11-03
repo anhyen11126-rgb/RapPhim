@@ -77,7 +77,7 @@ const CheckoutPage = () => {
   // Thông tin liên hệ (tự động lấy từ tài khoản đã đăng nhập nếu có)
   const [customerName, setCustomerName] = useState(() => {
     try {
-      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      const u = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}');
       return u.name || '';
     } catch {
       return '';
@@ -85,7 +85,7 @@ const CheckoutPage = () => {
   });
   const [customerPhone, setCustomerPhone] = useState(() => {
     try {
-      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      const u = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}');
       return u.phone || '';
     } catch {
       return '';
@@ -93,7 +93,7 @@ const CheckoutPage = () => {
   });
   const [customerEmail, setCustomerEmail] = useState(() => {
     try {
-      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      const u = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}');
       return u.email || '';
     } catch {
       return '';

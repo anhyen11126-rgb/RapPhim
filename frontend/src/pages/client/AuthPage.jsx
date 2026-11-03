@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 
@@ -6,8 +6,9 @@ const AuthPage = ({ initialMode = 'login' }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Mode: 'login' hoặc 'register'
-  const [mode, setMode] = useState(initialMode);
+  // Xác định mode dựa trên URL: /register -> 'register', /login -> 'login'
+  const isInitialRegister = location.pathname === '/register' || initialMode === 'register';
+  const [mode, setMode] = useState(isInitialRegister ? 'register' : 'login');
 
   // Form Đăng nhập
   const [loginForm, setLoginForm] = useState({
@@ -22,13 +23,66 @@ const AuthPage = ({ initialMode = 'login' }) => {
     email: '',
     phone: '',
     password: '',
+    confirmPassword: '',
     agreeTerms: true,
   });
 
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // 1. Kiểm tra nếu đã có phiên đăng nhập hợp lệ thì tự động chuyển hướng
+  useEffect(() => {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    const user = localStorage.getItem('user') || sessionStorage.getItem('user');
+    if (token && user) {
+      const redirectTarget = location.state?.from || '/';
+      navigate(redirectTarget, { replace: true });
+    }
+  }, [navigate, location.state]);
+
+  // 2. Đồng bộ mode khi URL thay đổi (VD: người dùng nhấn Back / Forward trình duyệt)
+  useEffect(() => {
+    if (location.pathname === '/register') {
+      setMode('register');
+    } else if (location.pathname === '/login') {
+      setMode('login');
+    }
+  }, [location.pathname]);
+
+  // Chuyển đổi qua lại giữa Đăng nhập & Đăng ký kèm cập nhật URL mượt mà
+  const handleSwitchMode = (targetMode) => {
+    setMode(targetMode);
+    setErrorMsg('');
+    setSuccessMsg('');
+    navigate(targetMode === 'register' ? '/register' : '/login', {
+      state: location.state,
+      replace: true,
+    });
+  };
+
+  // Đánh giá độ mạnh mật khẩu trực quan
+  const getPasswordStrength = (pwd) => {
+    if (!pwd) return { score: 0, label: '', color: '', width: '0%' };
+    let score = 0;
+    if (pwd.length >= 6) score += 1;
+    if (pwd.length >= 8) score += 1;
+    if (/[0-9]/.test(pwd)) score += 1;
+    if (/[a-zA-Z]/.test(pwd)) score += 1;
+    if (/[^a-zA-Z0-9]/.test(pwd)) score += 1;
+
+    if (score <= 2) {
+      return { score: 1, label: 'Mật khẩu yếu', color: 'bg-rose-500', text: 'text-rose-400', width: '33%' };
+    }
+    if (score <= 3) {
+      return { score: 2, label: 'Mật khẩu vừa phải', color: 'bg-amber-500', text: 'text-amber-400', width: '66%' };
+    }
+    return { score: 3, label: 'Mật khẩu mạnh & an toàn', color: 'bg-emerald-500', text: 'text-emerald-400', width: '100%' };
+  };
+
+  const passwordStrength = getPasswordStrength(registerForm.password);
 
   // Xử lý Đăng nhập
   const handleLogin = async (e) => {
@@ -49,20 +103,37 @@ const AuthPage = ({ initialMode = 'login' }) => {
       });
 
       if (res.data.token) {
-        localStorage.setItem('token', res.data.token);
-        localStorage.setItem('user', JSON.stringify(res.data.user));
+        // Áp dụng đúng chuẩn "Ghi nhớ đăng nhập":
+        if (loginForm.rememberMe) {
+          localStorage.setItem('token', res.data.token);
+          localStorage.setItem('user', JSON.stringify(res.data.user));
+          sessionStorage.removeItem('token');
+          sessionStorage.removeItem('user');
+        } else {
+          sessionStorage.setItem('token', res.data.token);
+          sessionStorage.setItem('user', JSON.stringify(res.data.user));
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
 
-        setSuccessMsg(res.data.message || 'Đăng nhập thành công!');
+        const target = location.state?.from || '/';
+        const isRedirectingBack = target !== '/' && target !== '/login' && target !== '/register';
 
-        // Dispatch sự kiện để Navbar tự cập nhật mà không cần reload
+        setSuccessMsg(
+          isRedirectingBack
+            ? `${res.data.message || 'Đăng nhập thành công!'} Đang chuyển bạn trở lại trang bạn vừa xem...`
+            : (res.data.message || 'Đăng nhập thành công! Chào mừng bạn trở lại.')
+        );
+
+        // Bắn sự kiện đồng bộ toàn bộ app
         window.dispatchEvent(new Event('authChange'));
 
         setTimeout(() => {
-          navigate(location.state?.from || '/');
+          navigate(target, { replace: true });
         }, 800);
       }
     } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.');
+      setErrorMsg(err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản hoặc mật khẩu.');
     } finally {
       setLoading(false);
     }
@@ -79,6 +150,13 @@ const AuthPage = ({ initialMode = 'login' }) => {
       return;
     }
 
+    // Kiểm tra định dạng Email chuẩn
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(registerForm.email.trim())) {
+      setErrorMsg('Địa chỉ Email không đúng định dạng hợp lệ (VD: tenban@gmail.com).');
+      return;
+    }
+
     // Kiểm tra định dạng số điện thoại Việt Nam (10 số, bắt đầu bằng 03, 05, 07, 08, 09 hoặc +84)
     const cleanPhone = registerForm.phone.replace(/[\s.-]/g, '');
     const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
@@ -92,8 +170,13 @@ const AuthPage = ({ initialMode = 'login' }) => {
       return;
     }
 
+    if (registerForm.password !== registerForm.confirmPassword) {
+      setErrorMsg('Mật khẩu xác nhận không khớp! Vui lòng kiểm tra lại ô Xác nhận mật khẩu.');
+      return;
+    }
+
     if (!registerForm.agreeTerms) {
-      setErrorMsg('Vui lòng đồng ý với Điều khoản sử dụng để tiếp tục.');
+      setErrorMsg('Vui lòng đồng ý với Điều khoản sử dụng và Chính sách bảo mật để tiếp tục.');
       return;
     }
 
@@ -104,20 +187,29 @@ const AuthPage = ({ initialMode = 'login' }) => {
         email: registerForm.email.trim(),
         phone: cleanPhone,
         password: registerForm.password,
+        confirmPassword: registerForm.confirmPassword,
       });
 
       if (res.data.token) {
         localStorage.setItem('token', res.data.token);
         localStorage.setItem('user', JSON.stringify(res.data.user));
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
 
-        setSuccessMsg(res.data.message || 'Đăng ký tài khoản thành công!');
+        const target = location.state?.from || '/';
+        const isRedirectingBack = target !== '/' && target !== '/login' && target !== '/register';
 
-        // Dispatch sự kiện để Navbar tự cập nhật
+        setSuccessMsg(
+          isRedirectingBack
+            ? `${res.data.message || 'Đăng ký tài khoản thành công!'} Đang chuyển bạn trở lại trang bạn vừa xem...`
+            : (res.data.message || "Đăng ký thành công! Chào mừng bạn gia nhập D'AVENOR CINEMA.")
+        );
+
         window.dispatchEvent(new Event('authChange'));
 
         setTimeout(() => {
-          navigate('/');
-        }, 1000);
+          navigate(target, { replace: true });
+        }, 900);
       }
     } catch (err) {
       setErrorMsg(err.response?.data?.message || 'Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.');
@@ -126,17 +218,20 @@ const AuthPage = ({ initialMode = 'login' }) => {
     }
   };
 
+  const redirectFrom = location.state?.from;
+  const isBackToPage = redirectFrom && redirectFrom !== '/' && redirectFrom !== '/login' && redirectFrom !== '/register';
+
   return (
     <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col justify-between py-6 px-4 sm:px-6 lg:px-8">
       {/* 1. TOP HEADER */}
       <div className="max-w-[1380px] w-full mx-auto flex items-center justify-between py-2">
-        {/* Nút quay lại Trang chủ */}
+        {/* Nút quay lại Trang chủ hoặc trang trước */}
         <Link
-          to="/"
+          to={redirectFrom || '/'}
           className="text-xs font-semibold text-slate-400 hover:text-white flex items-center space-x-1.5 transition-colors"
         >
           <span>←</span>
-          <span>Back to Movies</span>
+          <span>{isBackToPage ? 'Quay lại trang trước' : 'Về trang chủ'}</span>
         </Link>
 
         {/* Logo D'AVENOR CINEMA */}
@@ -161,10 +256,10 @@ const AuthPage = ({ initialMode = 'login' }) => {
 
       {/* 2. MAIN CARD: 2 CỘT CHÍNH */}
       <div className="max-w-[1140px] w-full mx-auto my-auto py-6">
-        <div className="bg-[#0c1220] border border-slate-800/90 rounded-3xl overflow-hidden shadow-2xl grid grid-cols-1 lg:grid-cols-12 min-h-[620px]">
+        <div className="bg-[#0c1220] border border-slate-800/90 rounded-3xl overflow-hidden shadow-2xl grid grid-cols-1 lg:grid-cols-12 min-h-[640px]">
           {/* CỘT TRÁI (5 cols): BANNER ĐẶC QUYỀN VIP PASS */}
           <div className="lg:col-span-5 relative p-8 sm:p-10 flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#12192e] via-[#0d1424] to-[#080d18] border-b lg:border-b-0 lg:border-r border-slate-800/80">
-            {/* Background image & gradient ambient */}
+            {/* Background ambient */}
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-600/15 via-transparent to-transparent pointer-events-none" />
             <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -197,9 +292,21 @@ const AuthPage = ({ initialMode = 'login' }) => {
                 </h2>
               </div>
 
+              {/* Thông báo nếu đang đăng nhập để quay lại trang đặt vé */}
+              {isBackToPage && (
+                <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/30 space-y-1">
+                  <div className="flex items-center space-x-1.5 text-blue-400 font-bold text-xs">
+                    <span>💡</span>
+                    <span>Bạn đang tiếp tục tiến trình:</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 break-all truncate">
+                    Sau khi đăng nhập xong, hệ thống sẽ tự động đưa bạn quay lại đúng trang này.
+                  </p>
+                </div>
+              )}
+
               {/* 3 Lợi ích nổi bật */}
               <div className="space-y-4 pt-2">
-                {/* Lợi ích 1 */}
                 <div className="flex items-start space-x-3">
                   <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-sm shrink-0 mt-0.5 text-amber-400">
                     ⭐
@@ -217,7 +324,6 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   </div>
                 </div>
 
-                {/* Lợi ích 2 */}
                 <div className="flex items-start space-x-3">
                   <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-sm shrink-0 mt-0.5 text-blue-400">
                     🎟️
@@ -230,7 +336,6 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   </div>
                 </div>
 
-                {/* Lợi ích 3 */}
                 <div className="flex items-start space-x-3">
                   <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-sm shrink-0 mt-0.5 text-emerald-400">
                     🤖
@@ -245,10 +350,9 @@ const AuthPage = ({ initialMode = 'login' }) => {
               </div>
             </div>
 
-            {/* Social proof bên dưới */}
+            {/* Social proof */}
             <div className="relative pt-6 border-t border-slate-800/80 flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                {/* Avatars stack */}
                 <div className="flex -space-x-2">
                   <div className="w-7 h-7 rounded-full bg-blue-600 border-2 border-[#0c1220] flex items-center justify-center text-[10px] font-black text-white">
                     AD
@@ -278,21 +382,17 @@ const AuthPage = ({ initialMode = 'login' }) => {
 
           {/* CỘT PHẢI (7 cols): FORM ĐĂNG NHẬP / ĐĂNG KÝ */}
           <div className="lg:col-span-7 p-8 sm:p-10 flex flex-col justify-between space-y-6">
-            {/* Top Bar: Nút Đóng & Nút Toggle Tab */}
+            {/* Top Bar: Nút Đóng & Nút Toggle Tab đồng bộ URL */}
             <div className="flex items-center justify-between">
-              {/* Tab Toggle Chuyển Đổi Đăng nhập / Đăng ký */}
               <div className="bg-[#121929] border border-slate-800 p-1 rounded-2xl flex items-center space-x-1">
                 <button
                   type="button"
-                  onClick={() => {
-                    setMode('login');
-                    setErrorMsg('');
-                    setSuccessMsg('');
-                  }}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${mode === 'login'
-                    ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
-                    : 'text-slate-400 hover:text-white'
-                    }`}
+                  onClick={() => handleSwitchMode('login')}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    mode === 'login'
+                      ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
                 >
                   <i className="fa-solid fa-arrow-right-from-bracket"></i>
                   <span>Đăng nhập</span>
@@ -300,39 +400,38 @@ const AuthPage = ({ initialMode = 'login' }) => {
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setMode('register');
-                    setErrorMsg('');
-                    setSuccessMsg('');
-                  }}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${mode === 'register'
-                    ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
-                    : 'text-slate-400 hover:text-white'
-                    }`}
+                  onClick={() => handleSwitchMode('register')}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    mode === 'register'
+                      ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
                 >
                   <span>👤</span>
                   <span>Đăng ký</span>
                 </button>
               </div>
 
-              {/* Quay lại Trang chủ */}
+              {/* Quay lại */}
               <Link
-                to="/"
+                to={redirectFrom || '/'}
                 className="text-xs text-slate-400 hover:text-white transition-colors bg-[#121929] hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-800"
               >
-                Quay lại Trang chủ ✕
+                ✕ Đóng
               </Link>
             </div>
 
             {/* Thông báo Lỗi / Thành công */}
             {errorMsg && (
-              <div className="p-3.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-semibold">
-                ⚠️ {errorMsg}
+              <div className="p-3.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-semibold flex items-center space-x-2 animate-in fade-in duration-200">
+                <span>⚠️</span>
+                <span>{errorMsg}</span>
               </div>
             )}
             {successMsg && (
-              <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
-                🎉 {successMsg}
+              <div className="p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center space-x-2 animate-in fade-in duration-200">
+                <span>🎉</span>
+                <span>{successMsg}</span>
               </div>
             )}
 
@@ -342,7 +441,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                 <div>
                   <h3 className="text-xl sm:text-2xl font-black text-white">Chào mừng bạn trở lại!</h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Nhập thông tin xác thực để truy cập kho vé và ưu đãi độc quyền.
+                    Nhập thông tin xác thực để truy cập kho vé và quyền lợi hội viên D'AVENOR.
                   </p>
                 </div>
 
@@ -403,14 +502,18 @@ const AuthPage = ({ initialMode = 'login' }) => {
                         type="checkbox"
                         checked={loginForm.rememberMe}
                         onChange={(e) => setLoginForm({ ...loginForm, rememberMe: e.target.checked })}
-                        className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-0"
+                        className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-0 cursor-pointer"
                       />
-                      <span>Ghi nhớ đăng nhập</span>
+                      <span>Ghi nhớ đăng nhập trên thiết bị này</span>
                     </label>
 
-                    <a href="#forgot" className="text-blue-400 hover:underline text-xs">
+                    <button
+                      type="button"
+                      onClick={() => alert("Chức năng Khôi phục mật khẩu sẽ được hỗ trợ tiếp theo. Vui lòng liên hệ hỗ trợ hoặc thử đăng nhập lại!")}
+                      className="text-blue-400 hover:underline text-xs cursor-pointer"
+                    >
                       Quên mật khẩu?
-                    </a>
+                    </button>
                   </div>
                 </div>
 
@@ -419,21 +522,30 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   disabled={loading}
                   className="w-full bg-[#2563eb] hover:bg-blue-600 disabled:opacity-50 text-white font-bold text-xs sm:text-sm py-3.5 rounded-xl transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center space-x-2 cursor-pointer"
                 >
-                  <span>{loading ? 'Đang xác thực...' : 'Đăng nhập ngay'}</span>
-                  <span>➔</span>
+                  {loading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      <span>Đang xác thực tài khoản...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Đăng nhập ngay</span>
+                      <span>➔</span>
+                    </>
+                  )}
                 </button>
               </form>
             ) : (
               /* FORM ĐĂNG KÝ (REGISTER) */
-              <form onSubmit={handleRegister} className="space-y-4">
+              <form onSubmit={handleRegister} className="space-y-3.5">
                 <div>
                   <h3 className="text-xl sm:text-2xl font-black text-white">Tạo tài khoản D'AVENOR CINEMA mới!</h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Trở thành hội viên để nhận ngay voucher 50.000đ và tích điểm xem phim.
+                    Trở thành hội viên để nhận ngay 100 điểm thưởng và voucher xem phim độc quyền.
                   </p>
                 </div>
 
-                <div className="space-y-3 pt-1">
+                <div className="space-y-2.5 pt-1">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">
                       Họ và tên *
@@ -448,12 +560,12 @@ const AuthPage = ({ initialMode = 'login' }) => {
                         value={registerForm.name}
                         onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
                         placeholder="Nguyễn Văn A"
-                        className="w-full bg-[#111726] border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        className="w-full bg-[#111726] border border-slate-700/80 rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-300 mb-1">
                         Email *
@@ -468,7 +580,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                           value={registerForm.email}
                           onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
                           placeholder="nguyen.van.a@example.com"
-                          className="w-full bg-[#111726] border border-slate-700/80 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          className="w-full bg-[#111726] border border-slate-700/80 rounded-xl pl-10 pr-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                         />
                       </div>
                     </div>
@@ -487,14 +599,15 @@ const AuthPage = ({ initialMode = 'login' }) => {
                           value={registerForm.phone}
                           onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
                           placeholder="0912 345 678"
-                          className={`w-full bg-[#111726] border rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors ${registerForm.phone && !/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(registerForm.phone.replace(/[\s.-]/g, ''))
+                          className={`w-full bg-[#111726] border rounded-xl pl-10 pr-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none transition-colors ${
+                            registerForm.phone && !/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(registerForm.phone.replace(/[\s.-]/g, ''))
                               ? 'border-amber-500/80 focus:border-amber-500'
                               : 'border-slate-700/80 focus:border-blue-500'
-                            }`}
+                          }`}
                         />
                       </div>
                       {registerForm.phone && !/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(registerForm.phone.replace(/[\s.-]/g, '')) && (
-                        <p className="text-[10px] text-amber-400 mt-1 flex items-center space-x-1">
+                        <p className="text-[10px] text-amber-400 mt-0.5 flex items-center space-x-1">
                           <span>⚠️</span>
                           <span>SĐT phải gồm 10 chữ số (đầu 03, 05, 07, 08, 09 hoặc +84)</span>
                         </p>
@@ -502,34 +615,105 @@ const AuthPage = ({ initialMode = 'login' }) => {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                      Mật khẩu *
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500 text-sm">
-                        🔒
-                      </span>
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        value={registerForm.password}
-                        onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
-                        placeholder="Tối thiểu 6 ký tự"
-                        className="w-full bg-[#111726] border border-slate-700/80 rounded-xl pl-10 pr-11 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white transition-colors text-xs cursor-pointer"
-                        title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                      >
-                        {showPassword ? (
-                          <i className="fa-solid fa-eye"></i>
-                        ) : (
-                          <i className="fa-solid fa-eye-slash"></i>
-                        )}
-                      </button>
+                  {/* Cặp ô Mật khẩu & Nhập lại Mật khẩu */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Mật khẩu *
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500 text-sm">
+                          🔒
+                        </span>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          value={registerForm.password}
+                          onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                          placeholder="Tối thiểu 6 ký tự"
+                          className="w-full bg-[#111726] border border-slate-700/80 rounded-xl pl-10 pr-10 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white transition-colors text-xs cursor-pointer"
+                        >
+                          {showPassword ? (
+                            <i className="fa-solid fa-eye"></i>
+                          ) : (
+                            <i className="fa-solid fa-eye-slash"></i>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Thanh đo độ mạnh mật khẩu */}
+                      {registerForm.password && (
+                        <div className="mt-1 space-y-0.5">
+                          <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${passwordStrength.color} transition-all duration-300`}
+                              style={{ width: passwordStrength.width }}
+                            />
+                          </div>
+                          <span className={`text-[10px] ${passwordStrength.text} font-medium block`}>
+                            {passwordStrength.label}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Xác nhận mật khẩu *
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500 text-sm">
+                          🔐
+                        </span>
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          required
+                          value={registerForm.confirmPassword}
+                          onChange={(e) => setRegisterForm({ ...registerForm, confirmPassword: e.target.value })}
+                          placeholder="Nhập lại mật khẩu"
+                          className={`w-full bg-[#111726] border rounded-xl pl-10 pr-10 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none transition-colors ${
+                            registerForm.confirmPassword && registerForm.password !== registerForm.confirmPassword
+                              ? 'border-rose-500/80 focus:border-rose-500'
+                              : registerForm.confirmPassword && registerForm.password === registerForm.confirmPassword
+                              ? 'border-emerald-500/80 focus:border-emerald-500'
+                              : 'border-slate-700/80 focus:border-blue-500'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white transition-colors text-xs cursor-pointer"
+                        >
+                          {showConfirmPassword ? (
+                            <i className="fa-solid fa-eye"></i>
+                          ) : (
+                            <i className="fa-solid fa-eye-slash"></i>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Kiểm tra khớp mật khẩu Real-time */}
+                      {registerForm.confirmPassword && (
+                        <p
+                          className={`text-[10px] mt-0.5 flex items-center space-x-1 font-semibold ${
+                            registerForm.password === registerForm.confirmPassword
+                              ? 'text-emerald-400'
+                              : 'text-rose-400'
+                          }`}
+                        >
+                          <span>{registerForm.password === registerForm.confirmPassword ? '✓' : '⚠️'}</span>
+                          <span>
+                            {registerForm.password === registerForm.confirmPassword
+                              ? 'Mật khẩu trùng khớp'
+                              : 'Mật khẩu xác nhận chưa khớp'}
+                          </span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -539,10 +723,10 @@ const AuthPage = ({ initialMode = 'login' }) => {
                         type="checkbox"
                         checked={registerForm.agreeTerms}
                         onChange={(e) => setRegisterForm({ ...registerForm, agreeTerms: e.target.checked })}
-                        className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-0 mt-0.5"
+                        className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-0 mt-0.5 cursor-pointer"
                       />
                       <span>
-                        Tôi đồng ý với <a href="#terms" className="text-blue-400 hover:underline">Điều khoản sử dụng</a> và <a href="#privacy" className="text-blue-400 hover:underline">Chính sách bảo mật</a> của D'AVENOR CINEMA.
+                        Tôi đồng ý với <a href="#terms" className="text-blue-400 hover:underline">Điều khoản dịch vụ</a> và <a href="#privacy" className="text-blue-400 hover:underline">Chính sách bảo mật</a> của D'AVENOR CINEMA.
                       </span>
                     </label>
                   </div>
@@ -553,14 +737,23 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   disabled={loading}
                   className="w-full bg-[#2563eb] hover:bg-blue-600 disabled:opacity-50 text-white font-bold text-xs sm:text-sm py-3.5 rounded-xl transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center space-x-2 cursor-pointer"
                 >
-                  <span>{loading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản ngay'}</span>
-                  <span>➔</span>
+                  {loading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      <span>Đang tạo tài khoản...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Tạo tài khoản ngay</span>
+                      <span>➔</span>
+                    </>
+                  )}
                 </button>
               </form>
             )}
 
             {/* HOẶC TIẾP TỤC VỚI SOCIAL */}
-            <div className="space-y-4 pt-2">
+            <div className="space-y-4 pt-1">
               <div className="relative flex items-center justify-center">
                 <div className="border-t border-slate-800 w-full" />
                 <span className="bg-[#0c1220] px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
@@ -572,7 +765,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => alert('Đăng nhập Google hiện đang được kết nối với tài khoản rạp!')}
+                  onClick={() => alert("Đăng nhập nhanh với Google đang được liên kết tài khoản rạp!")}
                   className="bg-[#121929] hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-2 transition-colors cursor-pointer"
                 >
                   <span className="text-red-500 font-bold">G</span>
@@ -581,7 +774,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
 
                 <button
                   type="button"
-                  onClick={() => alert('Đăng nhập Facebook hiện đang được kết nối với tài khoản rạp!')}
+                  onClick={() => alert("Đăng nhập nhanh với Facebook đang được liên kết tài khoản rạp!")}
                   className="bg-[#121929] hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-2 transition-colors cursor-pointer"
                 >
                   <span className="text-blue-500 font-bold">f</span>
@@ -593,14 +786,10 @@ const AuthPage = ({ initialMode = 'login' }) => {
               <div className="text-center text-xs text-slate-400 pt-1">
                 {mode === 'login' ? (
                   <p>
-                    Bạn chưa có tài khoản?{' '}
+                    Bạn chưa có tài khoản D'AVENOR?{' '}
                     <button
                       type="button"
-                      onClick={() => {
-                        setMode('register');
-                        setErrorMsg('');
-                        setSuccessMsg('');
-                      }}
+                      onClick={() => handleSwitchMode('register')}
                       className="text-blue-400 font-bold hover:underline cursor-pointer"
                     >
                       Đăng ký ngay
@@ -608,14 +797,10 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   </p>
                 ) : (
                   <p>
-                    Bạn đã có tài khoản?{' '}
+                    Bạn đã có tài khoản rồi?{' '}
                     <button
                       type="button"
-                      onClick={() => {
-                        setMode('login');
-                        setErrorMsg('');
-                        setSuccessMsg('');
-                      }}
+                      onClick={() => handleSwitchMode('login')}
                       className="text-blue-400 font-bold hover:underline cursor-pointer"
                     >
                       Đăng nhập ngay
@@ -637,4 +822,3 @@ const AuthPage = ({ initialMode = 'login' }) => {
 };
 
 export default AuthPage;
-

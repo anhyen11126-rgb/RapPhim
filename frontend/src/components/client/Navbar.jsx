@@ -95,7 +95,7 @@ const Navbar = () => {
 
   const loadUser = () => {
     try {
-      const stored = localStorage.getItem('user');
+      const stored = localStorage.getItem('user') || sessionStorage.getItem('user');
       if (stored) {
         setCurrentUser(JSON.parse(stored));
       } else {
@@ -309,6 +309,8 @@ const Navbar = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
     setCurrentUser(null);
     setIsDropdownOpen(false);
     window.dispatchEvent(new Event('authChange'));
@@ -333,9 +335,6 @@ const Navbar = () => {
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 block"
               />
             </div>
-            <span className="text-sm sm:text-base font-black tracking-tight text-white uppercase group-hover:text-blue-100 transition-colors hidden sm:inline whitespace-nowrap">
-              D'AVENOR CINEMA
-            </span>
           </Link>
 
           {/* Nav Items */}
@@ -776,6 +775,7 @@ const Navbar = () => {
             <div className="flex items-center space-x-2">
               <Link
                 to="/login"
+                state={{ from: location.pathname !== '/login' && location.pathname !== '/register' ? location.pathname + location.search : '/' }}
                 className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center space-x-1.5"
               >
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
@@ -784,6 +784,7 @@ const Navbar = () => {
 
               <Link
                 to="/register"
+                state={{ from: location.pathname !== '/login' && location.pathname !== '/register' ? location.pathname + location.search : '/' }}
                 className="hidden sm:inline-flex bg-[#121929] hover:bg-slate-800 text-slate-200 hover:text-white font-semibold text-xs px-3.5 py-2 rounded-xl border border-slate-800 transition-colors"
               >
                 Đăng ký
@@ -861,13 +862,12 @@ const Navbar = () => {
             {/* Thông báo phản hồi */}
             {avatarMessage.text && (
               <div
-                className={`p-3 rounded-xl text-xs flex items-center space-x-2 ${
-                  avatarMessage.type === 'success'
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                    : avatarMessage.type === 'info'
+                className={`p-3 rounded-xl text-xs flex items-center space-x-2 ${avatarMessage.type === 'success'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                  : avatarMessage.type === 'info'
                     ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
                     : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
-                }`}
+                  }`}
               >
                 <span>
                   {avatarMessage.type === 'success' ? '✓' : avatarMessage.type === 'info' ? 'ℹ️' : '⚠️'}
@@ -882,11 +882,10 @@ const Navbar = () => {
                 <button
                   type="button"
                   onClick={() => setAvatarActiveTab('presets')}
-                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
-                    avatarActiveTab === 'presets'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${avatarActiveTab === 'presets'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
                 >
                   🎬 Kho Phim Hot ({PRESET_AVATARS.length})
                 </button>
@@ -894,11 +893,10 @@ const Navbar = () => {
                 <button
                   type="button"
                   onClick={() => setAvatarActiveTab('upload')}
-                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
-                    avatarActiveTab === 'upload'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${avatarActiveTab === 'upload'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
                 >
                   📁 Tải từ máy tính
                 </button>
@@ -906,11 +904,10 @@ const Navbar = () => {
                 <button
                   type="button"
                   onClick={() => setAvatarActiveTab('url')}
-                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
-                    avatarActiveTab === 'url'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${avatarActiveTab === 'url'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
                 >
                   🔗 Dán link ảnh
                 </button>
@@ -935,11 +932,10 @@ const Navbar = () => {
                               text: `Đã chọn "${item.name}". Bấm "Lưu Thay Đổi" để cập nhật.`,
                             });
                           }}
-                          className={`relative rounded-2xl overflow-hidden p-1.5 flex flex-col items-center cursor-pointer transition-all border ${
-                            isSelected
-                              ? 'bg-blue-600/20 border-blue-500 shadow-md shadow-blue-500/20'
-                              : 'bg-[#121929] border-slate-800 hover:border-slate-700 hover:bg-[#182238]'
-                          }`}
+                          className={`relative rounded-2xl overflow-hidden p-1.5 flex flex-col items-center cursor-pointer transition-all border ${isSelected
+                            ? 'bg-blue-600/20 border-blue-500 shadow-md shadow-blue-500/20'
+                            : 'bg-[#121929] border-slate-800 hover:border-slate-700 hover:bg-[#182238]'
+                            }`}
                         >
                           <div className="w-12 h-12 rounded-full overflow-hidden mb-1 border border-slate-700">
                             <img

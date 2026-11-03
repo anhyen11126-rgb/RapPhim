@@ -12,7 +12,7 @@ const MyTicketsPage = () => {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('user');
+      const stored = localStorage.getItem('user') || sessionStorage.getItem('user');
       if (stored) {
         const u = JSON.parse(stored);
         setCurrentUser(u);
@@ -116,6 +116,7 @@ const MyTicketsPage = () => {
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link
                 to="/login"
+                state={{ from: '/my-tickets' }}
                 className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center space-x-2"
               >
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
@@ -123,6 +124,7 @@ const MyTicketsPage = () => {
               </Link>
               <Link
                 to="/register"
+                state={{ from: '/my-tickets' }}
                 className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-all border border-slate-700"
               >
                 Đăng ký tài khoản
