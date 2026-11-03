@@ -7,7 +7,7 @@ const MovieCard = ({ movie }) => {
       {/* Poster & Top Badges */}
       <div className="relative aspect-[2/3] overflow-hidden bg-slate-800">
         <img
-          src={movie?.poster || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop'}
+          src={movie?.poster || movie?.posterUrl || 'https://image.tmdb.org/t/p/w780/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg'}
           alt={movie?.title || 'Phim'}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />

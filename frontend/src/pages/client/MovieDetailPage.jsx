@@ -42,16 +42,29 @@ const MovieDetailPage = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-white">
-      {/* Thông tin phim */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-        <div className="aspect-[2/3] bg-slate-800 rounded-xl overflow-hidden shadow-2xl max-w-sm mx-auto md:max-w-none w-full">
+    <div className="relative min-h-screen text-white">
+      {/* Cinematic Ambient Backdrop */}
+      {movie.bannerUrl && (
+        <div className="absolute top-0 left-0 w-full h-[450px] overflow-hidden -z-10 select-none pointer-events-none opacity-25">
           <img
-            src={movie.posterUrl || 'https://via.placeholder.com/300x450'}
-            alt={movie.title}
-            className="w-full h-full object-cover"
+            src={movie.bannerUrl}
+            alt=""
+            className="w-full h-full object-cover filter blur-sm scale-105"
           />
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/80 to-[#0B0F19]" />
         </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        {/* Thông tin phim */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+          <div className="aspect-[2/3] bg-slate-800 rounded-xl overflow-hidden shadow-2xl max-w-sm mx-auto md:max-w-none w-full border border-white/10">
+            <img
+              src={movie.posterUrl || movie.poster || 'https://image.tmdb.org/t/p/w780/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg'}
+              alt={movie.title}
+              className="w-full h-full object-cover"
+            />
+          </div>
         <div className="md:col-span-2 space-y-4">
           <div className="flex items-center space-x-3">
             <span className="bg-red-600 text-xs uppercase px-2.5 py-1 rounded font-bold">
@@ -129,6 +142,7 @@ const MovieDetailPage = () => {
         )}
       </div>
     </div>
+  </div>
   );
 };
 

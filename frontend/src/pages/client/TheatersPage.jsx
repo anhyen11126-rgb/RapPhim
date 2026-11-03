@@ -185,8 +185,8 @@ const TheatersPage = () => {
                 key={region}
                 onClick={() => handleSelectRegion(region)}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${activeRegion === region
-                    ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                   }`}
               >
                 {region}
@@ -229,11 +229,10 @@ const TheatersPage = () => {
                 <button
                   key={tech}
                   onClick={() => setActiveTech(tech)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                    activeTech === tech
-                      ? 'bg-[#2563eb] text-white shadow-sm'
-                      : 'bg-[#151c2d] text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800/80'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${activeTech === tech
+                    ? 'bg-[#2563eb] text-white shadow-sm'
+                    : 'bg-[#151c2d] text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800/80'
+                    }`}
                 >
                   {tech}
                 </button>
@@ -275,11 +274,10 @@ const TheatersPage = () => {
                     <div
                       key={cinema.id}
                       onClick={() => setSelectedCinemaId(cinema.id)}
-                      className={`p-4 rounded-2xl cursor-pointer transition-all duration-200 border ${
-                        isSelected
-                          ? 'bg-[#141b2d] border-blue-500/80 shadow-lg shadow-blue-600/10 ring-1 ring-blue-500/50'
-                          : 'bg-[#0f1422] border-slate-800/80 hover:bg-[#131929] hover:border-slate-700'
-                      }`}
+                      className={`p-4 rounded-2xl cursor-pointer transition-all duration-200 border ${isSelected
+                        ? 'bg-[#141b2d] border-blue-500/80 shadow-lg shadow-blue-600/10 ring-1 ring-blue-500/50'
+                        : 'bg-[#0f1422] border-slate-800/80 hover:bg-[#131929] hover:border-slate-700'
+                        }`}
                     >
                       {/* Header rạp: Flagship & Khoảng cách */}
                       <div className="flex items-center justify-between gap-2 mb-2">
@@ -299,9 +297,8 @@ const TheatersPage = () => {
 
                       {/* Tên rạp */}
                       <h3
-                        className={`text-sm font-black tracking-tight mb-1.5 transition-colors ${
-                          isSelected ? 'text-white' : 'text-slate-200'
-                        }`}
+                        className={`text-sm font-black tracking-tight mb-1.5 transition-colors ${isSelected ? 'text-white' : 'text-slate-200'
+                          }`}
                       >
                         {cinema.name}
                       </h3>
@@ -341,7 +338,7 @@ const TheatersPage = () => {
             {cinemaDetails ? (
               <>
                 {/* 1. HERO BANNER CỤM RẠP */}
-                <div className="bg-[#0f1422] border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+                <div className="bg-[#0f1422] border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
                   {/* Ảnh rạp */}
                   <div className="relative h-64 sm:h-72 w-full overflow-hidden bg-slate-900">
                     <img
@@ -439,11 +436,10 @@ const TheatersPage = () => {
                         <button
                           key={idx}
                           onClick={() => setActiveDateIndex(idx)}
-                          className={`flex flex-col items-center justify-center px-4 py-2.5 rounded-2xl min-w-[88px] transition-all border ${
-                            isActive
-                              ? 'bg-[#2563eb] text-white border-blue-500 shadow-lg shadow-blue-600/30 font-bold'
-                              : 'bg-[#0f1422] text-slate-400 hover:text-white border-slate-800 hover:bg-slate-800/60'
-                          }`}
+                          className={`flex flex-col items-center justify-center px-4 py-2.5 rounded-2xl min-w-[88px] transition-all border ${isActive
+                            ? 'bg-[#2563eb] text-white border-blue-500 shadow-lg shadow-blue-600/30 font-bold'
+                            : 'bg-[#0f1422] text-slate-400 hover:text-white border-slate-800 hover:bg-slate-800/60'
+                            }`}
                         >
                           <span className={`text-[10px] tracking-wider font-semibold uppercase ${isActive ? 'text-blue-100' : 'text-slate-500'}`}>
                             {item.dayStr}
@@ -534,9 +530,8 @@ const TheatersPage = () => {
                                       {st.time}
                                     </span>
                                     <span
-                                      className={`block text-[10px] font-semibold mt-0.5 group-hover:text-blue-100 ${
-                                        st.statusColor || 'text-slate-400'
-                                      }`}
+                                      className={`block text-[10px] font-semibold mt-0.5 group-hover:text-blue-100 ${st.statusColor || 'text-slate-400'
+                                        }`}
                                     >
                                       {st.seatText}
                                     </span>
@@ -574,3 +569,4 @@ const TheatersPage = () => {
 };
 
 export default TheatersPage;
+

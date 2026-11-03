@@ -18,6 +18,10 @@ const movieSchema = new mongoose.Schema(
     poster: {
       type: String, // Hỗ trợ tương thích ngược cho cả poster và posterUrl
     },
+    bannerUrl: {
+      type: String, // Ảnh ngang chất lượng cao dùng cho Hero Banner
+      default: '',
+    },
     trailerUrl: {
       type: String,
       default: '',
