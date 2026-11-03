@@ -28,48 +28,38 @@ const CheckoutPage = () => {
   ];
   const [selectedFlavor, setSelectedFlavor] = useState('cheese'); // Mặc định Phô mai đậm đà
 
-  // Danh sách 3 combo bắp nước chuẩn theo thiết kế
-  const initialCombos = [
-    {
-      id: 'solo',
-      title: 'Combo Solo',
-      badge: 'Bán chạy nhất • Tiết kiệm 39.000 đ',
-      desc: '1 Bắp rang bơ lớn (chọn vị Phô mai hoặc Caramel giòn rụm) + 1 Nước ngọt Coca-Cola mát lạnh (Size L - 32oz).',
-      price: 89000,
-      oldPrice: 128000,
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuClSVtySiMQTri3VSUcFUcddzUGGbSQDfHb4qWcCP5vSn7sU6NyeZz42zwOLJjaz72GZNiBJ6xsKVNj1-CuIWqT1amml8QcItBsHbROQ7gFCLuqKRBS2QTG_drkKe8IH-rbrmNU6cYTz8pFn4iH9FcE9J1HIj0z9cVL6nReaPRDetn9_-C-4xHMiyYyszVmY9Nls22BP63iGUWb91tscqlFzMy4E6LQ3l3R8oUpa70',
-    },
-    {
-      id: 'couple',
-      title: 'Combo Đôi Cinema',
-      badge: 'Dành cho 2 người',
-      desc: '1 Bắp khổng lồ 2 ngăn tuỳ chọn kết hợp 2 vị khác nhau + 2 Ly nước ngọt lớn tự chọn (Coke, Sprite, Fanta).',
-      price: 129000,
-      oldPrice: 168000,
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCQIWOHlTHPbodcRfpbbT2GVtizhntj7a4vbOVjoDNZqvTEz9-pS_Jq8hyOuchMLRC_I3MH7nmwJvJsKyF7UXFBW2vqSSsRxXDrFpd-86yR8ndiee95uBrsvCM-YNU3Xhzc006FJ4Ofkdm_60jOEn_tUmfO9Oq1XcMvoi5Ru1az9wb9C2VuXj4vXuIN3R8SX6KG2RaW7EWQLv5GDmBWnL6sa-H0-VHpzmG2YLWHvAI',
-    },
-    {
-      id: 'family',
-      title: 'Combo Gia đình D\'AVENOR',
-      badge: 'Tiết kiệm 35%',
-      desc: '2 Bắp rang bơ lớn (tuỳ chọn vị) + 3 Ly nước ngọt giải khát lớn + 1 Gói snack khoai tây sấy giòn cao cấp.',
-      price: 189000,
-      oldPrice: 269000,
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAvWTKim9KUm1HaoyqyrmJXPK2cZdzR1BMNEy7cL29dfQhQ4S3TrHC8rhgcrlKs_W2RhxWXIeX2Qq5WBNt7PMmsTxpLWUxSWd-aMIaYqZvLpevkkGcxCsMXkCnlaDwjFr35NI2x00sXhosJpaMKL06pNUWmOJDc7wlh3kaPh8hFndtcym5XO40DmMKw3vZUbDTqEazVj_3qnsOMKUWizRIdHHVIB4i5-JWooNX484c',
-    },
-  ];
+  // Danh mục bắp nước tải động từ Database
+  const [concessions, setConcessions] = useState([]);
+  const [comboQuantities, setComboQuantities] = useState({});
 
-  // Số lượng combo: mặc định Combo Solo = 1 như trong ảnh mẫu
-  const [comboQuantities, setComboQuantities] = useState({
-    solo: 1,
-    couple: 0,
-    family: 0,
-  });
+  useEffect(() => {
+    fetchConcessions();
+  }, []);
 
-  // Mã giảm giá voucher
-  const [voucherCode, setVoucherCode] = useState('DAVENOR50');
-  const [isVoucherApplied, setIsVoucherApplied] = useState(true);
-  const [discountAmount, setDiscountAmount] = useState(30000);
+  const fetchConcessions = async () => {
+    try {
+      const res = await api.get('/concessions');
+      if (res.data && Array.isArray(res.data)) {
+        const mapped = res.data.map((c) => ({
+          id: c.id || c._id,
+          title: c.name,
+          badge: c.category === 'COMBO' ? 'Combo Bán Chạy' : (c.category === 'DRINK' ? 'Nước Ngọt Mát Lạnh' : 'Snack Giòn Tan'),
+          desc: c.description || 'Sản phẩm phục vụ nóng giòn tại quầy D\'AVENOR Express.',
+          price: c.price,
+          oldPrice: Math.round(c.price * 1.3),
+          image: c.image || 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=600&auto=format&fit=crop',
+        }));
+        setConcessions(mapped);
+      }
+    } catch (err) {
+      console.warn('Lỗi tải danh mục bắp nước từ DB:', err);
+    }
+  };
+
+  // Mã giảm giá voucher lấy từ database (mặc định để trống chờ người dùng nhập)
+  const [voucherCode, setVoucherCode] = useState('');
+  const [isVoucherApplied, setIsVoucherApplied] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState(0);
 
   // Phương thức thanh toán: VNPAY (mặc định), MOMO, ATM, VISA
   const [paymentMethod, setPaymentMethod] = useState('VNPAY');
@@ -102,15 +92,25 @@ const CheckoutPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
 
-  const handleApplyVoucher = () => {
-    if (voucherCode.trim().toUpperCase() === 'DAVENOR50' || voucherCode.trim().toUpperCase() === 'MOVIETIX50') {
-      setIsVoucherApplied(true);
-      setDiscountAmount(30000);
-    } else if (voucherCode.trim().toUpperCase() === 'VIP20') {
-      setIsVoucherApplied(true);
-      setDiscountAmount(20000);
-    } else {
-      alert('Mã giảm giá không hợp lệ hoặc đã hết lượt sử dụng!');
+  const handleApplyVoucher = async () => {
+    if (!voucherCode.trim()) {
+      alert('Vui lòng nhập mã voucher giảm giá!');
+      return;
+    }
+    try {
+      const res = await api.post('/promotions/apply', {
+        code: voucherCode.trim(),
+        totalAmount: subtotal,
+      });
+      if (res.data?.success) {
+        setIsVoucherApplied(true);
+        setDiscountAmount(res.data.discountAmount || 20000);
+        alert(`✓ Áp dụng thành công mã ${voucherCode.toUpperCase()}: giảm ${(res.data.discountAmount || 20000).toLocaleString('vi-VN')} đ`);
+      } else {
+        alert(res.data?.message || 'Mã giảm giá không hợp lệ');
+      }
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Mã voucher không hợp lệ hoặc đã hết hạn!');
     }
   };
 
@@ -122,8 +122,8 @@ const CheckoutPage = () => {
     });
   };
 
-  // Tính tiền combo
-  const comboTotal = initialCombos.reduce((sum, item) => {
+  // Tính tiền combo từ danh mục động
+  const comboTotal = concessions.reduce((sum, item) => {
     return sum + (comboQuantities[item.id] || 0) * item.price;
   }, 0);
 
@@ -147,12 +147,12 @@ const CheckoutPage = () => {
     setShowQRModal(false);
     try {
       // Chuẩn bị payload gửi backend
-      const selectedCombosList = initialCombos
-        .filter((c) => comboQuantities[c.id] > 0)
-        .map((c) => `${comboQuantities[c.id]}x ${c.title} (${popcornFlavors.find(f => f.id === selectedFlavor)?.name})`);
+      const selectedCombosList = concessions
+        .filter((c) => (comboQuantities[c.id] || 0) > 0)
+        .map((c) => `${comboQuantities[c.id]}x ${c.title} (${popcornFlavors.find(f => f.id === selectedFlavor)?.name || 'Phô mai'})`);
 
       const payload = {
-        showtimeId: parseInt(showtimeId, 10),
+        showtimeId: String(showtimeId || showtime?._id || showtime?.id || '6ae624fdb0ee30fb919c72d6'),
         seatNumbers: selectedSeats,
         customerName,
         customerPhone,
@@ -365,9 +365,9 @@ const CheckoutPage = () => {
               </div>
             </div>
 
-            {/* DANH SÁCH 3 THẺ COMBO */}
+            {/* DANH SÁCH THẺ COMBO & BẮP NƯỚC TỪ DATABASE */}
             <div className="space-y-4">
-              {initialCombos.map((combo) => {
+              {concessions.map((combo) => {
                 const qty = comboQuantities[combo.id] || 0;
                 const isAdded = qty > 0;
 
@@ -524,8 +524,8 @@ const CheckoutPage = () => {
                 </div>
 
                 {/* Các combo đã chọn */}
-                {initialCombos
-                  .filter((c) => comboQuantities[c.id] > 0)
+                {concessions
+                  .filter((c) => (comboQuantities[c.id] || 0) > 0)
                   .map((c) => (
                     <div key={c.id} className="flex items-center justify-between text-slate-300">
                       <span className="flex items-center gap-1.5">

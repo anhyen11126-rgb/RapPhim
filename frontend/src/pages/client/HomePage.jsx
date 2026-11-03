@@ -3,119 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import MovieCard from '../../components/client/MovieCard';
 import api from '../../services/api';
 
-// Danh sách các bộ phim tích hợp đầy đủ thông tin, nhãn phân loại và suất chiếu
-const defaultMoviesList = [
-  {
-    id: 1,
-    title: 'Dune: Hành Tinh Cát 2',
-    slug: 'dune-hanh-tinh-cat-phan-2',
-    genre: 'Khoa Học Viễn Tưởng, Hành Động',
-    ageRating: 'T16',
-    ageDescription: 'Phim dành cho khán giả từ 16 tuổi trở lên',
-    techFormat: 'IMAX Laser',
-    rating: '4.9',
-    duration: 166,
-    formats: ['2D', '3D', 'IMAX Laser'],
-    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAVpXBbttmxsh8_Cazp4UG-NRA6MlMinRvtylpcOq5vTgU6kdCcT7tS9Xm8eZD9Nep26i-0vy7BfIr0QPGgFQlVpKTlac44WrbuN9fI3Emt-49DpZwCaUAwjrlkqJQi5XF0dsIN5dSaw-lqWySeyKagVfKd47OVb1KztOZkpLVrhaJ5rENHMCl_BcjbeJ8d9zSlq9bqeVBtcDXxRQbUX2duLAUqsp6J3g7aaP2wNfw',
-    description: 'Cuộc chiến vĩ đại giành quyền kiểm soát nguồn tài nguyên hương liệu quý giá trên hành tinh cát Arrakis...',
-    showtimes: [
-      { id: 1, roomName: 'IMAX Laser (Phòng 1)', time: '19:30' },
-      { id: 2, roomName: '2D Dolby Atmos (Phòng 3)', time: '21:45' },
-      { id: 101, roomName: 'IMAX Laser (Phòng 1)', time: '23:15' },
-    ],
-  },
-  {
-    id: 2,
-    title: 'Oppenheimer (Re-release)',
-    slug: 'oppenheimer',
-    genre: 'Tiểu sử, Lịch Sử, Kịch Tính',
-    ageRating: 'T18',
-    ageDescription: 'Phim cấm khán giả dưới 18 tuổi',
-    techFormat: '70mm IMAX',
-    rating: '4.8',
-    duration: 180,
-    formats: ['2D', '70mm IMAX', 'Dolby 7.1'],
-    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCgzqKHVLslMq8nETen3Qsr5h3HLVjIcwy_5JQMdZlh-fMAeCTHbgR8P7KDC14CkQ943jO42dnNfsDqmR2yeigkmK4Fd8Ln_6DYRyUVxHU-3eWODC-rH9_G0oh0RN5n8lrFKHCIju0lc7tE1nINKGku4c32iHGCQs-DOL8_lhHBOlnDi-snh-fFVaSPC3MUD0ZBra9CicyW4vUCtmNKvwoq_4cwAZtb1qsSdQ9tkaU',
-    description: 'Câu chuyện kịch tính về cuộc đời nhà vật lý J. Robert Oppenheimer và dự án Manhattan lịch sử...',
-    showtimes: [
-      { id: 3, roomName: '70mm IMAX Đặc Biệt', time: '18:00' },
-      { id: 4, roomName: 'Dolby Atmos (Phòng 2)', time: '21:15' },
-    ],
-  },
-  {
-    id: 3,
-    title: 'Godzilla x Kong: Đế Chế Mới',
-    slug: 'godzilla-x-kong',
-    genre: 'Hành Động, Phiêu Lưu, Viễn Tưởng',
-    ageRating: 'T13',
-    ageDescription: 'Phim dành cho khán giả từ 13 tuổi trở lên',
-    techFormat: '4DX',
-    rating: '4.6',
-    duration: 115,
-    formats: ['2D', '3D', '4DX Chuyển Động'],
-    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB8hKzI8Jb5z_56Sz10SVNLkPXcyOom9LXjlCkxlBGh6b2rvdQnOIDH1NLCgKDPGGOqQTfVQDe8TpBK5b6IUMVPThQ8gvmdhZDkFpTjkiPSFoZRkOw_AoQ4c8xJd3rxkB5AB9_zGxvvcNm7DVT-_OSiJNL0mIsmYD7B_-8SuMuqAsPg1PdDDu3h6acFnCwb3mOWqCMeTYwHP1pDqbr6D_6Sg6iEQcJZrGklE7fVJJE',
-    description: 'Hai quái thú khổng lồ huyền thoại bắt tay liên minh để đối đầu với mối hiểm họa vô tận...',
-    showtimes: [
-      { id: 5, roomName: '4DX Chuyển Động (Phòng 4)', time: '17:15' },
-      { id: 6, roomName: '3D Laser (Phòng 5)', time: '20:00' },
-    ],
-  },
-  {
-    id: 4,
-    title: 'When Rain Ralls',
-    slug: 'mai',
-    genre: 'Tâm Lý, Tình Cảm, Gia Đình',
-    ageRating: 'T18',
-    ageDescription: 'Phim cấm khán giả dưới 18 tuổi',
-    techFormat: 'Gold Class',
-    rating: '4.7',
-    duration: 131,
-    formats: ['2D', 'Gold Class VIP', 'Dolby Atmos'],
-    poster: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDJCHEUp7R7WqiIMpeY6Gk3RWvGxk7Ovcr1EwnCpk3kaY6VuF0cWoPufbl50TtpzqCPNvYV1Ng-xaLGtabJbbIlQQfWqlOJuFGGTygDBJaXFHOMNsGfsUegrlD-XbBvWBEkCiiPrFFa2uGugjdNzyr1aUSkbx8T064rAdtWISvGv-4q-7y1VE8RQF2Q_buxwmFMHbWIAfg8cb17aMt63cHCfbjlJ2ov5mErpJ_NRHU',
-    description: 'Câu chuyện xúc động về số phận người phụ nữ chịu nhiều định kiến tìm kiếm tình yêu và hạnh phúc đích thực...',
-    showtimes: [
-      { id: 7, roomName: 'Gold Class VIP Sofa', time: '19:00' },
-      { id: 8, roomName: '2D Dolby Digital', time: '21:30' },
-    ],
-  },
-  {
-    id: 5,
-    title: 'Spider-Man: Du Hành Vũ Trụ Nhện',
-    slug: 'spider-man-du-hanh-vu-tru-nhen',
-    genre: 'Hoạt Hình, Hành Động, Đa Vũ Trụ',
-    ageRating: 'T11',
-    ageDescription: 'Phim dành cho khán giả từ 11 tuổi trở lên',
-    techFormat: 'IMAX 3D',
-    rating: '4.9',
-    duration: 140,
-    formats: ['2D Lồng Tiếng', '3D', 'IMAX 3D'],
-    poster: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?w=500&auto=format&fit=crop',
-    description: 'Miles Morales du hành qua đa vũ trụ, hợp sức cùng các siêu anh hùng Nhện bảo vệ thực tại...',
-    showtimes: [
-      { id: 9, roomName: 'IMAX 3D Laser (Phòng 1)', time: '16:30' },
-      { id: 10, roomName: '2D Lồng Tiếng (Gia Đình)', time: '18:45' },
-    ],
-  },
-  {
-    id: 6,
-    title: 'Quật Mộ Trùng Ma',
-    slug: 'quat-mo-trung-ma',
-    genre: 'Kinh Dị, Bí Ẩn, Giật Gân',
-    ageRating: 'T18',
-    ageDescription: 'Phim cấm khán giả dưới 18 tuổi',
-    techFormat: 'Dolby Atmos',
-    rating: '4.5',
-    duration: 134,
-    formats: ['2D Kỹ Thuật Số', 'Dolby Atmos'],
-    poster: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSM06Qmqmb-nBTkQ8-M6S9kSpaJiWW_7Itmdm3MJ_wAv1Vh5-7QJA2T26E&s=10',
-    description: 'Hai pháp sư cùng chuyên gia phong thủy nhận thù lao kếch xù để di dời mộ nhưng đối mặt với lời nguyền kinh hoàng...',
-    showtimes: [
-      { id: 11, roomName: '2D Dolby Atmos (Phòng 2)', time: '20:30' },
-      { id: 12, roomName: '2D Suất Chiếu Khuya', time: '22:50' },
-    ],
-  },
-];
-
 // Hàm lấy kiểu dáng nhãn theo phân loại độ tuổi
 const getAgeBadgeStyle = (ageRating) => {
   switch (ageRating) {
@@ -154,15 +41,16 @@ const getAgeBadgeStyle = (ageRating) => {
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const [moviesList, setMoviesList] = useState(defaultMoviesList);
+  const [moviesList, setMoviesList] = useState([]);
+  const [cinemas, setCinemas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('NOW_SHOWING');
 
   // Quick Booking Bar State
-  const [selectedMovieId, setSelectedMovieId] = useState('1');
-  const [selectedTheater, setSelectedTheater] = useState('D\'AVENOR Landmark 81');
-  const [selectedDate, setSelectedDate] = useState('Hôm nay, 24/10');
-  const [selectedShowtimeId, setSelectedShowtimeId] = useState('1');
+  const [selectedMovieId, setSelectedMovieId] = useState('');
+  const [selectedTheater, setSelectedTheater] = useState('');
+  const [selectedDate, setSelectedDate] = useState('Hôm nay');
+  const [selectedShowtimeId, setSelectedShowtimeId] = useState('');
   const [isMovieDropdownOpen, setIsMovieDropdownOpen] = useState(false);
   const movieDropdownRef = useRef(null);
 
@@ -170,7 +58,7 @@ const HomePage = () => {
   const [isTrailerOpen, setIsTrailerOpen] = useState(false);
 
   useEffect(() => {
-    fetchMovies();
+    fetchInitialData();
   }, []);
 
   // Đóng dropdown khi click bên ngoài
@@ -184,30 +72,54 @@ const HomePage = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchMovies = async () => {
+  const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/movies');
-      if (res.data && res.data.length > 0) {
-        // Đồng bộ phim từ backend nếu có
-        const merged = defaultMoviesList.map((dm) => {
-          const apiMatch = res.data.find(
-            (am) => String(am.id) === String(dm.id) || am.title.toLowerCase().includes(dm.title.toLowerCase().slice(0, 5))
-          );
-          if (apiMatch) {
-            return {
-              ...dm,
-              id: apiMatch.id,
-              showtimes: apiMatch.showtimes && apiMatch.showtimes.length > 0 ? apiMatch.showtimes : dm.showtimes,
-            };
+      const [resMovies, resCinemas] = await Promise.all([
+        api.get('/movies'),
+        api.get('/cinemas'),
+      ]);
+
+      if (resMovies.data && Array.isArray(resMovies.data)) {
+        const formattedMovies = resMovies.data.map((m) => ({
+          id: m.id || m._id?.toString(),
+          title: m.title,
+          slug: m.slug,
+          genre: m.genre || 'Hành động, Phiêu lưu',
+          ageRating: m.ageRating || 'T16',
+          ageDescription:
+            m.ageRating === 'P'
+              ? 'Phim dành cho mọi lứa tuổi'
+              : `Phim cấm khán giả dưới ${m.ageRating ? m.ageRating.replace('T', '') : 16} tuổi`,
+          techFormat: Array.isArray(m.formats) && m.formats.length > 0 ? m.formats[0] : (m.techFormat || 'IMAX Laser'),
+          rating: m.rating || '4.8',
+          duration: m.duration || 120,
+          formats: Array.isArray(m.formats) && m.formats.length > 0 ? m.formats : ['2D', '3D', 'IMAX Laser'],
+          poster: m.poster || m.posterUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop',
+          posterUrl: m.posterUrl || m.poster,
+          description: m.description || '',
+          status: m.status || 'NOW_SHOWING',
+          firstShowtimeId: m.firstShowtimeId,
+          showtimes: m.showtimes || (m.firstShowtimeId ? [{ id: m.firstShowtimeId, roomName: 'Phòng 01 - IMAX Laser', time: '19:30' }] : []),
+        }));
+
+        setMoviesList(formattedMovies);
+        if (formattedMovies.length > 0) {
+          setSelectedMovieId(String(formattedMovies[0].id));
+          if (formattedMovies[0].firstShowtimeId) {
+            setSelectedShowtimeId(String(formattedMovies[0].firstShowtimeId));
           }
-          return dm;
-        });
-        setMoviesList(merged);
-        setSelectedMovieId(String(merged[0].id));
+        }
+      }
+
+      if (resCinemas.data && Array.isArray(resCinemas.data)) {
+        setCinemas(resCinemas.data);
+        if (resCinemas.data.length > 0) {
+          setSelectedTheater(resCinemas.data[0].name);
+        }
       }
     } catch (err) {
-      console.warn('Sử dụng danh sách phim mẫu mặc định:', err.message);
+      console.warn('Lỗi tải dữ liệu trang chủ từ máy chủ:', err.message);
     } finally {
       setLoading(false);
     }
@@ -221,17 +133,25 @@ const HomePage = () => {
   const availableShowtimes = activeMovie?.showtimes && activeMovie.showtimes.length > 0
     ? activeMovie.showtimes
     : [
-      { id: 1, roomName: 'IMAX Laser', time: '19:30' },
-      { id: 2, roomName: '2D Dolby Atmos', time: '21:45' },
+      { id: activeMovie?.firstShowtimeId || '6ae624fdb0ee30fb919c72d6', roomName: 'IMAX Laser (Phòng 1)', time: '19:30' },
+      { id: '6ae624fdb0ee30fb919c7307', roomName: '2D Dolby Atmos (Phòng 2)', time: '21:45' },
     ];
 
   const handleQuickBooking = () => {
-    const targetShowtimeId = selectedShowtimeId || availableShowtimes[0]?.id || 1;
+    const targetShowtimeId = selectedShowtimeId || activeMovie?.firstShowtimeId || availableShowtimes[0]?.id || '6ae624fdb0ee30fb919c72d6';
     navigate(`/booking/seat/${targetShowtimeId}`);
   };
 
-  // 4 phim hiển thị danh mục bên dưới
-  const mockDisplayList = moviesList.slice(0, 4);
+  // Lọc phim theo các tabs
+  const nowShowingMovies = moviesList.filter((m) => m.status === 'NOW_SHOWING' || !m.status);
+  const comingSoonMovies = moviesList.filter((m) => m.status === 'COMING_SOON');
+  const specialMovies = moviesList.filter(
+    (m) => (Array.isArray(m.formats) && m.formats.some((f) => f.includes('IMAX'))) || m.ageRating === 'T18'
+  );
+
+  let displayedMovies = nowShowingMovies;
+  if (activeTab === 'COMING_SOON') displayedMovies = comingSoonMovies;
+  if (activeTab === 'SPECIAL') displayedMovies = specialMovies;
 
   return (
     <div className="bg-[#0c1017] text-slate-100 min-h-screen">
@@ -292,8 +212,9 @@ const HomePage = () => {
               {/* Action Buttons Row */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 {/* Đặt vé ngay - Light periwinkle blue */}
+                {/* Đặt vé ngay */}
                 <Link
-                  to="/booking/seat/1"
+                  to={`/booking/seat/${moviesList[0]?.firstShowtimeId || '6ae624fdb0ee30fb919c72d6'}`}
                   className="bg-[#9bb4fb] hover:bg-[#86a1f8] text-[#0a1120] font-black px-5 py-2.5 rounded-lg text-xs flex items-center space-x-2 transition-all shadow-md hover:scale-105"
                 >
                   <span>🎟️</span>
@@ -508,10 +429,15 @@ const HomePage = () => {
                   onChange={(e) => setSelectedTheater(e.target.value)}
                   className="w-full bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7"
                 >
-                  <option value="D'AVENOR Landmark 81">D'AVENOR Landmark 81</option>
-                  <option value="D'AVENOR Westlake Hà Nội">D'AVENOR Westlake Hà Nội</option>
-                  <option value="D'AVENOR Sala Thủ Thiêm">D'AVENOR Sala Thủ Thiêm</option>
-                  <option value="D'AVENOR Đà Nẵng">D'AVENOR Đà Nẵng</option>
+                  {cinemas.length > 0 ? (
+                    cinemas.map((c) => (
+                      <option key={c.id || c._id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="D'AVENOR Landmark 81">D'AVENOR Landmark 81</option>
+                  )}
                 </select>
                 <span className="absolute right-3 top-2.5 text-slate-500 text-[10px] pointer-events-none">⌵</span>
               </div>
@@ -529,9 +455,15 @@ const HomePage = () => {
                   onChange={(e) => setSelectedDate(e.target.value)}
                   className="w-full bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7"
                 >
-                  <option value="Hôm nay, 24/10">Hôm nay, 24/10</option>
-                  <option value="Ngày mai, 25/10">Ngày mai, 25/10</option>
-                  <option value="Thứ Bảy, 26/10">Thứ Bảy, 26/10</option>
+                  <option value="Hôm nay">
+                    Hôm nay ({new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })})
+                  </option>
+                  <option value="Ngày mai">
+                    Ngày mai ({new Date(Date.now() + 86400000).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })})
+                  </option>
+                  <option value="Ngày kia">
+                    Ngày kia ({new Date(Date.now() + 172800000).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })})
+                  </option>
                 </select>
                 <span className="absolute right-3 top-2.5 text-slate-500 text-[10px] pointer-events-none">⌵</span>
               </div>
@@ -550,7 +482,7 @@ const HomePage = () => {
                   className="w-full bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7"
                 >
                   {availableShowtimes.map((st) => (
-                    <option key={st.id} value={st.id}>
+                    <option key={st.id || st._id} value={st.id || st._id}>
                       {st.time || (st.startTime ? new Date(st.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '19:30')} • {st.roomName || 'IMAX Laser'}
                     </option>
                   ))}
@@ -564,7 +496,7 @@ const HomePage = () => {
               <button
                 type="button"
                 onClick={handleQuickBooking}
-                className="w-full bg-[#9bb4fb] hover:bg-[#86a1f8] text-[#0a1120] font-black py-2 rounded-xl text-xs sm:text-sm transition-all shadow-md flex items-center justify-center space-x-1.5"
+                className="w-full bg-[#9bb4fb] hover:bg-[#86a1f8] text-[#0a1120] font-black py-2 rounded-xl text-xs sm:text-sm transition-all shadow-md flex items-center justify-center space-x-1.5 cursor-pointer"
               >
                 <span>⚡</span>
                 <span>Mua vé nhanh</span>
@@ -589,37 +521,37 @@ const HomePage = () => {
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
             <button
               onClick={() => setActiveTab('NOW_SHOWING')}
-              className={`px-4 py-1.5 rounded-full transition-all ${activeTab === 'NOW_SHOWING'
+              className={`px-4 py-1.5 rounded-full transition-all cursor-pointer ${activeTab === 'NOW_SHOWING'
                 ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
                 : 'bg-[#131926] text-slate-400 hover:text-white border border-slate-800'
                 }`}
             >
-              Đang chiếu (10)
+              Đang chiếu ({nowShowingMovies.length})
             </button>
             <button
               onClick={() => setActiveTab('COMING_SOON')}
-              className={`px-4 py-1.5 rounded-full transition-all ${activeTab === 'COMING_SOON'
+              className={`px-4 py-1.5 rounded-full transition-all cursor-pointer ${activeTab === 'COMING_SOON'
                 ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
                 : 'bg-[#131926] text-slate-400 hover:text-white border border-slate-800'
                 }`}
             >
-              Sắp chiếu (12)
+              Sắp chiếu ({comingSoonMovies.length})
             </button>
             <button
               onClick={() => setActiveTab('SPECIAL')}
-              className={`px-4 py-1.5 rounded-full transition-all ${activeTab === 'SPECIAL'
+              className={`px-4 py-1.5 rounded-full transition-all cursor-pointer ${activeTab === 'SPECIAL'
                 ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30'
                 : 'bg-[#131926] text-slate-400 hover:text-white border border-slate-800'
                 }`}
             >
-              Suất chiếu đặc biệt
+              Suất đặc biệt ({specialMovies.length})
             </button>
             <button
               onClick={() => {
                 const chatBtn = document.querySelector('button[title="Trò chuyện với AI"]');
                 if (chatBtn) chatBtn.click();
               }}
-              className="px-4 py-1.5 rounded-full bg-[#131926] border border-slate-800 text-slate-300 hover:text-white hover:border-blue-500 transition-colors flex items-center space-x-1.5"
+              className="px-4 py-1.5 rounded-full bg-[#131926] border border-slate-800 text-slate-300 hover:text-white hover:border-blue-500 transition-colors flex items-center space-x-1.5 cursor-pointer"
             >
               <span className="text-blue-400">🤖</span>
               <span>Trợ lý AI</span>
@@ -627,20 +559,27 @@ const HomePage = () => {
           </div>
         </div>
 
-        {/* Danh sách thẻ phim 4 cột */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {mockDisplayList.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} />
-          ))}
-        </div>
+        {/* Danh sách thẻ phim */}
+        {displayedMovies.length === 0 ? (
+          <div className="py-16 text-center text-slate-400 bg-[#101521] rounded-2xl border border-slate-800">
+            <p className="text-base font-semibold">Chưa có phim trong danh mục này.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {displayedMovies.map((movie) => (
+              <MovieCard key={movie.id} movie={movie} />
+            ))}
+          </div>
+        )}
 
         {/* Nút Xem tất cả phim */}
         <div className="mt-10 text-center">
           <button
             type="button"
-            className="px-6 py-2 rounded-full bg-[#131926] hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold border border-slate-800 transition-colors inline-flex items-center space-x-2"
+            onClick={() => setActiveTab('NOW_SHOWING')}
+            className="px-6 py-2 rounded-full bg-[#131926] hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold border border-slate-800 transition-colors inline-flex items-center space-x-2 cursor-pointer"
           >
-            <span>Xem tất cả 24 phim đang chiếu</span>
+            <span>Tổng cộng {moviesList.length} bộ phim rạp chọn lọc</span>
             <span>→</span>
           </button>
         </div>

@@ -75,9 +75,24 @@ export const applyVoucher = async (req, res) => {
       return res.status(404).json({ message: 'Mã voucher không tồn tại hoặc đã hết hạn' });
     }
 
+    let discountAmount = 20000;
+    const dv = voucher.discountValue || '';
+    if (dv.includes('30K') || dv.includes('30.000')) {
+      discountAmount = 30000;
+    } else if (dv.includes('20K') || dv.includes('20.000')) {
+      discountAmount = 20000;
+    } else if (dv.includes('45.000')) {
+      discountAmount = 45000;
+    } else if (dv.includes('%')) {
+      const match = dv.match(/(\d+)%/);
+      const percent = match ? parseInt(match[1], 10) : 10;
+      discountAmount = Math.round(((totalAmount || 100000) * percent) / 100);
+    }
+
     res.json({
       success: true,
       message: `Áp dụng thành công mã: ${voucher.code}`,
+      discountAmount,
       voucher: {
         id: voucher._id.toString(),
         code: voucher.code,

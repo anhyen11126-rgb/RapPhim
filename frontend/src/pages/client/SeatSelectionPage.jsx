@@ -7,14 +7,12 @@ const SeatSelectionPage = () => {
   const navigate = useNavigate();
 
   const [showtime, setShowtime] = useState(null);
-  // Mặc định F6, F7 được chọn giống hệt ảnh mẫu thiết kế
-  const [selectedSeats, setSelectedSeats] = useState(['F6', 'F7']);
+  // Khách hàng tự chọn ghế trên sơ đồ
+  const [selectedSeats, setSelectedSeats] = useState([]);
+  const [bookedSeats, setBookedSeats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [holdingLoading, setHoldingLoading] = useState(false);
-
-  // Danh sách ghế đã bán mẫu
-  const defaultBookedSeats = ['B4', 'B5', 'C9', 'C10', 'E3', 'E4', 'G5', 'G6', 'H7-8'];
 
   useEffect(() => {
     fetchSeats();
@@ -30,22 +28,16 @@ const SeatSelectionPage = () => {
       }
       if (res.data?.seats && Array.isArray(res.data.seats)) {
         const booked = res.data.seats
-          .filter((s) => s.status === 'BOOKED' || s.status === 'HOLDING')
+          .filter((s) => s.status === 'BOOKED' || (s.status === 'HOLDING' && s.holdExpiresAt && new Date(s.holdExpiresAt) > new Date()))
           .map((s) => s.seatNumber);
-        setBookedSeats(booked.length > 0 ? booked : defaultBookedSeats);
+        setBookedSeats(booked);
       } else {
-        setBookedSeats(defaultBookedSeats);
+        setBookedSeats([]);
       }
     } catch (err) {
-      console.warn('Dùng dữ liệu suất chiếu mặc định:', err);
-      setShowtime({
-        id: showtimeId || 1,
-        movie: { title: 'Dune: Hành Tinh Cát 2', posterUrl: '/banner-dune.jpg', ageRating: 'T16' },
-        roomName: 'Phòng 01 - IMAX Laser',
-        startTime: new Date(),
-        price: 95000,
-      });
-      setBookedSeats(defaultBookedSeats);
+      console.warn('Lỗi tải dữ liệu suất chiếu từ DB:', err);
+      setErrorMsg('Không thể tải sơ đồ ghế cho suất chiếu này. Vui lòng thử lại!');
+      setBookedSeats([]);
     } finally {
       setLoading(false);
     }
@@ -97,7 +89,7 @@ const SeatSelectionPage = () => {
       // Gọi API giữ ghế
       try {
         await api.post('/bookings/hold', {
-          showtimeId: parseInt(showtimeId || 1, 10),
+          showtimeId: showtimeId || showtime?._id?.toString() || showtime?.id,
           seatNumbers: selectedSeats,
         });
       } catch (err) {
@@ -106,12 +98,8 @@ const SeatSelectionPage = () => {
 
       navigate('/checkout', {
         state: {
-          showtimeId: showtimeId || 1,
-          showtime: showtime || {
-            movie: { title: 'Dune: Hành Tinh Cát 2', ageRating: 'T16' },
-            roomName: 'Phòng 01 - IMAX Laser',
-            startTime: new Date(),
-          },
+          showtimeId: showtimeId || showtime?._id?.toString() || showtime?.id,
+          showtime: showtime,
           selectedSeats,
           seatTotal: calculateTotal(),
         },
