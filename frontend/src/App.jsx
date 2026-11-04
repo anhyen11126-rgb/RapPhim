@@ -6,6 +6,7 @@ import Navbar from './components/client/Navbar';
 import Footer from './components/client/Footer';
 import ChatWidget from './components/chat/ChatWidget';
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute';
+import ScrollManager from './components/common/ScrollManager';
 
 // Pages Client (1-5 + Rạp chiếu)
 import HomePage from './pages/client/HomePage';
@@ -47,6 +48,7 @@ const ClientLayout = () => {
 function App() {
   return (
     <BrowserRouter>
+      <ScrollManager />
       <Routes>
         {/* Cụm màn hình Khách hàng */}
         <Route element={<ClientLayout />}>

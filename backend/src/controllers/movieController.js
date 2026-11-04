@@ -61,15 +61,24 @@ export const getMovieById = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy phim yêu cầu' });
     }
 
-    // Lấy danh sách suất chiếu
+    // Lấy danh sách suất chiếu kèm chi tiết rạp chiếu
     const showtimes = await Showtime.find({ movieId: movie._id })
+      .populate('cinemaId', 'name city address slug isFlagship rating distance')
       .sort({ startTime: 1 })
-      .select('_id roomName startTime price')
       .lean();
 
     const formattedShowtimes = showtimes.map((st) => ({
       ...st,
       id: st._id.toString(),
+      cinema: st.cinemaId ? {
+        id: st.cinemaId._id ? st.cinemaId._id.toString() : st.cinemaId.id,
+        name: st.cinemaId.name,
+        city: st.cinemaId.city,
+        address: st.cinemaId.address,
+        slug: st.cinemaId.slug,
+        isFlagship: st.cinemaId.isFlagship,
+        distance: st.cinemaId.distance,
+      } : null,
     }));
 
     res.json({

@@ -56,6 +56,72 @@ const movieSchema = new mongoose.Schema(
       type: Number,
       default: 95000,
     },
+    director: {
+      type: String,
+      default: '',
+    },
+    subTitle: {
+      type: String,
+      default: '',
+    },
+    cast: [
+      {
+        name: { type: String, default: '' },
+        role: { type: String, default: '' },
+        avatar: { type: String, default: '' },
+      },
+    ],
+    highlights: [
+      {
+        icon: { type: String, default: '✨' },
+        title: { type: String, default: '' },
+        desc: { type: String, default: '' },
+      },
+    ],
+    rating: {
+      type: Number,
+      default: 4.8,
+    },
+    ratingCount: {
+      type: String,
+      default: '12.4k lượt đánh giá',
+    },
+    rottenTomatoes: {
+      type: String,
+      default: '94%',
+    },
+    rottenTomatoesLabel: {
+      type: String,
+      default: 'Chứng nhận cà chua tươi (Certified Fresh)',
+    },
+    contentAdvisory: {
+      type: String,
+      default: 'Khuyên xem: Cảnh hành động mãn nhãn',
+    },
+    language: {
+      type: String,
+      default: 'Tiếng Anh - Phụ đề tiếng Việt chuẩn',
+    },
+    audioTech: {
+      type: String,
+      default: 'Âm thanh 8 kênh & Dolby Atmos 64',
+    },
+    trailerTagline: {
+      type: String,
+      default: 'Khám phá trọn vẹn Trailer chính thức sắc nét',
+    },
+    trailerDuration: {
+      type: String,
+      default: 'Thời lượng: 2 phút 45 giây • Độc quyền video chất lượng cao tại MovieTix',
+    },
+    trailerQualityBadge: {
+      type: String,
+      default: 'OFFICIAL IMAX LASER TRAILER • 4K UHD • Dolby Atmos',
+    },
+    formats: {
+      type: [String],
+      default: ['IMAX Laser', '3D', '2D Dolby Atmos'],
+    },
   },
   {
     timestamps: true,

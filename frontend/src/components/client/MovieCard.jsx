@@ -2,10 +2,16 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 const MovieCard = ({ movie }) => {
+  const movieDetailPath = `/movie/${movie?.id || movie?._id || movie?.slug}`;
+
   return (
     <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl hover:border-slate-700 transition-all duration-300 flex flex-col group">
-      {/* Poster & Top Badges */}
-      <div className="relative aspect-[2/3] overflow-hidden bg-slate-800">
+      {/* Poster & Top Badges - Bấm trực tiếp vào ảnh Poster để xem chi tiết phim */}
+      <Link
+        to={movieDetailPath}
+        className="block relative aspect-[2/3] overflow-hidden bg-slate-800 cursor-pointer"
+        title={`Xem chi tiết phim: ${movie?.title}`}
+      >
         <img
           src={movie?.poster || movie?.posterUrl || 'https://image.tmdb.org/t/p/w780/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg'}
           alt={movie?.title || 'Phim'}
@@ -27,7 +33,7 @@ const MovieCard = ({ movie }) => {
           <span className="text-amber-400 text-xs">⭐</span>
           <span className="text-white text-xs font-bold">{movie?.rating || '4.8'}</span>
         </div>
-      </div>
+      </Link>
 
       {/* Info Body */}
       <div className="p-4 flex flex-col flex-1 justify-between space-y-3">
@@ -43,31 +49,25 @@ const MovieCard = ({ movie }) => {
 
           <p className="text-[11px] text-slate-500 line-clamp-1">{movie?.genre || 'Hành động'}</p>
 
-          <h3 className="text-white font-bold text-base line-clamp-1 group-hover:text-red-400 transition-colors">
-            {movie?.title}
-          </h3>
+          <Link to={movieDetailPath} className="block group-hover:text-blue-400 transition-colors">
+            <h3 className="text-white font-bold text-base line-clamp-1 hover:text-blue-400 transition-colors">
+              {movie?.title}
+            </h3>
+          </Link>
 
           <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed">
             {movie?.description || 'Hành trình điện ảnh kịch tính và hấp dẫn trên màn ảnh rộng.'}
           </p>
         </div>
 
-        {/* Buttons */}
-        <div className="flex items-center space-x-2 pt-2">
+        {/* Nút Đặt vé toàn chiều rộng (Đã gỡ bỏ nút dấu chấm than) */}
+        <div className="pt-2">
           <Link
-            to={movie?.firstShowtimeId ? `/booking/seat/${movie.firstShowtimeId}` : `/booking/seat/${movie?.id || 1}`}
-            className="flex-1 bg-slate-800 hover:bg-blue-600 text-white font-bold py-2 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 border border-slate-700 hover:border-blue-500"
+            to={movie?.firstShowtimeId ? `/booking/seat/${movie.firstShowtimeId}` : movieDetailPath}
+            className="w-full bg-[#1b2234] hover:bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center space-x-2 border border-slate-700/80 hover:border-blue-500 shadow-md hover:shadow-blue-500/20 active:scale-[0.98]"
           >
             <span>🎟️</span>
-            <span>Đặt vé</span>
-          </Link>
-
-          <Link
-            to={`/movie/${movie?.id}`}
-            className="w-9 h-9 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl flex items-center justify-center text-xs border border-slate-700 transition-colors"
-            title="Chi tiết phim"
-          >
-            ℹ️
+            <span>{movie?.status === 'COMING_SOON' ? 'Đặt trước vé' : 'Đặt vé ngay'}</span>
           </Link>
         </div>
       </div>

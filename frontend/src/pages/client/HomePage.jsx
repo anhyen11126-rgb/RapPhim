@@ -680,16 +680,6 @@ const HomePage = () => {
             >
               Suất đặc biệt ({specialMovies.length})
             </button>
-            <button
-              onClick={() => {
-                const chatBtn = document.querySelector('button[title="Trò chuyện với AI"]');
-                if (chatBtn) chatBtn.click();
-              }}
-              className="px-4 py-1.5 rounded-full bg-[#131926] border border-slate-800 text-slate-300 hover:text-white hover:border-blue-500 transition-colors flex items-center space-x-1.5 cursor-pointer"
-            >
-              <span className="text-blue-400">🤖</span>
-              <span>Trợ lý AI</span>
-            </button>
           </div>
         </div>
 

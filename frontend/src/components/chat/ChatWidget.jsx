@@ -21,10 +21,16 @@ const ChatWidget = () => {
   ]);
 
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
   };
 
   useEffect(() => {
@@ -327,7 +333,7 @@ const ChatWidget = () => {
           {!isMinimized && (
             <>
               {/* VÙNG DANH SÁCH TIN NHẮN */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-[#080d19] scroll-smooth">
+              <div ref={messagesContainerRef} className="flex-1 p-4 overflow-y-auto space-y-4 bg-[#080d19] scroll-smooth">
                 {/* Mốc thời gian trung tâm */}
                 <div className="text-center">
                   <span className="text-[11px] font-medium text-slate-500 bg-[#0d1322] px-3 py-1 rounded-full border border-slate-800/80">
