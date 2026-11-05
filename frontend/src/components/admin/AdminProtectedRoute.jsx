@@ -19,6 +19,8 @@ const AdminProtectedRoute = () => {
     }
   })();
 
+// khìikwjk
+
   const isAdmin = token && user?.role === 'ADMIN';
 
   if (!isAdmin) {
@@ -33,7 +35,7 @@ const AdminProtectedRoute = () => {
         }}
         replace
       />
-      
+
     );
   }
 
