@@ -344,9 +344,8 @@ const ChatWidget = () => {
                 {messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex items-start gap-2.5 ${
-                      msg.sender === 'user' ? 'justify-end' : 'justify-start'
-                    }`}
+                    className={`flex items-start gap-2.5 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'
+                      }`}
                   >
                     {/* Avatar bot bên trái */}
                     {msg.sender === 'bot' && (
@@ -360,11 +359,10 @@ const ChatWidget = () => {
                     {/* Khối bong bóng chat */}
                     <div className="max-w-[82%]">
                       <div
-                        className={`p-3.5 shadow-md ${
-                          msg.sender === 'user'
+                        className={`p-3.5 shadow-md ${msg.sender === 'user'
                             ? 'bg-[#2563eb] text-white rounded-2xl rounded-tr-xs shadow-blue-900/30 font-medium'
                             : 'bg-[#131b2c] border border-slate-800/90 text-slate-200 rounded-2xl rounded-tl-xs'
-                        }`}
+                          }`}
                       >
                         {/* Header huy hiệu gợi ý xanh lá nếu là gợi ý phim */}
                         {msg.movieCard && (
@@ -414,9 +412,8 @@ const ChatWidget = () => {
 
                       {/* Thời gian & Trạng thái đã xem */}
                       <div
-                        className={`flex items-center space-x-1 mt-1 text-[10px] text-slate-500 ${
-                          msg.sender === 'user' ? 'justify-end' : 'justify-start'
-                        }`}
+                        className={`flex items-center space-x-1 mt-1 text-[10px] text-slate-500 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'
+                          }`}
                       >
                         {msg.sender === 'user' && (
                           <span className="text-blue-400 font-bold">✔✔</span>
@@ -497,11 +494,10 @@ const ChatWidget = () => {
                   <button
                     type="button"
                     onClick={handleToggleVoice}
-                    className={`p-1.5 rounded-lg transition-colors cursor-pointer mr-1.5 ${
-                      isListening
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer mr-1.5 ${isListening
                         ? 'text-red-400 bg-red-500/20 animate-pulse'
                         : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                    }`}
+                      }`}
                     title="Nhập bằng giọng nói"
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -516,11 +512,10 @@ const ChatWidget = () => {
                   <button
                     type="submit"
                     disabled={loading || !input.trim()}
-                    className={`w-8 h-8 rounded-xl bg-[#2563eb] text-white flex items-center justify-center transition-all shadow-md shadow-blue-600/30 shrink-0 ${
-                      loading || !input.trim()
+                    className={`w-8 h-8 rounded-xl bg-[#2563eb] text-white flex items-center justify-center transition-all shadow-md shadow-blue-600/30 shrink-0 ${loading || !input.trim()
                         ? 'opacity-40 cursor-not-allowed'
                         : 'hover:bg-blue-500 hover:scale-105 cursor-pointer'
-                    }`}
+                      }`}
                     title="Gửi tin nhắn"
                   >
                     <svg className="w-4 h-4 text-white -rotate-45 ml-0.5" viewBox="0 0 24 24" fill="currentColor">

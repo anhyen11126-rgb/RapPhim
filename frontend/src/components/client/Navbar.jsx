@@ -135,10 +135,18 @@ const Navbar = () => {
     };
     window.addEventListener('cityChange', handleCitySync);
 
+    // Lắng nghe yêu cầu mở modal chọn tỉnh thành từ các trang con
+    const handleOpenLocationModal = () => {
+      setIsLocationModalOpen(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    window.addEventListener('openLocationModal', handleOpenLocationModal);
+
     return () => {
       window.removeEventListener('authChange', loadUser);
       window.removeEventListener('storage', loadUser);
       window.removeEventListener('cityChange', handleCitySync);
+      window.removeEventListener('openLocationModal', handleOpenLocationModal);
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
