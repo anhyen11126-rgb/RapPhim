@@ -25,7 +25,7 @@ import {
 import { authenticateAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
-
+// jchjcjd
 // Public route: Đăng nhập
 router.post('/login', adminLogin);
 
@@ -36,7 +36,7 @@ router.get('/dashboard/stats', authenticateAdmin, getDashboardStats);
 router.post('/movies', authenticateAdmin, createMovie);
 router.put('/movies/:id', authenticateAdmin, updateMovie);
 router.delete('/movies/:id', authenticateAdmin, deleteMovie);
-
+//jjjj
 // Quản lý Cụm rạp
 router.get('/cinemas', authenticateAdmin, getAdminCinemas);
 router.post('/cinemas', authenticateAdmin, createCinema);
