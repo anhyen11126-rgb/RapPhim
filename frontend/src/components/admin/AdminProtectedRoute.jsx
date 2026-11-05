@@ -33,6 +33,7 @@ const AdminProtectedRoute = () => {
         }}
         replace
       />
+      
     );
   }
 
