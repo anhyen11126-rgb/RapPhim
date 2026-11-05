@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
-// con cobebe
+//lalala
 // Components Client & Chat
 import Navbar from './components/client/Navbar';
 import Footer from './components/client/Footer';
