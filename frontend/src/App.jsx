@@ -7,7 +7,7 @@ import Footer from './components/client/Footer';
 import ChatWidget from './components/chat/ChatWidget';
 import AdminProtectedRoute from './components/admin/AdminProtectedRoute';
 import ScrollManager from './components/common/ScrollManager';
-
+//test'
 // Pages Client (1-5 + Rạp chiếu)
 import HomePage from './pages/client/HomePage';
 import MovieDetailPage from './pages/client/MovieDetailPage';
