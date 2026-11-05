@@ -5,12 +5,26 @@ const SeatLegendBar = ({
   priceVip,
   priceSweetbox,
   selectedSeats,
+  timeSlotLabel,
 }) => {
   return (
     <div className="w-full">
       {/* 1. THANH CHÚ THÍCH LOẠI GHẾ (LEGEND BAR) */}
-      <div className="w-full max-w-4xl mx-auto bg-[#0d1320]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-4 sm:p-5 shadow-2xl mt-8 mb-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 items-center">
+      <div className="w-full max-w-4xl mx-auto bg-[#0d1320]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-4 sm:p-5 shadow-2xl mt-8 mb-6 space-y-3">
+        {/* Banner thông báo chính sách giá vé động */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-2.5 border-b border-slate-800/70 gap-2 text-[11px]">
+          <div className="flex items-center space-x-2">
+            <span className="text-amber-400">🏷️</span>
+            <span className="font-bold text-slate-200">
+              Khung giờ: <span className="text-blue-400">{timeSlotLabel || 'Tiêu chuẩn'}</span>
+            </span>
+          </div>
+          <span className="text-slate-400 text-[10px]">
+            T2 - T5: thường 45k - 50k, VIP 70k • Cuối tuần (T6-CN): 60k - 90k • Suất khuya: từ 50k
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 items-center pt-1">
           {/* 1. Ghế thường */}
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 rounded-lg bg-[#141b29] border border-slate-700/70 flex items-center justify-center text-xs font-bold text-slate-300 shadow">
@@ -96,4 +110,3 @@ const SeatLegendBar = ({
 };
 
 export default SeatLegendBar;
-

@@ -18,6 +18,12 @@ const cinemaSchema = new mongoose.Schema(
       default: 'TP. Hồ Chí Minh',
       index: true,
     },
+    district: {
+      type: String,
+      trim: true,
+      default: '',
+      index: true,
+    },
     address: {
       type: String,
       required: [true, 'Địa chỉ rạp không được để trống'],

@@ -4,6 +4,7 @@ import api from '../../services/api';
 import SeatGrid from '../../components/seat-booking/SeatGrid';
 import SeatLegendBar from '../../components/seat-booking/SeatLegendBar';
 import SeatBottomActionBar from '../../components/seat-booking/SeatBottomActionBar';
+import { calculateDynamicPrices } from '../../utils/pricing';
 
 const SeatSelectionPage = () => {
   const { showtimeId } = useParams();
@@ -49,11 +50,13 @@ const SeatSelectionPage = () => {
     }
   };
 
-  // Giá vé theo từng phân loại ghế
-  const basePrice = showtime?.price || 95000;
-  const PRICE_STANDARD = basePrice;
-  const PRICE_VIP = basePrice + 25000;
-  const PRICE_SWEETBOX = basePrice * 2 + 20000;
+  // Tính giá vé động theo ngày trong tuần, khung giờ và quy định cụ thể của từng loại ghế
+  const {
+    priceStandard: PRICE_STANDARD,
+    priceVip: PRICE_VIP,
+    priceSweetbox: PRICE_SWEETBOX,
+    timeSlotLabel,
+  } = calculateDynamicPrices(showtime);
 
   const handleSeatClick = (seatId) => {
     if (bookedSeats.includes(seatId)) return;
@@ -104,6 +107,11 @@ const SeatSelectionPage = () => {
           showtime: showtime,
           selectedSeats,
           seatTotal: calculateTotal(),
+          ticketPrices: {
+            standard: PRICE_STANDARD,
+            vip: PRICE_VIP,
+            sweetbox: PRICE_SWEETBOX,
+          },
         },
       });
     } finally {
@@ -160,7 +168,7 @@ const SeatSelectionPage = () => {
                 <span className="text-slate-600">•</span>
                 <span className="flex items-center gap-1 text-slate-300 font-medium">
                   <span className="text-amber-400">🕒</span>
-                  <span>Hôm nay 19:15</span>
+                  <span>{showtime?.time || '19:15'} ({timeSlotLabel})</span>
                 </span>
                 <span className="text-slate-600">•</span>
                 <span>166 phút</span>
@@ -240,6 +248,7 @@ const SeatSelectionPage = () => {
           priceVip={PRICE_VIP}
           priceSweetbox={PRICE_SWEETBOX}
           selectedSeats={selectedSeats}
+          timeSlotLabel={timeSlotLabel}
         />
       </div>
 

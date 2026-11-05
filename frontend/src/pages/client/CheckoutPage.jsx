@@ -20,7 +20,7 @@ const CheckoutPage = () => {
     stateData.selectedSeats && stateData.selectedSeats.length > 0
       ? stateData.selectedSeats
       : ['F6', 'F7'];
-  const seatTotal = stateData.seatTotal || 240000;
+  const seatTotal = typeof stateData.seatTotal === 'number' ? stateData.seatTotal : 140000;
 
   // Danh sách các vị bắp
   const popcornFlavors = [

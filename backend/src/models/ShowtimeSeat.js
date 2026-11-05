@@ -22,7 +22,7 @@ const showtimeSeatSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['STANDARD', 'VIP'],
+      enum: ['STANDARD', 'VIP', 'SWEETBOX'],
       default: 'STANDARD',
     },
     status: {

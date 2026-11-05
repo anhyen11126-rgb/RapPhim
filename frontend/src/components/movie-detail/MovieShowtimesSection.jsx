@@ -1,4 +1,5 @@
 import React from 'react';
+import { calculateDynamicPrices } from '../../utils/pricing';
 
 const MovieShowtimesSection = ({
   movie,
@@ -235,9 +236,9 @@ const MovieShowtimesSection = ({
                 </h4>
               </div>
               <div className="flex items-center space-x-2 text-xs">
-                <span className="text-slate-400">Giá vé chuẩn từ:</span>
+                <span className="text-slate-400">Giá vé ngày thường từ:</span>
                 <span className="text-blue-400 font-black text-sm">
-                  {(movie.price || 95000).toLocaleString('vi-VN')}đ
+                  45.000đ - 50.000đ
                 </span>
               </div>
             </div>
@@ -341,9 +342,9 @@ const MovieShowtimesSection = ({
                 </h4>
               </div>
               <div className="flex items-center space-x-2 text-xs">
-                <span className="text-slate-400">Giá vé chuẩn từ:</span>
+                <span className="text-slate-400">Giá vé 3D từ:</span>
                 <span className="text-emerald-400 font-black text-sm">
-                  {((movie.price || 95000) + 15000).toLocaleString('vi-VN')}đ
+                  60.000đ - 65.000đ
                 </span>
               </div>
             </div>
@@ -446,7 +447,7 @@ const MovieShowtimesSection = ({
             <div className="text-left md:text-right">
               <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Giá vé dự kiến:</span>
               <span className="text-xl sm:text-2xl font-black text-amber-400">
-                {(currentActiveShowtime?.price || 160000).toLocaleString('vi-VN')} đ
+                {(calculateDynamicPrices(currentActiveShowtime).priceStandard).toLocaleString('vi-VN')} đ
               </span>
             </div>
             <button
