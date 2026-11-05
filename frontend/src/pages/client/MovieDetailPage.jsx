@@ -814,7 +814,7 @@ const MovieDetailPage = () => {
                 </div>
                 <div className="flex items-center space-x-2 text-xs">
                   <span className="text-slate-400">Giá vé chuẩn từ:</span>
-                  <span className="text-blue-400 font-black text-sm">95.000đ</span>
+                  <span className="text-blue-400 font-black text-sm">{(movie.price || 95000).toLocaleString('vi-VN')}đ</span>
                 </div>
               </div>
 
@@ -912,7 +912,7 @@ const MovieDetailPage = () => {
                 </div>
                 <div className="flex items-center space-x-2 text-xs">
                   <span className="text-slate-400">Giá vé chuẩn từ:</span>
-                  <span className="text-emerald-400 font-black text-sm">110.000đ</span>
+                  <span className="text-emerald-400 font-black text-sm">{((movie.price || 95000) + 15000).toLocaleString('vi-VN')}đ</span>
                 </div>
               </div>
 

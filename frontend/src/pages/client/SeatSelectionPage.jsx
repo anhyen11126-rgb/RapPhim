@@ -165,7 +165,7 @@ const SeatSelectionPage = () => {
           type="button"
           onClick={() => handleSeatClick(seatId)}
           className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#182133] hover:bg-[#23314d] border border-amber-500/30 text-amber-100/90 hover:border-amber-400 flex items-center justify-center text-xs font-bold transition-all cursor-pointer shadow-sm"
-          title={`Ghế VIP ${seatId} - 120.000 đ`}
+          title={`Ghế VIP ${seatId} - ${PRICE_VIP.toLocaleString('vi-VN')} đ`}
         >
           {colNumber}
         </button>
@@ -179,7 +179,7 @@ const SeatSelectionPage = () => {
         type="button"
         onClick={() => handleSeatClick(seatId)}
         className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#141b29] hover:bg-[#1e2a40] border border-slate-700/60 text-slate-300 hover:border-blue-400 flex items-center justify-center text-xs font-semibold transition-all cursor-pointer shadow-sm"
-        title={`Ghế ${seatId} - 95.000 đ`}
+        title={`Ghế ${seatId} - ${PRICE_STANDARD.toLocaleString('vi-VN')} đ`}
       >
         {colNumber}
       </button>
@@ -392,7 +392,7 @@ const SeatSelectionPage = () => {
                       ? 'bg-[#3b82f6] border-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.7)]'
                       : 'bg-[#182133] hover:bg-[#23314d] border-rose-500/40 text-rose-300'
                   }`}
-                  title="Ghế đôi Sweetbox H1-2 - 210.000 đ"
+                  title={`Ghế đôi Sweetbox H1-2 - ${PRICE_SWEETBOX.toLocaleString('vi-VN')} đ`}
                 >
                   <span>♡</span>
                   <span>H1-2</span>
@@ -407,7 +407,7 @@ const SeatSelectionPage = () => {
                       ? 'bg-[#3b82f6] border-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.7)]'
                       : 'bg-[#182133] hover:bg-[#23314d] border-rose-500/40 text-rose-300'
                   }`}
-                  title="Ghế đôi Sweetbox H3-4 - 210.000 đ"
+                  title={`Ghế đôi Sweetbox H3-4 - ${PRICE_SWEETBOX.toLocaleString('vi-VN')} đ`}
                 >
                   <span>♡</span>
                   <span>H3-4</span>
@@ -431,7 +431,7 @@ const SeatSelectionPage = () => {
                       ? 'bg-[#3b82f6] border-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.7)]'
                       : 'bg-[#182133] hover:bg-[#23314d] border-rose-500/40 text-rose-300'
                   }`}
-                  title="Ghế đôi Sweetbox H5-6 - 210.000 đ"
+                  title={`Ghế đôi Sweetbox H5-6 - ${PRICE_SWEETBOX.toLocaleString('vi-VN')} đ`}
                 >
                   <span>♡</span>
                   <span>H5-6</span>
@@ -454,9 +454,9 @@ const SeatSelectionPage = () => {
           </div>
         </div>
 
-        {/* 3. THANH CHÚ THÍCH LOẠI GHẾ (LEGEND BAR) */}
+        {/* 3. THANH CHÚ THÍCH LOẠI GHẾ (LEGEND BAR) - ĐỒNG BỘ 100% VỚI GIÁ VÉ THỰC TẾ */}
         <div className="w-full max-w-4xl mx-auto bg-[#0d1320]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl p-4 sm:p-5 shadow-2xl mt-8 mb-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 items-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 items-center">
             {/* 1. Ghế thường */}
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 rounded-lg bg-[#141b29] border border-slate-700/70 flex items-center justify-center text-xs font-bold text-slate-300 shadow">
@@ -464,7 +464,7 @@ const SeatSelectionPage = () => {
               </div>
               <div>
                 <p className="text-xs font-bold text-white">Ghế thường</p>
-                <p className="text-[11px] text-slate-400 font-medium">95.000 đ</p>
+                <p className="text-[11px] text-blue-400 font-semibold">{PRICE_STANDARD.toLocaleString('vi-VN')} đ</p>
               </div>
             </div>
 
@@ -475,11 +475,22 @@ const SeatSelectionPage = () => {
               </div>
               <div>
                 <p className="text-xs font-bold text-amber-400">Ghế VIP</p>
-                <p className="text-[11px] text-slate-400 font-medium">120.000 đ</p>
+                <p className="text-[11px] text-amber-300 font-semibold">{PRICE_VIP.toLocaleString('vi-VN')} đ</p>
               </div>
             </div>
 
-            {/* 3. Đang chọn */}
+            {/* 3. Ghế Sweetbox */}
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 rounded-lg bg-[#182133] border border-rose-500/40 flex items-center justify-center text-xs font-bold text-rose-300 shadow">
+                ♡
+              </div>
+              <div>
+                <p className="text-xs font-bold text-rose-400">Sweetbox</p>
+                <p className="text-[11px] text-rose-300 font-semibold">{PRICE_SWEETBOX.toLocaleString('vi-VN')} đ</p>
+              </div>
+            </div>
+
+            {/* 4. Đang chọn */}
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 rounded-lg bg-[#3b82f6] border border-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.6)] flex items-center justify-center text-xs font-black text-white">
                 ✓
@@ -492,7 +503,7 @@ const SeatSelectionPage = () => {
               </div>
             </div>
 
-            {/* 4. Đã bán */}
+            {/* 5. Đã bán */}
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 rounded-lg bg-[#0e1422] border border-slate-800 flex items-center justify-center text-xs font-bold text-slate-600">
                 ✕
