@@ -9,11 +9,11 @@ dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
 dotenv.config();
 
 import mongoose from 'mongoose';
-import connectDB from './config/db.js';
-import Movie from './models/Movie.js';
-import Cinema from './models/Cinema.js';
-import Showtime from './models/Showtime.js';
-import ShowtimeSeat from './models/ShowtimeSeat.js';
+import connectDB from '../src/config/db.js';
+import Movie from '../src/models/Movie.js';
+import Cinema from '../src/models/Cinema.js';
+import Showtime from '../src/models/Showtime.js';
+import ShowtimeSeat from '../src/models/ShowtimeSeat.js';
 
 export async function seedRollingShowtimes(daysCount = 14) {
   await connectDB();

@@ -7,8 +7,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "db:seed": "node src/seedMongo.js",
-    "test:all": "node src/testAll.js"
+    "db:seed": "node scripts/seedMongo.js",
+    "db:seed:danang": "node scripts/seedAllDaNangShowtimes.js",
+    "test:all": "node scripts/testAll.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",

@@ -2,14 +2,14 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import mongoose from 'mongoose';
-import connectDB from './config/db.js';
-import Movie from './models/Movie.js';
-import Showtime from './models/Showtime.js';
-import ShowtimeSeat from './models/ShowtimeSeat.js';
-import Concession from './models/Concession.js';
-import Booking from './models/Booking.js';
-import AdminUser from './models/AdminUser.js';
-import { generateChatResponse } from './services/aiService.js';
+import connectDB from '../src/config/db.js';
+import Movie from '../src/models/Movie.js';
+import Showtime from '../src/models/Showtime.js';
+import ShowtimeSeat from '../src/models/ShowtimeSeat.js';
+import Concession from '../src/models/Concession.js';
+import Booking from '../src/models/Booking.js';
+import AdminUser from '../src/models/AdminUser.js';
+import { generateChatResponse } from '../src/services/aiService.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 

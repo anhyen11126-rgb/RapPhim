@@ -3,17 +3,17 @@ dotenv.config();
 
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import connectDB from './config/db.js';
-import AdminUser from './models/AdminUser.js';
-import Concession from './models/Concession.js';
-import Movie from './models/Movie.js';
-import Cinema from './models/Cinema.js';
-import Showtime from './models/Showtime.js';
-import ShowtimeSeat from './models/ShowtimeSeat.js';
-import Booking from './models/Booking.js';
-import Promotion from './models/Promotion.js';
-import Faq from './models/Faq.js';
-import User from './models/User.js';
+import connectDB from '../src/config/db.js';
+import AdminUser from '../src/models/AdminUser.js';
+import Concession from '../src/models/Concession.js';
+import Movie from '../src/models/Movie.js';
+import Cinema from '../src/models/Cinema.js';
+import Showtime from '../src/models/Showtime.js';
+import ShowtimeSeat from '../src/models/ShowtimeSeat.js';
+import Booking from '../src/models/Booking.js';
+import Promotion from '../src/models/Promotion.js';
+import Faq from '../src/models/Faq.js';
+import User from '../src/models/User.js';
 
 async function seed() {
   console.log('🍃 [MongoDB] Bắt đầu kết nối & nạp dữ liệu mẫu vào Database...');
