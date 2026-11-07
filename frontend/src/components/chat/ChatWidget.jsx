@@ -44,7 +44,7 @@ const ChatWidget = () => {
     { label: '🎬 Top phim tuần này', query: 'Cho tôi xem top phim bom tấn hay nhất tuần này tại D\'AVENOR CINEMA' },
     { label: '🎟️ Giá vé IMAX tối nay', query: 'Tối nay khoảng sau 19h ở rạp D\'AVENOR còn phim nào bom tấn xem IMAX được không bạn? Tư vấn ghế đẹp giúp mình luôn nhé!' },
     { label: '🍿 Combo bắp nước giá tốt', query: 'Có combo bắp nước nào ngon và giá tiết kiệm nhất hiện nay không?' },
-    { label: '📍 Suất chiếu sau 19h', query: 'Các suất chiếu sau 19h tối nay tại rạp D\'AVENOR Landmark 81' },
+    { label: '📍 Suất chiếu sau 19h', query: 'Các suất chiếu sau 19h tối nay tại rạp D\'AVENOR Vincom Ngô Quyền' },
   ];
 
   const handleSend = async (e, customText = null) => {

@@ -243,7 +243,7 @@ const MovieDetailPage = () => {
       time: '22:30',
       roomName: 'Phòng IMAX 01',
       availableSeats: 20,
-      price: 160000,
+      price: 140000,
       tag: '',
     },
   ];
@@ -255,7 +255,7 @@ const MovieDetailPage = () => {
       time: '18:00',
       roomName: 'Rạp 03 (Tầng 2)',
       availableSeats: 90,
-      price: movie.price || 95000,
+      price: 50000,
       tag: '',
     },
     {
@@ -264,7 +264,7 @@ const MovieDetailPage = () => {
       time: '19:45',
       roomName: 'Rạp 04 (Tầng 2)',
       availableSeats: 31,
-      price: movie.price || 95000,
+      price: 50000,
       tag: '',
     },
     {
@@ -273,7 +273,7 @@ const MovieDetailPage = () => {
       time: '21:15',
       roomName: 'Rạp 03 (Tầng 2)',
       availableSeats: 45,
-      price: movie.price || 95000,
+      price: 50000,
       tag: '',
     },
     {
@@ -282,7 +282,7 @@ const MovieDetailPage = () => {
       time: '23:00',
       roomName: 'Rạp 02',
       availableSeats: 0,
-      price: movie.price || 95000,
+      price: 50000,
       tag: 'HẾT VÉ',
     },
   ];
@@ -294,7 +294,7 @@ const MovieDetailPage = () => {
       time: '18:30',
       roomName: 'Rạp 05 (Tầng 3)',
       availableSeats: 64,
-      price: (movie.price || 95000) + 15000,
+      price: 65000,
       tag: '',
     },
     {
@@ -303,7 +303,7 @@ const MovieDetailPage = () => {
       time: '21:00',
       roomName: 'Rạp 05 (Tầng 3)',
       availableSeats: 42,
-      price: (movie.price || 95000) + 15000,
+      price: 65000,
       tag: '',
     },
   ];
@@ -312,8 +312,8 @@ const MovieDetailPage = () => {
     filteredCinemas.find((c) => (c._id || c.id) === selectedCinemaId) ||
     filteredCinemas[0] ||
     cinemas[0] || {
-      name: 'MovieTix B1&B2 Vincom Landmark 81 IMAX',
-      address: '720A Điện Biên Phủ, P.22, Bình Thạnh, TP.HCM',
+      name: "D'AVENOR Vincom Ngô Quyền",
+      address: 'Tầng 4 Vincom Plaza, 910A Ngô Quyền, Q. Sơn Trà, Đà Nẵng',
     };
 
   // Helper tính giờ kết thúc suất chiếu
@@ -334,14 +334,18 @@ const MovieDetailPage = () => {
   };
 
   const handleSelectSlot = (st, formatName, directToSeat = false) => {
-    setSelectedShowtime({
+    const slotData = {
       ...st,
       cinemaName: displayCinema.name,
       format: formatName,
-    });
+      startTime: selectedDate?.fullDate,
+    };
+    setSelectedShowtime(slotData);
     if (directToSeat) {
       const targetId = st.realId || primaryShowtimeId;
-      navigate(`/booking/seat/${targetId}`);
+      navigate(`/booking/seat/${targetId}`, {
+        state: { slotInfo: slotData },
+      });
     }
   };
 
@@ -400,7 +404,14 @@ const MovieDetailPage = () => {
         displayCinema={displayCinema}
         onProceedToBooking={() => {
           const targetId = currentActiveShowtime?.realId || primaryShowtimeId;
-          navigate(`/booking/seat/${targetId}`);
+          const finalSlot = {
+            ...currentActiveShowtime,
+            cinemaName: displayCinema.name,
+            startTime: selectedDate?.fullDate,
+          };
+          navigate(`/booking/seat/${targetId}`, {
+            state: { slotInfo: finalSlot },
+          });
         }}
       />
     </div>

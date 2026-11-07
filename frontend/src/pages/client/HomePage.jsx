@@ -83,9 +83,12 @@ const HomePage = () => {
       }
 
       if (resCinemas.data && Array.isArray(resCinemas.data)) {
-        setCinemas(resCinemas.data);
-        if (resCinemas.data.length > 0) {
-          setSelectedTheater(resCinemas.data[0].name);
+        // Chỉ lấy các rạp tại Đà Nẵng
+        const daNangOnly = resCinemas.data.filter((c) => (c.city || '').toLowerCase().includes('đà nẵng') || !c.city);
+        const finalList = daNangOnly.length > 0 ? daNangOnly : resCinemas.data;
+        setCinemas(finalList);
+        if (finalList.length > 0) {
+          setSelectedTheater(finalList[0].name);
         }
       }
     } catch (err) {

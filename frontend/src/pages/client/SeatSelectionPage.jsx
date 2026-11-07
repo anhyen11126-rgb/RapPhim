@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useLocation, Link } from 'react-router-dom';
 import api from '../../services/api';
 import SeatGrid from '../../components/seat-booking/SeatGrid';
 import SeatLegendBar from '../../components/seat-booking/SeatLegendBar';
@@ -9,8 +9,10 @@ import { calculateDynamicPrices } from '../../utils/pricing';
 const SeatSelectionPage = () => {
   const { showtimeId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const slotInfo = location.state?.slotInfo;
 
-  const [showtime, setShowtime] = useState(null);
+  const [showtime, setShowtime] = useState(slotInfo || null);
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [bookedSeats, setBookedSeats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +29,16 @@ const SeatSelectionPage = () => {
       setErrorMsg('');
       const res = await api.get(`/showtimes/${showtimeId}/seats`);
       if (res.data?.showtime) {
-        setShowtime(res.data.showtime);
+        // Hợp nhất dữ liệu suất chiếu từ DB và slot được người dùng chọn
+        setShowtime({
+          ...res.data.showtime,
+          ...(slotInfo || {}),
+          format: slotInfo?.format || res.data.showtime.format || res.data.showtime.formatFeature || '2D Tiêu Chuẩn',
+          roomName: slotInfo?.roomName || res.data.showtime.roomName || 'Phòng Chiếu 01',
+          time: slotInfo?.time || res.data.showtime.time,
+          price: slotInfo?.price || res.data.showtime.price,
+          cinemaName: slotInfo?.cinemaName || res.data.showtime.cinema?.name || 'D\'AVENOR CINEMA',
+        });
       }
       if (res.data?.seats && Array.isArray(res.data.seats)) {
         const booked = res.data.seats
@@ -56,6 +67,7 @@ const SeatSelectionPage = () => {
     priceVip: PRICE_VIP,
     priceSweetbox: PRICE_SWEETBOX,
     timeSlotLabel,
+    roomTypeLabel,
   } = calculateDynamicPrices(showtime);
 
   const handleSeatClick = (seatId) => {
@@ -104,7 +116,11 @@ const SeatSelectionPage = () => {
       navigate('/checkout', {
         state: {
           showtimeId: showtimeId || showtime?._id?.toString() || showtime?.id,
-          showtime: showtime,
+          showtime: {
+            ...showtime,
+            format: showtime?.format || roomTypeLabel,
+            cinemaName: showtime?.cinemaName || showtime?.cinema?.name,
+          },
           selectedSeats,
           seatTotal: calculateTotal(),
           ticketPrices: {
@@ -123,7 +139,7 @@ const SeatSelectionPage = () => {
     return (
       <div className="min-h-screen bg-[#080d17] flex flex-col items-center justify-center text-white">
         <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-cyan-400 border-t-transparent mb-3"></div>
-        <p className="text-slate-400 text-sm font-semibold">Đang tải sơ đồ phòng chiếu IMAX...</p>
+        <p className="text-slate-400 text-sm font-semibold">Đang tải sơ đồ phòng chiếu...</p>
       </div>
     );
   }
@@ -139,13 +155,23 @@ const SeatSelectionPage = () => {
       <div className="w-full bg-[#0b101a]/95 backdrop-blur-xl border-b border-slate-800/90 py-3.5 mb-6 sticky top-0 z-40 shadow-xl">
         <div className="max-w-[1560px] mx-auto px-6 sm:px-10 lg:px-14 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
           <div className="flex items-center space-x-3.5">
-            <Link
-              to="/"
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#151d2d] hover:bg-[#202b3f] border border-slate-700/70 text-slate-200 hover:text-white flex items-center justify-center text-sm transition-all shadow-md shrink-0 cursor-pointer"
-              title="Quay lại trang chủ"
+            <button
+              type="button"
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1);
+                } else if (showtime?.movie?._id || showtime?.movie?.id || showtime?.movieId) {
+                  const mId = showtime?.movie?._id || showtime?.movie?.id || showtime?.movieId;
+                  navigate(`/movie/${mId}`);
+                } else {
+                  navigate('/');
+                }
+              }}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#151d2d] hover:bg-[#202b3f] border border-slate-700/70 text-slate-200 hover:text-white flex items-center justify-center text-sm transition-all shadow-md shrink-0 cursor-pointer active:scale-95"
+              title="Quay lại trang chi tiết & chọn suất chiếu"
             >
               ←
-            </Link>
+            </button>
 
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -155,15 +181,32 @@ const SeatSelectionPage = () => {
                 <span className="bg-[#f59e0b] text-[#0a1120] font-black text-[10px] px-2 py-0.5 rounded-full shadow-sm">
                   {showtime?.movie?.ageRating || 'T16'}
                 </span>
-                <span className="bg-[#1b263b] text-blue-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border border-blue-400/30 uppercase tracking-wider">
-                  IMAX LASER
+                <span
+                  className={`font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider border shadow-sm ${
+                    (showtime?.format || roomTypeLabel || '').toLowerCase().includes('imax')
+                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                      : (showtime?.format || roomTypeLabel || '').toLowerCase().includes('3d')
+                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                      : 'bg-blue-500/15 text-blue-300 border-blue-500/40'
+                  }`}
+                >
+                  {showtime?.format || roomTypeLabel || '2D TIÊU CHUẨN'}
                 </span>
               </div>
 
               <div className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mt-1 flex-wrap">
+                {(showtime?.cinemaName || showtime?.cinema?.name) && (
+                  <>
+                    <span className="flex items-center gap-1 text-slate-300 font-medium">
+                      <span className="text-red-400">📍</span>
+                      <span>{showtime?.cinemaName || showtime?.cinema?.name}</span>
+                    </span>
+                    <span className="text-slate-600">•</span>
+                  </>
+                )}
                 <span className="flex items-center gap-1 text-slate-300 font-medium">
                   <span className="text-blue-400">📽</span>
-                  <span>{showtime?.roomName || 'Phòng Chiếu 03'}</span>
+                  <span>{showtime?.roomName || 'Phòng Chiếu 01'}</span>
                 </span>
                 <span className="text-slate-600">•</span>
                 <span className="flex items-center gap-1 text-slate-300 font-medium">
@@ -171,7 +214,7 @@ const SeatSelectionPage = () => {
                   <span>{showtime?.time || '19:15'} ({timeSlotLabel})</span>
                 </span>
                 <span className="text-slate-600">•</span>
-                <span>166 phút</span>
+                <span>{showtime?.movie?.duration || 120} phút</span>
               </div>
             </div>
           </div>
@@ -249,6 +292,8 @@ const SeatSelectionPage = () => {
           priceSweetbox={PRICE_SWEETBOX}
           selectedSeats={selectedSeats}
           timeSlotLabel={timeSlotLabel}
+          roomTypeLabel={roomTypeLabel}
+          format={showtime?.format}
         />
       </div>
 

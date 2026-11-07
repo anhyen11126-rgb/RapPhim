@@ -39,11 +39,11 @@ const Footer = () => {
           <div className="space-y-3">
             <h4 className="font-bold text-white tracking-wide text-sm">Hệ thống Rạp</h4>
             <ul className="space-y-2 text-slate-400 text-xs">
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Landmark 81 (IMAX)</li>
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Westlake Hà Nội</li>
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Sala Thủ Thiêm</li>
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Dragon Beach Đà Nẵng</li>
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">Phòng chiếu VIP Premiere Lounge</li>
+              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Vincom Ngô Quyền (IMAX)</li>
+              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Indochina Riverside</li>
+              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Lotte Mart Đà Nẵng</li>
+              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Thanh Khê Plaza</li>
+              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Ngũ Hành Sơn Resort</li>
             </ul>
           </div>
 

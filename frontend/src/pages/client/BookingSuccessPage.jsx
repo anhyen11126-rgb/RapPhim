@@ -21,7 +21,7 @@ const BookingSuccessPage = () => {
     customerPhone: booking?.customerPhone || '',
     movieTitle: booking?.showtime?.movie?.title || '',
     movieAgeRating: booking?.showtime?.movie?.ageRating || 'T16',
-    theaterName: booking?.showtime?.theater?.name || "D'AVENOR Landmark 81 IMAX",
+    theaterName: booking?.showtime?.theater?.name || booking?.showtime?.cinema?.name || "D'AVENOR Vincom Ngô Quyền",
     roomName: booking?.showtime?.roomName || 'Phòng chiếu',
     time: booking?.showtime?.startTime
       ? new Date(booking.showtime.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })

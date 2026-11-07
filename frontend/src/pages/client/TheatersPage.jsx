@@ -4,16 +4,13 @@ import api from '../../services/api';
 import { FALLBACK_CINEMAS } from '../../constants/cinemas';
 
 const REGIONS = [
-  'Tất cả khu vực',
-  'TP. Hồ Chí Minh',
-  'Hà Nội',
-  'Đà Nẵng',
-  'Hải Phòng',
-  'Cần Thơ',
-  'Bình Dương',
-  'Đồng Nai',
-  'Khánh Hòa',
-  'Hà Tĩnh',
+  'Tất cả quận',
+  'Hải Châu',
+  'Thanh Khê',
+  'Sơn Trà',
+  'Cẩm Lệ',
+  'Ngũ Hành Sơn',
+  'Liên Chiểu',
 ];
 
 const TECH_FILTERS = ['Tất cả', 'IMAX Laser', 'Dolby Atmos', 'Gold Class'];
@@ -21,30 +18,16 @@ const TECH_FILTERS = ['Tất cả', 'IMAX Laser', 'Dolby Atmos', 'Gold Class'];
 const TheatersPage = () => {
   const navigate = useNavigate();
 
-  // State bộ lọc (đồng bộ với Tỉnh/Thành phố đang chọn trên Navbar)
+  // State bộ lọc quận huyện tại Đà Nẵng
   const [activeRegion, setActiveRegion] = useState(() => {
-    return localStorage.getItem('selectedCity') || 'TP. Hồ Chí Minh';
+    return localStorage.getItem('selectedDistrict') || 'Tất cả quận';
   });
   const [searchKeyword, setSearchKeyword] = useState('');
   const [activeTech, setActiveTech] = useState('Tất cả');
 
-  // Lắng nghe thay đổi tỉnh thành từ Navbar
-  useEffect(() => {
-    const handleCitySync = (e) => {
-      if (e.detail) {
-        setActiveRegion(e.detail);
-      }
-    };
-    window.addEventListener('cityChange', handleCitySync);
-    return () => window.removeEventListener('cityChange', handleCitySync);
-  }, []);
-
   const handleSelectRegion = (region) => {
     setActiveRegion(region);
-    if (region !== 'Tất cả khu vực') {
-      localStorage.setItem('selectedCity', region);
-      window.dispatchEvent(new CustomEvent('cityChange', { detail: region }));
-    }
+    localStorage.setItem('selectedDistrict', region);
   };
 
   // State dữ liệu rạp từ API
@@ -58,14 +41,17 @@ const TheatersPage = () => {
   const [loadingShowtimes, setLoadingShowtimes] = useState(false);
   const [activeDateIndex, setActiveDateIndex] = useState(0);
 
-  // Sinh 7 ngày liên tiếp tính từ hôm nay
+  // Sinh 7 ngày liên tiếp tính từ hôm nay theo giờ địa phương chuẩn
   const dates = Array.from({ length: 7 }).map((_, idx) => {
     const d = new Date();
     d.setDate(d.getDate() + idx);
     const dayNames = ['CHỦ NHẬT', 'THỨ 2', 'THỨ 3', 'THỨ 4', 'THỨ 5', 'THỨ 6', 'THỨ 7'];
     const dayStr = idx === 0 ? 'HÔM NAY' : dayNames[d.getDay()];
     const dateStr = `${d.getDate()}/${d.getMonth() + 1}`;
-    const isoDate = d.toISOString().split('T')[0];
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const isoDate = `${year}-${month}-${day}`;
     return { dayStr, dateStr, isoDate };
   });
 
@@ -74,8 +60,10 @@ const TheatersPage = () => {
     const fetchCinemas = async () => {
       try {
         setLoadingCinemas(true);
-        const params = {};
-        if (activeRegion && activeRegion !== 'Tất cả khu vực') params.city = activeRegion;
+        const params = { city: 'Đà Nẵng' };
+        if (activeRegion && activeRegion !== 'Tất cả quận' && activeRegion !== 'Tất cả khu vực') {
+          params.district = activeRegion;
+        }
         if (activeTech && activeTech !== 'Tất cả') params.tech = activeTech;
         if (searchKeyword.trim()) params.search = searchKeyword.trim();
 
@@ -91,8 +79,8 @@ const TheatersPage = () => {
         } else {
           // Lọc từ danh sách chuẩn nếu backend trả về rỗng
           let fallback = [...FALLBACK_CINEMAS];
-          if (activeRegion && activeRegion !== 'Tất cả khu vực') {
-            fallback = fallback.filter((c) => c.city.toLowerCase() === activeRegion.toLowerCase());
+          if (activeRegion && activeRegion !== 'Tất cả quận' && activeRegion !== 'Tất cả khu vực') {
+            fallback = fallback.filter((c) => (c.district || c.address || '').toLowerCase().includes(activeRegion.toLowerCase()));
           }
           if (activeTech && activeTech !== 'Tất cả') {
             fallback = fallback.filter((c) => c.tags?.includes(activeTech));
@@ -113,8 +101,8 @@ const TheatersPage = () => {
       } catch (err) {
         console.warn('Backend chưa phản hồi, sử dụng danh sách cụm rạp chuẩn:', err.message);
         let fallback = [...FALLBACK_CINEMAS];
-        if (activeRegion && activeRegion !== 'Tất cả khu vực') {
-          fallback = fallback.filter((c) => c.city.toLowerCase() === activeRegion.toLowerCase());
+        if (activeRegion && activeRegion !== 'Tất cả quận' && activeRegion !== 'Tất cả khu vực') {
+          fallback = fallback.filter((c) => (c.district || c.address || '').toLowerCase().includes(activeRegion.toLowerCase()));
         }
         if (activeTech && activeTech !== 'Tất cả') {
           fallback = fallback.filter((c) => c.tags?.includes(activeTech));
@@ -250,7 +238,7 @@ const TheatersPage = () => {
             <div className="flex items-center justify-between pb-1">
               <h2 className="text-sm font-bold text-slate-200 flex items-center space-x-2">
                 <span>🏢</span>
-                <span>Cụm rạp tại {activeRegion === 'Tất cả khu vực' ? 'Toàn quốc' : activeRegion}</span>
+                <span>Cụm rạp tại {activeRegion === 'Tất cả quận' || activeRegion === 'Tất cả khu vực' ? 'Đà Nẵng' : `Q. ${activeRegion}`}</span>
               </h2>
               <span className="text-xs text-slate-500 font-medium">
                 {cinemas.length} rạp
@@ -426,7 +414,7 @@ const TheatersPage = () => {
                       <span className="text-base">📅</span>
                       <h3 className="text-base font-black text-white">Lịch chiếu rạp</h3>
                     </div>
-                    <span className="text-xs text-slate-400 font-medium">Tháng 10, 2026</span>
+                    <span className="text-xs text-slate-400 font-medium">Tháng {new Date().getMonth() + 1}, {new Date().getFullYear()}</span>
                   </div>
 
                   <div className="flex items-center space-x-2 overflow-x-auto scrollbar-none pb-1">
@@ -524,11 +512,18 @@ const TheatersPage = () => {
                                   <button
                                     key={st.id}
                                     onClick={() => handleSelectShowtime(st.id)}
-                                    className="group relative bg-[#0b0f19] hover:bg-[#2563eb] border border-slate-700/80 hover:border-blue-500 px-4 py-2 rounded-xl text-left transition-all duration-200 shadow-sm"
+                                    className="group relative bg-[#0b0f19] hover:bg-[#2563eb] border border-slate-700/80 hover:border-blue-500 px-3.5 py-2 rounded-xl text-left transition-all duration-200 shadow-sm"
                                   >
-                                    <span className="block text-sm font-black text-white group-hover:text-white">
-                                      {st.time}
-                                    </span>
+                                    <div className="flex items-baseline space-x-2">
+                                      <span className="block text-sm font-black text-white group-hover:text-white">
+                                        {st.time}
+                                      </span>
+                                      {st.price && (
+                                        <span className="text-[11px] font-bold text-amber-400 group-hover:text-yellow-200">
+                                          {st.price.toLocaleString('vi-VN')} đ
+                                        </span>
+                                      )}
+                                    </div>
                                     <span
                                       className={`block text-[10px] font-semibold mt-0.5 group-hover:text-blue-100 ${st.statusColor || 'text-slate-400'
                                         }`}
@@ -550,7 +545,7 @@ const TheatersPage = () => {
                         Chưa có suất chiếu trong ngày đã chọn tại rạp này
                       </h4>
                       <p className="text-xs text-slate-400 max-w-md mx-auto">
-                        Bạn có thể chọn rạp <strong>D'AVENOR Landmark 81 IMAX</strong> hoặc chọn ngày khác để xem các suất chiếu có sẵn trong Database.
+                        Bạn có thể chọn rạp <strong>D'AVENOR Vincom Ngô Quyền</strong> hoặc chọn ngày khác để xem các suất chiếu có sẵn trong Database.
                       </p>
                     </div>
                   )}

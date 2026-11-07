@@ -41,8 +41,8 @@ const CheckoutOrderSummary = ({
           <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
             TÓM TẮT ĐƠN ĐẶT VÉ
           </span>
-          <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-black px-2 py-0.5 rounded">
-            IMAX 2D
+          <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-black px-2 py-0.5 rounded uppercase">
+            {showtime?.format || '2D Tiêu Chuẩn'}
           </span>
         </div>
 
@@ -50,18 +50,27 @@ const CheckoutOrderSummary = ({
           {showtime?.movie?.title || 'Dune: Hành Tinh Cát 2'}
         </h2>
         <p className="text-xs text-slate-400 mt-0.5">
-          Khoa học viễn tưởng • 2D Phụ đề • {showtime?.movie?.ageRating || 'T16'}
+          {showtime?.format || '2D Phụ đề'} • {showtime?.movie?.ageRating || 'T16'}
         </p>
 
-        <div className="flex items-center gap-3 text-xs text-slate-300 mt-2.5 pb-4 border-b border-slate-800">
+        <div className="flex items-center gap-2 text-xs text-slate-300 mt-2.5 pb-4 border-b border-slate-800 flex-wrap">
+          {(showtime?.cinemaName || showtime?.cinema?.name) && (
+            <>
+              <span className="flex items-center gap-1 font-medium">
+                <span className="text-red-400">📍</span>
+                <span>{showtime?.cinemaName || showtime?.cinema?.name}</span>
+              </span>
+              <span className="text-slate-600">•</span>
+            </>
+          )}
           <span className="flex items-center gap-1 font-medium">
             <span className="text-blue-400">📽️</span>
-            <span>{showtime?.roomName || "D'AVENOR Center (P.3)"}</span>
+            <span>{showtime?.roomName || "Phòng Chiếu 01"}</span>
           </span>
           <span className="text-slate-600">•</span>
           <span className="flex items-center gap-1 font-medium">
             <span className="text-amber-400">🕒</span>
-            <span>19:15 • Hôm nay</span>
+            <span>{showtime?.time || '19:15'}</span>
           </span>
         </div>
 

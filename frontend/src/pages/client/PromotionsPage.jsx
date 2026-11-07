@@ -299,10 +299,11 @@ const PromotionsPage = () => {
               onChange={(e) => setSelectedCinema(e.target.value)}
               className="bg-[#111624] border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500 cursor-pointer"
             >
-              <option value="Tất cả rạp chiếu">🏢 Tất cả rạp chiếu</option>
-              <option value="D'AVENOR Landmark 81 IMAX">D'AVENOR Landmark 81</option>
-              <option value="D'AVENOR Vincom Đồng Khởi">Vincom Đồng Khởi</option>
-              <option value="D'AVENOR Sala Thủ Thiêm">Sala Thủ Thiêm</option>
+              <option value="Tất cả rạp chiếu">🏢 Tất cả rạp tại Đà Nẵng</option>
+              <option value="D'AVENOR Vincom Ngô Quyền">D'AVENOR Vincom Ngô Quyền</option>
+              <option value="D'AVENOR Indochina Riverside">D'AVENOR Indochina Riverside</option>
+              <option value="D'AVENOR Lotte Mart Đà Nẵng">D'AVENOR Lotte Mart</option>
+              <option value="D'AVENOR Thanh Khê Plaza">D'AVENOR Thanh Khê Plaza</option>
             </select>
           </div>
         </div>

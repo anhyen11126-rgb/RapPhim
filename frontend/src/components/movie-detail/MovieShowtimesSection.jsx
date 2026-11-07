@@ -1,5 +1,5 @@
-import React from 'react';
-import { calculateDynamicPrices } from '../../utils/pricing';
+import React, { useState, useMemo, useEffect } from 'react';
+import { calculateDynamicPrices, getRoomPriceRange } from '../../utils/pricing';
 
 const MovieShowtimesSection = ({
   movie,
@@ -20,6 +20,47 @@ const MovieShowtimesSection = ({
   displayCinema,
   onProceedToBooking,
 }) => {
+  const isWeekend = selectedDate?.fullDate
+    ? (selectedDate.fullDate.getDay() === 0 || selectedDate.fullDate.getDay() === 5 || selectedDate.fullDate.getDay() === 6)
+    : false;
+
+  // Quản lý bộ lọc theo Quận / Huyện tại Đà Nẵng
+  const [selectedDistrict, setSelectedDistrict] = useState('Tất cả');
+
+  // Lấy danh sách các Quận / Huyện có rạp tại Đà Nẵng
+  const availableDistricts = useMemo(() => {
+    const set = new Set();
+    filteredCinemas.forEach((c) => {
+      if (c.district) {
+        set.add(c.district);
+      } else if (c.address) {
+        const match = c.address.match(/Q\.\s*([^,]+)|Quận\s*([^,]+)/i);
+        if (match) set.add((match[1] || match[2]).trim());
+      }
+    });
+    return ['Tất cả', ...Array.from(set)];
+  }, [filteredCinemas]);
+
+  // Lọc danh sách cụm rạp theo Quận đang chọn
+  const displayedCinemas = useMemo(() => {
+    if (!selectedDistrict || selectedDistrict === 'Tất cả') return filteredCinemas;
+    return filteredCinemas.filter((c) => {
+      const dist = (c.district || '').toLowerCase();
+      const addr = (c.address || '').toLowerCase();
+      const target = selectedDistrict.toLowerCase();
+      return dist.includes(target) || addr.includes(target);
+    });
+  }, [filteredCinemas, selectedDistrict]);
+
+  // Tự động chọn rạp đầu tiên khi đổi quận nếu rạp hiện tại không nằm trong quận đó
+  useEffect(() => {
+    if (displayedCinemas.length > 0) {
+      const isCurrentInList = displayedCinemas.some((c) => (c._id || c.id) === selectedCinemaId);
+      if (!isCurrentInList) {
+        onSelectCinemaId(displayedCinemas[0]._id || displayedCinemas[0].id);
+      }
+    }
+  }, [displayedCinemas, selectedCinemaId, onSelectCinemaId]);
   return (
     <section id="showtimes-section" className="relative z-20 max-w-[1560px] mx-auto px-4 sm:px-8 lg:px-12 mt-12">
       <div className="bg-[#101625] border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8">
@@ -75,7 +116,7 @@ const MovieShowtimesSection = ({
                 CỤM RẠP TẠI <span className="text-blue-400 font-extrabold">{selectedCity}</span>
               </label>
               <span className="text-[11px] font-semibold text-slate-400">
-                ({filteredCinemas.length} cụm rạp)
+                ({displayedCinemas.length} cụm rạp)
               </span>
             </div>
 
@@ -92,9 +133,41 @@ const MovieShowtimesSection = ({
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {filteredCinemas.length > 0 ? (
-              filteredCinemas.map((c) => {
+          {/* BỘ LỌC CHỌN QUẬN / HUYỆN TẠI ĐÀ NẴNG */}
+          <div className="flex items-center space-x-2 overflow-x-auto pb-1.5 scrollbar-none pt-0.5">
+            <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1 flex items-center gap-1">
+              <span>🏘️</span>
+              <span>Quận:</span>
+            </span>
+            {availableDistricts.map((dist) => {
+              const isDistActive = selectedDistrict === dist;
+              const countInDist =
+                dist === 'Tất cả'
+                  ? filteredCinemas.length
+                  : filteredCinemas.filter((c) =>
+                      (c.district || c.address || '').toLowerCase().includes(dist.toLowerCase())
+                    ).length;
+              return (
+                <button
+                  key={dist}
+                  type="button"
+                  onClick={() => setSelectedDistrict(dist)}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 border ${
+                    isDistActive
+                      ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30 ring-1 ring-blue-400'
+                      : 'bg-[#151c2d] text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <span>{dist === 'Tất cả' ? 'Tất cả quận' : `Q. ${dist}`}</span>
+                  <span className="ml-1 text-[10px] opacity-75">({countInDist})</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 pt-1">
+            {displayedCinemas.length > 0 ? (
+              displayedCinemas.map((c) => {
                 const cId = c._id || c.id;
                 const isSelected = selectedCinemaId === cId;
                 return (
@@ -110,6 +183,11 @@ const MovieShowtimesSection = ({
                   >
                     <span>🏢</span>
                     <span>{c.name}</span>
+                    {c.district && (
+                      <span className="text-[10px] text-slate-500 font-normal">
+                        ({c.district})
+                      </span>
+                    )}
                     {c.isFlagship && (
                       <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-500/20 text-blue-400 border border-blue-500/40">
                         Flagship
@@ -120,7 +198,7 @@ const MovieShowtimesSection = ({
               })
             ) : (
               <p className="text-xs text-slate-400 italic py-2">
-                Chưa có cụm rạp nào tại khu vực này. Vui lòng chọn khu vực khác!
+                Chưa có cụm rạp nào tại quận này. Vui lòng chọn quận khác!
               </p>
             )}
           </div>
@@ -141,8 +219,10 @@ const MovieShowtimesSection = ({
                 </h4>
               </div>
               <div className="flex items-center space-x-2 text-xs">
-                <span className="text-slate-400">Giá vé chuẩn từ:</span>
-                <span className="text-amber-400 font-black text-sm">160.000đ</span>
+                <span className="text-slate-400">Giá vé dao động:</span>
+                <span className="text-amber-400 font-black text-sm">
+                  {getRoomPriceRange('imax', isWeekend).label}
+                </span>
               </div>
             </div>
 
@@ -152,12 +232,19 @@ const MovieShowtimesSection = ({
                 const isChosen = currentActiveShowtime?.id === st.id;
                 const isUrgent = st.availableSeats > 0 && st.availableSeats <= 15;
                 const endTime = getEndTime(st.time, movie.duration);
+                const imaxPricing = calculateDynamicPrices({
+                  ...st,
+                  startTime: selectedDate?.fullDate,
+                  roomName: 'Phòng IMAX 01',
+                  format: 'IMAX Laser 2D',
+                });
+                const slotPrice = imaxPricing.priceStandard;
 
                 return (
                   <div
                     key={st.id}
-                    onClick={() => onSelectSlot(st, 'IMAX Laser 2D', isChosen)}
-                    onDoubleClick={() => onSelectSlot(st, 'IMAX Laser 2D', true)}
+                    onClick={() => onSelectSlot({ ...st, price: slotPrice }, 'IMAX Laser 2D', isChosen)}
+                    onDoubleClick={() => onSelectSlot({ ...st, price: slotPrice }, 'IMAX Laser 2D', true)}
                     role="button"
                     tabIndex={0}
                     title="Nhấn để chọn suất chiếu, nhấn đúp để vào thẳng chọn ghế"
@@ -181,6 +268,9 @@ const MovieShowtimesSection = ({
                           {endTime && (
                             <span className="text-[11px] font-medium text-slate-400">{endTime}</span>
                           )}
+                        </div>
+                        <div className="text-[11px] font-bold text-amber-400 mt-0.5">
+                          {slotPrice.toLocaleString('vi-VN')} đ
                         </div>
                       </div>
 
@@ -236,9 +326,9 @@ const MovieShowtimesSection = ({
                 </h4>
               </div>
               <div className="flex items-center space-x-2 text-xs">
-                <span className="text-slate-400">Giá vé ngày thường từ:</span>
+                <span className="text-slate-400">Giá vé dao động:</span>
                 <span className="text-blue-400 font-black text-sm">
-                  45.000đ - 50.000đ
+                  {getRoomPriceRange('2d', isWeekend).label}
                 </span>
               </div>
             </div>
@@ -250,12 +340,19 @@ const MovieShowtimesSection = ({
                 const isSoldOut = st.availableSeats === 0;
                 const isUrgent = st.availableSeats > 0 && st.availableSeats <= 15;
                 const endTime = getEndTime(st.time, movie.duration);
+                const stdPricing = calculateDynamicPrices({
+                  ...st,
+                  startTime: selectedDate?.fullDate,
+                  roomName: st.roomName || 'Rạp 03 (Tầng 2)',
+                  format: '2D Tiêu Chuẩn Dolby 7.1',
+                });
+                const slotPrice = stdPricing.priceStandard;
 
                 return (
                   <div
                     key={st.id}
-                    onClick={() => !isSoldOut && onSelectSlot(st, '2D Tiêu Chuẩn Dolby 7.1', isChosen)}
-                    onDoubleClick={() => !isSoldOut && onSelectSlot(st, '2D Tiêu Chuẩn Dolby 7.1', true)}
+                    onClick={() => !isSoldOut && onSelectSlot({ ...st, price: slotPrice }, '2D Tiêu Chuẩn Dolby 7.1', isChosen)}
+                    onDoubleClick={() => !isSoldOut && onSelectSlot({ ...st, price: slotPrice }, '2D Tiêu Chuẩn Dolby 7.1', true)}
                     role="button"
                     tabIndex={0}
                     className={`relative p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between space-y-3 select-none group ${
@@ -285,6 +382,11 @@ const MovieShowtimesSection = ({
                             <span className="text-[11px] font-medium text-slate-400">{endTime}</span>
                           )}
                         </div>
+                        {!isSoldOut && (
+                          <div className="text-[11px] font-bold text-blue-400 mt-0.5">
+                            {slotPrice.toLocaleString('vi-VN')} đ
+                          </div>
+                        )}
                       </div>
 
                       {/* Huy hiệu góc phải */}
@@ -342,9 +444,9 @@ const MovieShowtimesSection = ({
                 </h4>
               </div>
               <div className="flex items-center space-x-2 text-xs">
-                <span className="text-slate-400">Giá vé 3D từ:</span>
+                <span className="text-slate-400">Giá vé dao động:</span>
                 <span className="text-emerald-400 font-black text-sm">
-                  60.000đ - 65.000đ
+                  {getRoomPriceRange('3d', isWeekend).label}
                 </span>
               </div>
             </div>
@@ -355,12 +457,19 @@ const MovieShowtimesSection = ({
                 const isChosen = currentActiveShowtime?.id === st.id;
                 const isUrgent = st.availableSeats > 0 && st.availableSeats <= 15;
                 const endTime = getEndTime(st.time, movie.duration);
+                const threeDPricing = calculateDynamicPrices({
+                  ...st,
+                  startTime: selectedDate?.fullDate,
+                  roomName: st.roomName || 'Rạp 05 (Tầng 3)',
+                  format: 'RealD 3D HFR',
+                });
+                const slotPrice = threeDPricing.priceStandard;
 
                 return (
                   <div
                     key={st.id}
-                    onClick={() => onSelectSlot(st, 'RealD 3D HFR', isChosen)}
-                    onDoubleClick={() => onSelectSlot(st, 'RealD 3D HFR', true)}
+                    onClick={() => onSelectSlot({ ...st, price: slotPrice }, 'RealD 3D HFR', isChosen)}
+                    onDoubleClick={() => onSelectSlot({ ...st, price: slotPrice }, 'RealD 3D HFR', true)}
                     role="button"
                     tabIndex={0}
                     className={`relative p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between space-y-3 select-none group ${
@@ -383,6 +492,9 @@ const MovieShowtimesSection = ({
                           {endTime && (
                             <span className="text-[11px] font-medium text-slate-400">{endTime}</span>
                           )}
+                        </div>
+                        <div className="text-[11px] font-bold text-emerald-400 mt-0.5">
+                          {slotPrice.toLocaleString('vi-VN')} đ
                         </div>
                       </div>
 
@@ -447,7 +559,7 @@ const MovieShowtimesSection = ({
             <div className="text-left md:text-right">
               <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Giá vé dự kiến:</span>
               <span className="text-xl sm:text-2xl font-black text-amber-400">
-                {(calculateDynamicPrices(currentActiveShowtime).priceStandard).toLocaleString('vi-VN')} đ
+                {(calculateDynamicPrices({ ...currentActiveShowtime, startTime: selectedDate?.fullDate }).priceStandard).toLocaleString('vi-VN')} đ
               </span>
             </div>
             <button

@@ -247,11 +247,11 @@ const HomeQuickBooking = ({
                 {cinemas.length > 0 ? (
                   cinemas.map((c) => (
                     <option key={c.id || c._id} value={c.name}>
-                      {c.name}
+                      {c.district ? `[Q.${c.district}] ` : ''}{c.name}
                     </option>
                   ))
                 ) : (
-                  <option value="D'AVENOR Landmark 81">D'AVENOR Landmark 81</option>
+                  <option value="D'AVENOR Vincom Ngô Quyền">[Q.Sơn Trà] D'AVENOR Vincom Ngô Quyền</option>
                 )}
               </select>
               <span className="absolute right-3 top-2.5 text-slate-500 text-[10px] pointer-events-none">
