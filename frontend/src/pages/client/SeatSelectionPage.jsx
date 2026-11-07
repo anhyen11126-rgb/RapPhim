@@ -18,6 +18,16 @@ const SeatSelectionPage = () => {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [holdingLoading, setHoldingLoading] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Lắng nghe thao tác cuộn chuột để tự động ẩn thanh thông tin phim phía dưới Navbar
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     fetchSeats();
@@ -151,8 +161,14 @@ const SeatSelectionPage = () => {
 
   return (
     <div className="min-h-screen bg-[#070b13] text-slate-100 pb-12 selection:bg-blue-500 selection:text-white">
-      {/* 1. THANH TIÊU ĐỀ TRÊN CÙNG: QUAY LẠI + TIẾN TRÌNH 3 BƯỚC */}
-      <div className="w-full bg-[#0b101a]/95 backdrop-blur-xl border-b border-slate-800/90 py-3.5 mb-6 sticky top-0 z-40 shadow-xl">
+      {/* 1. THANH TIÊU ĐỀ TRÊN CÙNG: QUAY LẠI + TIẾN TRÌNH 3 BƯỚC (TỰ ĐỘNG ẨN MƯỢT MÀ KHI CUỘN/KÉO CHUỘT) */}
+      <div
+        className={`w-full bg-[#0b101a]/95 backdrop-blur-xl border-b border-slate-800/90 transition-all duration-300 ease-in-out overflow-hidden shadow-xl ${
+          isScrolled
+            ? 'max-h-0 py-0 mb-0 opacity-0 border-transparent pointer-events-none'
+            : 'max-h-48 py-3.5 mb-6 opacity-100'
+        }`}
+      >
         <div className="max-w-[1560px] mx-auto px-6 sm:px-10 lg:px-14 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
           <div className="flex items-center space-x-3.5">
             <button

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { calculateDynamicPrices, getRoomPriceRange } from '../../utils/pricing';
 
 const MovieShowtimesSection = ({
@@ -115,55 +116,56 @@ const MovieShowtimesSection = ({
               <label className="text-xs font-black text-slate-300 uppercase tracking-wider">
                 CỤM RẠP TẠI <span className="text-blue-400 font-extrabold">{selectedCity}</span>
               </label>
-              <span className="text-[11px] font-semibold text-slate-400">
-                ({displayedCinemas.length} cụm rạp)
+              <span className="text-[11px] font-semibold text-emerald-400 font-bold">
+                • {displayedCinemas[0]?.name || "D'AVENOR Thanh Khê Plaza"} (Q. Thanh Khê)
               </span>
             </div>
 
-            {/* Nút bấm kích hoạt mở bảng chọn 63 tỉnh thành trên Navbar */}
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('openLocationModal'))}
+            {/* Nút bấm xem thông tin chi tiết rạp */}
+            <Link
+              to="/theaters"
               className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-[#151c2d] hover:bg-[#1f2b45] border border-slate-700/80 hover:border-blue-500/50 transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm active:scale-95"
-              title="Nhấn để đổi Tỉnh / Thành phố trên thanh điều hướng"
+              title="Nhấn để xem thông tin chi tiết rạp"
             >
               <span>📍</span>
-              <span>Đổi khu vực</span>
+              <span>Thông tin cụm rạp</span>
               <span className="text-[10px] text-blue-400">↗</span>
-            </button>
+            </Link>
           </div>
 
-          {/* BỘ LỌC CHỌN QUẬN / HUYỆN TẠI ĐÀ NẴNG */}
-          <div className="flex items-center space-x-2 overflow-x-auto pb-1.5 scrollbar-none pt-0.5">
-            <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1 flex items-center gap-1">
-              <span>🏘️</span>
-              <span>Quận:</span>
-            </span>
-            {availableDistricts.map((dist) => {
-              const isDistActive = selectedDistrict === dist;
-              const countInDist =
-                dist === 'Tất cả'
-                  ? filteredCinemas.length
-                  : filteredCinemas.filter((c) =>
-                      (c.district || c.address || '').toLowerCase().includes(dist.toLowerCase())
-                    ).length;
-              return (
-                <button
-                  key={dist}
-                  type="button"
-                  onClick={() => setSelectedDistrict(dist)}
-                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 border ${
-                    isDistActive
-                      ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30 ring-1 ring-blue-400'
-                      : 'bg-[#151c2d] text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700'
-                  }`}
-                >
-                  <span>{dist === 'Tất cả' ? 'Tất cả quận' : `Q. ${dist}`}</span>
-                  <span className="ml-1 text-[10px] opacity-75">({countInDist})</span>
-                </button>
-              );
-            })}
-          </div>
+          {/* BỘ LỌC CHỌN QUẬN NẾU CÓ NHIỀU QUẬN */}
+          {availableDistricts.length > 2 && (
+            <div className="flex items-center space-x-2 overflow-x-auto pb-1.5 scrollbar-none pt-0.5">
+              <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1 flex items-center gap-1">
+                <span>🏘️</span>
+                <span>Quận:</span>
+              </span>
+              {availableDistricts.map((dist) => {
+                const isDistActive = selectedDistrict === dist;
+                const countInDist =
+                  dist === 'Tất cả'
+                    ? filteredCinemas.length
+                    : filteredCinemas.filter((c) =>
+                        (c.district || c.address || '').toLowerCase().includes(dist.toLowerCase())
+                      ).length;
+                return (
+                  <button
+                    key={dist}
+                    type="button"
+                    onClick={() => setSelectedDistrict(dist)}
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 border ${
+                      isDistActive
+                        ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30 ring-1 ring-blue-400'
+                        : 'bg-[#151c2d] text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <span>{dist === 'Tất cả' ? 'Tất cả quận' : `Q. ${dist}`}</span>
+                    <span className="ml-1 text-[10px] opacity-75">({countInDist})</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2.5 pt-1">
             {displayedCinemas.length > 0 ? (
