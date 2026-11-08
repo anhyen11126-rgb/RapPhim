@@ -17,7 +17,7 @@ import ShowtimeSeat from '../src/models/ShowtimeSeat.js';
 
 export async function seedRollingShowtimes(daysCount = 14) {
   await connectDB();
-  console.log(`🍃 [MongoDB Atlas] Khởi tạo lịch chiếu liên tục ${daysCount} ngày tới cho tất cả 12 cụm rạp Đà Nẵng...`);
+  console.log(`🍃 [MongoDB Atlas] Khởi tạo lịch chiếu liên tục ${daysCount} ngày tới cho cụm rạp D'AVENOR Thanh Khê (Đà Nẵng)...`);
 
   const cinemas = await Cinema.find({ city: 'Đà Nẵng' });
   const movies = await Movie.find({});

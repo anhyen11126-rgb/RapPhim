@@ -3,32 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { FALLBACK_CINEMAS } from '../../constants/cinemas';
 
-const REGIONS = [
-  'Tất cả quận',
-  'Hải Châu',
-  'Thanh Khê',
-  'Sơn Trà',
-  'Cẩm Lệ',
-  'Ngũ Hành Sơn',
-  'Liên Chiểu',
-];
-
-const TECH_FILTERS = ['Tất cả', 'IMAX Laser', 'Dolby Atmos', 'Gold Class'];
+const TECH_FILTERS = ['Tất cả', 'IMAX Laser', 'Dolby Atmos', 'RealD 3D'];
 
 const TheatersPage = () => {
   const navigate = useNavigate();
 
-  // State bộ lọc quận huyện tại Đà Nẵng
-  const [activeRegion, setActiveRegion] = useState(() => {
-    return localStorage.getItem('selectedDistrict') || 'Tất cả quận';
-  });
+  // State bộ lọc và tìm kiếm rạp
   const [searchKeyword, setSearchKeyword] = useState('');
   const [activeTech, setActiveTech] = useState('Tất cả');
-
-  const handleSelectRegion = (region) => {
-    setActiveRegion(region);
-    localStorage.setItem('selectedDistrict', region);
-  };
 
   // State dữ liệu rạp từ API
   const [cinemas, setCinemas] = useState([]);
@@ -60,10 +42,7 @@ const TheatersPage = () => {
     const fetchCinemas = async () => {
       try {
         setLoadingCinemas(true);
-        const params = { city: 'Đà Nẵng' };
-        if (activeRegion && activeRegion !== 'Tất cả quận' && activeRegion !== 'Tất cả khu vực') {
-          params.district = activeRegion;
-        }
+        const params = { city: 'Đà Nẵng', district: 'Thanh Khê' };
         if (activeTech && activeTech !== 'Tất cả') params.tech = activeTech;
         if (searchKeyword.trim()) params.search = searchKeyword.trim();
 
@@ -79,9 +58,6 @@ const TheatersPage = () => {
         } else {
           // Lọc từ danh sách chuẩn nếu backend trả về rỗng
           let fallback = [...FALLBACK_CINEMAS];
-          if (activeRegion && activeRegion !== 'Tất cả quận' && activeRegion !== 'Tất cả khu vực') {
-            fallback = fallback.filter((c) => (c.district || c.address || '').toLowerCase().includes(activeRegion.toLowerCase()));
-          }
           if (activeTech && activeTech !== 'Tất cả') {
             fallback = fallback.filter((c) => c.tags?.includes(activeTech));
           }
@@ -101,9 +77,6 @@ const TheatersPage = () => {
       } catch (err) {
         console.warn('Backend chưa phản hồi, sử dụng danh sách cụm rạp chuẩn:', err.message);
         let fallback = [...FALLBACK_CINEMAS];
-        if (activeRegion && activeRegion !== 'Tất cả quận' && activeRegion !== 'Tất cả khu vực') {
-          fallback = fallback.filter((c) => (c.district || c.address || '').toLowerCase().includes(activeRegion.toLowerCase()));
-        }
         if (activeTech && activeTech !== 'Tất cả') {
           fallback = fallback.filter((c) => c.tags?.includes(activeTech));
         }
@@ -125,7 +98,7 @@ const TheatersPage = () => {
     };
 
     fetchCinemas();
-  }, [activeRegion, activeTech, searchKeyword]);
+  }, [activeTech, searchKeyword]);
 
   // 2. Tải lịch chiếu chi tiết của rạp đang chọn theo ngày từ Database
   useEffect(() => {
@@ -162,51 +135,48 @@ const TheatersPage = () => {
     navigate(`/booking/seat/${showtimeId}`);
   };
 
+  // Hàm kiểm tra phòng chiếu có khớp với công nghệ đã chọn hay không
+  const isRoomMatchingTech = (room, tech) => {
+    if (!tech || tech === 'Tất cả') return true;
+    const name = (room.name || '').toLowerCase();
+    const feature = (room.feature || '').toLowerCase();
+    const combined = `${name} ${feature}`;
+
+    if (tech === 'IMAX Laser') {
+      return combined.includes('imax');
+    }
+    if (tech === 'RealD 3D') {
+      return (combined.includes('3d') || combined.includes('reald')) && !combined.includes('imax');
+    }
+    if (tech === 'Dolby Atmos') {
+      if (combined.includes('imax') || combined.includes('3d')) return false;
+      return combined.includes('dolby') || combined.includes('atmos') || combined.includes('2d');
+    }
+    return combined.includes(tech.toLowerCase());
+  };
+
+  // Danh sách phim và phòng chiếu sau khi lọc theo công nghệ đã chọn
+  const filteredMovies = React.useMemo(() => {
+    if (!moviesWithShowtimes || moviesWithShowtimes.length === 0) return [];
+
+    return moviesWithShowtimes
+      .map((movie) => {
+        const matchingRooms = (movie.rooms || []).filter((room) =>
+          isRoomMatchingTech(room, activeTech)
+        );
+        return {
+          ...movie,
+          rooms: matchingRooms,
+        };
+      })
+      .filter((movie) => movie.rooms.length > 0);
+  }, [moviesWithShowtimes, activeTech]);
+
   return (
     <div className="bg-[#0b0f19] min-h-screen text-slate-100 pb-20">
-      {/* 1. THANH LỌC KHU VỰC / TỈNH THÀNH */}
-      <div className="border-b border-slate-800/80 bg-[#090d16] sticky top-16 z-40">
-        <div className="max-w-[1560px] mx-auto px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center space-x-1.5 overflow-x-auto scrollbar-none py-0.5">
-            {REGIONS.map((region) => (
-              <button
-                key={region}
-                onClick={() => handleSelectRegion(region)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${activeRegion === region
-                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                  }`}
-              >
-                {region}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center space-x-2 text-xs text-slate-400 shrink-0">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="font-medium text-emerald-400">{cinemas.length} rạp</span>
-            <span>đang hoạt động</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. THANH TÌM KIẾM & LỌC CÔNG NGHỆ PHÒNG CHIẾU */}
-      <div className="max-w-[1560px] mx-auto px-4 sm:px-8 pt-5 pb-6">
+      {/* 1. THANH TÌM KIẾM & LỌC CÔNG NGHỆ PHÒNG CHIẾU */}
+      <div className="max-w-[1560px] mx-auto px-4 sm:px-8 pt-8 pb-6">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-          {/* Ô tìm kiếm */}
-          <div className="relative flex-1 max-w-2xl">
-            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500 text-sm">
-              🔍
-            </span>
-            <input
-              type="text"
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="Tìm tên cụm rạp, quận hoặc địa chỉ đường..."
-              className="w-full bg-[#111624] border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-inner"
-            />
-          </div>
-
           {/* Lọc công nghệ */}
           <div className="flex items-center space-x-2 overflow-x-auto scrollbar-none">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
@@ -230,7 +200,7 @@ const TheatersPage = () => {
         </div>
       </div>
 
-      {/* 3. BỐ CỤC 2 CỘT CHÍNH TẢI ĐỘNG TỪ DATABASE */}
+      {/* 2. BỐ CỤC 2 CỘT CHÍNH TẢI ĐỘNG TỪ DATABASE */}
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* CỘT TRÁI (4 cols): Danh sách Cụm rạp lấy từ Database */}
@@ -238,7 +208,7 @@ const TheatersPage = () => {
             <div className="flex items-center justify-between pb-1">
               <h2 className="text-sm font-bold text-slate-200 flex items-center space-x-2">
                 <span>🏢</span>
-                <span>Cụm rạp tại {activeRegion === 'Tất cả quận' || activeRegion === 'Tất cả khu vực' ? 'Đà Nẵng' : `Q. ${activeRegion}`}</span>
+                <span>Cụm rạp D'AVENOR Thanh Khê</span>
               </h2>
               <span className="text-xs text-slate-500 font-medium">
                 {cinemas.length} rạp
@@ -300,12 +270,21 @@ const TheatersPage = () => {
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
                         <div className="flex flex-wrap items-center gap-1.5">
                           {cinema.tags && cinema.tags.map((tag) => (
-                            <span
+                            <button
                               key={tag}
-                              className="bg-slate-800/90 text-slate-300 border border-slate-700/60 text-[10px] font-semibold px-2 py-0.5 rounded-md"
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveTech(tag);
+                              }}
+                              className={`border text-[10px] font-semibold px-2 py-0.5 rounded-md transition-all ${activeTech === tag
+                                ? 'bg-blue-600 text-white border-blue-500 shadow-sm shadow-blue-500/30'
+                                : 'bg-slate-800/90 text-slate-300 border-slate-700/60 hover:text-white hover:bg-slate-700'
+                                }`}
+                              title={`Lọc phòng chiếu ${tag}`}
                             >
                               {tag}
-                            </span>
+                            </button>
                           ))}
                         </div>
 
@@ -443,13 +422,33 @@ const TheatersPage = () => {
 
                 {/* 3. DANH SÁCH PHIM & KHUNG GIỜ CHIẾU THỰC TẾ TRONG DATABASE */}
                 <div className="space-y-5">
+                  {/* Banner hiển thị bộ lọc công nghệ đang hoạt động */}
+                  {activeTech !== 'Tất cả' && (
+                    <div className="flex items-center justify-between bg-blue-950/40 border border-blue-500/30 px-4 py-2.5 rounded-2xl text-xs text-blue-200 shadow-sm animate-fadeIn">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-base">🎯</span>
+                        <span>
+                          Đang lọc các phòng chiếu công nghệ: <strong className="text-white font-bold bg-blue-600/40 px-2 py-0.5 rounded border border-blue-400/30">{activeTech}</strong>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTech('Tất cả')}
+                        className="text-blue-400 hover:text-white underline font-semibold transition-colors flex items-center space-x-1"
+                      >
+                        <span>✕</span>
+                        <span>Xem tất cả phòng</span>
+                      </button>
+                    </div>
+                  )}
+
                   {loadingShowtimes ? (
                     <div className="p-12 text-center bg-[#0f1422] rounded-3xl border border-slate-800 text-slate-400 text-xs">
                       <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent mb-2"></div>
                       <p>Đang đồng bộ suất chiếu thời gian thực từ Database...</p>
                     </div>
-                  ) : moviesWithShowtimes.length > 0 ? (
-                    moviesWithShowtimes.map((movie) => (
+                  ) : filteredMovies.length > 0 ? (
+                    filteredMovies.map((movie) => (
                       <div
                         key={movie.id}
                         className="bg-[#0f1422] border border-slate-800/90 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4 hover:border-slate-700/80 transition-colors"
@@ -483,7 +482,7 @@ const TheatersPage = () => {
                           </div>
                         </div>
 
-                        {/* Danh sách phòng & các khung giờ */}
+                        {/* Danh sách phòng & các khung giờ sau khi đã lọc theo công nghệ */}
                         <div className="space-y-3 pt-2">
                           {movie.rooms && movie.rooms.map((room, rIdx) => (
                             <div
@@ -538,6 +537,24 @@ const TheatersPage = () => {
                         </div>
                       </div>
                     ))
+                  ) : moviesWithShowtimes.length > 0 && activeTech !== 'Tất cả' ? (
+                    <div className="bg-[#0f1422] border border-slate-800 rounded-3xl p-10 text-center space-y-3">
+                      <div className="text-3xl">🎬</div>
+                      <h4 className="text-base font-bold text-white">
+                        Không có phòng chiếu công nghệ "{activeTech}"
+                      </h4>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto">
+                        Không tìm thấy phòng chiếu áp dụng công nghệ <span className="text-blue-400 font-semibold">{activeTech}</span> trong ngày đã chọn.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTech('Tất cả')}
+                        className="mt-2 inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md transition-colors"
+                      >
+                        <span>✨</span>
+                        <span>Xem tất cả công nghệ</span>
+                      </button>
+                    </div>
                   ) : (
                     <div className="bg-[#0f1422] border border-slate-800 rounded-3xl p-10 text-center space-y-3">
                       <div className="text-3xl">🍿</div>
@@ -545,7 +562,7 @@ const TheatersPage = () => {
                         Chưa có suất chiếu trong ngày đã chọn tại rạp này
                       </h4>
                       <p className="text-xs text-slate-400 max-w-md mx-auto">
-                        Bạn có thể chọn rạp <strong>D'AVENOR Vincom Ngô Quyền</strong> hoặc chọn ngày khác để xem các suất chiếu có sẵn trong Database.
+                        Vui lòng chọn ngày khác trên thanh lịch chiếu để xem các suất chiếu có sẵn tại <strong>{cinemaDetails?.name || "D'AVENOR Thanh Khê Plaza"}</strong>.
                       </p>
                     </div>
                   )}
