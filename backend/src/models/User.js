@@ -43,12 +43,12 @@ const userSchema = new mongoose.Schema(
     },
     tier: {
       type: String,
-      enum: ['STANDARD', 'GOLD_TIER', 'DIAMOND'],
-      default: 'GOLD_TIER',
+      enum: ['STANDARD', 'SILVER_TIER', 'GOLD_TIER', 'DIAMOND'],
+      default: 'STANDARD',
     },
     points: {
       type: Number,
-      default: 100, // Tặng 100 điểm khởi tạo khi đăng ký mới
+      default: 0,
     },
   },
   {
