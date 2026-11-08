@@ -257,8 +257,9 @@ const AuthPage = ({ initialMode = 'login' }) => {
       });
 
       setForgotStep(2);
-      setForgotCountdown(60);
+      setForgotCountdown(30);
       setForgotOtpInput('');
+      setForgotError('');
       setForgotSuccess(res.data?.message || `Mã xác thực OTP đã được gửi đến hộp thư: ${emailTrim}`);
     } catch (err) {
       setForgotError(err.response?.data?.message || 'Không thể gửi mã OTP. Vui lòng thử lại.');
@@ -387,7 +388,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
       });
 
       setRegisterOtpInput('');
-      setRegisterCountdown(60);
+      setRegisterCountdown(30);
       setRegisterOtpError('');
       setShowRegisterOtpModal(true);
     } catch (err) {
@@ -1191,11 +1192,18 @@ const AuthPage = ({ initialMode = 'login' }) => {
             {/* BƯỚC 2: NHẬP MÃ OTP 6 CHỮ SỐ GỬI VỀ EMAIL */}
             {forgotStep === 2 && (
               <form onSubmit={handleVerifyForgotOtp} className="space-y-4">
-                <p className="text-[11px] text-slate-300 bg-[#111726] p-2.5 rounded-xl border border-slate-800 leading-relaxed">
-                  Mã xác thực đã được gửi đến hộp thư <strong className="text-blue-400">{forgotIdentifier}</strong>. Vui lòng kiểm tra Hộp thư đến (hoặc thư mục Spam).
-                </p>
+                <div className="bg-[#111726] p-2.5 rounded-xl border border-slate-800 space-y-1">
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Mã xác thực đã được gửi đến hộp thư <strong className="text-blue-400">{forgotIdentifier}</strong>.
+                  </p>
+                  <p className="text-[10px] text-amber-400/90 flex items-center gap-1">
+                    <span>💡</span>
+                    <span>Hãy kiểm tra thêm mục <strong>Thư rác (Spam)</strong> nếu chưa thấy ở Hộp thư đến.</span>
+                  </p>
+                </div>
 
-                {/* Badge demo đã bị loại bỏ - OTP gửi thật về mail */}
+
+                {/* Không hiển thị mã OTP trên giao diện - bắt buộc lấy mã từ hộp thư Gmail */}
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-300 mb-1.5 text-center">
@@ -1214,20 +1222,20 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   />
                 </div>
 
-                {/* Đếm ngược và Gửi lại mã */}
-                <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-                  <span>Chưa nhận được email?</span>
+                {/* Đếm ngược và Gửi lại mã liền mạch, tinh tế */}
+                <div className="text-center text-xs text-slate-400 pt-1">
+                  <span>Chưa nhận được email? </span>
                   {forgotCountdown > 0 ? (
-                    <span className="text-slate-500 font-mono text-[11px]">
+                    <span className="text-slate-500 font-semibold font-mono">
                       Gửi lại sau ({forgotCountdown}s)
                     </span>
                   ) : (
                     <button
                       type="button"
                       onClick={handleSendForgotOtp}
-                      className="text-blue-400 hover:underline font-bold text-[11px] cursor-pointer"
+                      className="text-blue-400 hover:text-blue-300 font-bold underline cursor-pointer transition-colors ml-1"
                     >
-                      Gửi lại mã OTP qua Email ngay
+                      Gửi lại mã ngay
                     </button>
                   )}
                 </div>
@@ -1362,11 +1370,18 @@ const AuthPage = ({ initialMode = 'login' }) => {
               </div>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed bg-[#111726] p-3 rounded-xl border border-slate-800">
-              Mã xác thực OTP đã được gửi đến địa chỉ email: <strong className="text-blue-400 font-bold">{registerForm.email}</strong>. Vui lòng mở hộp thư email để lấy mã kích hoạt tài khoản.
-            </p>
+            <div className="bg-[#111726] p-3 rounded-xl border border-slate-800 space-y-1.5">
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Mã xác thực OTP đã được gửi đến địa chỉ email: <strong className="text-blue-400 font-bold">{registerForm.email}</strong>. Vui lòng mở hộp thư email để lấy mã kích hoạt tài khoản.
+              </p>
+              <p className="text-[11px] text-amber-400/90 flex items-center gap-1.5">
+                <span>💡</span>
+                <span>Lưu ý: Nếu không thấy ở Hộp thư đến, vui lòng kiểm tra thêm mục <strong>Thư rác (Spam)</strong> hoặc <strong>Quảng cáo</strong> nhé!</span>
+              </p>
+            </div>
 
-            {/* Badge demo đã bị loại bỏ - OTP gửi thật về mail */}
+
+            {/* Không hiển thị mã OTP trên giao diện - bắt buộc lấy mã từ hộp thư Gmail */}
 
             {/* Thông báo lỗi nếu có */}
             {registerOtpError && (
@@ -1394,11 +1409,11 @@ const AuthPage = ({ initialMode = 'login' }) => {
                 />
               </div>
 
-              {/* Đếm ngược và Gửi lại mã */}
-              <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-                <span>Chưa nhận được email?</span>
+              {/* Đếm ngược và Gửi lại mã liền mạch, tinh tế */}
+              <div className="text-center text-xs text-slate-400 pt-1">
+                <span>Chưa nhận được email? </span>
                 {registerCountdown > 0 ? (
-                  <span className="text-slate-500 font-mono text-[11px]">
+                  <span className="text-slate-500 font-semibold font-mono">
                     Gửi lại sau ({registerCountdown}s)
                   </span>
                 ) : (
@@ -1410,15 +1425,16 @@ const AuthPage = ({ initialMode = 'login' }) => {
                           email: registerForm.email.trim(),
                           type: 'register',
                         });
-                        setRegisterCountdown(60);
+                        setRegisterCountdown(30);
                         setRegisterOtpInput('');
+                        setRegisterOtpError('');
                       } catch (err) {
                         setRegisterOtpError(err.response?.data?.message || 'Không thể gửi lại OTP. Vui lòng thử lại.');
                       }
                     }}
-                    className="text-emerald-400 hover:underline font-bold text-[11px] cursor-pointer"
+                    className="text-emerald-400 hover:text-emerald-300 font-bold underline cursor-pointer transition-colors ml-1"
                   >
-                    Gửi lại mã OTP qua Email ngay
+                    Gửi lại mã ngay
                   </button>
                 )}
               </div>

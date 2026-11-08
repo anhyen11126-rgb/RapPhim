@@ -345,7 +345,9 @@ export const sendEmailOtp = async (req, res) => {
     if (emailUser && emailPass) {
       try {
         const transporter = nodemailer.createTransport({
-          service: 'gmail',
+          host: 'smtp.gmail.com',
+          port: 465,
+          secure: true,
           auth: {
             user: emailUser,
             pass: emailPass.replace(/\s+/g, ''), // Xóa khoảng trắng trong mật khẩu ứng dụng
@@ -416,12 +418,8 @@ export const sendEmailOtp = async (req, res) => {
 
     res.json({
       success: true,
-      message: emailSent
-        ? `Mã xác thực OTP đã được gửi trực tiếp đến hộp thư ${cleanEmail}. Vui lòng kiểm tra Hộp thư đến (hoặc Spam).`
-        : `Mã xác thực OTP đã được tạo cho ${cleanEmail}.` +
-          (emailErrorMsg ? ` (Gợi ý máy chủ: ${emailErrorMsg})` : ''),
+      message: `Mã xác thực OTP đã được gửi đến hộp thư ${cleanEmail}. Vui lòng kiểm tra Hộp thư đến (hoặc mục Spam).`,
       emailSent,
-      testOtp: !emailSent ? otpCode : undefined, // Chỉ hiện mã test trên web nếu chưa gửi thư thật
     });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi trong quá trình gửi mã OTP qua email', error: error.message });
