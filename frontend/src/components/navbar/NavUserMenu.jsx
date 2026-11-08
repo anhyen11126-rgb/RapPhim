@@ -1,11 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
+// Chuẩn hóa và phân cấp thứ hạng thành viên rõ ràng:
+// 1. Dưới 500 điểm: 🎫 THÀNH VIÊN (Mới đăng ký)
+// 2. Từ 500 - 999 điểm: 🥈 THÀNH VIÊN BẠC
+// 3. Từ 1000 - 1999 điểm: ⭐ THÀNH VIÊN VÀNG
+// 4. Từ 2000 điểm trở lên: 💎 THÀNH VIÊN KIM CƯƠNG
+const getTierInfo = (user) => {
+  if (!user) return { label: 'Khách', color: 'text-slate-400' };
+  if (user.role === 'ADMIN') return { label: '🛡️ BAN QUẢN TRỊ', color: 'text-red-400' };
+
+  const points = Number(user.points) || 0;
+  if (user.tier === 'DIAMOND' || points >= 2000) {
+    return { label: '💎 THÀNH VIÊN KIM CƯƠNG', color: 'text-cyan-400' };
+  }
+  if ((user.tier === 'GOLD_TIER' && points >= 1000) || points >= 1000) {
+    return { label: '⭐ THÀNH VIÊN VÀNG', color: 'text-amber-400' };
+  }
+  if (user.tier === 'SILVER_TIER' || (points >= 500 && points < 1000)) {
+    return { label: '🥈 THÀNH VIÊN BẠC', color: 'text-slate-200' };
+  }
+  return { label: '🎫 THÀNH VIÊN', color: 'text-blue-400' };
+};
+
 const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+
+  const tierInfo = getTierInfo(currentUser);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -89,13 +113,8 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
           <span className="text-xs font-bold text-white block leading-tight">
             {currentUser.name}
           </span>
-          <span className="text-[10px] text-amber-400 font-semibold block leading-none">
-            {currentUser.role === 'ADMIN'
-              ? '🛡️ BAN QUẢN TRỊ'
-              : currentUser.tier === 'GOLD_TIER'
-              ? '⭐ GOLD TIER'
-              : 'Hội viên'}{' '}
-            • {currentUser.points || (currentUser.role === 'ADMIN' ? 'Admin' : 100)}
+          <span className={`text-[10px] font-semibold block leading-none ${tierInfo.color}`}>
+            {tierInfo.label} • {currentUser.role === 'ADMIN' ? 'Admin' : `${currentUser.points ?? 0} điểm`}
           </span>
         </div>
         <span className="text-slate-500 text-[9px]">▼</span>
@@ -150,6 +169,9 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
               </div>
               <strong className="text-xs text-white block truncate">{currentUser.name}</strong>
               <span className="text-[11px] text-slate-400 block truncate">{currentUser.email}</span>
+              <span className={`text-[10px] font-bold block mt-0.5 ${tierInfo.color}`}>
+                {tierInfo.label} • {currentUser.role === 'ADMIN' ? 'Admin' : `${currentUser.points ?? 0} điểm`}
+              </span>
             </div>
           </div>
 
