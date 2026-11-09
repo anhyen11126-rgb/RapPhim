@@ -2,6 +2,19 @@ import React, { useState, useEffect } from 'react';
 import SidebarAdmin from '../../components/admin/SidebarAdmin';
 import TopbarAdmin from '../../components/admin/TopbarAdmin';
 import api from '../../services/api';
+import {
+  resolveConcessionImage,
+  resolveConcessionBadge,
+  deduplicateConcessions,
+} from '../../utils/visualResolver';
+
+const IMAGE_PRESETS = [
+  { label: '🍿 Combo Solo (1 Bắp + 1 Nước)', url: '/images/combos/combo-solo.png' },
+  { label: '🥤 Combo Đôi (1 Bắp Lớn + 2 Nước)', url: '/images/combos/combo-couple.png' },
+  { label: '🎉 Combo Gia Đình VIP (2 Bắp + 3 Nước + Snack)', url: '/images/combos/combo-family.png' },
+  { label: '🧀 Bắp Rang Bơ Phô Mai / Caramel', url: '/images/combos/popcorn-bucket.png' },
+  { label: '🧊 Nước Ngọt Coca / Fanta / Sprite', url: '/images/combos/soda-drinks.png' },
+];
 
 const ConcessionManagePage = () => {
   const [concessions, setConcessions] = useState([]);
@@ -10,9 +23,9 @@ const ConcessionManagePage = () => {
 
   const [formData, setFormData] = useState({
     name: '',
-    price: 65000,
+    price: 89000,
     description: '',
-    image: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=500&auto=format&fit=crop',
+    image: '/images/combos/combo-solo.png',
   });
 
   useEffect(() => {
@@ -23,7 +36,12 @@ const ConcessionManagePage = () => {
     try {
       setLoading(true);
       const res = await api.get('/admin/concessions');
-      setConcessions(res.data || []);
+      const cleaned = deduplicateConcessions(res.data || []).map((c) => ({
+        ...c,
+        image: resolveConcessionImage(c),
+        badge: resolveConcessionBadge(c),
+      }));
+      setConcessions(cleaned);
     } catch (err) {
       console.error('Lỗi khi tải bắp nước:', err);
     } finally {
@@ -34,14 +52,19 @@ const ConcessionManagePage = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/admin/concessions', formData);
+      const finalImg = resolveConcessionImage(formData);
+      await api.post('/admin/concessions', {
+        ...formData,
+        image: finalImg,
+        imageUrl: finalImg,
+      });
       alert('Thêm gói bắp nước mới thành công!');
       setIsModalOpen(false);
       setFormData({
         name: '',
-        price: 65000,
+        price: 89000,
         description: '',
-        image: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=500&auto=format&fit=crop',
+        image: '/images/combos/combo-solo.png',
       });
       fetchConcessions();
     } catch (err) {
@@ -80,7 +103,7 @@ const ConcessionManagePage = () => {
             </div>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center space-x-2 transition-all shadow-lg shadow-red-600/20"
+              className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center space-x-2 transition-all shadow-lg shadow-red-600/20 cursor-pointer"
             >
               <span>➕</span>
               <span>Thêm Combo Bắp Nước</span>
@@ -94,41 +117,51 @@ const ConcessionManagePage = () => {
             <div className="p-12 text-center text-slate-400 text-xs">Chưa có combo bắp nước nào</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {concessions.map((c) => (
-                <div
-                  key={c.id || c._id}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl hover:border-slate-700 transition-all flex flex-col justify-between"
-                >
-                  <div className="h-40 overflow-hidden relative bg-slate-800">
-                    <img
-                      src={c.image || 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=500&auto=format&fit=crop'}
-                      alt={c.name}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-700 text-amber-400 font-mono font-bold text-xs">
-                      {Number(c.price || 0).toLocaleString('vi-VN')} đ
+              {concessions.map((c) => {
+                const imgSrc = resolveConcessionImage(c);
+                const badgeText = resolveConcessionBadge(c);
+                return (
+                  <div
+                    key={c.id || c._id}
+                    className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl hover:border-slate-700 transition-all flex flex-col justify-between group"
+                  >
+                    <div className="h-48 overflow-hidden relative bg-slate-950">
+                      <img
+                        src={imgSrc}
+                        alt={c.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
+                      <div className="absolute top-3 left-3 bg-amber-500/20 backdrop-blur-md px-2.5 py-0.5 rounded-md border border-amber-400/40 text-amber-300 font-black text-[10px] uppercase tracking-wider">
+                        {badgeText}
+                      </div>
+                      <div className="absolute top-3 right-3 bg-slate-950/85 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-700 text-amber-400 font-mono font-bold text-xs shadow-lg">
+                        {Number(c.price || 0).toLocaleString('vi-VN')} đ
+                      </div>
+                    </div>
+
+                    <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                      <div>
+                        <h3 className="font-bold text-white text-sm group-hover:text-amber-400 transition-colors">
+                          {c.name}
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                          {c.description || 'Combo bắp nước chuẩn vị rạp chiếu phim.'}
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end">
+                        <button
+                          onClick={() => handleDelete(c.id || c._id, c.name)}
+                          className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-950/40 border border-red-500/20 transition-all font-semibold cursor-pointer"
+                        >
+                          🗑️ Xóa món
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                    <div>
-                      <h3 className="font-bold text-white text-sm">{c.name}</h3>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                        {c.description || 'Combo bắp nước chuẩn vị rạp chiếu phim.'}
-                      </p>
-                    </div>
-
-                    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-end">
-                      <button
-                        onClick={() => handleDelete(c.id || c._id, c.name)}
-                        className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-950/40 border border-red-500/20 transition-all font-semibold"
-                      >
-                        🗑️ Xóa món
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -138,7 +171,10 @@ const ConcessionManagePage = () => {
               <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl text-white">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
                   <h3 className="text-lg font-bold text-white">Thêm Combo Bắp Nước Mới</h3>
-                  <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white text-lg font-bold">
+                  <button
+                    onClick={() => setIsModalOpen(false)}
+                    className="text-slate-400 hover:text-white text-lg font-bold cursor-pointer"
+                  >
                     ✕
                   </button>
                 </div>
@@ -181,11 +217,25 @@ const ConcessionManagePage = () => {
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Link hình ảnh (URL)</label>
-                    <input
-                      type="url"
+                    <label className="block text-slate-300 font-semibold mb-1">
+                      Chọn nhanh mẫu ảnh Combo chuẩn rạp
+                    </label>
+                    <select
                       value={formData.image}
                       onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-red-500 mb-2"
+                    >
+                      {IMAGE_PRESETS.map((preset) => (
+                        <option key={preset.url} value={preset.url}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={formData.image}
+                      onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                      placeholder="Hoặc dán đường dẫn hình ảnh (URL)..."
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-red-500"
                     />
                   </div>
@@ -194,13 +244,13 @@ const ConcessionManagePage = () => {
                     <button
                       type="button"
                       onClick={() => setIsModalOpen(false)}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold"
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       Hủy
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-red-600/30"
+                      className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-red-600/30 cursor-pointer"
                     >
                       Thêm vào thực đơn
                     </button>
@@ -216,4 +266,3 @@ const ConcessionManagePage = () => {
 };
 
 export default ConcessionManagePage;
-

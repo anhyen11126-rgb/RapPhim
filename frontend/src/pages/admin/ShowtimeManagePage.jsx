@@ -7,18 +7,20 @@ const ShowtimeManagePage = () => {
   const [showtimes, setShowtimes] = useState([]);
   const [movies, setMovies] = useState([]);
   const [cinemas, setCinemas] = useState([]);
+  const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [filterCinemaId, setFilterCinemaId] = useState('ALL');
   const [filterMovieId, setFilterMovieId] = useState('ALL');
+  const [filterRoomTech, setFilterRoomTech] = useState('ALL');
 
   const [formData, setFormData] = useState({
     movieId: '',
     cinemaId: '',
-    roomName: 'Phòng 01 - IMAX Laser',
+    roomName: 'Rạp 05 (Tầng 3 - RealD 3D)',
     startTime: '',
-    price: 95000,
+    price: 50000,
   });
 
   useEffect(() => {
@@ -28,20 +30,23 @@ const ShowtimeManagePage = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [stRes, mRes, cRes] = await Promise.all([
+      const [stRes, mRes, cRes, rRes] = await Promise.all([
         api.get('/admin/showtimes'),
         api.get('/movies'),
         api.get('/admin/cinemas'),
+        api.get('/admin/rooms'),
       ]);
       setShowtimes(stRes.data || []);
       setMovies(mRes.data || []);
       setCinemas(cRes.data || []);
+      setRooms(rRes.data || []);
 
       if (mRes.data?.length > 0 && cRes.data?.length > 0) {
         setFormData((prev) => ({
           ...prev,
           movieId: mRes.data[0].id || mRes.data[0]._id,
           cinemaId: cRes.data[0].id || cRes.data[0]._id,
+          roomName: rRes.data?.[0]?.name || 'Phòng IMAX 01 (Grand Hall)',
         }));
       }
     } catch (err) {
@@ -83,9 +88,14 @@ const ShowtimeManagePage = () => {
   const filteredShowtimes = showtimes.filter((st) => {
     const cId = st.cinemaId?._id || st.cinemaId?.id || st.cinemaId;
     const mId = st.movieId?._id || st.movieId?.id || st.movieId;
+    const rName = (st.roomName || '').toLowerCase();
     const matchCinema = filterCinemaId === 'ALL' || cId === filterCinemaId;
     const matchMovie = filterMovieId === 'ALL' || mId === filterMovieId;
-    return matchCinema && matchMovie;
+    let matchRoom = true;
+    if (filterRoomTech === 'IMAX') matchRoom = rName.includes('imax');
+    else if (filterRoomTech === '3D') matchRoom = rName.includes('3d') || rName.includes('05');
+    else if (filterRoomTech === '2D') matchRoom = !rName.includes('imax') && !rName.includes('3d') && !rName.includes('05');
+    return matchCinema && matchMovie && matchRoom;
   });
 
   return (
@@ -145,6 +155,20 @@ const ShowtimeManagePage = () => {
                     {m.title}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div className="flex-1 w-full">
+              <label className="text-[11px] text-slate-400 block font-semibold mb-1">Lọc theo phòng chiếu:</label>
+              <select
+                value={filterRoomTech}
+                onChange={(e) => setFilterRoomTech(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500"
+              >
+                <option value="ALL">Tất cả phòng chiếu</option>
+                <option value="IMAX">Phòng 1 - IMAX Laser (140k - 170k)</option>
+                <option value="2D">Phòng 2 - 2D Dolby (45k - 65k)</option>
+                <option value="3D">Phòng 3 - RealD 3D (45k - 60k)</option>
               </select>
             </div>
           </div>
@@ -304,13 +328,30 @@ const ShowtimeManagePage = () => {
                       <label className="block text-slate-300 font-semibold mb-1">Phòng chiếu & Định dạng</label>
                       <select
                         value={formData.roomName}
-                        onChange={(e) => setFormData({ ...formData, roomName: e.target.value })}
+                        onChange={(e) => {
+                          const selectedRoom = e.target.value;
+                          const isImax = selectedRoom.toLowerCase().includes('imax');
+                          setFormData({
+                            ...formData,
+                            roomName: selectedRoom,
+                            price: isImax ? 160000 : 50000,
+                          });
+                        }}
                         className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-red-500"
                       >
-                        <option value="Phòng 01 - IMAX Laser 3D">Phòng 01 - IMAX Laser 3D</option>
-                        <option value="Phòng 02 - Dolby Atmos">Phòng 02 - Dolby Atmos</option>
-                        <option value="Phòng 03 - 2D Tiêu chuẩn">Phòng 03 - 2D Tiêu chuẩn</option>
-                        <option value="Phòng 05 - VIP Gold Class">Phòng 05 - VIP Gold Class</option>
+                        {rooms.length > 0 ? (
+                          rooms.map((r) => (
+                            <option key={r.id || r._id} value={r.name}>
+                              {r.name} ({r.roomType})
+                            </option>
+                          ))
+                        ) : (
+                          <>
+                            <option value="Phòng IMAX 01 (Grand Hall)">Phòng IMAX 01 (Grand Hall)</option>
+                            <option value="Rạp 03 (Tầng 2 - 2D Dolby)">Rạp 03 (Tầng 2 - 2D Dolby)</option>
+                            <option value="Rạp 05 (Tầng 3 - RealD 3D)">Rạp 05 (Tầng 3 - RealD 3D)</option>
+                          </>
+                        )}
                       </select>
                     </div>
 
@@ -319,7 +360,7 @@ const ShowtimeManagePage = () => {
                       <input
                         type="number"
                         step="5000"
-                        min="50000"
+                        min="45000"
                         value={formData.price}
                         onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                         className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-red-500 font-mono"

@@ -6,6 +6,7 @@ const SidebarAdmin = () => {
     { to: '/admin/dashboard', label: 'Bảng thống kê', icon: '📊' },
     { to: '/admin/movies', label: 'Quản lý phim', icon: '🎬' },
     { to: '/admin/cinemas', label: 'Quản lý cụm rạp', icon: '🏢' },
+    { to: '/admin/rooms', label: 'Quản lý phòng chiếu', icon: '📽️' },
     { to: '/admin/showtimes', label: 'Quản lý suất chiếu', icon: '🕒' },
     { to: '/admin/bookings', label: 'Quản lý đặt vé', icon: '🎟️' },
     { to: '/admin/users', label: 'Quản lý thành viên', icon: '👥' },

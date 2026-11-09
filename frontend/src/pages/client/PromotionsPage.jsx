@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { resolvePromotionVisuals } from '../../utils/visualResolver';
 
 const PromotionsPage = () => {
   const navigate = useNavigate();
@@ -12,13 +13,13 @@ const PromotionsPage = () => {
   const [counts, setCounts] = useState({ all: 0, ticket: 0, concession: 0, student: 0, payment: 0 });
   const [loading, setLoading] = useState(true);
 
-  // State bộ lọc
+  // State bộ lọc & modal thể lệ
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedCinema, setSelectedCinema] = useState('Tất cả rạp chiếu');
   const [copiedCode, setCopiedCode] = useState(null);
   const [voucherInput, setVoucherInput] = useState('');
   const [applyMessage, setApplyMessage] = useState(null);
+  const [selectedProgramModal, setSelectedProgramModal] = useState(null);
 
   // Countdown timer cho Hero Deal
   const [timeLeft, setTimeLeft] = useState({
@@ -52,9 +53,9 @@ const PromotionsPage = () => {
 
         const res = await api.get('/promotions', { params });
         if (res.data) {
-          setHeroDeal(res.data.heroDeal);
-          setVouchers(res.data.vouchers || []);
-          setPrograms(res.data.programs || []);
+          setHeroDeal(res.data.heroDeal ? resolvePromotionVisuals(res.data.heroDeal) : null);
+          setVouchers((res.data.vouchers || []).map((v) => resolvePromotionVisuals(v)));
+          setPrograms((res.data.programs || []).map((p) => resolvePromotionVisuals(p)));
           if (res.data.counts) setCounts(res.data.counts);
         }
       } catch (err) {
@@ -94,12 +95,39 @@ const PromotionsPage = () => {
   };
 
   const categories = [
-    { key: 'ALL', label: `Tất cả ưu đãi (${counts.all || 24})` },
-    { key: 'TICKET', label: `Ưu đãi Giá vé (${counts.ticket || 8})` },
-    { key: 'CONCESSION', label: `Combo Bắp nước (${counts.concession || 6})` },
-    { key: 'STUDENT', label: `Học sinh - U22 (${counts.student || 4})` },
-    { key: 'PAYMENT', label: `Đối tác thanh toán (${counts.payment || 6})` },
+    { key: 'ALL', label: `Tất cả ưu đãi (${counts.all || 6})` },
+    { key: 'TICKET', label: `Ưu đãi Giá vé (${counts.ticket || 2})` },
+    { key: 'CONCESSION', label: `Combo Bắp nước (${counts.concession || 1})` },
+    { key: 'STUDENT', label: `Học sinh - U22 (${counts.student || 1})` },
+    { key: 'PAYMENT', label: `Đối tác thanh toán (${counts.payment || 1})` },
   ];
+
+  const getTopBadgeClasses = (prog) => {
+    const title = (prog.title || '').toLowerCase();
+    if (title.includes('happy day') || title.includes('thứ 4')) {
+      return 'bg-[#f59e0b] text-slate-950';
+    }
+    if (title.includes('avatar') || title.includes('vnpay')) {
+      return 'bg-[#60a5fa] text-slate-950';
+    }
+    if (title.includes('học sinh') || title.includes('u22')) {
+      return 'bg-[#10b981] text-slate-950';
+    }
+    if (title.includes('prime') || title.includes('vip')) {
+      return 'bg-[#f5b041] text-slate-950';
+    }
+    return 'bg-[#5c4a38]/90 text-amber-200 border border-amber-500/30';
+  };
+
+  const getSpecialBadgeClasses = (prog) => {
+    if (prog.badgeColor === 'emerald' || (prog.badgeSpecial || '').includes('VIP')) {
+      return 'bg-slate-950/90 text-emerald-400 border border-emerald-500/40';
+    }
+    if (prog.badgeColor === 'blue' || (prog.badgeSpecial || '').includes('45.000')) {
+      return 'bg-slate-950/90 text-blue-300 border border-blue-400/40';
+    }
+    return 'bg-slate-950/90 text-amber-400 border border-amber-500/40';
+  };
 
   return (
     <div className="bg-[#0b0f19] min-h-screen text-slate-100 pb-20">
@@ -119,7 +147,7 @@ const PromotionsPage = () => {
           <div>
             <div className="inline-flex items-center space-x-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] font-bold px-2.5 py-1 rounded-full mb-1.5">
               <span>🔥</span>
-              <span>HOT DEAL • Hơn 24 ưu đãi đang diễn ra</span>
+              <span>HOT DEAL • Ưu đãi độc quyền tại D'AVENOR Thanh Khê Plaza</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
               Ưu Đãi & Kho Voucher Độc Quyền
@@ -132,7 +160,7 @@ const PromotionsPage = () => {
               <span className="text-2xl">🎟️</span>
               <div>
                 <span className="text-[10px] font-bold text-slate-400 block uppercase">Mã của bạn</span>
-                <span className="text-xs font-black text-white">04 Sẵn sàng</span>
+                <span className="text-xs font-black text-white">05 Sẵn sàng</span>
               </div>
             </div>
             <div className="h-7 w-[1px] bg-slate-800" />
@@ -159,22 +187,16 @@ const PromotionsPage = () => {
             <div className="lg:col-span-7 space-y-5">
               <div className="inline-flex items-center space-x-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-black px-3 py-1 rounded-md">
                 <span>⚡</span>
-                <span>{heroDeal?.badgeTop || 'SIÊU BÃO THỨ 3 TOÀN QUỐC'}</span>
+                <span>{heroDeal?.badgeTop || "SIÊU BÃO THỨ 3 D'AVENOR"}</span>
               </div>
 
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
-                {heroDeal?.title ? (
-                  <>
-                    THỨ 3 VUI VẺ — <span className="text-amber-400">ĐỒNG GIÁ VÉ 45K</span>
-                  </>
-                ) : (
-                  'THỨ 3 VUI VẺ — ĐỒNG GIÁ VÉ 45K'
-                )}
+                THỨ 3 VUI VẺ — <span className="text-amber-400">ĐỒNG GIÁ VÉ 45K</span>
               </h2>
 
               <p className="text-sm text-slate-300 leading-relaxed max-w-2xl">
                 {heroDeal?.description ||
-                  'Thưởng thức mọi bom tấn màn ảnh rộng Laser hiện đại nhất D\'AVENOR CINEMA với giá vé chỉ 45.000đ. Tặng kèm 01 bắp ngọt Caramel thơm lừng khi áp dụng mua vé đôi online hôm nay.'}
+                  "Thưởng thức mọi bom tấn màn ảnh rộng Laser hiện đại nhất D'AVENOR Thanh Khê Plaza với giá vé chỉ 45.000đ. Tặng kèm 01 bắp ngọt Caramel thơm lừng khi áp dụng mua vé đôi online hôm nay."}
               </p>
 
               {/* Bộ đếm ngược thời gian (Countdown Timer) */}
@@ -218,12 +240,26 @@ const PromotionsPage = () => {
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   onClick={() => navigate('/theaters')}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm px-6 py-3 rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center space-x-2"
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm px-6 py-3 rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center space-x-2 cursor-pointer"
                 >
                   <span>Săn ưu đãi ngay</span>
                   <span>➔</span>
                 </button>
-                <button className="bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-semibold text-xs sm:text-sm px-5 py-3 rounded-xl transition-colors border border-slate-700 flex items-center space-x-1.5">
+                <button
+                  onClick={() =>
+                    setSelectedProgramModal({
+                      title: 'Thứ 3 Vui Vẻ — Đồng Giá Vé 45K',
+                      badgeTop: '⚡ SIÊU BÃO THỨ 3 HÀNG TUẦN',
+                      badgeSpecial: '45.000đ',
+                      description:
+                        heroDeal?.description ||
+                        "Áp dụng đồng giá 45.000đ/vé 2D cho thành viên D'AVENOR khi đặt vé trực tuyến hoặc tại quầy vào mỗi Thứ 3 hàng tuần.",
+                      metadataLeft: "📍 D'AVENOR Thanh Khê Plaza",
+                      metadataRight: '🕒 Cả ngày Thứ 3',
+                    })
+                  }
+                  className="bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-semibold text-xs sm:text-sm px-5 py-3 rounded-xl transition-colors border border-slate-700 flex items-center space-x-1.5 cursor-pointer"
+                >
                   <span>ℹ️</span>
                   <span>Xem thể lệ chi tiết</span>
                 </button>
@@ -234,24 +270,24 @@ const PromotionsPage = () => {
             <div className="lg:col-span-5 flex justify-center">
               <div className="relative w-full max-w-sm bg-[#141b2c] border border-slate-700/80 rounded-3xl p-4 shadow-2xl overflow-hidden group hover:border-slate-600 transition-all">
                 {/* Badge giảm 50% góc phải */}
-                <div className="absolute top-4 right-4 z-10 bg-amber-500 text-slate-950 text-xs font-black px-2.5 py-1 rounded-full shadow-lg">
+                <div className="absolute top-6 right-6 z-10 bg-amber-500 text-slate-950 text-xs font-black px-3 py-1 rounded-full shadow-lg">
                   -50%
                 </div>
 
-                <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-slate-800 mb-3 relative">
+                <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-slate-900 mb-3 relative">
                   <img
-                    src={heroDeal?.image || 'https://images.unsplash.com/photo-1585647347384-2593bc35786b?w=600&auto=format&fit=crop'}
+                    src={heroDeal?.image || '/images/combos/combo-couple.png'}
                     alt="Combo Bắp Nước"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute bottom-2 left-2 bg-slate-950/80 backdrop-blur-md text-[10px] text-amber-300 font-bold px-2 py-0.5 rounded border border-amber-500/20">
-                    Combo Tặng Kèm Đôi
+                  <div className="absolute bottom-2.5 left-2.5 bg-slate-950/85 backdrop-blur-md text-[10px] text-amber-300 font-bold px-2.5 py-1 rounded-md border border-amber-500/30">
+                    🍿 Combo Đôi Cinema VIP
                   </div>
                 </div>
 
                 <div className="text-center py-1">
-                  <h3 className="text-base font-black text-white">Bắp Lớn + Nước Ngọt</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Miễn phí cho bạn và đối tác/bạn bè</p>
+                  <h3 className="text-base font-black text-white">Bắp Lớn 2 Ngăn + 02 Nước Ngọt</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Ưu đãi đặc biệt khi đặt kèm vé đôi trực tuyến</p>
                 </div>
               </div>
             </div>
@@ -268,7 +304,7 @@ const PromotionsPage = () => {
               <button
                 key={cat.key}
                 onClick={() => setActiveCategory(cat.key)}
-                className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   activeCategory === cat.key
                     ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
                     : 'bg-[#121929] text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
@@ -279,7 +315,7 @@ const PromotionsPage = () => {
             ))}
           </div>
 
-          {/* Ô tìm kiếm & Dropdown Rạp */}
+          {/* Ô tìm kiếm & Nhãn Rạp duy nhất */}
           <div className="flex items-center space-x-3">
             <div className="relative flex-1 sm:w-64">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 text-xs">
@@ -294,17 +330,10 @@ const PromotionsPage = () => {
               />
             </div>
 
-            <select
-              value={selectedCinema}
-              onChange={(e) => setSelectedCinema(e.target.value)}
-              className="bg-[#111624] border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500 cursor-pointer"
-            >
-              <option value="Tất cả rạp chiếu">🏢 Tất cả rạp tại Đà Nẵng</option>
-              <option value="D'AVENOR Vincom Ngô Quyền">D'AVENOR Vincom Ngô Quyền</option>
-              <option value="D'AVENOR Indochina Riverside">D'AVENOR Indochina Riverside</option>
-              <option value="D'AVENOR Lotte Mart Đà Nẵng">D'AVENOR Lotte Mart</option>
-              <option value="D'AVENOR Thanh Khê Plaza">D'AVENOR Thanh Khê Plaza</option>
-            </select>
+            <div className="bg-[#111624] border border-slate-800 text-xs text-slate-200 font-semibold rounded-xl px-3.5 py-2 flex items-center gap-1.5 shrink-0">
+              <span className="text-red-400">📍</span>
+              <span>[Q. Thanh Khê] D'AVENOR Thanh Khê Plaza</span>
+            </div>
           </div>
         </div>
       </div>
@@ -335,7 +364,7 @@ const PromotionsPage = () => {
               />
               <button
                 type="submit"
-                className="bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors shadow-sm"
+                className="bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors shadow-sm cursor-pointer"
               >
                 Áp dụng
               </button>
@@ -388,7 +417,7 @@ const PromotionsPage = () => {
                     </span>
                     <button
                       onClick={() => handleCopyCode(v.code)}
-                      className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${
+                      className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                         isCopied
                           ? 'bg-emerald-500 text-white shadow-sm'
                           : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
@@ -404,22 +433,22 @@ const PromotionsPage = () => {
         </div>
       </div>
 
-      {/* 5. CHƯƠNG TRÌNH KHUYẾN MÃI NỔI BẬT (GRID 6 CARDS) */}
+      {/* 5. CHƯƠNG TRÌNH KHUYẾN MÃI NỔI BẬT (GRID 6 CARDS CHUẨN MẪU) */}
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 py-5">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-lg sm:text-xl font-black text-white flex items-center space-x-2">
-              <span>📅</span>
+              <span>🎬</span>
               <span>Chương Trình Khuyến Mãi Nổi Bật</span>
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Khám phá các gói combo vé giá cực hấp dẫn dành riêng cho tuần này.
+              Khám phá các gói combo và giá vé hấp dẫn dành riêng cho tuần này
             </p>
           </div>
 
           <div className="text-xs text-slate-400 hidden sm:flex items-center space-x-1.5">
             <span>Sắp xếp theo:</span>
-            <select className="bg-[#111624] border border-slate-800 text-white rounded-lg px-2.5 py-1 text-xs focus:outline-none">
+            <select className="bg-[#111624] border border-slate-800 text-blue-400 font-bold rounded-lg px-2.5 py-1 text-xs focus:outline-none">
               <option>Mới nhất</option>
               <option>Giảm nhiều nhất</option>
               <option>Sắp hết hạn</option>
@@ -439,91 +468,182 @@ const PromotionsPage = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {programs.map((prog) => (
-              <div
-                key={prog.id}
-                className="bg-[#0f1422] border border-slate-800/90 rounded-3xl overflow-hidden shadow-xl flex flex-col justify-between hover:border-slate-700 transition-all duration-300 group"
-              >
-                <div>
-                  {/* Ảnh bìa + Badges */}
-                  <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-900">
-                    <img
-                      src={prog.image}
-                      alt={prog.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0f1422] via-transparent to-transparent opacity-80" />
+            {programs.map((prog) => {
+              const isRightHighlight =
+                (prog.metadataRight || '').includes('Còn') ||
+                (prog.metadataRight || '').includes('Tặng vé sinh nhật');
 
-                    {/* Badge top-left */}
-                    {prog.badgeTop && (
-                      <div className="absolute top-3 left-3 bg-slate-950/80 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-md border border-white/10 shadow">
-                        {prog.badgeTop}
-                      </div>
-                    )}
+              return (
+                <div
+                  key={prog.id}
+                  className="bg-[#111726] border border-slate-800/90 rounded-2xl overflow-hidden shadow-xl flex flex-col justify-between hover:border-slate-700 transition-all duration-300 group"
+                >
+                  <div>
+                    {/* Ảnh bìa 16:9 + Badges chuẩn vị trí */}
+                    <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-950">
+                      <img
+                        src={prog.image}
+                        alt={prog.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#111726] via-transparent to-black/20 opacity-90" />
 
-                    {/* Badge top-right (Giá/Ưu đãi) */}
-                    {prog.badgeSpecial && (
-                      <div
-                        className={`absolute top-3 right-3 text-[11px] font-black px-2.5 py-1 rounded-md shadow ${
-                          prog.badgeColor === 'emerald'
-                            ? 'bg-emerald-500 text-white'
-                            : prog.badgeColor === 'blue'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-amber-500 text-slate-950'
-                        }`}
-                      >
-                        {prog.badgeSpecial}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Nội dung text */}
-                  <div className="p-5 space-y-2.5">
-                    <h3 className="text-base font-black text-white group-hover:text-blue-400 transition-colors line-clamp-1">
-                      {prog.title}
-                    </h3>
-                    <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                      {prog.description}
-                    </p>
-
-                    {/* Metadata pills */}
-                    <div className="flex flex-wrap items-center gap-2 pt-2 text-[11px] text-slate-400">
-                      {prog.metadataLeft && (
-                        <span className="bg-[#141b2c] border border-slate-800 px-2 py-0.5 rounded text-slate-300 font-medium">
-                          {prog.metadataLeft}
-                        </span>
+                      {/* Badge top-left */}
+                      {prog.badgeTop && (
+                        <div
+                          className={`absolute top-3 left-3 text-[10px] font-extrabold px-2.5 py-1 rounded-md shadow-md ${getTopBadgeClasses(
+                            prog
+                          )}`}
+                        >
+                          {prog.badgeTop}
+                        </div>
                       )}
-                      {prog.metadataRight && (
-                        <span className="bg-[#141b2c] border border-slate-800 px-2 py-0.5 rounded text-slate-300 font-medium">
-                          {prog.metadataRight}
-                        </span>
+
+                      {/* Badge bottom-right (Giá / Ưu đãi nổi bật như mẫu) */}
+                      {prog.badgeSpecial && (
+                        <div
+                          className={`absolute bottom-3 right-3 text-xs font-black px-3 py-1 rounded-lg backdrop-blur-md shadow-lg tracking-wide ${getSpecialBadgeClasses(
+                            prog
+                          )}`}
+                        >
+                          {prog.badgeSpecial}
+                        </div>
                       )}
                     </div>
+
+                    {/* Nội dung text */}
+                    <div className="p-5 pb-4 space-y-2.5">
+                      <h3 className="text-[15px] font-black text-white group-hover:text-blue-400 transition-colors line-clamp-1">
+                        {prog.title}
+                      </h3>
+                      <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                        {prog.description}
+                      </p>
+
+                      {/* Metadata row */}
+                      <div className="flex flex-wrap items-center gap-2 pt-2 text-[11px]">
+                        {prog.metadataLeft && (
+                          <span className="text-slate-300 font-semibold flex items-center gap-1">
+                            {prog.metadataLeft}
+                          </span>
+                        )}
+                        {prog.metadataRight && (
+                          <span
+                            className={`font-semibold ${
+                              isRightHighlight
+                                ? (prog.metadataRight || '').includes('Tặng')
+                                  ? 'text-amber-400'
+                                  : 'text-emerald-400'
+                                : 'text-slate-400'
+                            }`}
+                          >
+                            • {prog.metadataRight.replace(/^•\s*/, '')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer 2 Buttons cân đối chuẩn mẫu */}
+                  <div className="px-5 pb-5 pt-1 grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProgramModal(prog)}
+                      className="py-2.5 px-3 rounded-xl bg-[#182032] hover:bg-slate-800 border border-slate-700/80 text-xs font-bold text-slate-200 hover:text-white transition-colors cursor-pointer"
+                    >
+                      Xem thể lệ
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => navigate(prog.buttonAction || '/theaters')}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-black transition-all shadow-md cursor-pointer ${
+                        prog.buttonText === 'Nâng cấp VIP'
+                          ? 'bg-[#f5b041] hover:bg-amber-400 text-slate-950'
+                          : 'bg-[#93b4f8] hover:bg-[#7da4f5] text-slate-950'
+                      }`}
+                    >
+                      {prog.buttonText || 'Đặt vé ngay'}
+                    </button>
                   </div>
                 </div>
-
-                {/* Footer Buttons */}
-                <div className="p-5 pt-0 flex items-center justify-between gap-3">
-                  <button className="text-xs text-slate-400 hover:text-white font-medium transition-colors">
-                    Xem thể lệ
-                  </button>
-
-                  <button
-                    onClick={() => navigate(prog.buttonAction || '/theaters')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-                      prog.buttonText === 'Nâng cấp VIP'
-                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950'
-                        : 'bg-[#2563eb] hover:bg-blue-600 text-white'
-                    }`}
-                  >
-                    {prog.buttonText || 'Đặt vé ngay'}
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* MODAL CHI TIẾT THỂ LỆ CHƯƠNG TRÌNH */}
+      {selectedProgramModal && (
+        <div
+          className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          onClick={() => setSelectedProgramModal(null)}
+        >
+          <div
+            className="bg-[#111726] border border-slate-700 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {selectedProgramModal.image && (
+              <div className="relative h-48 w-full bg-slate-950">
+                <img
+                  src={selectedProgramModal.image}
+                  alt={selectedProgramModal.title}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#111726] via-transparent to-black/40" />
+                <button
+                  onClick={() => setSelectedProgramModal(null)}
+                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-950/80 text-slate-300 hover:text-white flex items-center justify-center font-bold cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                {selectedProgramModal.badgeTop && (
+                  <span className="text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2.5 py-0.5 rounded">
+                    {selectedProgramModal.badgeTop}
+                  </span>
+                )}
+                {selectedProgramModal.badgeSpecial && (
+                  <span className="text-[10px] font-black bg-amber-500 text-slate-950 px-2.5 py-0.5 rounded">
+                    {selectedProgramModal.badgeSpecial}
+                  </span>
+                )}
+              </div>
+              <h3 className="text-lg font-black text-white">{selectedProgramModal.title}</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">{selectedProgramModal.description}</p>
+              <div className="bg-[#161f33] border border-slate-800 rounded-2xl p-4 space-y-2 text-xs text-slate-300">
+                <p className="font-bold text-amber-400">📌 Điều kiện & Thể lệ áp dụng:</p>
+                <ul className="list-disc list-inside space-y-1 text-slate-400 text-[11px]">
+                  <li>Địa điểm áp dụng: Cụm rạp D'AVENOR Thanh Khê Plaza (Đà Nẵng).</li>
+                  <li>Áp dụng cho cả giao dịch đặt vé trực tuyến trên website/app và mua trực tiếp tại quầy.</li>
+                  <li>Số lượng ưu đãi có thể kết thúc sớm khi hết ngân sách khuyến mãi trong tuần.</li>
+                </ul>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  onClick={() => setSelectedProgramModal(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 cursor-pointer"
+                >
+                  Đóng
+                </button>
+                <button
+                  onClick={() => {
+                    const action = selectedProgramModal.buttonAction || '/theaters';
+                    setSelectedProgramModal(null);
+                    navigate(action);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-black text-white cursor-pointer"
+                >
+                  {selectedProgramModal.buttonText || 'Đặt vé ngay'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 6. MỘT SỐ LƯU Ý KHI SỬ DỤNG MÃ ƯU ĐÃI (3 CARDS) */}
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 pt-8">
@@ -534,7 +654,7 @@ const PromotionsPage = () => {
               <span>Một số lưu ý khi sử dụng mã ưu đãi D'AVENOR CINEMA</span>
             </h3>
             <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
-              Quy chế chung áp dụng toàn quốc
+              Áp dụng tại D'AVENOR Thanh Khê Plaza
             </span>
           </div>
 
@@ -576,4 +696,3 @@ const PromotionsPage = () => {
 };
 
 export default PromotionsPage;
-

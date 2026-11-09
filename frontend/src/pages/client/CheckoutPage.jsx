@@ -4,6 +4,11 @@ import api from '../../services/api';
 import CheckoutCombos from '../../components/checkout/CheckoutCombos';
 import CheckoutPaymentMethods from '../../components/checkout/CheckoutPaymentMethods';
 import CheckoutOrderSummary from '../../components/checkout/CheckoutOrderSummary';
+import {
+  resolveConcessionImage,
+  resolveConcessionBadge,
+  deduplicateConcessions,
+} from '../../utils/visualResolver';
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
@@ -78,22 +83,16 @@ const CheckoutPage = () => {
   const fetchConcessions = async () => {
     try {
       const res = await api.get('/concessions');
-      if (res.data && Array.isArray(res.data)) {
-        const mapped = res.data.map((c) => ({
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        const cleaned = deduplicateConcessions(res.data);
+        const mapped = cleaned.map((c) => ({
           id: c.id || c._id,
           title: c.name,
-          badge:
-            c.category === 'COMBO'
-              ? 'Combo Bán Chạy'
-              : c.category === 'DRINK'
-              ? 'Nước Ngọt Mát Lạnh'
-              : 'Snack Giòn Tan',
+          badge: resolveConcessionBadge(c),
           desc: c.description || "Sản phẩm phục vụ nóng giòn tại quầy D'AVENOR Express.",
           price: c.price,
-          oldPrice: Math.round(c.price * 1.3),
-          image:
-            c.image ||
-            'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=600&auto=format&fit=crop',
+          oldPrice: Math.round(c.price * 1.25),
+          image: resolveConcessionImage(c),
         }));
         setConcessions(mapped);
       }

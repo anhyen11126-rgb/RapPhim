@@ -15,6 +15,18 @@ const concessionSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    category: {
+      type: String,
+      default: 'COMBO',
+    },
+    badge: {
+      type: String,
+      default: '',
+    },
+    image: {
+      type: String,
+      default: '',
+    },
     imageUrl: {
       type: String,
       default: '',
@@ -26,6 +38,8 @@ const concessionSchema = new mongoose.Schema(
       virtuals: true,
       transform: (doc, ret) => {
         ret.id = ret._id.toString();
+        ret.image = ret.image || ret.imageUrl || '';
+        ret.imageUrl = ret.imageUrl || ret.image || '';
         return ret;
       },
     },
@@ -33,6 +47,8 @@ const concessionSchema = new mongoose.Schema(
       virtuals: true,
       transform: (doc, ret) => {
         ret.id = ret._id.toString();
+        ret.image = ret.image || ret.imageUrl || '';
+        ret.imageUrl = ret.imageUrl || ret.image || '';
         return ret;
       },
     },

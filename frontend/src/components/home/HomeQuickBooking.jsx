@@ -73,14 +73,34 @@ const HomeQuickBooking = ({
           {
             id: activeMovie?.firstShowtimeId || '6ae624fdb0ee30fb919c72d6',
             roomName: 'IMAX Laser (Phòng 1)',
+            format: 'IMAX Laser 2D',
             time: '19:30',
           },
           {
             id: '6ae624fdb0ee30fb919c7307',
             roomName: '2D Dolby Atmos (Phòng 2)',
-            time: '21:45',
+            format: '2D Tiêu Chuẩn',
+            time: '21:15',
+            price: 50000,
+          },
+          {
+            id: '6ae624fdb0ee30fb919c7318',
+            roomName: 'RealD 3D (Phòng 3)',
+            format: 'RealD 3D HFR',
+            time: '21:15',
+            price: 50000,
           },
         ];
+
+  // Tự động đồng bộ suất chiếu đã chọn khi danh sách suất chiếu của phim thay đổi
+  useEffect(() => {
+    if (availableShowtimes.length > 0) {
+      const isCurrentInList = availableShowtimes.some((st) => String(st.id) === String(selectedShowtimeId));
+      if (!isCurrentInList) {
+        setSelectedShowtimeId(String(availableShowtimes[0].id));
+      }
+    }
+  }, [selectedMovieId, availableShowtimes, selectedShowtimeId, setSelectedShowtimeId]);
 
   const handleQuickBooking = () => {
     const targetShowtimeId =
@@ -88,16 +108,33 @@ const HomeQuickBooking = ({
       activeMovie?.firstShowtimeId ||
       availableShowtimes[0]?.id ||
       '6ae624fdb0ee30fb919c72d6';
-    navigate(`/booking/seat/${targetShowtimeId}`);
+
+    const chosenSlot =
+      availableShowtimes.find((st) => String(st.id) === String(targetShowtimeId)) ||
+      availableShowtimes[0];
+
+    navigate(`/booking/seat/${targetShowtimeId}`, {
+      state: {
+        slotInfo: {
+          id: targetShowtimeId,
+          showtimeId: targetShowtimeId,
+          roomName: chosenSlot?.roomName || 'Phòng Chiếu 01',
+          format: chosenSlot?.format || 'IMAX Laser 2D',
+          time: chosenSlot?.time || '19:30',
+          price: chosenSlot?.price || 95000,
+          cinemaName: selectedTheater || "D'AVENOR Thanh Khê Plaza",
+        },
+      },
+    });
   };
 
   return (
     <section className="relative z-30 max-w-[1560px] mx-auto px-6 sm:px-10 lg:px-14 mt-2 sm:mt-3">
       <div className="bg-[#101521] border border-slate-800/90 rounded-2xl p-4 shadow-2xl">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 items-end">
           {/* 1. Chọn Phim */}
-          <div className="space-y-1 relative" ref={movieDropdownRef}>
-            <div className="flex items-center justify-between">
+          <div className="sm:col-span-1 lg:col-span-3 space-y-1 relative" ref={movieDropdownRef}>
+            <div className="flex items-center justify-between h-5">
               <label className="text-[11px] font-medium text-slate-400 flex items-center space-x-1.5">
                 <span>🎬</span>
                 <span>Phim</span>
@@ -116,9 +153,9 @@ const HomeQuickBooking = ({
             <button
               type="button"
               onClick={() => setIsMovieDropdownOpen(!isMovieDropdownOpen)}
-              className={`w-full bg-[#1b2232] hover:bg-[#232c40] border ${
+              className={`w-full h-[38px] bg-[#1b2232] hover:bg-[#232c40] border ${
                 isMovieDropdownOpen ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-700/60'
-              } rounded-xl px-3 py-2 text-xs font-bold text-white transition-all text-left flex items-center justify-between gap-2 cursor-pointer group shadow-inner`}
+              } rounded-xl px-3 text-xs font-bold text-white transition-all text-left flex items-center justify-between gap-2 cursor-pointer group shadow-inner`}
             >
               <div className="flex items-center space-x-2 min-w-0">
                 <span
@@ -232,45 +269,59 @@ const HomeQuickBooking = ({
             )}
           </div>
 
-          {/* 2. Chọn Rạp */}
-          <div className="space-y-1">
-            <label className="block text-[11px] font-medium text-slate-400 flex items-center space-x-1.5">
-              <span className="text-amber-500">📍</span>
-              <span>Rạp chiếu</span>
-            </label>
-            <div className="relative">
-              <select
-                value={selectedTheater}
-                onChange={(e) => setSelectedTheater(e.target.value)}
-                className="w-full bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7"
-              >
-                {cinemas.length > 0 ? (
-                  cinemas.map((c) => (
+          {/* 2. Rạp chiếu (Cố định cụm rạp duy nhất Thanh Khê) */}
+          <div className="sm:col-span-1 lg:col-span-3 space-y-1">
+            <div className="flex items-center h-5">
+              <label className="text-[11px] font-medium text-slate-400 flex items-center space-x-1.5">
+                <span className="text-amber-500">📍</span>
+                <span>Rạp chiếu</span>
+              </label>
+            </div>
+            {cinemas.length > 1 ? (
+              <div className="relative">
+                <select
+                  value={selectedTheater}
+                  onChange={(e) => setSelectedTheater(e.target.value)}
+                  className="w-full h-[38px] bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7"
+                >
+                  {cinemas.map((c) => (
                     <option key={c.id || c._id} value={c.name}>
                       {c.district ? `[Q.${c.district}] ` : ''}{c.name}
                     </option>
-                  ))
-                ) : (
-                  <option value="D'AVENOR Vincom Ngô Quyền">[Q.Sơn Trà] D'AVENOR Vincom Ngô Quyền</option>
-                )}
-              </select>
-              <span className="absolute right-3 top-2.5 text-slate-500 text-[10px] pointer-events-none">
-                ⌵
-              </span>
-            </div>
+                  ))}
+                </select>
+                <span className="absolute right-3 top-2.5 text-slate-500 text-[10px] pointer-events-none">
+                  ⌵
+                </span>
+              </div>
+            ) : (
+              <div
+                className="w-full h-[38px] bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 text-xs font-bold text-white select-none shadow-sm flex items-center space-x-1.5"
+                title="D'AVENOR Thanh Khê Plaza - 295 Điện Biên Phủ, Q. Thanh Khê, Đà Nẵng"
+              >
+                <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 shrink-0">
+                  Q. Thanh Khê
+                </span>
+                <span className="truncate text-slate-100 font-bold">
+                  D'AVENOR Thanh Khê Plaza
+                </span>
+              </div>
+            )}
           </div>
 
           {/* 3. Chọn Ngày */}
-          <div className="space-y-1">
-            <label className="block text-[11px] font-medium text-slate-400 flex items-center space-x-1.5">
-              <span className="text-emerald-500">📅</span>
-              <span>Ngày chiếu</span>
-            </label>
+          <div className="sm:col-span-1 lg:col-span-2 space-y-1">
+            <div className="flex items-center h-5">
+              <label className="text-[11px] font-medium text-slate-400 flex items-center space-x-1.5">
+                <span className="text-emerald-500">📅</span>
+                <span>Ngày chiếu</span>
+              </label>
+            </div>
             <div className="relative">
               <select
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7"
+                className="w-full h-[38px] bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7"
               >
                 <option value="Hôm nay">
                   Hôm nay ({new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })})
@@ -289,16 +340,18 @@ const HomeQuickBooking = ({
           </div>
 
           {/* 4. Chọn Suất Chiếu */}
-          <div className="space-y-1">
-            <label className="block text-[11px] font-medium text-slate-400 flex items-center space-x-1.5">
-              <span className="text-blue-400">🕒</span>
-              <span>Suất chiếu</span>
-            </label>
+          <div className="sm:col-span-1 lg:col-span-2 space-y-1">
+            <div className="flex items-center h-5">
+              <label className="text-[11px] font-medium text-slate-400 flex items-center space-x-1.5">
+                <span className="text-blue-400">🕒</span>
+                <span>Suất chiếu</span>
+              </label>
+            </div>
             <div className="relative">
               <select
                 value={selectedShowtimeId}
                 onChange={(e) => setSelectedShowtimeId(e.target.value)}
-                className="w-full bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7"
+                className="w-full h-[38px] bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7"
               >
                 {availableShowtimes.map((st) => (
                   <option key={st.id} value={st.id}>
@@ -313,11 +366,11 @@ const HomeQuickBooking = ({
           </div>
 
           {/* 5. Nút Đặt Vé Ngay */}
-          <div>
+          <div className="sm:col-span-2 lg:col-span-2">
             <button
               type="button"
               onClick={handleQuickBooking}
-              className="w-full bg-[#2563eb] hover:bg-blue-600 text-white font-black px-4 py-2 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-lg shadow-blue-600/30 cursor-pointer hover:scale-105 active:scale-95"
+              className="w-full h-[38px] bg-[#2563eb] hover:bg-blue-600 text-white font-black px-4 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-lg shadow-blue-600/30 cursor-pointer hover:scale-105 active:scale-95"
             >
               <span>🎟️</span>
               <span>Đặt vé ngay</span>

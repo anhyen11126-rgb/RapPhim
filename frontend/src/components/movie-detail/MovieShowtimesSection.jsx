@@ -501,12 +501,17 @@ const MovieShowtimesSection = ({
                       </div>
 
                       {/* Huy hiệu góc phải */}
-                      {isChosen && (
+                      {isChosen ? (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500 text-white shadow-md flex items-center space-x-1 animate-in fade-in">
                           <span>✓</span>
                           <span>ĐANG CHỌN</span>
                         </span>
-                      )}
+                      ) : st.tag ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center space-x-1">
+                          <span>⚡</span>
+                          <span>{st.tag}</span>
+                        </span>
+                      ) : null}
                     </div>
 
                     {/* Hàng 2: Phòng chiếu & Số ghế trống */}

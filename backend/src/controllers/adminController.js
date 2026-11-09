@@ -10,6 +10,9 @@ import Cinema from '../models/Cinema.js';
 import User from '../models/User.js';
 import Concession from '../models/Concession.js';
 import Promotion from '../models/Promotion.js';
+import { ensureCleanConcessions, resolveConcessionVisuals } from './concessionController.js';
+import { ensureCleanPromotions, resolvePromotionVisuals } from './promotionController.js';
+import { ensure3DShowtimesSynced } from './cinemaController.js';
 
 // Đăng nhập Admin
 export const adminLogin = async (req, res) => {
@@ -203,39 +206,81 @@ export const deleteMovie = async (req, res) => {
   }
 };
 
-// Quản lý Suất chiếu: Tạo suất chiếu mới kèm ma trận 48 ghế tự động
+// Quản lý Suất chiếu: Tạo suất chiếu mới kèm ma trận 88 ghế tự động
 export const createShowtime = async (req, res) => {
   try {
-    const { movieId, roomName, startTime, price } = req.body;
+    const { movieId, cinemaId, roomName, formatFeature, startTime, price } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(movieId)) {
       return res.status(400).json({ message: 'ID phim không hợp lệ' });
     }
 
+    let targetCinemaId = cinemaId;
+    if (!targetCinemaId || !mongoose.Types.ObjectId.isValid(targetCinemaId)) {
+      const dnCinema = await Cinema.findOne({ city: 'Đà Nẵng' });
+      targetCinemaId = dnCinema ? dnCinema._id : undefined;
+    }
+
+    const rName = roomName || 'Phòng IMAX 01 (Grand Hall)';
+    const defaultFeature = rName.toLowerCase().includes('3d')
+      ? '3D Phụ Đề • RealD 3D High Frame Rate • Kính 3D siêu nhẹ'
+      : rName.toLowerCase().includes('imax')
+      ? 'IMAX Laser 2D • Âm thanh 12 kênh độc quyền'
+      : '2D Phụ Đề • Chuẩn Dolby 7.1 • Màn chiếu 4K';
+
     const showtime = await Showtime.create({
       movieId: new mongoose.Types.ObjectId(movieId),
-      roomName: roomName || 'Phòng 01 - Tiêu chuẩn',
+      cinemaId: targetCinemaId ? new mongoose.Types.ObjectId(targetCinemaId) : undefined,
+      roomName: rName,
+      formatFeature: formatFeature || defaultFeature,
       startTime: new Date(startTime),
-      price: parseFloat(price) || 85000,
+      price: parseFloat(price) || 50000,
     });
 
-    // Tạo tự động ma trận 48 ghế (A1 - F8)
-    const rows = ['A', 'B', 'C', 'D', 'E', 'F'];
-    const cols = [1, 2, 3, 4, 5, 6, 7, 8];
+    // Tạo tự động ma trận 88 ghế (A-D Standard, E-G VIP, H Sweetbox)
+    const standardRows = ['A', 'B', 'C', 'D'];
+    const vipRows = ['E', 'F', 'G'];
+    const sweetboxSeats = [
+      { row: 'H', col: 1, seatNumber: 'H1-2' },
+      { row: 'H', col: 3, seatNumber: 'H3-4' },
+      { row: 'H', col: 5, seatNumber: 'H5-6' },
+      { row: 'H', col: 7, seatNumber: 'H7-8' },
+    ];
     const seatsData = [];
 
-    for (const r of rows) {
-      for (const c of cols) {
-        const isVip = ['E', 'F'].includes(r);
+    for (const r of standardRows) {
+      for (let c = 1; c <= 12; c++) {
         seatsData.push({
           showtimeId: showtime._id,
           seatNumber: `${r}${c}`,
           row: r,
           col: c,
-          type: isVip ? 'VIP' : 'STANDARD',
+          type: 'STANDARD',
           status: 'AVAILABLE',
         });
       }
+    }
+    for (const r of vipRows) {
+      for (let c = 1; c <= 12; c++) {
+        seatsData.push({
+          showtimeId: showtime._id,
+          seatNumber: `${r}${c}`,
+          row: r,
+          col: c,
+          type: 'VIP',
+          status: 'AVAILABLE',
+        });
+      }
+    }
+    for (const sb of sweetboxSeats) {
+      seatsData.push({
+        showtimeId: showtime._id,
+        seatNumber: sb.seatNumber,
+        row: sb.row,
+        col: sb.col,
+        type: 'SWEETBOX',
+        status: 'AVAILABLE',
+      });
     }
     await ShowtimeSeat.insertMany(seatsData);
 
@@ -380,11 +425,12 @@ export const deleteCinema = async (req, res) => {
 // ==================== QUẢN LÝ SUẤT CHIẾU ====================
 export const getAdminShowtimes = async (req, res) => {
   try {
+    await ensure3DShowtimesSynced();
     const rawShowtimes = await Showtime.find()
       .sort({ startTime: -1 })
       .populate('movieId', 'title posterUrl duration ageRating')
       .populate('cinemaId', 'name city')
-      .limit(100)
+      .limit(120)
       .lean();
 
     const showtimes = await Promise.all(
@@ -442,8 +488,18 @@ export const getAdminUsers = async (req, res) => {
 // ==================== QUẢN LÝ BẮP NƯỚC ====================
 export const getAdminConcessions = async (req, res) => {
   try {
-    const concessions = await Concession.find().lean();
-    res.json(concessions.map((c) => ({ ...c, id: c._id.toString() })));
+    await ensureCleanConcessions();
+    const concessions = await Concession.find().sort({ price: 1 }).lean();
+    res.json(
+      concessions.map((c) => {
+        const visuals = resolveConcessionVisuals(c);
+        return {
+          ...c,
+          ...visuals,
+          id: c._id.toString(),
+        };
+      })
+    );
   } catch (error) {
     res.status(500).json({ message: 'Lỗi lấy bắp nước', error: error.message });
   }
@@ -451,12 +507,16 @@ export const getAdminConcessions = async (req, res) => {
 
 export const createConcession = async (req, res) => {
   try {
-    const { name, price, description, image } = req.body;
+    const { name, price, description, image, category, badge } = req.body;
+    const visuals = resolveConcessionVisuals({ name, image, category, badge });
     const c = await Concession.create({
       name,
       price: parseFloat(price) || 50000,
       description: description || '',
-      image: image || 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=500&auto=format&fit=crop',
+      category: visuals.category,
+      badge: visuals.badge,
+      image: visuals.image,
+      imageUrl: visuals.imageUrl,
     });
     res.status(201).json({ ...c.toObject(), id: c._id.toString() });
   } catch (error) {
@@ -477,8 +537,15 @@ export const deleteConcession = async (req, res) => {
 // ==================== QUẢN LÝ KHUYẾN MÃI ====================
 export const getAdminPromotions = async (req, res) => {
   try {
-    const promotions = await Promotion.find().sort({ createdAt: -1 }).lean();
-    res.json(promotions.map((p) => ({ ...p, id: p._id.toString() })));
+    await ensureCleanPromotions();
+    const promotions = await Promotion.find().sort({ order: 1, createdAt: -1 }).lean();
+    res.json(
+      promotions.map((p) => ({
+        ...p,
+        ...resolvePromotionVisuals(p),
+        id: p._id.toString(),
+      }))
+    );
   } catch (error) {
     res.status(500).json({ message: 'Lỗi lấy khuyến mãi', error: error.message });
   }
@@ -486,15 +553,26 @@ export const getAdminPromotions = async (req, res) => {
 
 export const createPromotion = async (req, res) => {
   try {
-    const { title, code, discountPercent, discountAmount, description, validUntil } = req.body;
+    const { title, code, discountPercent, discountAmount, description, validUntil, image, type, category } = req.body;
+    const visuals = resolvePromotionVisuals({ title, image, type: type || 'VOUCHER' });
     const promo = await Promotion.create({
+      type: type || 'VOUCHER',
+      category: category || 'TICKET',
       title,
       code: code ? code.toUpperCase() : 'PROMO' + Math.floor(Math.random() * 1000),
+      discountValue: discountAmount
+        ? `GIẢM ${Math.round(Number(discountAmount) / 1000)}K`
+        : discountPercent
+        ? `GIẢM ${discountPercent}%`
+        : 'ƯU ĐÃI VIP',
       discountPercent: discountPercent ? parseInt(discountPercent, 10) : 0,
       discountAmount: discountAmount ? parseInt(discountAmount, 10) : 0,
       description: description || '',
+      conditions: description || 'Áp dụng tại D\'AVENOR Thanh Khê Plaza',
+      expiryDate: validUntil ? `HSD: ${new Date(validUntil).toLocaleDateString('vi-VN')}` : 'HSD: 31/12/2026',
       validUntil: validUntil ? new Date(validUntil) : new Date(Date.now() + 30 * 86400000),
-      status: 'ACTIVE',
+      image: visuals.image,
+      isActive: true,
     });
     res.status(201).json({ ...promo.toObject(), id: promo._id.toString() });
   } catch (error) {

@@ -1,8 +1,93 @@
 import Promotion from '../models/Promotion.js';
 
+export const resolvePromotionVisuals = (p = {}) => {
+  const title = (p.title || '').toLowerCase();
+  const currentImg = p.image || '';
+  const isOldUnsplash = !currentImg || currentImg.includes('images.unsplash.com');
+
+  let defaultImage = currentImg || '/images/promotions/promo-happy-day.png';
+  let badgeTop = p.badgeTop || '';
+  let conditions = p.conditions || '';
+  let description = p.description || '';
+
+  // Đồng bộ tên rạp về cụm rạp duy nhất D'AVENOR Thanh Khê Plaza
+  if (badgeTop.includes('Landmark 81')) {
+    badgeTop = "📍 D'AVENOR Thanh Khê Plaza";
+  }
+  if (conditions.includes('Landmark 81')) {
+    conditions = conditions.replace(/Landmark 81/g, "D'AVENOR Thanh Khê Plaza");
+  }
+  if (description.includes('MovieTix')) {
+    description = description.replace(/MovieTix/g, "D'AVENOR");
+  }
+
+  if (p.type === 'HERO_DEAL') {
+    if (isOldUnsplash) defaultImage = '/images/combos/combo-couple.png';
+  } else if (title.includes('happy day') || title.includes('thứ 4') || title.includes('50k')) {
+    if (isOldUnsplash) defaultImage = '/images/promotions/promo-happy-day.png';
+  } else if (title.includes('avatar') || title.includes('combo') || title.includes('ly vip')) {
+    if (isOldUnsplash) defaultImage = '/images/promotions/promo-avatar-combo.png';
+  } else if (title.includes('prime') || title.includes('hội viên') || title.includes('điểm')) {
+    if (isOldUnsplash) defaultImage = '/images/promotions/promo-vip-prime.png';
+  } else if (title.includes('học sinh') || title.includes('sinh viên') || title.includes('u22')) {
+    if (isOldUnsplash) defaultImage = '/images/promotions/promo-student-u22.png';
+  } else if (title.includes('vnpay') || title.includes('qr') || title.includes('25.000')) {
+    if (isOldUnsplash) defaultImage = '/images/promotions/promo-vnpay-qr.png';
+  } else if (title.includes('imax') || title.includes('gold class')) {
+    if (isOldUnsplash) defaultImage = '/images/promotions/promo-imax-gold.png';
+  }
+
+  return {
+    image: defaultImage,
+    badgeTop,
+    conditions,
+    description,
+  };
+};
+
+let hasSyncedPromos = false;
+
+export const ensureCleanPromotions = async () => {
+  if (hasSyncedPromos) return;
+  try {
+    const allPromos = await Promotion.find({});
+    for (const doc of allPromos) {
+      const resolved = resolvePromotionVisuals(doc);
+      let changed = false;
+      if (doc.image !== resolved.image) {
+        doc.image = resolved.image;
+        changed = true;
+      }
+      if (doc.badgeTop !== resolved.badgeTop) {
+        doc.badgeTop = resolved.badgeTop;
+        changed = true;
+      }
+      if (doc.conditions !== resolved.conditions) {
+        doc.conditions = resolved.conditions;
+        changed = true;
+      }
+      if (doc.description !== resolved.description) {
+        doc.description = resolved.description;
+        changed = true;
+      }
+      if (doc.title && doc.title.includes('MovieTix')) {
+        doc.title = doc.title.replace(/MovieTix/g, "D'AVENOR");
+        changed = true;
+      }
+      if (changed) {
+        await doc.save();
+      }
+    }
+    hasSyncedPromos = true;
+  } catch (err) {
+    console.warn('Promotion sync warning:', err.message);
+  }
+};
+
 // Lấy danh sách toàn bộ khuyến mãi & voucher từ Database
 export const getPromotions = async (req, res) => {
   try {
+    await ensureCleanPromotions();
     const { category, search } = req.query;
 
     // 1. Lấy Hero Deal nổi bật nhất
@@ -40,9 +125,19 @@ export const getPromotions = async (req, res) => {
     const paymentCount = await Promotion.countDocuments({ type: 'PROGRAM', category: 'PAYMENT', isActive: true });
 
     res.json({
-      heroDeal: heroDeal ? { ...heroDeal, id: heroDeal._id.toString() } : null,
-      vouchers: vouchers.map((v) => ({ ...v, id: v._id.toString() })),
-      programs: programs.map((p) => ({ ...p, id: p._id.toString() })),
+      heroDeal: heroDeal
+        ? { ...heroDeal, ...resolvePromotionVisuals(heroDeal), id: heroDeal._id.toString() }
+        : null,
+      vouchers: vouchers.map((v) => ({
+        ...v,
+        ...resolvePromotionVisuals(v),
+        id: v._id.toString(),
+      })),
+      programs: programs.map((p) => ({
+        ...p,
+        ...resolvePromotionVisuals(p),
+        id: p._id.toString(),
+      })),
       counts: {
         all: totalCount,
         ticket: ticketCount,
@@ -117,4 +212,3 @@ export const createPromotion = async (req, res) => {
     res.status(500).json({ message: 'Lỗi tạo chương trình khuyến mãi', error: error.message });
   }
 };
-

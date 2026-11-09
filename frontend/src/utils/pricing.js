@@ -14,8 +14,8 @@ export const getRoomPriceRange = (format, isWeekend) => {
   }
   if (f.includes('3d')) {
     return isWeekend
-      ? { min: 65000, max: 180000, label: '65.000đ ~ 180.000đ' }
-      : { min: 60000, max: 150000, label: '60.000đ ~ 150.000đ' };
+      ? { min: 50000, max: 140000, label: '50.000đ ~ 140.000đ' }
+      : { min: 45000, max: 125000, label: '45.000đ ~ 125.000đ' };
   }
   // 2D Dolby Tiêu chuẩn
   return isWeekend
@@ -119,30 +119,36 @@ export const calculateDynamicPrices = (showtime) => {
   // 3. PHÒNG CHIẾU REALD 3D HIGH FRAME RATE
   // ==========================================
   if (is3D) {
-    let basePrice = 65000;
+    const isAfter21 = hour >= 21 || hour < 6;
+    let basePrice = 50000;
     let vipAdd = 20000;
-    let sweetboxPrice = 150000;
+    let sweetboxPrice = 120000;
 
     if (isLateNight) {
-      // Suất khuya 22:30 rẻ hơn
-      basePrice = isWeekend ? 65000 : 60000;
-      vipAdd = 20000;
-      sweetboxPrice = isWeekend ? 150000 : 140000;
+      // Suất khuya từ 22:00 trở đi giá ưu đãi rẻ nhất
+      basePrice = isWeekend ? 50000 : 45000;
+      vipAdd = 15000;
+      sweetboxPrice = isWeekend ? 125000 : 110000;
+    } else if (isAfter21) {
+      // Khung giờ 21h - 22h giá mềm
+      basePrice = isWeekend ? 55000 : 50000;
+      vipAdd = 15000;
+      sweetboxPrice = isWeekend ? 130000 : 120000;
     } else if (isWeekend) {
-      // Cuối tuần T6, T7, CN giá cao hơn
-      basePrice = isBefore17 ? 75000 : 80000;
+      // Cuối tuần T6, T7, CN
+      basePrice = isBefore17 ? 55000 : 60000;
       vipAdd = 20000;
-      sweetboxPrice = 180000;
+      sweetboxPrice = 140000;
     } else {
       // Ngày thường T2 - T5
-      basePrice = isBefore17 ? 60000 : 65000;
+      basePrice = isBefore17 ? 45000 : 50000;
       vipAdd = 20000;
-      sweetboxPrice = 150000;
+      sweetboxPrice = 120000;
     }
 
     if (showtime?.isHoliday) {
-      basePrice = 90000;
-      sweetboxPrice = 200000;
+      basePrice = 65000;
+      sweetboxPrice = 150000;
     }
 
     return {
@@ -151,7 +157,9 @@ export const calculateDynamicPrices = (showtime) => {
       priceSweetbox: sweetboxPrice,
       roomTypeLabel: 'Phòng chiếu RealD 3D',
       timeSlotLabel: isLateNight
-        ? 'Suất 3D khuya sau 22:00'
+        ? 'Suất 3D khuya ưu đãi'
+        : isAfter21
+        ? 'Suất 3D tối (21h - 22h)'
         : isWeekend
         ? isBefore17
           ? '3D cuối tuần trước 17:00'

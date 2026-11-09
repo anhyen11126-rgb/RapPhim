@@ -109,7 +109,9 @@ export async function seedRollingShowtimes(daysCount = 14) {
           formatType: '3d',
           slots: [
             { timeStr: '18:30', hour: 18, minute: 30 },
-            { timeStr: '21:00', hour: 21, minute: 0 },
+            { timeStr: '20:00', hour: 20, minute: 0 },
+            { timeStr: '21:15', hour: 21, minute: 15 },
+            { timeStr: '22:15', hour: 22, minute: 15 },
           ],
         },
       ];
@@ -130,7 +132,7 @@ export async function seedRollingShowtimes(daysCount = 14) {
           if (room.formatType === 'imax') {
             calculatedPrice = isLate ? 140000 : (isWeekend ? 170000 : 160000);
           } else if (room.formatType === '3d') {
-            calculatedPrice = isLate ? 60000 : (isWeekend ? 80000 : 65000);
+            calculatedPrice = isLate ? (isWeekend ? 50000 : 45000) : (isWeekend ? 60000 : 50000);
           } else {
             // 2D
             calculatedPrice = isLate ? 45000 : (isWeekend ? 65000 : 50000);

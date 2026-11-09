@@ -67,16 +67,19 @@ const HomePage = () => {
           status: m.status || 'NOW_SHOWING',
           firstShowtimeId: m.firstShowtimeId,
           showtimes:
-            m.showtimes ||
-            (m.firstShowtimeId
-              ? [{ id: m.firstShowtimeId, roomName: 'Phòng 01 - IMAX Laser', time: '19:30' }]
-              : []),
+            Array.isArray(m.showtimes) && m.showtimes.length > 0
+              ? m.showtimes
+              : (m.firstShowtimeId
+                ? [{ id: m.firstShowtimeId, roomName: 'Phòng 01 - IMAX Laser', time: '19:30' }]
+                : []),
         }));
 
         setMoviesList(formattedMovies);
         if (formattedMovies.length > 0) {
           setSelectedMovieId(String(formattedMovies[0].id));
-          if (formattedMovies[0].firstShowtimeId) {
+          if (formattedMovies[0].showtimes && formattedMovies[0].showtimes.length > 0) {
+            setSelectedShowtimeId(String(formattedMovies[0].showtimes[0].id));
+          } else if (formattedMovies[0].firstShowtimeId) {
             setSelectedShowtimeId(String(formattedMovies[0].firstShowtimeId));
           }
         }

@@ -1,6 +1,5 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import nodemailer from 'nodemailer';
 import User from '../models/User.js';
 import AdminUser from '../models/AdminUser.js';
 
@@ -344,6 +343,8 @@ export const sendEmailOtp = async (req, res) => {
 
     if (emailUser && emailPass) {
       try {
+        const nodemailerModule = await import('nodemailer');
+        const nodemailer = nodemailerModule.default || nodemailerModule;
         const transporter = nodemailer.createTransport({
           host: 'smtp.gmail.com',
           port: 465,

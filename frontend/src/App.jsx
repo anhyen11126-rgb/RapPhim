@@ -25,6 +25,7 @@ import DashboardPage from './pages/admin/DashboardPage';
 import MovieManagePage from './pages/admin/MovieManagePage';
 import BookingManagePage from './pages/admin/BookingManagePage';
 import CinemaManagePage from './pages/admin/CinemaManagePage';
+import RoomManagePage from './pages/admin/RoomManagePage';
 import ShowtimeManagePage from './pages/admin/ShowtimeManagePage';
 import UserManagePage from './pages/admin/UserManagePage';
 import ConcessionManagePage from './pages/admin/ConcessionManagePage';
@@ -80,6 +81,7 @@ function App() {
           <Route path="/admin/dashboard" element={<DashboardPage />} />
           <Route path="/admin/movies" element={<MovieManagePage />} />
           <Route path="/admin/cinemas" element={<CinemaManagePage />} />
+          <Route path="/admin/rooms" element={<RoomManagePage />} />
           <Route path="/admin/showtimes" element={<ShowtimeManagePage />} />
           <Route path="/admin/bookings" element={<BookingManagePage />} />
           <Route path="/admin/users" element={<UserManagePage />} />
