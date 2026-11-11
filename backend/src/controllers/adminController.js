@@ -11,10 +11,19 @@ import User from '../models/User.js';
 import Concession from '../models/Concession.js';
 import Promotion from '../models/Promotion.js';
 import OtpVerification from '../models/OtpVerification.js';
+import AiConfig from '../models/AiConfig.js';
+import AiChatLog from '../models/AiChatLog.js';
+import TicketPricingConfig, { INITIAL_PRICING_FORMATS } from '../models/TicketPricingConfig.js';
+import {
+  ensurePricingConfig,
+  calculatePricesFromConfig,
+  syncDatabaseWithPricingConfig,
+} from '../services/pricingConfigService.js';
 import { ensureCleanConcessions, resolveConcessionVisuals } from './concessionController.js';
 import { ensureCleanPromotions, resolvePromotionVisuals } from './promotionController.js';
-import { ensure3DShowtimesSynced } from './cinemaController.js';
+import { ensure3DShowtimesSynced, resolveCinemaImage, DEFAULT_CINEMA_BANNER } from './cinemaController.js';
 import { generateAndSendEmailOtp } from './authController.js';
+import { ensureAiConfig } from '../services/aiService.js';
 
 // Đăng nhập Admin
 export const adminLogin = async (req, res) => {
@@ -275,13 +284,24 @@ export const createShowtime = async (req, res) => {
       ? 'IMAX Laser 2D • Âm thanh 12 kênh độc quyền'
       : '2D Phụ Đề • Chuẩn Dolby 7.1 • Màn chiếu 4K';
 
+    const pricingConfig = await ensurePricingConfig();
+    const parsedExplicitPrice = Number(price);
+    const resolvedShowtimePrice =
+      Number.isFinite(parsedExplicitPrice) && parsedExplicitPrice > 0
+        ? Math.round(parsedExplicitPrice)
+        : calculatePricesFromConfig(
+            { roomName: rName, formatFeature: formatFeature || defaultFeature, startTime },
+            pricingConfig,
+            { preferRuleMatrix: true }
+          ).priceStandard;
+
     const showtime = await Showtime.create({
       movieId: new mongoose.Types.ObjectId(movieId),
       cinemaId: targetCinemaId ? new mongoose.Types.ObjectId(targetCinemaId) : undefined,
       roomName: rName,
       formatFeature: formatFeature || defaultFeature,
       startTime: new Date(startTime),
-      price: parseFloat(price) || 50000,
+      price: resolvedShowtimePrice,
     });
 
     // Tạo tự động ma trận 88 ghế (A-D Standard, E-G VIP, H Sweetbox)
@@ -407,7 +427,13 @@ export const updateBookingStatus = async (req, res) => {
 export const getAdminCinemas = async (req, res) => {
   try {
     const cinemas = await Cinema.find().sort({ isFlagship: -1, createdAt: -1 }).lean();
-    res.json(cinemas.map((c) => ({ ...c, id: c._id.toString() })));
+    res.json(
+      cinemas.map((c) => ({
+        ...c,
+        image: resolveCinemaImage(c.image),
+        id: c._id.toString(),
+      }))
+    );
   } catch (error) {
     res.status(500).json({ message: 'Lỗi lấy danh sách rạp', error: error.message });
   }
@@ -435,7 +461,7 @@ export const createCinema = async (req, res) => {
       roomCount: parseInt(roomCount, 10) || 6,
       isFlagship: !!isFlagship,
       specialBadge: specialBadge || '',
-      image: image || 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&auto=format&fit=crop',
+      image: image || DEFAULT_CINEMA_BANNER,
     });
 
     res.status(201).json({ ...cinema.toObject(), id: cinema._id.toString() });
@@ -714,5 +740,287 @@ export const clearExpiredAdminOtps = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi dọn dẹp mã OTP', error: error.message });
+  }
+};
+
+// ==================== QUẢN LÝ TRỢ LÝ ẢO CHATBOT AI (DATABASE & LOGS) ====================
+export const getAdminChatbotData = async (req, res) => {
+  try {
+    const [config, logs, movieCount, showtimeCount, concessionCount, promoCount] = await Promise.all([
+      ensureAiConfig(),
+      AiChatLog.find().sort({ createdAt: -1 }).limit(100).lean(),
+      Movie.countDocuments(),
+      Showtime.countDocuments(),
+      Concession.countDocuments(),
+      Promotion.countDocuments({ isActive: true }),
+    ]);
+
+    const hasGeminiKey = Boolean(
+      process.env.GEMINI_API_KEY &&
+        process.env.GEMINI_API_KEY.trim() !== '' &&
+        process.env.GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY'
+    );
+
+    res.json({
+      config: {
+        ...config.toObject(),
+        id: config._id.toString(),
+      },
+      logs: logs.map((l) => ({
+        ...l,
+        id: l._id.toString(),
+      })),
+      ragStats: {
+        hasGeminiKey,
+        engineMode: hasGeminiKey ? 'Gemini 1.5 Flash + Database RAG' : 'Database RAG Engine (Trực tiếp MongoDB)',
+        movies: movieCount,
+        showtimes: showtimeCount,
+        concessions: concessionCount,
+        promotions: promoCount,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi lấy dữ liệu quản lý Chatbot AI', error: error.message });
+  }
+};
+
+export const updateAdminChatbotConfig = async (req, res) => {
+  try {
+    const { botName, botVersion, welcomeMessage, systemPromptNote, isEnabled, quickChips } = req.body;
+    const config = await ensureAiConfig();
+
+    if (botName !== undefined) config.botName = botName;
+    if (botVersion !== undefined) config.botVersion = botVersion;
+    if (welcomeMessage !== undefined) config.welcomeMessage = welcomeMessage;
+    if (systemPromptNote !== undefined) config.systemPromptNote = systemPromptNote;
+    if (isEnabled !== undefined) config.isEnabled = Boolean(isEnabled);
+    if (Array.isArray(quickChips)) {
+      config.quickChips = quickChips.filter((c) => c && c.label && c.query);
+    }
+
+    await config.save();
+    res.json({
+      success: true,
+      message: 'Đã lưu cấu hình Trợ lý AI vào Database thành công!',
+      config,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi cập nhật cấu hình Chatbot AI', error: error.message });
+  }
+};
+
+export const addAdminChatbotFaq = async (req, res) => {
+  try {
+    const { title, keywords, category, answer } = req.body;
+    if (!title || !keywords || !answer) {
+      return res.status(400).json({ message: 'Vui lòng nhập đầy đủ Tiêu đề, Từ khóa và Câu trả lời mẫu' });
+    }
+
+    const config = await ensureAiConfig();
+    config.faqs.unshift({
+      title: title.trim(),
+      keywords: keywords.trim(),
+      category: category || 'POLICY',
+      answer: answer.trim(),
+      isActive: true,
+    });
+    await config.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Đã thêm kịch bản câu trả lời mới vào Kho tri thức AI!',
+      faqs: config.faqs,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi thêm kịch bản FAQ cho AI', error: error.message });
+  }
+};
+
+export const updateAdminChatbotFaq = async (req, res) => {
+  try {
+    const { faqId } = req.params;
+    const { title, keywords, category, answer, isActive } = req.body;
+
+    const config = await ensureAiConfig();
+    const faqItem = config.faqs.id(faqId);
+    if (!faqItem) {
+      return res.status(404).json({ message: 'Không tìm thấy kịch bản câu hỏi này' });
+    }
+
+    if (title !== undefined) faqItem.title = title;
+    if (keywords !== undefined) faqItem.keywords = keywords;
+    if (category !== undefined) faqItem.category = category;
+    if (answer !== undefined) faqItem.answer = answer;
+    if (isActive !== undefined) faqItem.isActive = Boolean(isActive);
+
+    await config.save();
+    res.json({
+      success: true,
+      message: 'Đã cập nhật kịch bản tri thức AI!',
+      faqs: config.faqs,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi cập nhật kịch bản FAQ', error: error.message });
+  }
+};
+
+export const deleteAdminChatbotFaq = async (req, res) => {
+  try {
+    const { faqId } = req.params;
+    const config = await ensureAiConfig();
+    config.faqs = config.faqs.filter((f) => f._id.toString() !== faqId);
+    await config.save();
+
+    res.json({
+      success: true,
+      message: 'Đã xóa kịch bản hỏi đáp khỏi Kho tri thức AI',
+      faqs: config.faqs,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi xóa kịch bản FAQ', error: error.message });
+  }
+};
+
+export const deleteAdminChatLog = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await AiChatLog.findByIdAndDelete(id);
+    res.json({ success: true, message: 'Đã xóa bản ghi hội thoại' });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi xóa lịch sử chat', error: error.message });
+  }
+};
+
+export const clearAdminChatLogs = async (req, res) => {
+  try {
+    const result = await AiChatLog.deleteMany({});
+    res.json({
+      success: true,
+      message: `Đã xóa toàn bộ ${result.deletedCount || 0} lịch sử hội thoại AI.`,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi dọn dẹp lịch sử chat', error: error.message });
+  }
+};
+
+// ==================== QUẢN LÝ BẢNG GIÁ VÉ & CẬP NHẬT GIÁ SUẤT CHIẾU ====================
+export const updateShowtime = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'ID suất chiếu không hợp lệ' });
+    }
+    const { price, roomName, startTime, formatFeature } = req.body;
+    const updatePayload = {};
+    if (price !== undefined) {
+      const numPrice = Number(price);
+      if (!Number.isFinite(numPrice) || numPrice < 0) {
+        return res.status(400).json({ message: 'Giá vé phải là số hợp lệ không âm' });
+      }
+      updatePayload.price = Math.round(numPrice);
+    }
+    if (roomName !== undefined) updatePayload.roomName = roomName;
+    if (startTime !== undefined) updatePayload.startTime = new Date(startTime);
+    if (formatFeature !== undefined) updatePayload.formatFeature = formatFeature;
+
+    const updated = await Showtime.findByIdAndUpdate(id, updatePayload, { new: true }).lean();
+    if (!updated) {
+      return res.status(404).json({ message: 'Không tìm thấy suất chiếu' });
+    }
+    res.json({ success: true, showtime: { ...updated, id: updated._id.toString() } });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi cập nhật suất chiếu', error: error.message });
+  }
+};
+
+export const getAdminPricingConfig = async (req, res) => {
+  try {
+    const config = await ensurePricingConfig();
+    res.json({ success: true, config });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi tải cấu hình bảng giá vé', error: error.message });
+  }
+};
+
+const sanitizeFormatPricingRule = (incomingRule = {}, fallbackRule = {}) => {
+  const toValidInt = (val, def) => {
+    const n = Number(val);
+    return Number.isFinite(n) && n >= 0 ? Math.round(n) : def;
+  };
+  return {
+    label: incomingRule.label || fallbackRule.label,
+    roomTypeLabel: incomingRule.roomTypeLabel || fallbackRule.roomTypeLabel,
+    vipSurcharge: toValidInt(incomingRule.vipSurcharge, fallbackRule.vipSurcharge),
+    sweetboxExtra: toValidInt(incomingRule.sweetboxExtra, fallbackRule.sweetboxExtra),
+    weekday: {
+      before17: toValidInt(incomingRule.weekday?.before17, fallbackRule.weekday.before17),
+      goldenHour: toValidInt(incomingRule.weekday?.goldenHour, fallbackRule.weekday.goldenHour),
+      lateNight: toValidInt(incomingRule.weekday?.lateNight, fallbackRule.weekday.lateNight),
+    },
+    weekend: {
+      before17: toValidInt(incomingRule.weekend?.before17, fallbackRule.weekend.before17),
+      goldenHour: toValidInt(incomingRule.weekend?.goldenHour, fallbackRule.weekend.goldenHour),
+      lateNight: toValidInt(incomingRule.weekend?.lateNight, fallbackRule.weekend.lateNight),
+    },
+  };
+};
+
+export const updateAdminPricingConfig = async (req, res) => {
+  try {
+    const { formats, holidaySurcharge, note, applyToExistingShowtimes = true } = req.body || {};
+    const existing = await ensurePricingConfig();
+
+    const nextFormats = {};
+    for (const fmtKey of ['2D', '3D', 'IMAX', 'GOLD_CLASS']) {
+      const baseFallback = existing.formats?.[fmtKey] || INITIAL_PRICING_FORMATS[fmtKey];
+      nextFormats[fmtKey] = sanitizeFormatPricingRule(formats?.[fmtKey] || {}, baseFallback);
+    }
+
+    // Kiểm tra logic phân cấp 2D < 3D < IMAX để tránh cấu hình sai lệch ngược đời
+    const f2D = nextFormats['2D'];
+    const f3D = nextFormats['3D'];
+    const fImax = nextFormats.IMAX;
+    for (const dayKey of ['weekday', 'weekend']) {
+      for (const slotKey of ['before17', 'goldenHour', 'lateNight']) {
+        if (f3D[dayKey][slotKey] <= f2D[dayKey][slotKey]) {
+          return res.status(400).json({
+            message: `Giá vé 3D (${f3D[dayKey][slotKey].toLocaleString('vi-VN')}đ) phải cao hơn giá vé 2D (${f2D[dayKey][slotKey].toLocaleString('vi-VN')}đ) ở tất cả khung giờ!`,
+          });
+        }
+        if (fImax[dayKey][slotKey] <= f3D[dayKey][slotKey]) {
+          return res.status(400).json({
+            message: `Giá vé IMAX (${fImax[dayKey][slotKey].toLocaleString('vi-VN')}đ) phải cao hơn giá vé 3D (${f3D[dayKey][slotKey].toLocaleString('vi-VN')}đ) ở tất cả khung giờ!`,
+          });
+        }
+      }
+    }
+
+    const updated = await TicketPricingConfig.findOneAndUpdate(
+      { configKey: 'MAIN_PRICING_CONFIG' },
+      {
+        $set: {
+          formats: nextFormats,
+          holidaySurcharge:
+            holidaySurcharge !== undefined && Number(holidaySurcharge) >= 0
+              ? Math.round(Number(holidaySurcharge))
+              : existing.holidaySurcharge,
+          note: note !== undefined ? String(note).slice(0, 300) : existing.note,
+        },
+      },
+      { new: true, upsert: true }
+    ).lean();
+
+    const syncResult = await syncDatabaseWithPricingConfig(updated, {
+      updateFutureShowtimes: Boolean(applyToExistingShowtimes),
+    });
+
+    res.json({
+      success: true,
+      message: `Đã lưu bảng giá vé mới (đồng bộ ${syncResult.updatedRooms} phòng chiếu${applyToExistingShowtimes ? ` và ${syncResult.updatedShowtimes} suất chiếu sắp tới` : ''})!`,
+      config: updated,
+      syncResult,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi cập nhật bảng giá vé', error: error.message });
   }
 };

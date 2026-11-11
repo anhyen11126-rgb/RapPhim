@@ -2,11 +2,25 @@ import React, { useState, useEffect } from 'react';
 import SidebarAdmin from '../../components/admin/SidebarAdmin';
 import TopbarAdmin from '../../components/admin/TopbarAdmin';
 import api from '../../services/api';
+import {
+  getRoomPriceRange,
+  loadPricingConfig,
+  DEFAULT_PRICING_CONFIG,
+} from '../../utils/pricing';
 
 const ROOM_TYPES = ['IMAX Laser', 'Dolby Atmos', 'RealD 3D', '2D Tiêu chuẩn', '4DX Sound'];
 
+const computeFullRoomRangeLabel = (roomType, cfg) => {
+  const wd = getRoomPriceRange(roomType, false, cfg);
+  const we = getRoomPriceRange(roomType, true, cfg);
+  const minVal = Math.min(wd.min, we.min);
+  const maxVal = Math.max(wd.maxStandard, we.maxStandard);
+  return `${minVal.toLocaleString('vi-VN')}đ - ${maxVal.toLocaleString('vi-VN')}đ`;
+};
+
 const RoomManagePage = () => {
   const [rooms, setRooms] = useState([]);
+  const [pricingConfig, setPricingConfig] = useState(DEFAULT_PRICING_CONFIG);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
@@ -20,7 +34,7 @@ const RoomManagePage = () => {
     shortName: '',
     roomType: 'IMAX Laser',
     formatFeature: 'Màn chiếu chuẩn điện ảnh • Âm thanh vòm đa chiều',
-    priceRange: '45.000đ - 60.000đ',
+    priceRange: computeFullRoomRangeLabel('IMAX Laser', DEFAULT_PRICING_CONFIG),
     defaultSlots: '18:30 • 20:00 • 21:15 • 22:15',
     totalSeats: 88,
     status: 'ACTIVE',
@@ -33,7 +47,11 @@ const RoomManagePage = () => {
   const fetchRooms = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/admin/rooms');
+      const [res, cfg] = await Promise.all([
+        api.get('/admin/rooms'),
+        loadPricingConfig(true),
+      ]);
+      if (cfg) setPricingConfig(cfg);
       setRooms(res.data || []);
     } catch (err) {
       console.error('Lỗi khi tải danh sách phòng chiếu:', err);
@@ -45,23 +63,18 @@ const RoomManagePage = () => {
   const handleOpenModal = (room = null) => {
     if (room) {
       setEditingRoom(room);
+      const rType = room.roomType || 'IMAX Laser';
       setFormData({
         name: room.name || '',
         shortName: room.shortName || '',
-        roomType: room.roomType || 'IMAX Laser',
+        roomType: rType,
         formatFeature: room.formatFeature || '',
-        priceRange:
-          room.priceRange ||
-          (room.roomType === 'IMAX Laser'
-            ? '140.000đ - 170.000đ'
-            : room.roomType === 'RealD 3D'
-            ? '45.000đ - 60.000đ'
-            : '45.000đ - 65.000đ'),
+        priceRange: room.priceRange || computeFullRoomRangeLabel(rType, pricingConfig),
         defaultSlots:
           room.defaultSlots ||
-          (room.roomType === 'IMAX Laser'
+          (rType === 'IMAX Laser'
             ? '17:30 • 19:15 • 20:45 • 22:30'
-            : room.roomType === 'RealD 3D'
+            : rType === 'RealD 3D'
             ? '18:30 • 20:00 • 21:15 • 22:15'
             : '18:00 • 19:45 • 21:15 • 23:00'),
         totalSeats: room.totalSeats || 88,
@@ -75,7 +88,7 @@ const RoomManagePage = () => {
         shortName: `Phòng ${nextNum} (3D)`,
         roomType: 'RealD 3D',
         formatFeature: '3D Phụ Đề • RealD 3D High Frame Rate • Kính 3D siêu nhẹ',
-        priceRange: '45.000đ - 60.000đ',
+        priceRange: computeFullRoomRangeLabel('RealD 3D', pricingConfig),
         defaultSlots: '18:30 • 20:00 • 21:15 • 22:15',
         totalSeats: 88,
         status: 'ACTIVE',
@@ -359,7 +372,14 @@ const RoomManagePage = () => {
                       <label className="block text-slate-300 font-semibold mb-1">Công nghệ phòng chiếu *</label>
                       <select
                         value={formData.roomType}
-                        onChange={(e) => setFormData({ ...formData, roomType: e.target.value })}
+                        onChange={(e) => {
+                          const nextType = e.target.value;
+                          setFormData({
+                            ...formData,
+                            roomType: nextType,
+                            priceRange: computeFullRoomRangeLabel(nextType, pricingConfig),
+                          });
+                        }}
                         className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500"
                       >
                         {ROOM_TYPES.map((t) => (

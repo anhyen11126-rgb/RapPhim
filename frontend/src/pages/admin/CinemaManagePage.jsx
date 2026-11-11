@@ -22,7 +22,7 @@ const CinemaManagePage = () => {
     roomCount: 7,
     isFlagship: false,
     specialBadge: '',
-    image: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&auto=format&fit=crop',
+    image: '/images/cinemas/davenor-flagship-cinema.jpg',
     tags: ['Dolby Atmos', 'IMAX Laser'],
   });
 
@@ -55,7 +55,7 @@ const CinemaManagePage = () => {
         roomCount: cinema.roomCount || 7,
         isFlagship: !!cinema.isFlagship,
         specialBadge: cinema.specialBadge || '',
-        image: cinema.image || '',
+        image: cinema.image || '/images/cinemas/davenor-flagship-cinema.jpg',
         tags: cinema.tags || ['Dolby Atmos'],
       });
     } else {
@@ -70,7 +70,7 @@ const CinemaManagePage = () => {
         roomCount: 7,
         isFlagship: false,
         specialBadge: '',
-        image: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&auto=format&fit=crop',
+        image: '/images/cinemas/davenor-flagship-cinema.jpg',
         tags: ['Dolby Atmos', 'IMAX Laser'],
       });
     }

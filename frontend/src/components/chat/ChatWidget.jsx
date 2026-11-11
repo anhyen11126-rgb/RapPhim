@@ -2,6 +2,27 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 
+const getStoredUser = () => {
+  try {
+    const raw =
+      localStorage.getItem('user') ||
+      sessionStorage.getItem('user') ||
+      localStorage.getItem('adminUser') ||
+      '{}';
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+};
+
+const DEFAULT_WELCOME_TEMPLATE =
+  "Xin chào **{name}**! Tôi là trợ lý ảo D'AVENOR CINEMA tại Đà Nẵng. Tôi có thể giúp bạn tìm phim bom tấn, tra cứu lịch chiếu 2D / RealD 3D / IMAX, báo giá vé ưu đãi 45.000đ – 50.000đ hoặc gợi ý combo bắp nước & mã voucher giảm giá! 🍿 ✨";
+
+const formatWelcomeMessage = (template, user) => {
+  const displayName = user?.name ? user.name.trim() : 'bạn';
+  return String(template || DEFAULT_WELCOME_TEMPLATE).replace(/\{name\}/gi, displayName);
+};
+
 const ChatWidget = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -9,14 +30,40 @@ const ChatWidget = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser());
 
-  // Lịch sử tin nhắn khởi tạo chuẩn theo ảnh mẫu
-  const [messages, setMessages] = useState([
+  const [botConfig, setBotConfig] = useState({
+    botName: "Trợ lý AI D'AVENOR",
+    botVersion: 'Concierge v3.0',
+    welcomeMessage: DEFAULT_WELCOME_TEMPLATE,
+    isEnabled: true,
+    quickChips: [
+      {
+        label: '🎬 Top phim tuần này',
+        query: "Cho tôi xem top phim bom tấn hay nhất đang chiếu tại D'AVENOR CINEMA",
+      },
+      {
+        label: '👓 Suất chiếu 3D (45k-50k)',
+        query: 'Hôm nay phòng chiếu 3D (Rạp 05) có những suất chiếu nào lúc 21h-22h và giá vé bao nhiêu?',
+      },
+      {
+        label: '🎟️ Giá vé & IMAX tối nay',
+        query: 'Tối nay sau 19h có suất chiếu IMAX nào đẹp và giá vé các hạng ghế là bao nhiêu?',
+      },
+      {
+        label: '🍿 Combo bắp nước & Ưu đãi',
+        query: 'Cho mình xem bảng giá Combo bắp nước và các mã Voucher khuyến mãi đang áp dụng nhé!',
+      },
+    ],
+  });
+
+  // Lịch sử tin nhắn khởi tạo đồng bộ theo cấu hình DB & tên tài khoản đăng nhập
+  const [messages, setMessages] = useState(() => [
     {
       id: 1,
       sender: 'bot',
-      time: '18:42',
-      text: 'Xin chào **An**! Tôi là trợ lý ảo D\'AVENOR CINEMA. Tôi có thể giúp bạn tìm phim hay theo sở thích, tra cứu suất chiếu rạp gần nhất, kiểm tra ghế VIP trống hoặc gợi ý combo bắp nước giá tốt! 🍿 ✨',
+      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      text: formatWelcomeMessage(DEFAULT_WELCOME_TEMPLATE, getStoredUser()),
     },
   ]);
 
@@ -33,19 +80,73 @@ const ChatWidget = () => {
     }
   };
 
+  // Tải cấu hình Chatbot từ Database và lắng nghe sự kiện đăng nhập/đăng xuất
+  useEffect(() => {
+    let mounted = true;
+    const loadAiConfig = async () => {
+      try {
+        const res = await api.get('/ai/config');
+        if (mounted && res.data) {
+          setBotConfig((prev) => ({
+            ...prev,
+            ...res.data,
+            quickChips:
+              Array.isArray(res.data.quickChips) && res.data.quickChips.length > 0
+                ? res.data.quickChips
+                : prev.quickChips,
+          }));
+          const userNow = getStoredUser();
+          setMessages((prev) => {
+            if (prev.length === 1 && prev[0].id === 1) {
+              return [
+                {
+                  ...prev[0],
+                  text: formatWelcomeMessage(res.data.welcomeMessage, userNow),
+                },
+              ];
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // Giữ cấu hình mặc định nếu chưa kết nối
+      }
+    };
+
+    loadAiConfig();
+
+    const handleAuthSync = () => {
+      const updatedUser = getStoredUser();
+      setCurrentUser(updatedUser);
+      setMessages((prev) => {
+        if (prev.length === 1) {
+          return [
+            {
+              ...prev[0],
+              text: formatWelcomeMessage(botConfig.welcomeMessage, updatedUser),
+            },
+          ];
+        }
+        return prev;
+      });
+    };
+
+    window.addEventListener('authChange', handleAuthSync);
+    window.addEventListener('storage', handleAuthSync);
+    return () => {
+      mounted = false;
+      window.removeEventListener('authChange', handleAuthSync);
+      window.removeEventListener('storage', handleAuthSync);
+    };
+  }, [botConfig.welcomeMessage]);
+
   useEffect(() => {
     if (isOpen && !isMinimized) {
       scrollToBottom();
     }
   }, [messages, isOpen, isMinimized]);
 
-  // Các gợi ý nhanh dạng viên thuốc
-  const quickChips = [
-    { label: '🎬 Top phim tuần này', query: 'Cho tôi xem top phim bom tấn hay nhất tuần này tại D\'AVENOR CINEMA' },
-    { label: '🎟️ Giá vé IMAX tối nay', query: 'Tối nay khoảng sau 19h ở rạp D\'AVENOR còn phim nào bom tấn xem IMAX được không bạn? Tư vấn ghế đẹp giúp mình luôn nhé!' },
-    { label: '🍿 Combo bắp nước giá tốt', query: 'Có combo bắp nước nào ngon và giá tiết kiệm nhất hiện nay không?' },
-    { label: '📍 Suất chiếu sau 19h', query: 'Các suất chiếu sau 19h tối nay tại rạp D\'AVENOR Vincom Ngô Quyền' },
-  ];
+  const quickChips = botConfig.quickChips;
 
   const handleSend = async (e, customText = null) => {
     if (e) e.preventDefault();
@@ -67,8 +168,11 @@ const ChatWidget = () => {
     setLoading(true);
 
     try {
+      const activeUser = getStoredUser();
       const res = await api.post('/ai/chat', {
         message: textToSend,
+        userName: activeUser?.name || 'Khách vãng lai',
+        userEmail: activeUser?.email || '',
         history: messages.slice(-4).map((m) => ({
           role: m.sender === 'user' ? 'user' : 'model',
           text: m.text,
@@ -77,6 +181,11 @@ const ChatWidget = () => {
 
       const botReply = res.data.reply || 'Tôi đã tiếp nhận yêu cầu của bạn.';
       const movieCard = res.data.movieCard || null;
+      const movieCards = Array.isArray(res.data.movieCards)
+        ? res.data.movieCards
+        : movieCard
+          ? [movieCard]
+          : [];
 
       setMessages((prev) => [
         ...prev,
@@ -86,25 +195,13 @@ const ChatWidget = () => {
           time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
           text: botReply,
           movieCard: movieCard,
+          movieCards: movieCards,
         },
       ]);
     } catch (err) {
       console.error('Lỗi gọi AI Chatbot:', err);
-      // Fallback cục bộ thông minh nếu API server tạm bận
-      let fallbackText = 'Rất tiếc, đã có lỗi kết nối đến Trợ lý AI. Vui lòng thử lại sau ít phút!';
-      let fallbackCard = null;
-
-      if (textToSend.toLowerCase().includes('imax') || textToSend.toLowerCase().includes('19h') || textToSend.toLowerCase().includes('ghế')) {
-        fallbackText = `✨ **Gợi ý hoàn hảo nhất tối nay:**\n\nSuất chiếu lý tưởng nhất cho bạn là **Dune: Hành Tinh Cát 2 (Dune: Part Two)** lúc **19:15** tại **Phòng chiếu IMAX Laser 03, D'AVENOR Landmark**!\n\n💺 **Tư vấn ghế VIP:** Dãy ghế hàng F (F6, F7) ở vị trí trung tâm, tầm nhìn thẳng góc 135° và trọn vẹn trường nhìn siêu rộng của màn hình IMAX 22m x 12m với âm thanh vòm Dolby Atmos 128 kênh sống động.`;
-        fallbackCard = {
-          title: 'Dune: Part Two',
-          rating: '8.9',
-          poster: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop',
-          showtimeId: 1,
-          time: '19:15',
-          room: 'Phòng IMAX 03',
-        };
-      }
+      const fallbackText =
+        'Rất tiếc, hiện tại kết nối đến Trợ lý AI đang gián đoạn tạm thời. Bạn vui lòng thử lại sau giây lát hoặc tra cứu trực tiếp tại mục Lịch chiếu trên website nhé!';
 
       setMessages((prev) => [
         ...prev,
@@ -113,7 +210,7 @@ const ChatWidget = () => {
           sender: 'bot',
           time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
           text: fallbackText,
-          movieCard: fallbackCard,
+          movieCard: null,
         },
       ]);
     } finally {
@@ -128,7 +225,7 @@ const ChatWidget = () => {
   // Giả lập hoặc kích hoạt nhận diện giọng nói Speech-to-Text
   const handleToggleVoice = () => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      setInput('Tối nay khoảng sau 19h ở rạp D\'AVENOR CINEMA còn phim nào bom tấn xem IMAX được không bạn?');
+      setInput('Hôm nay phòng chiếu 3D (Rạp 05) có những suất chiếu nào lúc 21h-22h và giá vé bao nhiêu?');
       return;
     }
 
@@ -150,7 +247,7 @@ const ChatWidget = () => {
         recognition.start();
       }
     } catch {
-      setInput('Tối nay khoảng sau 19h ở rạp D\'AVENOR CINEMA còn phim nào bom tấn xem IMAX được không bạn?');
+      setInput('Hôm nay phòng chiếu 3D (Rạp 05) có những suất chiếu nào lúc 21h-22h và giá vé bao nhiêu?');
     }
   };
 
@@ -160,14 +257,14 @@ const ChatWidget = () => {
       {
         id: Date.now(),
         sender: 'bot',
-        time: '18:42',
-        text: 'Xin chào **An**! Tôi là trợ lý ảo D\'AVENOR CINEMA. Tôi có thể giúp bạn tìm phim hay theo sở thích, tra cứu suất chiếu rạp gần nhất, kiểm tra ghế VIP trống hoặc gợi ý combo bắp nước giá tốt! 🍿 ✨',
+        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        text: formatWelcomeMessage(botConfig.welcomeMessage, currentUser),
       },
     ]);
   };
 
   // Format Text có Bold và Markdown Link
-  const renderMessageContent = (text) => {
+  const renderMessageContent = (text, hasCards = false) => {
     // Tách các đoạn link markdown [Tên Link](URL)
     const linkRegex = /\[(.*?)\]\((.*?)\)/g;
     const parts = [];
@@ -178,8 +275,8 @@ const ChatWidget = () => {
       if (match.index > lastIndex) {
         parts.push(text.substring(lastIndex, match.index));
       }
-      const label = match[1];
-      const url = match[2];
+      const cleanLabel = match[1].replace(/\*\*/g, '').trim();
+      const url = match[2].trim();
 
       parts.push(
         <button
@@ -189,10 +286,14 @@ const ChatWidget = () => {
             navigate(url);
             setIsOpen(false);
           }}
-          className="inline-flex items-center gap-1.5 my-1.5 px-3 py-1.5 bg-[#2563eb] hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all hover:scale-102 cursor-pointer border border-blue-400/40"
+          className={
+            hasCards
+              ? 'inline-flex items-center gap-1 mx-0.5 my-0.5 px-2 py-0.5 bg-blue-500/15 hover:bg-blue-500/30 text-blue-300 hover:text-white font-bold text-[11px] rounded-md border border-blue-500/35 transition-colors cursor-pointer'
+              : 'inline-flex items-center gap-1.5 my-1.5 px-3 py-1.5 bg-[#2563eb] hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all hover:scale-102 cursor-pointer border border-blue-400/40'
+          }
         >
-          <span>{label}</span>
-          <span>➔</span>
+          <span>{cleanLabel}</span>
+          {!cleanLabel.includes('➔') && <span>➔</span>}
         </button>
       );
       lastIndex = linkRegex.lastIndex;
@@ -278,15 +379,15 @@ const ChatWidget = () => {
               <div>
                 <div className="flex items-center space-x-1.5">
                   <h4 className="font-extrabold text-sm text-white tracking-wide">
-                    Trợ lý AI D'AVENOR
+                    {botConfig.botName || "Trợ lý AI D'AVENOR"}
                   </h4>
                   <span className="text-[10px] font-bold text-blue-400 bg-blue-500/15 border border-blue-500/30 px-1.5 py-0.2 rounded">
-                    Concierge v2.4
+                    {botConfig.botVersion || 'Concierge v3.0'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 flex items-center space-x-1 mt-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
-                  <span>Trực tuyến • Hỗ trợ 24/7</span>
+                  <span>Trực tuyến • Đồng bộ Database Đà Nẵng</span>
                 </p>
               </div>
             </div>
@@ -357,70 +458,178 @@ const ChatWidget = () => {
                     )}
 
                     {/* Khối bong bóng chat */}
-                    <div className="max-w-[82%]">
-                      <div
-                        className={`p-3.5 shadow-md ${msg.sender === 'user'
-                            ? 'bg-[#2563eb] text-white rounded-2xl rounded-tr-xs shadow-blue-900/30 font-medium'
-                            : 'bg-[#131b2c] border border-slate-800/90 text-slate-200 rounded-2xl rounded-tl-xs'
-                          }`}
-                      >
-                        {/* Header huy hiệu gợi ý xanh lá nếu là gợi ý phim */}
-                        {msg.movieCard && (
-                          <div className="flex items-center space-x-1.5 text-emerald-400 font-extrabold text-xs mb-2">
-                            <span>✔</span>
-                            <span>Gợi ý hoàn hảo nhất tối nay</span>
-                          </div>
-                        )}
+                    {(() => {
+                      const cardsToRender =
+                        Array.isArray(msg.movieCards) && msg.movieCards.length > 0
+                          ? msg.movieCards
+                          : msg.movieCard && msg.movieCard.showtimeId
+                            ? [msg.movieCard]
+                            : [];
+                      const hasCards = cardsToRender.length > 0;
 
-                        {renderMessageContent(msg.text)}
-
-                        {/* Thẻ phim thu nhỏ Rich Card nếu có gợi ý cụ thể */}
-                        {msg.movieCard && (
+                      return (
+                        <div className="max-w-[85%]">
                           <div
-                            onClick={() => {
-                              navigate(`/booking/seat/${msg.movieCard.showtimeId}`);
-                              setIsOpen(false);
-                            }}
-                            className="bg-[#0c1220] border border-slate-700/80 hover:border-blue-500/60 rounded-xl p-2.5 flex items-center justify-between gap-3 mt-3 cursor-pointer group transition-all"
+                            className={`p-3.5 shadow-md ${msg.sender === 'user'
+                                ? 'bg-[#2563eb] text-white rounded-2xl rounded-tr-xs shadow-blue-900/30 font-medium'
+                                : 'bg-[#131b2c] border border-slate-800/90 text-slate-200 rounded-2xl rounded-tl-xs'
+                              }`}
                           >
-                            <div className="flex items-center space-x-2.5">
-                              <img
-                                src={msg.movieCard.poster}
-                                alt={msg.movieCard.title}
-                                className="w-10 h-14 rounded-lg object-cover border border-slate-700 shrink-0"
-                              />
-                              <div>
-                                <span className="font-extrabold text-white text-xs block group-hover:text-blue-400 transition-colors">
-                                  {msg.movieCard.title}
+                            {/* Header huy hiệu gợi ý xanh lá phù hợp ngữ cảnh */}
+                            {hasCards && (
+                              <div className="flex items-center space-x-1.5 text-emerald-400 font-extrabold text-xs mb-2">
+                                <span>{cardsToRender.length > 1 ? '🎬' : '✔'}</span>
+                                <span>
+                                  {cardsToRender.length > 1
+                                    ? 'Chọn phim hoặc bấm giờ chiếu để đặt vé'
+                                    : 'Suất chiếu phù hợp từ hệ thống'}
                                 </span>
-                                <span className="text-[10px] text-slate-400 block mt-0.5">
-                                  {msg.movieCard.time} • {msg.movieCard.room}
-                                </span>
-                                <div className="inline-flex items-center space-x-1 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 rounded text-[10px] text-amber-400 font-bold mt-1">
-                                  <span>★</span>
-                                  <span>{msg.movieCard.rating}</span>
-                                </div>
                               </div>
-                            </div>
+                            )}
 
-                            <div className="shrink-0 bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-lg text-xs font-bold shadow transition-transform group-hover:scale-105">
-                              ➔
-                            </div>
+                            {renderMessageContent(msg.text, hasCards)}
+
+                            {/* Danh sách Thẻ Phim Tương Tác cho TẤT CẢ phim tìm được */}
+                            {hasCards && (
+                              <div className="space-y-2 mt-3">
+                                {cardsToRender.map((card, cIdx) => {
+                                  const slots =
+                                    Array.isArray(card.showtimes) && card.showtimes.length > 0
+                                      ? card.showtimes
+                                      : card.showtimeId
+                                        ? [
+                                            {
+                                              showtimeId: card.showtimeId,
+                                              time: card.time,
+                                              room: card.room,
+                                              format: card.format || '',
+                                              price: card.price || '',
+                                              availableSeats: card.availableSeats,
+                                            },
+                                          ]
+                                        : [];
+
+                                  return (
+                                    <div
+                                      key={`${card.movieId || card.title}-${cIdx}`}
+                                      className="bg-[#0c1220] border border-slate-700/80 hover:border-blue-500/60 rounded-xl p-2.5 transition-all"
+                                    >
+                                      <div className="flex items-center justify-between gap-2.5">
+                                        <div
+                                          onClick={() => {
+                                            const targetUrl = card.movieId
+                                              ? `/movie/${card.movieId}`
+                                              : card.showtimeId
+                                                ? `/booking/seat/${card.showtimeId}`
+                                                : null;
+                                            if (targetUrl) {
+                                              navigate(targetUrl);
+                                              setIsOpen(false);
+                                            }
+                                          }}
+                                          className="flex items-center space-x-2.5 cursor-pointer group min-w-0 flex-1"
+                                          title="Xem chi tiết phim"
+                                        >
+                                          <img
+                                            src={card.poster}
+                                            alt={card.title}
+                                            className="w-10 h-14 rounded-lg object-cover border border-slate-700 shrink-0"
+                                          />
+                                          <div className="min-w-0 flex-1">
+                                            <span className="font-extrabold text-white text-xs block truncate group-hover:text-blue-400 transition-colors">
+                                              {card.title}
+                                            </span>
+                                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                              {card.ageRating && (
+                                                <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[9px] font-black text-slate-200">
+                                                  {card.ageRating}
+                                                </span>
+                                              )}
+                                              <div className="inline-flex items-center space-x-0.5 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 rounded text-[10px] text-amber-400 font-bold">
+                                                <span>★</span>
+                                                <span>{card.rating}</span>
+                                              </div>
+                                            </div>
+                                            {slots.length === 1 && (
+                                              <span className="text-[10px] text-slate-400 block truncate mt-1">
+                                                {slots[0].time} • {slots[0].room}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {card.movieId ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              navigate(`/movie/${card.movieId}`);
+                                              setIsOpen(false);
+                                            }}
+                                            className="shrink-0 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1.5 rounded-lg text-[10px] font-bold border border-slate-700 cursor-pointer transition-colors"
+                                            title="Xem chi tiết & tất cả suất chiếu của phim này"
+                                          >
+                                            Chi tiết
+                                          </button>
+                                        ) : (
+                                          card.showtimeId && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                navigate(`/booking/seat/${card.showtimeId}`);
+                                                setIsOpen(false);
+                                              }}
+                                              className="shrink-0 bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-lg text-xs font-bold shadow transition-transform hover:scale-105 cursor-pointer"
+                                            >
+                                              ➔
+                                            </button>
+                                          )
+                                        )}
+                                      </div>
+
+                                      {/* Các nút suất chiếu bấm đặt vé trực tiếp */}
+                                      {slots.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-slate-800/80">
+                                          {slots.map((slot) => (
+                                            <button
+                                              key={slot.showtimeId}
+                                              type="button"
+                                              onClick={() => {
+                                                navigate(`/booking/seat/${slot.showtimeId}`);
+                                                setIsOpen(false);
+                                              }}
+                                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold rounded-lg shadow-sm transition-all hover:scale-[1.02] cursor-pointer"
+                                              title={`Đặt vé ${card.title} lúc ${slot.time}`}
+                                            >
+                                              <span>
+                                                Đặt {slot.time}
+                                                {slot.format ? ` • ${slot.format}` : ''}
+                                                {slot.price ? ` • ${slot.price}` : ''}
+                                              </span>
+                                              <span>➔</span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
 
-                      {/* Thời gian & Trạng thái đã xem */}
-                      <div
-                        className={`flex items-center space-x-1 mt-1 text-[10px] text-slate-500 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'
-                          }`}
-                      >
-                        {msg.sender === 'user' && (
-                          <span className="text-blue-400 font-bold">✔✔</span>
-                        )}
-                        <span>{msg.time}</span>
-                      </div>
-                    </div>
+                          {/* Thời gian & Trạng thái đã xem */}
+                          <div
+                            className={`flex items-center space-x-1 mt-1 text-[10px] text-slate-500 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'
+                              }`}
+                          >
+                            {msg.sender === 'user' && (
+                              <span className="text-blue-400 font-bold">✔✔</span>
+                            )}
+                            <span>{msg.time}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Avatar user bên phải */}
                     {msg.sender === 'user' && (
@@ -451,7 +660,14 @@ const ChatWidget = () => {
               </div>
 
               {/* HÀNG CÁC NÚT GỢI Ý NHANH (QUICK SUGGESTION CHIPS) */}
-              <div className="px-3 py-2 bg-[#0c1220] border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
+              <div
+                onWheel={(e) => {
+                  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                    e.currentTarget.scrollLeft += e.deltaY;
+                  }
+                }}
+                className="px-3 pt-2 pb-2 bg-[#0c1220] border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto scrollbar-sleek-x scroll-smooth"
+              >
                 {quickChips.map((chip, idx) => (
                   <button
                     key={idx}

@@ -13,7 +13,7 @@ export const FALLBACK_CINEMAS = [
     reviewsCount: 2850,
     tags: ['IMAX Laser', 'Dolby Atmos', 'RealD 3D', '4DX Sound'],
     specialBadge: "Cụm rạp Flagship D'AVENOR Thanh Khê - Đà Nẵng",
-    image: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&auto=format&fit=crop',
+    image: '/images/cinemas/davenor-flagship-cinema.jpg',
     openingHours: '08:00 - 02:00 sáng',
     hotline: '1900 8899',
     parking: 'Hầm B1 & B2 TTTM Thanh Khê Plaza 24/7',

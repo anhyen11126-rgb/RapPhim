@@ -1,236 +1,405 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import Movie from '../models/Movie.js';
-import Showtime from '../models/Showtime.js';
-import ShowtimeSeat from '../models/ShowtimeSeat.js';
-import Concession from '../models/Concession.js';
+import mongoose from 'mongoose';
+import AiConfig from '../models/AiConfig.js';
+import AiChatLog from '../models/AiChatLog.js';
+import {
+  VN_TIMEZONE,
+  getVNDateParts,
+  createVNDate,
+  getVNDayBounds,
+  getRelativeDayLabel,
+  parseVietnameseDateFromText,
+  parseTimeFilterFromText,
+} from './ai/timezoneUtils.js';
+import {
+  formatVND,
+  detectShowtimeFormat,
+  getFormatDisplayLabel,
+  calculateShowtimePrices,
+  resolveDisplayPrice,
+  calculateTicketQuote,
+} from './ai/pricingService.js';
+import {
+  INTENTS,
+  MAX_USER_MESSAGE_LENGTH,
+  validateAndSanitizeInput,
+  detectPromptInjection,
+  matchMovieFromText,
+  extractEntities,
+  classifyIntent,
+  resolveMultiTurnContext,
+} from './ai/intentService.js';
+import { matchFaqRule } from './ai/faqService.js';
+import {
+  isSeatAvailableAt,
+  findContiguousAvailableSeats,
+  isValidShowtimeForBooking,
+  buildValidBookingLink,
+  isPromotionValid,
+  buildNormalizedCinemaContext,
+  fetchCinemaContextOptimized,
+} from './ai/cinemaContextService.js';
+import {
+  buildSafeMovieCard,
+  buildInteractiveMovieCards,
+  buildInteractiveCardsFromPairs,
+  filterShowtimesByEntities,
+  buildVerifiedDatabaseResponse,
+} from './ai/responseBuilder.js';
+import {
+  buildSelectivePromptContext,
+  buildSystemInstruction,
+  validateAndSanitizeAiReply,
+  callGeminiWithGuardrails,
+} from './ai/geminiService.js';
 
-// Khởi tạo Gemini Model nếu có API Key
-const getGeminiModel = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey.trim() === '') {
-    return null;
-  }
-  const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const DEFAULT_CONFIG_FALLBACK = {
+  botName: "Trợ lý AI D'AVENOR",
+  botVersion: 'Concierge v3.0',
+  isEnabled: true,
+  systemPromptNote: '',
+  faqs: [],
+  quickChips: [],
 };
 
-// Hàm truy xuất dữ liệu động từ Database (RAG Retrieval Step)
-export const getCinemaCurrentContext = async () => {
-  const now = new Date();
+/**
+ * Đảm bảo luôn có 1 bản ghi cấu hình AI mặc định trong Database
+ */
+export const ensureAiConfig = async () => {
+  if (mongoose.connection.readyState !== 1) {
+    return DEFAULT_CONFIG_FALLBACK;
+  }
+  try {
+    let config = await AiConfig.findOne({ configKey: 'MAIN_AI_CONFIG' });
+    if (!config) {
+      config = await AiConfig.create({ configKey: 'MAIN_AI_CONFIG' });
+    }
+    return config;
+  } catch (err) {
+    console.warn('[AiService] Không thể đọc AiConfig từ DB, dùng cấu hình mặc định:', err.message);
+    return DEFAULT_CONFIG_FALLBACK;
+  }
+};
 
-  // 1. Lấy danh sách phim đang chiếu kèm suất chiếu
-  const movies = await Movie.find({ status: 'NOW_SHOWING' }).lean();
+/**
+ * Lưu lịch sử chat vào Database để Admin theo dõi & huấn luyện (Non-blocking, an toàn tuyệt đối)
+ */
+const saveChatLogSafe = async ({
+  userName,
+  userEmail,
+  userMessage,
+  botReply,
+  intent,
+  source,
+  recommendedMovie,
+  skipLog = false,
+}) => {
+  if (skipLog || mongoose.connection.readyState !== 1) return;
+  try {
+    await AiChatLog.create({
+      userName: String(userName || 'Khách vãng lai').slice(0, 60),
+      userEmail: String(userEmail || '').slice(0, 100),
+      userMessage: String(userMessage || '').slice(0, MAX_USER_MESSAGE_LENGTH),
+      botReply: String(botReply || '').slice(0, 4000),
+      intent: String(intent || INTENTS.UNKNOWN),
+      source: String(source || 'DATABASE_RAG'),
+      recommendedMovie: String(recommendedMovie || '').slice(0, 150),
+    });
+  } catch (err) {
+    console.warn('[AiService] Không thể lưu AiChatLog:', err.message);
+  }
+};
 
-  const formattedMovies = await Promise.all(
-    movies.map(async (m) => {
-      const showtimes = await Showtime.find({ movieId: m._id }).sort({ startTime: 1 }).lean();
-      const showtimesWithSeats = await Promise.all(
-        showtimes.map(async (st) => {
-          const availableSeatsCount = await ShowtimeSeat.countDocuments({
-            showtimeId: st._id,
-            status: 'AVAILABLE',
-          });
-          return {
-            showtimeId: st._id.toString(),
-            room: st.roomName,
-            time: new Date(st.startTime).toLocaleTimeString('vi-VN', {
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            price: `${(st.price || 95000).toLocaleString('vi-VN')} đ`,
-            availableSeats: availableSeatsCount,
-          };
-        })
-      );
+/**
+ * Lấy toàn bộ ngữ cảnh thực tế từ MongoDB (Phim, Suất chiếu, Ghế trống, Combo, Khuyến mãi)
+ * - Đã loại bỏ hoàn toàn logic tự tạo suất chiếu 3D giả
+ * - Đã sửa lỗi `availableSeatsCount || 42`
+ * - Đã loại bỏ N+1 queries bằng batch query & aggregation
+ * - Đã lọc bỏ các suất chiếu đã qua (`startTime <= now`)
+ */
+export const getCinemaCurrentContext = async (options = {}) => {
+  return fetchCinemaContextOptimized(options);
+};
 
-      return {
-        id: m._id.toString(),
-        title: m.title,
-        genre: m.genre,
-        ageRating: m.ageRating,
-        duration: `${m.duration} phút`,
-        description: m.description,
-        showtimes: showtimesWithSeats,
-      };
-    })
+/**
+ * Xử lý hội thoại AI chính:
+ * Kết hợp Security Guard + Intent/Entity Detection + Multi-turn Context + Database Verification + Gemini AI
+ * Giữ nguyên cấu trúc API Response tương thích 100% với Frontend:
+ * `{ success, reply, intent, source, movieCard }`
+ */
+export const generateChatResponse = async (
+  userMessage,
+  history = [],
+  userInfo = { userName: 'Khách vãng lai', userEmail: '' },
+  options = {}
+) => {
+  const nowDate = options.nowDate instanceof Date ? options.nowDate : new Date();
+  const skipLog = Boolean(options.skipLog);
+
+  // 1. Validate & Sanitize dữ liệu đầu vào
+  const { cleanMessage, isTooLong, safeHistory, safeUserInfo } = validateAndSanitizeInput(
+    userMessage,
+    history,
+    userInfo
   );
 
-  // 2. Lấy bảng giá bắp nước
-  const concessions = await Concession.find({}).select('name price description').lean();
-
-  // 3. Quy định rạp & chính sách vé (Kho tri thức tĩnh)
-  const policies = [
-    'Địa chỉ rạp: Tầng 5, D\'AVENOR Landmark 81, TP.HCM & hệ thống cụm rạp D\'AVENOR CINEMA toàn quốc.',
-    'Quy định độ tuổi: P (Mọi độ tuổi), T13 (Từ 13 tuổi trở lên), T16 (Từ 16 tuổi trở lên), T18 (Từ 18 tuổi trở lên - cần xuất trình CCCD).',
-    'Chính sách vé: Vé đã mua không thể hoàn tiền nhưng có thể hỗ trợ đổi suất chiếu trước giờ chiếu ít nhất 60 phút tại quầy vé.',
-    'Quy định rạp: Không mang thức ăn/thức uống có mùi nặng từ ngoài vào; vui lòng giữ trật tự và chuyển điện thoại sang chế độ rung.',
-  ];
-
-  return {
-    updatedAt: now.toLocaleString('vi-VN'),
-    movies: formattedMovies,
-    concessions: concessions.map((c) => `${c.name}: ${c.price.toLocaleString('vi-VN')} đ (${c.description || ''})`),
-    policies,
-  };
-};
-
-// Hàm xử lý Chatbot RAG
-export const generateChatResponse = async (userMessage, history = []) => {
-  const model = getGeminiModel();
-
-  // Lấy ngữ cảnh động từ DB (Retrieval)
-  const context = await getCinemaCurrentContext();
-
-  // Nếu chưa cấu hình API Key, sử dụng cơ chế phản hồi thông minh nội bộ dựa trên DB (Fallback)
-  if (!model) {
-    return generateLocalFallbackResponse(userMessage, context);
+  if (!cleanMessage) {
+    return {
+      success: true,
+      reply: 'Bạn vui lòng nhập nội dung câu hỏi để mình có thể hỗ trợ tra cứu lịch chiếu, giá vé hoặc ghế trống nhé!',
+      intent: INTENTS.UNKNOWN,
+      source: 'INPUT_VALIDATION',
+      movieCard: null,
+      movieCards: [],
+    };
   }
 
-  // Tăng cường ngữ cảnh (Augmentation)
-  const systemInstruction = `
-Bạn là "D'AVENOR AI" - Trợ lý ảo tư vấn rạp chiếu phim chuyên nghiệp, thân thiện và nhiệt tình của hệ thống D'AVENOR CINEMA.
-Dưới đây là DỮ LIỆU THỰC TẾ TRONG HỆ THỐNG RẠP NGAY LÚC NÀY:
-----------------------------
-CẬP NHẬT LÚC: ${context.updatedAt}
+  // 2. Chặn tấn công Prompt Injection ngay từ đầu
+  if (detectPromptInjection(cleanMessage)) {
+    const safeRefusal =
+      "Xin lỗi bạn, tôi chỉ có thể hỗ trợ tư vấn phim, lịch chiếu, giá vé, ghế trống, combo bắp nước và khuyến mãi hợp lệ theo đúng dữ liệu của **D'AVENOR CINEMA**. Tôi không thể bỏ qua quy tắc hệ thống, tiết lộ cấu hình nội bộ hoặc tạo dữ liệu giao dịch giả.";
 
-1. DANH SÁCH PHIM ĐANG CHIẾU & LỊCH CHIẾU HÔM NAY:
-${JSON.stringify(context.movies, null, 2)}
-
-2. MENU BẮP NƯỚC:
-${context.concessions.join('\n')}
-
-3. ĐỊA CHỈ & QUY ĐỊNH RẠP:
-${context.policies.join('\n')}
-----------------------------
-
-QUY TẮC PHẢN HỒI BẮT BUỘC:
-1. CHỈ sử dụng dữ liệu được cung cấp ở trên. Tuyệt đối KHÔNG tự sáng tác ra phim, giá vé hay giờ chiếu không có trong danh sách.
-2. Trả lời bằng tiếng Việt thân thiện, tự nhiên, ngắn gọn và có cấu trúc rõ ràng (sử dụng bullet point, emoji 🎬, 🕒, 🍿 nếu phù hợp).
-3. SMART DEEP-LINK: Bất cứ khi nào bạn nhắc đến một suất chiếu, hãy tạo đường link đặt vé theo định dạng chuẩn markdown:
-   [👉 Đặt vé ngay suất {Giờ}](/booking/seat/{showtimeId})
-   Ví dụ: "Suất 19:30 (Phòng 01 - IMAX Laser) giá 110.000đ: [👉 Đặt vé ngay suất 19:30](/booking/seat/1)"
-4. Khi khách hỏi phim cho trẻ em hoặc gia đình, hãy xem nhãn độ tuổi (P) và thể loại (Hoạt hình, Gia đình) để gợi ý.
-5. Nếu khách hỏi về phim không có trong rạp, hãy lịch sự thông báo hiện rạp chưa chiếu và gợi ý các phim đang chiếu có cùng thể loại.
-`;
-
-  try {
-    // Định dạng lịch sử trò chuyện cho Gemini
-    const chat = model.startChat({
-      history: [
-        {
-          role: 'user',
-          parts: [{ text: systemInstruction }],
-        },
-        {
-          role: 'model',
-          parts: [{ text: "Xin chào! Tôi là Trợ lý AI D'AVENOR. Tôi đã nắm rõ toàn bộ lịch chiếu, giá vé, số ghế trống và quy định rạp hôm nay. Tôi sẵn sàng hỗ trợ bạn!" }],
-        },
-      ],
+    await saveChatLogSafe({
+      userName: safeUserInfo.userName,
+      userEmail: safeUserInfo.userEmail,
+      userMessage: cleanMessage,
+      botReply: safeRefusal,
+      intent: INTENTS.UNKNOWN,
+      source: 'SECURITY_GUARD',
+      recommendedMovie: '',
+      skipLog,
     });
 
-    const result = await chat.sendMessage(userMessage);
-    const responseText = result.response.text();
-
     return {
       success: true,
-      reply: responseText,
-      source: 'GEMINI_RAG',
-    };
-  } catch (error) {
-    console.error('Lỗi khi gọi Gemini API:', error.message);
-    // Nếu có lỗi API (quota, network), tự động fallback về engine xử lý nội bộ
-    return generateLocalFallbackResponse(userMessage, context);
-  }
-};
-
-// Bộ phân tích quy tắc dự phòng khi chưa cấu hình Gemini API Key
-function generateLocalFallbackResponse(query, context) {
-  const lower = query.toLowerCase();
-
-  // 1. Khách hỏi về bắp nước
-  if (lower.includes('bắp') || lower.includes('nước') || lower.includes('combo') || lower.includes('ăn')) {
-    const list = context.concessions.map((c) => `• ${c}`).join('\n');
-    return {
-      success: true,
-      reply: `🍿 **Bảng giá Bắp Nước tại rạp D'AVENOR CINEMA:**\n${list}\n\nBạn có thể chọn bắp nước ngay tại bước Thanh toán vé nhé!`,
-      source: 'LOCAL_RULE_ENGINE',
+      reply: safeRefusal,
+      intent: INTENTS.UNKNOWN,
+      source: 'SECURITY_GUARD',
+      movieCard: null,
+      movieCards: [],
     };
   }
 
-  // 2. Khách hỏi phim cho trẻ em / hoạt hình
-  if (lower.includes('trẻ em') || lower.includes('con nít') || lower.includes('hoạt hình') || lower.includes('gia đình')) {
-    const kidsMovie = context.movies.find((m) => m.ageRating === 'P' || m.genre.includes('Hoạt hình'));
-    if (kidsMovie) {
-      const showtimesText = kidsMovie.showtimes
-        .map((st) => `• ${st.time} (${st.room}) - ${st.price}: [👉 Đặt vé ngay](/booking/seat/${st.showtimeId})`)
-        .join('\n');
-      return {
-        success: true,
-        reply: `🎬 Phim phù hợp nhất cho trẻ em và gia đình hiện nay là **${kidsMovie.title}** (Nhãn P - Dành cho mọi lứa tuổi).\n\n**Lịch chiếu hôm nay:**\n${showtimesText}`,
-        source: 'LOCAL_RULE_ENGINE',
-      };
-    }
-  }
+  // 3. Tải cấu hình Chatbot từ Database (hoặc mockConfig trong test)
+  const botConfig = options.mockConfig || (await ensureAiConfig());
 
-  // 3. Khách hỏi về phim IMAX, Dune, bom tấn, hoặc suất chiếu tối sau 19h
-  if (lower.includes('imax') || lower.includes('dune') || lower.includes('bom tấn') || (lower.includes('19h') && lower.includes('phim'))) {
-    const duneMovie = context.movies.find((m) => m.title.toLowerCase().includes('dune')) || context.movies[0];
-    const imaxShowtime = duneMovie?.showtimes.find((st) => st.room.toLowerCase().includes('imax') || st.time.includes('19')) || duneMovie?.showtimes[0];
-
+  if (botConfig && botConfig.isEnabled === false) {
+    const maintenanceReply =
+      "Hiện tại Trợ lý AI D'AVENOR đang tạm bảo trì để nâng cấp dữ liệu lịch chiếu. Bạn vui lòng đặt vé trực tiếp tại trang chủ hoặc liên hệ Hotline **1900 6868** nhé!";
     return {
       success: true,
-      reply: `✨ **Gợi ý hoàn hảo nhất tối nay:**\n\nSuất chiếu lý tưởng nhất cho bạn là **${duneMovie?.title || 'Dune: Hành Tinh Cát 2'}** lúc **${imaxShowtime?.time || '19:15'}** tại **${imaxShowtime?.room || 'Phòng chiếu IMAX Laser 03, D\'AVENOR Landmark 81'}**!\n\n💺 **Tư vấn ghế VIP:** Dãy ghế hàng F (F6, F7) ở vị trí trung tâm, tầm nhìn thẳng góc 135° và trọn vẹn trường nhìn siêu rộng của màn hình IMAX 22m x 12m với âm thanh vòm Dolby Atmos 128 kênh sống động.\n\n[👉 Đặt vé ngay suất ${imaxShowtime?.time || '19:15'} - Ghế VIP F6, F7](/booking/seat/${imaxShowtime?.showtimeId || 1})`,
-      movieCard: {
-        title: duneMovie?.title || 'Dune: Part Two',
-        rating: '8.9',
-        poster: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop',
-        showtimeId: imaxShowtime?.showtimeId || 1,
-        time: imaxShowtime?.time || '19:15',
-        room: imaxShowtime?.room || 'Phòng IMAX 03',
-      },
-      source: 'LOCAL_RULE_ENGINE',
+      reply: maintenanceReply,
+      intent: 'MAINTENANCE',
+      source: 'SYSTEM_CONFIG',
+      movieCard: null,
+      movieCards: [],
     };
   }
 
-  // 4. Khách hỏi về phim hành động hoặc sau 19h nói chung
-  if (lower.includes('hành động') || lower.includes('19h') || lower.includes('tối')) {
-    const actionMovies = context.movies.filter((m) => m.genre.includes('Hành động'));
-    if (actionMovies.length > 0) {
-      let reply = `🎬 **Các phim hành động đang có suất chiếu buổi tối tại rạp:**\n\n`;
-      actionMovies.forEach((m) => {
-        reply += `**${m.title}** (${m.ageRating} - ${m.duration}):\n`;
-        m.showtimes.forEach((st) => {
-          reply += `• Suất ${st.time} (${st.room}) - Giá ${st.price} (Còn ${st.availableSeats} ghế trống): [👉 Đặt vé](/booking/seat/${st.showtimeId})\n`;
-        });
-        reply += `\n`;
-      });
-      return {
-        success: true,
-        reply: reply.trim(),
-        source: 'LOCAL_RULE_ENGINE',
-      };
-    }
+  // 4. Lấy ngữ cảnh dữ liệu rạp chiếu thực tế
+  const needsDetailedSeats =
+    /\b(liền\s+nhau|cạnh\s+nhau|sát\s+nhau|ghế\s+trống|còn\s+ghế|còn\s+\d+\s+ghế|sơ\s+đồ\s+ghế)\b/i.test(
+      cleanMessage
+    );
+
+  let contextData;
+  if (options.mockContext) {
+    contextData = options.mockContext.nowIso
+      ? options.mockContext
+      : buildNormalizedCinemaContext({ ...options.mockContext, nowDate });
+  } else {
+    contextData = await fetchCinemaContextOptimized({
+      nowDate,
+      includeSeatDetails: needsDetailedSeats,
+    });
   }
 
-  // 4. Mặc định: Giới thiệu toàn bộ phim đang chiếu kèm suất chiếu
-  let defaultReply = `Chào bạn! Hôm nay tại **D'AVENOR CINEMA** đang có các bộ phim chiếu rạp hấp dẫn sau:\n\n`;
-  context.movies.forEach((m) => {
-    defaultReply += `🎬 **${m.title}** (${m.ageRating} • ${m.duration} • ${m.genre})\n`;
-    if (m.showtimes.length > 0) {
-      m.showtimes.forEach((st) => {
-        defaultReply += `   ↳ 🕒 ${st.time} (${st.room}) - ${st.price}: [👉 Đặt vé](/booking/seat/${st.showtimeId})\n`;
-      });
-    } else {
-      defaultReply += `   ↳ *Chưa có suất chiếu hôm nay*\n`;
-    }
-    defaultReply += `\n`;
+  // 5. Nhận diện Intent + Trích xuất Entities + Giải quyết ngữ cảnh nhiều lượt (Multi-turn)
+  const rawEntities = extractEntities(
+    cleanMessage,
+    contextData.movies,
+    contextData.cinemas,
+    nowDate
+  );
+  const rawIntent = classifyIntent(cleanMessage, rawEntities);
+  const { intent, entities } = resolveMultiTurnContext(
+    cleanMessage,
+    rawIntent,
+    rawEntities,
+    safeHistory,
+    contextData.movies,
+    nowDate
+  );
+
+  // 6. Kiểm tra FAQ do Admin huấn luyện (chỉ khớp khi độ tin cậy cao và không đè lên truy vấn giao dịch động)
+  const matchedFaq = matchFaqRule(cleanMessage, botConfig?.faqs || [], intent, entities);
+  if (matchedFaq) {
+    await saveChatLogSafe({
+      userName: safeUserInfo.userName,
+      userEmail: safeUserInfo.userEmail,
+      userMessage: cleanMessage,
+      botReply: matchedFaq.answer,
+      intent: matchedFaq.category || intent,
+      source: 'ADMIN_FAQ_TRAINING',
+      recommendedMovie: '',
+      skipLog,
+    });
+
+    return {
+      success: true,
+      reply: matchedFaq.answer,
+      intent: matchedFaq.category || intent,
+      source: 'ADMIN_FAQ_TRAINING',
+      movieCard: null,
+      movieCards: [],
+    };
+  }
+
+  // 7. Xây dựng câu trả lời xác thực từ Database
+  const dbVerified = buildVerifiedDatabaseResponse({
+    userMessage: cleanMessage,
+    intent,
+    entities,
+    contextData,
+    userInfo: safeUserInfo,
+    nowDate,
   });
-  defaultReply += `Bạn muốn xem phim nào hoặc cần mình tư vấn thêm về giá vé/ghế ngồi không?`;
+
+  const resolvedMovieCards =
+    Array.isArray(dbVerified.movieCards) && dbVerified.movieCards.length > 0
+      ? dbVerified.movieCards
+      : dbVerified.movieCard
+        ? [dbVerified.movieCard]
+        : [];
+
+  // 8. Kết hợp Gemini AI khi câu hỏi mở (UNKNOWN) hoặc khi có customGeminiCaller cần diễn đạt tự nhiên
+  const shouldInvokeGemini =
+    typeof options.customGeminiCaller === 'function' ||
+    (intent === INTENTS.UNKNOWN &&
+      !entities.unmatchedMovieTitle &&
+      Boolean(process.env.GEMINI_API_KEY) &&
+      process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here');
+
+  if (shouldInvokeGemini) {
+    try {
+      const geminiReply = await callGeminiWithGuardrails({
+        userMessage: cleanMessage,
+        safeHistory,
+        botConfig,
+        userInfo: safeUserInfo,
+        contextData,
+        intent,
+        entities,
+        customGeminiCaller: options.customGeminiCaller,
+      });
+
+      if (geminiReply && geminiReply.trim().length > 0) {
+        await saveChatLogSafe({
+          userName: safeUserInfo.userName,
+          userEmail: safeUserInfo.userEmail,
+          userMessage: cleanMessage,
+          botReply: geminiReply,
+          intent,
+          source: 'GEMINI_RAG',
+          recommendedMovie: dbVerified.recommendedMovie || '',
+          skipLog,
+        });
+
+        return {
+          success: true,
+          reply: geminiReply,
+          intent,
+          source: 'GEMINI_RAG',
+          movieCard: dbVerified.movieCard,
+          movieCards: resolvedMovieCards,
+        };
+      }
+    } catch (geminiErr) {
+      console.warn('[AiService] Lỗi gọi Gemini, chuyển sang Database Fallback:', geminiErr.message);
+    }
+
+    // Khi Gemini lỗi / timeout / trả về rỗng -> Dùng kết quả xác thực từ Database (DATABASE_FALLBACK)
+    await saveChatLogSafe({
+      userName: safeUserInfo.userName,
+      userEmail: safeUserInfo.userEmail,
+      userMessage: cleanMessage,
+      botReply: dbVerified.reply,
+      intent,
+      source: 'DATABASE_FALLBACK',
+      recommendedMovie: dbVerified.recommendedMovie || '',
+      skipLog,
+    });
+
+    return {
+      success: true,
+      reply: dbVerified.reply,
+      intent,
+      source: 'DATABASE_FALLBACK',
+      movieCard: dbVerified.movieCard,
+      movieCards: resolvedMovieCards,
+    };
+  }
+
+  // 9. Trả về phản hồi xác thực trực tiếp từ Database
+  const lengthNotice = isTooLong
+    ? '\n\n*(Lưu ý: Tin nhắn của bạn khá dài nên hệ thống đã tóm lược phần nội dung chính để xử lý nhanh nhất)*'
+    : '';
+  const finalReply = `${dbVerified.reply}${lengthNotice}`;
+
+  await saveChatLogSafe({
+    userName: safeUserInfo.userName,
+    userEmail: safeUserInfo.userEmail,
+    userMessage: cleanMessage,
+    botReply: finalReply,
+    intent,
+    source: 'DATABASE_RAG',
+    recommendedMovie: dbVerified.recommendedMovie || '',
+    skipLog,
+  });
 
   return {
     success: true,
-    reply: defaultReply,
-    source: 'LOCAL_RULE_ENGINE',
+    reply: finalReply,
+    intent,
+    source: 'DATABASE_RAG',
+    movieCard: dbVerified.movieCard,
+    movieCards: resolvedMovieCards,
   };
-}
+};
 
+// Export thêm các hàm nội bộ phục vụ kiểm thử Unit / Integration Tests
+export {
+  VN_TIMEZONE,
+  INTENTS,
+  getVNDateParts,
+  createVNDate,
+  getVNDayBounds,
+  getRelativeDayLabel,
+  parseVietnameseDateFromText,
+  parseTimeFilterFromText,
+  formatVND,
+  detectShowtimeFormat,
+  calculateShowtimePrices,
+  resolveDisplayPrice,
+  calculateTicketQuote,
+  validateAndSanitizeInput,
+  detectPromptInjection,
+  matchMovieFromText,
+  extractEntities,
+  classifyIntent,
+  resolveMultiTurnContext,
+  matchFaqRule,
+  isSeatAvailableAt,
+  findContiguousAvailableSeats,
+  isValidShowtimeForBooking,
+  buildValidBookingLink,
+  isPromotionValid,
+  buildNormalizedCinemaContext,
+  buildSafeMovieCard,
+  buildInteractiveMovieCards,
+  buildInteractiveCardsFromPairs,
+  filterShowtimesByEntities,
+  buildVerifiedDatabaseResponse,
+  buildSelectivePromptContext,
+  buildSystemInstruction,
+  validateAndSanitizeAiReply,
+};

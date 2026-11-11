@@ -2,8 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { FALLBACK_CINEMAS } from '../../constants/cinemas';
+import { calculateDynamicPrices, loadPricingConfig, DEFAULT_PRICING_CONFIG } from '../../utils/pricing';
 
 const TECH_FILTERS = ['Tất cả', 'IMAX Laser', 'Dolby Atmos', 'RealD 3D'];
+
+const PRICE_MATRIX_FORMATS = [
+  { key: '2D', label: '2D Dolby Atmos / Tiêu chuẩn', roomName: 'Rạp 03 - 2D Dolby' },
+  { key: '3D', label: 'RealD 3D High Frame Rate', roomName: 'Rạp 05 - RealD 3D' },
+  { key: 'IMAX', label: 'IMAX Laser Grand Hall', roomName: 'Phòng IMAX 01' },
+];
+
+const PRICE_TIME_SLOTS = [
+  { label: 'Trước 17:00', time: '14:00' },
+  { label: 'Giờ vàng (17:00 – 21:59)', time: '19:30' },
+  { label: 'Suất khuya (từ 22:00)', time: '22:30' },
+];
 
 const TheatersPage = () => {
   const navigate = useNavigate();
@@ -22,6 +35,17 @@ const TheatersPage = () => {
   const [moviesWithShowtimes, setMoviesWithShowtimes] = useState([]);
   const [loadingShowtimes, setLoadingShowtimes] = useState(false);
   const [activeDateIndex, setActiveDateIndex] = useState(0);
+
+  // Modal Bảng giá vé tiêu chuẩn (nạp động từ MongoDB)
+  const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
+  const [priceDayType, setPriceDayType] = useState('WEEKDAY'); // 'WEEKDAY' | 'WEEKEND'
+  const [pricingConfig, setPricingConfig] = useState(DEFAULT_PRICING_CONFIG);
+
+  useEffect(() => {
+    loadPricingConfig(true).then((cfg) => {
+      if (cfg) setPricingConfig(cfg);
+    });
+  }, []);
 
   // Sinh 7 ngày liên tiếp tính từ hôm nay theo giờ địa phương chuẩn
   const dates = Array.from({ length: 7 }).map((_, idx) => {
@@ -267,31 +291,24 @@ const TheatersPage = () => {
                       </p>
 
                       {/* Thẻ công nghệ */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {cinema.tags && cinema.tags.map((tag) => (
-                            <button
-                              key={tag}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveTech(tag);
-                              }}
-                              className={`border text-[10px] font-semibold px-2 py-0.5 rounded-md transition-all ${activeTech === tag
-                                ? 'bg-blue-600 text-white border-blue-500 shadow-sm shadow-blue-500/30'
-                                : 'bg-slate-800/90 text-slate-300 border-slate-700/60 hover:text-white hover:bg-slate-700'
-                                }`}
-                              title={`Lọc phòng chiếu ${tag}`}
-                            >
-                              {tag}
-                            </button>
-                          ))}
-                        </div>
-
-                        <span className="text-[11px] text-slate-400 hover:text-blue-400 flex items-center space-x-1 transition-colors">
-                          <span>🗺️</span>
-                          <span>Xem bản đồ</span>
-                        </span>
+                      <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-800/60">
+                        {cinema.tags && cinema.tags.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveTech(tag);
+                            }}
+                            className={`border text-[10px] font-semibold px-2 py-0.5 rounded-md transition-all ${activeTech === tag
+                              ? 'bg-blue-600 text-white border-blue-500 shadow-sm shadow-blue-500/30'
+                              : 'bg-slate-800/90 text-slate-300 border-slate-700/60 hover:text-white hover:bg-slate-700'
+                              }`}
+                            title={`Lọc phòng chiếu ${tag}`}
+                          >
+                            {tag}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   );
@@ -309,7 +326,13 @@ const TheatersPage = () => {
                   {/* Ảnh rạp */}
                   <div className="relative h-64 sm:h-72 w-full overflow-hidden bg-slate-900">
                     <img
-                      src={cinemaDetails.image || 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&auto=format&fit=crop'}
+                      src={
+                        !cinemaDetails.image ||
+                        cinemaDetails.image.includes('photo-1517604931442') ||
+                        cinemaDetails.image.includes('images.unsplash.com')
+                          ? '/images/cinemas/davenor-flagship-cinema.jpg'
+                          : cinemaDetails.image
+                      }
                       alt={cinemaDetails.name}
                       className="w-full h-full object-cover"
                     />
@@ -367,12 +390,12 @@ const TheatersPage = () => {
 
                     {/* Nút hành động */}
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
-                      <div className="flex items-center space-x-3">
-                        <button className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors border border-slate-700 flex items-center space-x-1.5 shadow-sm">
-                          <span>📍</span>
-                          <span>Chỉ đường Google Maps</span>
-                        </button>
-                        <button className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium px-4 py-2 rounded-xl transition-colors border border-slate-700 flex items-center space-x-1.5">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setIsPriceModalOpen(true)}
+                          className="bg-slate-800 hover:bg-amber-500/20 text-slate-200 hover:text-amber-300 text-xs font-bold px-4 py-2 rounded-xl transition-colors border border-slate-700 hover:border-amber-500/50 flex items-center space-x-1.5 cursor-pointer"
+                        >
                           <span>📋</span>
                           <span>Bảng giá vé tiêu chuẩn</span>
                         </button>
@@ -576,6 +599,146 @@ const TheatersPage = () => {
           </div>
         </div>
       </div>
+
+      {/* MODAL BẢNG GIÁ VÉ TIÊU CHUẨN ĐỒNG BỘ LOGIC PRICING */}
+      {isPriceModalOpen && (
+        <div
+          onClick={() => setIsPriceModalOpen(false)}
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#0f1422] border border-slate-700/80 rounded-3xl max-w-3xl w-full shadow-2xl overflow-hidden"
+          >
+            <div className="px-6 py-4 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                  <span>📋</span>
+                  <span>Bảng Giá Vé Tiêu Chuẩn — {cinemaDetails?.name || "D'AVENOR CINEMA"}</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Áp dụng đồng bộ theo định dạng phòng chiếu, ngày trong tuần và từng hạng ghế.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPriceModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 max-h-[78vh] overflow-y-auto">
+              {/* Chuyển đổi Thứ 2 - Thứ 5 / Thứ 6 - CN */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex bg-slate-900 p-1 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setPriceDayType('WEEKDAY')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      priceDayType === 'WEEKDAY'
+                        ? 'bg-blue-600 text-white shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Thứ 2 – Thứ 5 (Ngày thường)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPriceDayType('WEEKEND')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      priceDayType === 'WEEKEND'
+                        ? 'bg-amber-500 text-slate-950 shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Thứ 6 – Chủ Nhật (Cuối tuần)
+                  </button>
+                </div>
+
+                <span className="text-[11px] text-emerald-400 font-semibold">
+                  ● Đơn vị: VNĐ / vé (Sweetbox: cặp 2 ghế)
+                </span>
+              </div>
+
+              {/* Bảng giá chi tiết */}
+              <div className="space-y-4">
+                {PRICE_MATRIX_FORMATS.map((fmt) => {
+                  // Ngày 2026-11-11 là Thứ 4 (Weekday), 2026-11-14 là Thứ 7 (Weekend)
+                  const refDate = priceDayType === 'WEEKEND' ? '2026-11-14' : '2026-11-11';
+                  return (
+                    <div
+                      key={fmt.key}
+                      className="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden"
+                    >
+                      <div className="px-4 py-2.5 bg-slate-800/60 border-b border-slate-800 flex items-center justify-between">
+                        <span className="text-xs sm:text-sm font-black text-white">
+                          🎬 {fmt.label}
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
+                          {fmt.roomName}
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs text-slate-300">
+                          <thead className="text-[10px] uppercase text-slate-400 bg-slate-950/50">
+                            <tr>
+                              <th className="px-4 py-2.5">Khung giờ chiếu</th>
+                              <th className="px-4 py-2.5 text-right">Ghế Thường (A–D)</th>
+                              <th className="px-4 py-2.5 text-right text-amber-400">Ghế VIP (E–G)</th>
+                              <th className="px-4 py-2.5 text-right text-pink-400">Ghế Đôi Sweetbox (H)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/70">
+                            {PRICE_TIME_SLOTS.map((slot) => {
+                              const prices = calculateDynamicPrices(
+                                {
+                                  roomName: fmt.roomName,
+                                  formatFeature: fmt.label,
+                                  fullDate: `${refDate}T${slot.time}:00`,
+                                  time: slot.time,
+                                  useConfigMatrix: true,
+                                },
+                                pricingConfig
+                              );
+                              return (
+                                <tr key={slot.time} className="hover:bg-slate-800/30">
+                                  <td className="px-4 py-2.5 font-semibold text-white">{slot.label}</td>
+                                  <td className="px-4 py-2.5 text-right font-bold text-slate-200">
+                                    {prices.priceStandard.toLocaleString('vi-VN')}đ
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right font-bold text-amber-400">
+                                    {prices.priceVip.toLocaleString('vi-VN')}đ
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right font-bold text-pink-400">
+                                    {prices.priceSweetbox.toLocaleString('vi-VN')}đ
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-[11px] text-slate-400 border-t border-slate-800">
+                <span>💡 Giá vé thực tế sẽ hiển thị chi tiết khi bạn chọn suất chiếu và sơ đồ ghế.</span>
+                <button
+                  type="button"
+                  onClick={() => setIsPriceModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+                >
+                  Đóng bảng giá
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -25,6 +25,7 @@ const showtimeSchema = new mongoose.Schema(
     startTime: {
       type: Date,
       required: true,
+      index: true,
     },
     price: {
       type: Number,
@@ -50,6 +51,8 @@ const showtimeSchema = new mongoose.Schema(
     },
   }
 );
+
+showtimeSchema.index({ movieId: 1, startTime: 1 });
 
 // Virtual relationship tới Movie
 showtimeSchema.virtual('movie', {

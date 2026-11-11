@@ -3,10 +3,46 @@ import Cinema from '../models/Cinema.js';
 import Showtime from '../models/Showtime.js';
 import ShowtimeSeat from '../models/ShowtimeSeat.js';
 import Movie from '../models/Movie.js';
+import {
+  ensurePricingConfig,
+  calculatePricesFromConfig,
+  detectFormatKey,
+} from '../services/pricingConfigService.js';
+
+export const DEFAULT_CINEMA_BANNER = '/images/cinemas/davenor-flagship-cinema.jpg';
+
+export const resolveCinemaImage = (imageUrl = '') => {
+  const clean = String(imageUrl || '').trim();
+  if (!clean || clean.includes('photo-1517604931442') || clean.includes('images.unsplash.com')) {
+    return DEFAULT_CINEMA_BANNER;
+  }
+  return clean;
+};
+
+let hasSyncedCinemaBanner = false;
+const ensureCinemaBannerSynced = async () => {
+  if (hasSyncedCinemaBanner) return;
+  try {
+    await Cinema.updateMany(
+      {
+        $or: [
+          { image: { $exists: false } },
+          { image: '' },
+          { image: { $regex: 'images\\.unsplash\\.com', $options: 'i' } },
+        ],
+      },
+      { $set: { image: DEFAULT_CINEMA_BANNER } }
+    );
+    hasSyncedCinemaBanner = true;
+  } catch (err) {
+    console.warn('⚠️ [CinemaBannerSync] Không thể đồng bộ ảnh cụm rạp:', err.message);
+  }
+};
 
 // Lấy danh sách rạp (kèm lọc theo thành phố, quận huyện, công nghệ, tìm kiếm)
 export const getCinemas = async (req, res) => {
   try {
+    await ensureCinemaBannerSynced();
     const { city, district, tech, search } = req.query;
     const filter = {};
 
@@ -34,6 +70,7 @@ export const getCinemas = async (req, res) => {
 
     const formatted = cinemas.map((c) => ({
       ...c,
+      image: resolveCinemaImage(c.image),
       id: c._id.toString(),
     }));
 
@@ -103,6 +140,8 @@ const autoSeedCinemaShowtimes = async (cinema, targetDate) => {
       { row: 'H', col: 7, seatNumber: 'H7-8' },
     ];
 
+    const pricingConfig = await ensurePricingConfig();
+
     for (let rIdx = 0; rIdx < roomConfigs.length; rIdx++) {
       const room = roomConfigs[rIdx];
       const assignedMovie = selectedMovies[rIdx % selectedMovies.length];
@@ -111,15 +150,15 @@ const autoSeedCinemaShowtimes = async (cinema, targetDate) => {
         const startTime = new Date(targetDate);
         startTime.setHours(slot.hour, slot.minute, 0, 0);
 
-        const isLate = slot.hour >= 22;
-        let calculatedPrice = 50000;
-        if (room.formatType === 'imax') {
-          calculatedPrice = isLate ? 140000 : (isWeekend ? 170000 : 160000);
-        } else if (room.formatType === '3d') {
-          calculatedPrice = isLate ? (isWeekend ? 50000 : 45000) : (isWeekend ? 60000 : 50000);
-        } else {
-          calculatedPrice = isLate ? 45000 : (isWeekend ? 65000 : 50000);
-        }
+        const calculatedPrice = calculatePricesFromConfig(
+          {
+            roomName: room.roomName,
+            formatFeature: room.formatFeature,
+            startTime,
+          },
+          pricingConfig,
+          { preferRuleMatrix: true }
+        ).priceStandard;
 
         const showtime = await Showtime.create({
           cinemaId: cinema._id,
@@ -178,21 +217,23 @@ let hasSynced3D = false;
 export const ensure3DShowtimesSynced = async () => {
   if (hasSynced3D) return;
   try {
-    // 1. Cập nhật giá các suất chiếu 3D cũ (Rạp 05 / RealD 3D) về mức giá mới 45.000đ - 50.000đ
+    const pricingConfig = await ensurePricingConfig();
+
+    // 1. Khắc phục các suất chiếu 3D cũ đang bị áp nhầm giá thấp/bằng 2D (<= 60.000đ) theo TicketPricingConfig
     const existing3D = await Showtime.find({
       $or: [
-        { roomName: { $regex: /Rạp 05|RealD 3D/i } },
-        { formatFeature: { $regex: /RealD 3D/i } },
+        { roomName: { $regex: /Rạp 05|RealD 3D|3D/i } },
+        { formatFeature: { $regex: /RealD 3D|3D/i } },
       ],
+      price: { $lte: 60000 },
     });
 
     for (const st of existing3D) {
-      const d = new Date(st.startTime);
-      const hr = d.getHours();
-      const dow = d.getDay();
-      const isWeekend = dow === 0 || dow === 5 || dow === 6;
-      const isLate = hr >= 22;
-      const targetPrice = isLate ? (isWeekend ? 50000 : 45000) : (isWeekend ? 60000 : 50000);
+      const targetPrice = calculatePricesFromConfig(
+        { roomName: st.roomName, formatFeature: st.formatFeature, startTime: st.startTime },
+        pricingConfig,
+        { preferRuleMatrix: true }
+      ).priceStandard;
       if (st.price !== targetPrice) {
         st.price = targetPrice;
         await st.save();
@@ -227,8 +268,6 @@ export const ensure3DShowtimesSynced = async () => {
       for (let dOffset = 0; dOffset < 3; dOffset++) {
         const dayDate = new Date(now);
         dayDate.setDate(now.getDate() + dOffset);
-        const dow = dayDate.getDay();
-        const isWeekend = dow === 0 || dow === 5 || dow === 6;
 
         for (const slot of threeDSlots) {
           const slotTime = new Date(dayDate);
@@ -244,8 +283,15 @@ export const ensure3DShowtimesSynced = async () => {
           });
 
           if (!alreadyExists) {
-            const isLate = slot.hour >= 22;
-            const calcPrice = isLate ? (isWeekend ? 50000 : 45000) : (isWeekend ? 60000 : 50000);
+            const calcPrice = calculatePricesFromConfig(
+              {
+                roomName: 'Rạp 05 (Tầng 3)',
+                formatFeature: '3D Phụ Đề • RealD 3D High Frame Rate • Kính 3D siêu nhẹ',
+                startTime: slotTime,
+              },
+              pricingConfig,
+              { preferRuleMatrix: true }
+            ).priceStandard;
             const newSt = await Showtime.create({
               cinemaId: cinema._id,
               movieId: targetMovie._id,
@@ -304,6 +350,7 @@ export const ensure3DShowtimesSynced = async () => {
 // Lấy chi tiết 1 rạp kèm toàn bộ lịch chiếu & số ghế trống thực tế
 export const getCinemaShowtimes = async (req, res) => {
   try {
+    await ensureCinemaBannerSynced();
     await ensure3DShowtimesSynced();
     const { id } = req.params;
     const { date } = req.query; // YYYY-MM-DD (tùy chọn)
@@ -370,6 +417,8 @@ export const getCinemaShowtimes = async (req, res) => {
         .lean();
     }
 
+    const pricingConfig = await ensurePricingConfig();
+
     // Nhóm các suất chiếu theo từng Phim
     const moviesMap = new Map();
 
@@ -407,26 +456,19 @@ export const getCinemaShowtimes = async (req, res) => {
       const roomName = st.roomName || 'Phòng 01 - Tiêu chuẩn';
 
       if (!movieEntry.roomsMap.has(roomName)) {
-        const fullSpec = (roomName + ' ' + (st.formatFeature || '')).toLowerCase();
-        const isImax = fullSpec.includes('imax');
-        const is3D = fullSpec.includes('3d');
+        const fmtKey = detectFormatKey({ roomName, formatFeature: st.formatFeature });
+        const rule = pricingConfig.formats?.[fmtKey];
         const dayOfWeek = new Date(st.startTime).getDay();
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
-
-        let priceRangeLabel = '';
-        if (isImax) {
-          priceRangeLabel = isWeekend
-            ? 'Giá vé cuối tuần dao động: 140.000đ - 170.000đ'
-            : 'Giá vé ngày thường dao động: 140.000đ - 160.000đ';
-        } else if (is3D) {
-          priceRangeLabel = isWeekend
-            ? 'Giá vé 3D cuối tuần dao động: 50.000đ - 60.000đ'
-            : 'Giá vé 3D ngày thường dao động: 45.000đ - 50.000đ';
-        } else {
-          priceRangeLabel = isWeekend
-            ? 'Giá vé cuối tuần dao động: 60.000đ - 65.000đ'
-            : 'Giá vé ngày thường dao động: 45.000đ - 50.000đ';
-        }
+        const dayRates = isWeekend ? rule?.weekend : rule?.weekday;
+        const dayVals = [dayRates?.before17, dayRates?.goldenHour, dayRates?.lateNight].filter(
+          (v) => Number.isFinite(Number(v)) && Number(v) > 0
+        );
+        const minP = dayVals.length ? Math.min(...dayVals) : st.price || 45000;
+        const maxP = dayVals.length ? Math.max(...dayVals) : st.price || 65000;
+        const dayTypeText = isWeekend ? 'cuối tuần' : 'ngày thường';
+        const fmtPrefix = fmtKey === '3D' ? '3D ' : fmtKey === 'IMAX' ? 'IMAX ' : '';
+        const priceRangeLabel = `Giá vé ${fmtPrefix}${dayTypeText} dao động: ${minP.toLocaleString('vi-VN')}đ - ${maxP.toLocaleString('vi-VN')}đ`;
 
         movieEntry.roomsMap.set(roomName, {
           name: roomName,
@@ -468,6 +510,7 @@ export const getCinemaShowtimes = async (req, res) => {
     res.json({
       cinema: {
         ...cinema,
+        image: resolveCinemaImage(cinema.image),
         id: cinema._id.toString(),
       },
       movies: formattedMovies,

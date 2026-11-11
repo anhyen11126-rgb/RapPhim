@@ -1,29 +1,138 @@
-/**
- * Hệ thống tính toán giá vé động (Dynamic Pricing) chuẩn hóa theo:
- * 1. Phân loại phòng chiếu / công nghệ (IMAX Laser, VIP Gold Class, RealD 3D, 2D Tiêu chuẩn Dolby)
- * 2. Ngày trong tuần (Thứ 2 - Thứ 5 vs Thứ 6 - Chủ Nhật)
- * 3. Khung giờ chiếu (Trước 17:00, Sau 17:00, Suất khuya sau 22:00)
- */
+import api from '../services/api';
 
-export const getRoomPriceRange = (format, isWeekend) => {
-  const f = (format || '').toLowerCase();
-  if (f.includes('imax')) {
-    return isWeekend
-      ? { min: 140000, max: 360000, label: '140.000đ ~ 360.000đ' }
-      : { min: 140000, max: 340000, label: '140.000đ ~ 340.000đ' };
-  }
-  if (f.includes('3d')) {
-    return isWeekend
-      ? { min: 50000, max: 140000, label: '50.000đ ~ 140.000đ' }
-      : { min: 45000, max: 125000, label: '45.000đ ~ 125.000đ' };
-  }
-  // 2D Dolby Tiêu chuẩn
-  return isWeekend
-    ? { min: 50000, max: 160000, label: '50.000đ ~ 160.000đ' }
-    : { min: 45000, max: 120000, label: '45.000đ ~ 120.000đ' };
+/**
+ * Giá khởi tạo đồng bộ với TicketPricingConfig ban đầu của hệ thống (chỉ dùng tạm trong lúc chờ API /api/pricing phản hồi).
+ * Đảm bảo quy tắc bất biến: 2D < RealD 3D < IMAX < Gold Class, và Ghế Thường < Ghế VIP < Sweetbox.
+ */
+export const DEFAULT_PRICING_CONFIG = {
+  formats: {
+    '2D': {
+      label: '2D Dolby Atmos / Tiêu chuẩn',
+      roomTypeLabel: '2D Dolby Tiêu Chuẩn',
+      vipSurcharge: 20000,
+      sweetboxExtra: 30000,
+      weekday: { before17: 45000, goldenHour: 55000, lateNight: 45000 },
+      weekend: { before17: 55000, goldenHour: 65000, lateNight: 55000 },
+    },
+    '3D': {
+      label: 'RealD 3D High Frame Rate',
+      roomTypeLabel: 'Phòng chiếu RealD 3D',
+      vipSurcharge: 20000,
+      sweetboxExtra: 30000,
+      weekday: { before17: 65000, goldenHour: 80000, lateNight: 65000 },
+      weekend: { before17: 80000, goldenHour: 95000, lateNight: 80000 },
+    },
+    IMAX: {
+      label: 'IMAX Laser Grand Hall',
+      roomTypeLabel: 'IMAX Laser Grand Hall',
+      vipSurcharge: 25000,
+      sweetboxExtra: 30000,
+      weekday: { before17: 130000, goldenHour: 150000, lateNight: 130000 },
+      weekend: { before17: 150000, goldenHour: 170000, lateNight: 140000 },
+    },
+    GOLD_CLASS: {
+      label: 'VIP Gold Class Lounge',
+      roomTypeLabel: 'VIP Gold Class Lounge',
+      vipSurcharge: 30000,
+      sweetboxExtra: 30000,
+      weekday: { before17: 190000, goldenHour: 210000, lateNight: 190000 },
+      weekend: { before17: 210000, goldenHour: 230000, lateNight: 210000 },
+    },
+  },
+  holidaySurcharge: 15000,
 };
 
-export const calculateDynamicPrices = (showtime) => {
+let cachedPricingConfig = null;
+let inflightPromise = null;
+
+export const getActivePricingConfig = () => cachedPricingConfig || DEFAULT_PRICING_CONFIG;
+
+export const setCachedPricingConfig = (config) => {
+  if (config && config.formats) {
+    cachedPricingConfig = config;
+  }
+  return getActivePricingConfig();
+};
+
+/**
+ * Tải cấu hình bảng giá vé trực tiếp từ MongoDB (/api/pricing)
+ */
+export const loadPricingConfig = async (force = false) => {
+  if (!force && cachedPricingConfig) {
+    return cachedPricingConfig;
+  }
+  if (!force && inflightPromise) {
+    return inflightPromise;
+  }
+
+  inflightPromise = api
+    .get('/pricing')
+    .then((res) => {
+      if (res.data?.config?.formats) {
+        cachedPricingConfig = res.data.config;
+      }
+      return getActivePricingConfig();
+    })
+    .catch(() => getActivePricingConfig())
+    .finally(() => {
+      inflightPromise = null;
+    });
+
+  return inflightPromise;
+};
+
+/**
+ * Nhận diện chuẩn khóa định dạng phòng ('2D' | '3D' | 'IMAX' | 'GOLD_CLASS')
+ */
+export const detectFormatKey = (roomOrFormat = '') => {
+  const combined =
+    typeof roomOrFormat === 'string'
+      ? roomOrFormat.toLowerCase()
+      : `${roomOrFormat?.roomName || ''} ${roomOrFormat?.roomType || ''} ${roomOrFormat?.format || ''} ${roomOrFormat?.formatFeature || ''}`.toLowerCase();
+
+  if (combined.includes('imax')) return 'IMAX';
+  if (combined.includes('gold class') || combined.includes('gold_class') || combined.includes('lounge')) {
+    return 'GOLD_CLASS';
+  }
+  if (combined.includes('3d')) return '3D';
+  return '2D';
+};
+
+/**
+ * Tính khoảng giá vé dao động động hoàn toàn từ cấu hình MongoDB
+ */
+export const getRoomPriceRange = (format, isWeekend, customConfig = null) => {
+  const activeConfig = customConfig?.formats ? customConfig : getActivePricingConfig();
+  const formatKey = detectFormatKey(format);
+  const rule = activeConfig.formats?.[formatKey] || DEFAULT_PRICING_CONFIG.formats[formatKey];
+  const dayRates = isWeekend ? rule.weekend : rule.weekday;
+
+  const baseVals = [dayRates.before17, dayRates.goldenHour, dayRates.lateNight].filter(
+    (v) => Number.isFinite(Number(v)) && Number(v) > 0
+  );
+  const minVal = baseVals.length > 0 ? Math.min(...baseVals) : 45000;
+  const maxBase = baseVals.length > 0 ? Math.max(...baseVals) : 65000;
+  const maxSweetbox = maxBase * 2 + Number(rule.sweetboxExtra ?? 30000);
+
+  return {
+    min: minVal,
+    max: maxSweetbox,
+    maxStandard: maxBase,
+    label: `${minVal.toLocaleString('vi-VN')}đ ~ ${maxSweetbox.toLocaleString('vi-VN')}đ`,
+    standardRangeLabel: `${minVal.toLocaleString('vi-VN')}đ - ${maxBase.toLocaleString('vi-VN')}đ`,
+  };
+};
+
+/**
+ * Tính giá vé động theo cấu hình Admin trong MongoDB + giá gốc suất chiếu nếu có:
+ * 1. Phân loại phòng chiếu (`2D`, `3D`, `IMAX`, `GOLD_CLASS`)
+ * 2. Ngày trong tuần (Thứ 2–Thứ 5 vs Thứ 6–Chủ Nhật)
+ * 3. Khung giờ chiếu (`before17` < 17:00, `goldenHour` 17:00–21:59, `lateNight` >= 22:00)
+ * 4. Hạng ghế (`Standard`, `VIP`, `Sweetbox`)
+ */
+export const calculateDynamicPrices = (showtime, customConfig = null) => {
+  const activeConfig = customConfig?.formats ? customConfig : getActivePricingConfig();
+
   let dateObj = null;
   if (showtime?.startTime) {
     dateObj = new Date(showtime.startTime);
@@ -32,200 +141,63 @@ export const calculateDynamicPrices = (showtime) => {
   } else if (showtime?.date) {
     dateObj = new Date(showtime.date);
   }
-  if (!dateObj || isNaN(dateObj.getTime())) {
+  if (!dateObj || Number.isNaN(dateObj.getTime())) {
     dateObj = new Date();
   }
 
-  // Lấy giờ từ chuỗi time (ví dụ "19:15" hay "22:30") hoặc từ Date
   let hour = dateObj.getHours();
-  let minute = dateObj.getMinutes();
   if (showtime?.time && typeof showtime.time === 'string' && showtime.time.includes(':')) {
-    const [h, m] = showtime.time.split(':').map(Number);
-    if (!isNaN(h)) hour = h;
-    if (!isNaN(m)) minute = m;
+    const [h] = showtime.time.split(':').map(Number);
+    if (Number.isFinite(h)) hour = h;
   }
 
-  const dayOfWeek = dateObj.getDay(); // 0: Chủ Nhật (Thứ 8), 1: T2, ..., 5: T6, 6: T7
-  // Thứ Sáu, Thứ Bảy, Chủ Nhật là Cuối tuần
+  const dayOfWeek = dateObj.getDay(); // 0: CN, 5: T6, 6: T7
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
-  // Suất chiếu khuya từ 22:00 / 22:30 trở đi (hoặc trước 6:00 sáng) giá sẽ rẻ hơn
   const isLateNight = hour >= 22 || hour < 6;
-  const isBefore17 = hour < 17;
+  const isBefore17 = hour >= 6 && hour < 17;
 
-  // Nhận diện loại phòng chiếu từ roomName, format, hoặc formatFeature
-  const roomNameStr = (showtime?.roomName || '').toLowerCase();
-  const formatStr = (showtime?.format || showtime?.formatFeature || '').toLowerCase();
-  const fullSpec = `${roomNameStr} ${formatStr}`;
+  const formatKey = detectFormatKey(showtime);
+  const rule = activeConfig.formats?.[formatKey] || DEFAULT_PRICING_CONFIG.formats[formatKey];
 
-  const isImax = fullSpec.includes('imax');
-  const isGoldClass = fullSpec.includes('gold class') || fullSpec.includes('lounge');
-  const is3D = fullSpec.includes('3d');
+  const dayKey = isWeekend ? 'weekend' : 'weekday';
+  const slotKey = isLateNight ? 'lateNight' : isBefore17 ? 'before17' : 'goldenHour';
 
-  // ==========================================
-  // 1. PHÒNG CHIẾU IMAX LASER GRAND HALL (Đỉnh cao công nghệ)
-  // ==========================================
-  if (isImax) {
-    let basePrice = 160000;
+  let ruleBasePrice = Number(rule?.[dayKey]?.[slotKey]) || 55000;
+  if (showtime?.isHoliday) {
+    ruleBasePrice += Number(activeConfig.holidaySurcharge ?? 15000);
+  }
 
-    if (isLateNight) {
-      // Suất khuya từ 22:30 giá rẻ hơn
-      basePrice = 140000;
-    } else if (isWeekend) {
-      // Cuối tuần T6, T7, CN giá cao hơn
-      basePrice = isBefore17 ? 160000 : 170000;
-    } else {
-      // Ngày thường T2 - T5
-      basePrice = isBefore17 ? 140000 : 160000;
-    }
+  // Nếu suất chiếu từ DB có gắn giá riêng (và không yêu cầu xem ma trận chuẩn) thì ưu tiên dùng giá thực tế của suất đó
+  const explicitDbPrice = Number(showtime?.price);
+  const useExplicitPrice =
+    !showtime?.useConfigMatrix && Number.isFinite(explicitDbPrice) && explicitDbPrice > 0;
 
-    if (showtime?.isHoliday) {
-      basePrice = 180000;
-    }
+  const priceStandard = useExplicitPrice ? Math.round(explicitDbPrice) : Math.round(ruleBasePrice);
+  const vipSurcharge = Number(rule?.vipSurcharge ?? (formatKey === 'IMAX' ? 25000 : 20000));
+  const sweetboxExtra = Number(rule?.sweetboxExtra ?? 30000);
 
-    return {
-      priceStandard: basePrice,
-      priceVip: basePrice + 25000,
-      priceSweetbox: basePrice * 2 + 20000,
-      roomTypeLabel: 'IMAX Laser Grand Hall',
-      timeSlotLabel: isLateNight
-        ? 'Suất khuya sau 22:00'
+  const priceVip = priceStandard + vipSurcharge;
+  const priceSweetbox = priceStandard * 2 + sweetboxExtra;
+
+  const timeSlotLabel = showtime?.isHoliday
+    ? 'Ngày Lễ / Tết'
+    : isLateNight
+      ? 'Suất khuya (từ 22:00)'
+      : isBefore17
+        ? isWeekend
+          ? 'Trước 17:00 (Cuối tuần)'
+          : 'Trước 17:00 (Ngày thường)'
         : isWeekend
-        ? isBefore17
-          ? 'Cuối tuần trước 17:00'
-          : 'Giờ vàng cuối tuần'
-        : isBefore17
-        ? 'Ngày thường trước 17:00'
-        : 'Giờ vàng ngày thường',
-      dayLabel: isWeekend ? 'Thứ 6 - CN' : 'Thứ 2 - T5',
-    };
-  }
-
-  // ==========================================
-  // 2. PHÒNG CHIẾU VIP GOLD CLASS / LOUNGE
-  // ==========================================
-  if (isGoldClass) {
-    const basePrice = isWeekend ? 220000 : 200000;
-    return {
-      priceStandard: basePrice,
-      priceVip: basePrice + 30000,
-      priceSweetbox: basePrice * 2,
-      roomTypeLabel: 'VIP Gold Class Lounge',
-      timeSlotLabel: isWeekend ? 'Suất chiếu cuối tuần' : 'Suất chiếu ngày thường',
-      dayLabel: isWeekend ? 'Thứ 6 - CN' : 'Thứ 2 - T5',
-    };
-  }
-
-  // ==========================================
-  // 3. PHÒNG CHIẾU REALD 3D HIGH FRAME RATE
-  // ==========================================
-  if (is3D) {
-    const isAfter21 = hour >= 21 || hour < 6;
-    let basePrice = 50000;
-    let vipAdd = 20000;
-    let sweetboxPrice = 120000;
-
-    if (isLateNight) {
-      // Suất khuya từ 22:00 trở đi giá ưu đãi rẻ nhất
-      basePrice = isWeekend ? 50000 : 45000;
-      vipAdd = 15000;
-      sweetboxPrice = isWeekend ? 125000 : 110000;
-    } else if (isAfter21) {
-      // Khung giờ 21h - 22h giá mềm
-      basePrice = isWeekend ? 55000 : 50000;
-      vipAdd = 15000;
-      sweetboxPrice = isWeekend ? 130000 : 120000;
-    } else if (isWeekend) {
-      // Cuối tuần T6, T7, CN
-      basePrice = isBefore17 ? 55000 : 60000;
-      vipAdd = 20000;
-      sweetboxPrice = 140000;
-    } else {
-      // Ngày thường T2 - T5
-      basePrice = isBefore17 ? 45000 : 50000;
-      vipAdd = 20000;
-      sweetboxPrice = 120000;
-    }
-
-    if (showtime?.isHoliday) {
-      basePrice = 65000;
-      sweetboxPrice = 150000;
-    }
-
-    return {
-      priceStandard: basePrice,
-      priceVip: basePrice + vipAdd,
-      priceSweetbox: sweetboxPrice,
-      roomTypeLabel: 'Phòng chiếu RealD 3D',
-      timeSlotLabel: isLateNight
-        ? 'Suất 3D khuya ưu đãi'
-        : isAfter21
-        ? 'Suất 3D tối (21h - 22h)'
-        : isWeekend
-        ? isBefore17
-          ? '3D cuối tuần trước 17:00'
-          : '3D giờ vàng cuối tuần'
-        : isBefore17
-        ? '3D ngày thường trước 17:00'
-        : '3D ngày thường sau 17:00',
-      dayLabel: isWeekend ? 'Thứ 6 - CN' : 'Thứ 2 - T5',
-    };
-  }
-
-  // ==========================================
-  // 4. PHÒNG CHIẾU 2D TIÊU CHUẨN / DOLBY 7.1 / DOLBY ATMOS
-  // ==========================================
-  let stdPrice = 50000;
-  let vipPrice = 70000;
-  let sweetboxPrice = 120000;
-  let timeLabel = 'Sau 17:00 (Ngày thường)';
-  let dayText = isWeekend ? 'Thứ Sáu - Chủ Nhật' : 'Thứ 2 - Thứ 5';
-
-  if (isLateNight) {
-    // Suất khuya từ 22:30 giá vé rẻ hơn một chút
-    stdPrice = isWeekend ? 50000 : 45000;
-    vipPrice = isWeekend ? 75000 : 65000;
-    sweetboxPrice = isWeekend ? 130000 : 110000;
-    timeLabel = 'Suất chiếu khuya (sau 22:00)';
-  } else if (showtime?.isHoliday) {
-    stdPrice = 70000;
-    vipPrice = 95000;
-    sweetboxPrice = 170000;
-    timeLabel = 'Ngày Lễ / Tết';
-    dayText = 'Lễ Tết';
-  } else if (isWeekend) {
-    // Cuối tuần T6, T7, CN giá cao hơn
-    if (isBefore17) {
-      stdPrice = 60000;
-      vipPrice = 85000;
-      sweetboxPrice = 150000;
-      timeLabel = 'Trước 17:00 (Cuối tuần)';
-    } else {
-      stdPrice = 65000;
-      vipPrice = 90000;
-      sweetboxPrice = 160000;
-      timeLabel = 'Sau 17:00 (Giờ vàng cuối tuần)';
-    }
-  } else {
-    // Thứ 2, 3, 4, 5 (Ngày thường giá thấp hơn cuối tuần)
-    if (isBefore17) {
-      stdPrice = 45000;
-      vipPrice = 70000;
-      sweetboxPrice = 110000;
-      timeLabel = 'Trước 17:00 (Ngày thường)';
-    } else {
-      stdPrice = 50000;
-      vipPrice = 70000;
-      sweetboxPrice = 120000;
-      timeLabel = 'Sau 17:00 (Ngày thường)';
-    }
-  }
+          ? 'Giờ vàng (Cuối tuần)'
+          : 'Giờ vàng (Ngày thường)';
 
   return {
-    priceStandard: stdPrice,
-    priceVip: vipPrice,
-    priceSweetbox: sweetboxPrice,
-    roomTypeLabel: '2D Dolby Tiêu Chuẩn',
-    timeSlotLabel: timeLabel,
-    dayLabel: dayText,
+    formatKey,
+    priceStandard,
+    priceVip,
+    priceSweetbox,
+    roomTypeLabel: rule?.roomTypeLabel || rule?.label || formatKey,
+    timeSlotLabel,
+    dayLabel: isWeekend ? 'Thứ 6 - Chủ Nhật' : 'Thứ 2 - Thứ 5',
   };
 };

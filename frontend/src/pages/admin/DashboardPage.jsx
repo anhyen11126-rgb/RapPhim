@@ -91,7 +91,7 @@ const DashboardPage = () => {
   return (
     <div className="flex min-h-screen bg-slate-950 text-white">
       <SidebarAdmin />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <TopbarAdmin />
         <main className="p-6 space-y-6 flex-1 overflow-y-auto">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">

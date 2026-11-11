@@ -8,16 +8,18 @@ const SidebarAdmin = () => {
     { to: '/admin/cinemas', label: 'Quản lý cụm rạp', icon: '🏢' },
     { to: '/admin/rooms', label: 'Quản lý phòng chiếu', icon: '📽️' },
     { to: '/admin/showtimes', label: 'Quản lý suất chiếu', icon: '🕒' },
+    { to: '/admin/pricing', label: 'Quản lý giá vé', icon: '💰' },
     { to: '/admin/bookings', label: 'Quản lý đặt vé', icon: '🎟️' },
     { to: '/admin/users', label: 'Quản lý thành viên', icon: '👥' },
     { to: '/admin/otps', label: 'Quản lý mã OTP', icon: '🔐' },
+    { to: '/admin/chatbot', label: 'Quản lý Chatbot AI', icon: '🤖' },
     { to: '/admin/concessions', label: 'Bắp nước & Combo', icon: '🍿' },
     { to: '/admin/promotions', label: 'Khuyến mãi & Voucher', icon: '🏷️' },
   ];
 
   return (
-    <aside className="w-64 bg-slate-900 text-slate-300 min-h-screen flex flex-col border-r border-slate-800 shrink-0">
-      <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800">
+    <aside className="w-64 bg-slate-900 text-slate-300 h-screen sticky top-0 self-start flex flex-col border-r border-slate-800 shrink-0 z-20">
+      <div className="h-16 shrink-0 flex items-center justify-between px-6 border-b border-slate-800">
         <div className="flex items-center space-x-2.5">
           <div className="w-8 h-8 rounded-full bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-500 font-black text-sm">
             D
@@ -49,7 +51,7 @@ const SidebarAdmin = () => {
       </nav>
 
       {/* Nút thoát về Client */}
-      <div className="p-3 border-t border-slate-800 bg-slate-950/40">
+      <div className="p-3 shrink-0 border-t border-slate-800 bg-slate-950/40">
         <Link
           to="/"
           className="flex items-center justify-center space-x-2 w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all"

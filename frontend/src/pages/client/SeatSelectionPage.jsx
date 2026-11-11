@@ -4,7 +4,7 @@ import api from '../../services/api';
 import SeatGrid from '../../components/seat-booking/SeatGrid';
 import SeatLegendBar from '../../components/seat-booking/SeatLegendBar';
 import SeatBottomActionBar from '../../components/seat-booking/SeatBottomActionBar';
-import { calculateDynamicPrices } from '../../utils/pricing';
+import { calculateDynamicPrices, loadPricingConfig, DEFAULT_PRICING_CONFIG } from '../../utils/pricing';
 
 const SeatSelectionPage = () => {
   const { showtimeId } = useParams();
@@ -19,6 +19,13 @@ const SeatSelectionPage = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [holdingLoading, setHoldingLoading] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [pricingConfig, setPricingConfig] = useState(DEFAULT_PRICING_CONFIG);
+
+  useEffect(() => {
+    loadPricingConfig().then((cfg) => {
+      if (cfg) setPricingConfig(cfg);
+    });
+  }, []);
 
   // Lắng nghe thao tác cuộn chuột để tự động ẩn thanh thông tin phim phía dưới Navbar
   useEffect(() => {
@@ -78,7 +85,7 @@ const SeatSelectionPage = () => {
     priceSweetbox: PRICE_SWEETBOX,
     timeSlotLabel,
     roomTypeLabel,
-  } = calculateDynamicPrices(showtime);
+  } = calculateDynamicPrices(showtime, pricingConfig);
 
   const handleSeatClick = (seatId) => {
     if (bookedSeats.includes(seatId)) return;

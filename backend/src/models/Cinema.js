@@ -55,7 +55,7 @@ const cinemaSchema = new mongoose.Schema(
     image: {
       type: String,
       required: true,
-      default: 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1200&auto=format&fit=crop',
+      default: '/images/cinemas/davenor-flagship-cinema.jpg',
     },
     openingHours: {
       type: String,

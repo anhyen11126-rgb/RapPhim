@@ -2,12 +2,18 @@ import React, { useState, useEffect } from 'react';
 import SidebarAdmin from '../../components/admin/SidebarAdmin';
 import TopbarAdmin from '../../components/admin/TopbarAdmin';
 import api from '../../services/api';
+import {
+  calculateDynamicPrices,
+  loadPricingConfig,
+  DEFAULT_PRICING_CONFIG,
+} from '../../utils/pricing';
 
 const ShowtimeManagePage = () => {
   const [showtimes, setShowtimes] = useState([]);
   const [movies, setMovies] = useState([]);
   const [cinemas, setCinemas] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [pricingConfig, setPricingConfig] = useState(DEFAULT_PRICING_CONFIG);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -20,39 +26,74 @@ const ShowtimeManagePage = () => {
     cinemaId: '',
     roomName: 'Rạp 05 (Tầng 3 - RealD 3D)',
     startTime: '',
-    price: 50000,
+    price: 80000,
   });
 
   useEffect(() => {
     loadData();
   }, []);
 
+  const resolveSuggestedPrice = (roomName, startTime, cfg = pricingConfig) => {
+    return calculateDynamicPrices(
+      {
+        roomName,
+        startTime: startTime || new Date().toISOString(),
+        useConfigMatrix: true,
+      },
+      cfg
+    ).priceStandard;
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const [stRes, mRes, cRes, rRes] = await Promise.all([
+      const [stRes, mRes, cRes, rRes, loadedPricing] = await Promise.all([
         api.get('/admin/showtimes'),
         api.get('/movies'),
         api.get('/admin/cinemas'),
         api.get('/admin/rooms'),
+        loadPricingConfig(true),
       ]);
+      const activeCfg = loadedPricing || DEFAULT_PRICING_CONFIG;
+      setPricingConfig(activeCfg);
       setShowtimes(stRes.data || []);
       setMovies(mRes.data || []);
       setCinemas(cRes.data || []);
       setRooms(rRes.data || []);
 
       if (mRes.data?.length > 0 && cRes.data?.length > 0) {
+        const defaultRoomName = rRes.data?.[0]?.name || 'Phòng IMAX 01 (Grand Hall)';
         setFormData((prev) => ({
           ...prev,
           movieId: mRes.data[0].id || mRes.data[0]._id,
           cinemaId: cRes.data[0].id || cRes.data[0]._id,
-          roomName: rRes.data?.[0]?.name || 'Phòng IMAX 01 (Grand Hall)',
+          roomName: defaultRoomName,
+          price: resolveSuggestedPrice(defaultRoomName, prev.startTime, activeCfg),
         }));
       }
     } catch (err) {
       console.error('Lỗi khi tải dữ liệu suất chiếu:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleQuickEditPrice = async (st) => {
+    const rawInput = window.prompt(
+      `Nhập giá vé cơ bản mới (VNĐ) cho suất ${st.roomName}:`,
+      String(st.price || 55000)
+    );
+    if (rawInput === null) return;
+    const nextPrice = Number(rawInput);
+    if (!Number.isFinite(nextPrice) || nextPrice <= 0) {
+      alert('Vui lòng nhập số tiền hợp lệ lớn hơn 0!');
+      return;
+    }
+    try {
+      await api.put(`/admin/showtimes/${st.id || st._id}`, { price: Math.round(nextPrice) });
+      loadData();
+    } catch (err) {
+      alert('Lỗi cập nhật giá vé: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -243,7 +284,17 @@ const ShowtimeManagePage = () => {
                             <span className="text-[10px] text-slate-400">{dateFormatted}</span>
                           </td>
                           <td className="py-3 px-4 font-mono font-bold text-white">
-                            {Number(st.price || 0).toLocaleString('vi-VN')} đ
+                            <div className="flex items-center gap-2">
+                              <span>{Number(st.price || 0).toLocaleString('vi-VN')} đ</span>
+                              <button
+                                type="button"
+                                onClick={() => handleQuickEditPrice(st)}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white border border-slate-700 cursor-pointer transition-colors"
+                                title="Sửa nhanh giá suất chiếu"
+                              >
+                                ✏️
+                              </button>
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-center">
                             <div className="inline-flex items-center space-x-2">
@@ -330,11 +381,10 @@ const ShowtimeManagePage = () => {
                         value={formData.roomName}
                         onChange={(e) => {
                           const selectedRoom = e.target.value;
-                          const isImax = selectedRoom.toLowerCase().includes('imax');
                           setFormData({
                             ...formData,
                             roomName: selectedRoom,
-                            price: isImax ? 160000 : 50000,
+                            price: resolveSuggestedPrice(selectedRoom, formData.startTime),
                           });
                         }}
                         className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-red-500"
@@ -360,7 +410,7 @@ const ShowtimeManagePage = () => {
                       <input
                         type="number"
                         step="5000"
-                        min="45000"
+                        min="0"
                         value={formData.price}
                         onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                         className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-red-500 font-mono"
@@ -374,13 +424,19 @@ const ShowtimeManagePage = () => {
                       type="datetime-local"
                       required
                       value={formData.startTime}
-                      onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          startTime: e.target.value,
+                          price: resolveSuggestedPrice(formData.roomName, e.target.value),
+                        })
+                      }
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-red-500"
                     />
                   </div>
 
                   <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-300 text-[11px] leading-relaxed">
-                    💡 <strong>Cơ chế tự động:</strong> Khi bạn tạo suất chiếu này, hệ thống sẽ tự động khởi tạo ma trận <strong>48 ghế ngồi</strong> (Dãy A-F, Ghế 1-8) với phân cấp ghế Tiêu chuẩn & Ghế VIP cho khách đặt vé.
+                    💡 <strong>Giá động theo cấu hình Admin:</strong> Giá vé gợi ý được tự động tính từ bảng giá MongoDB theo loại phòng & khung giờ chiếu (bạn vẫn có thể điều chỉnh riêng nếu cần). Hệ thống tự khởi tạo sơ đồ <strong>88 ghế ngồi</strong> cho suất mới.
                   </div>
 
                   <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">

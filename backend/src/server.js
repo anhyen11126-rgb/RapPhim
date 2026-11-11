@@ -20,6 +20,7 @@ import promotionRoutes from './routes/promotionRoutes.js';
 import supportRoutes from './routes/supportRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
+import pricingRoutes from './routes/pricingRoutes.js';
 import connectDB from './config/db.js';
 
 dotenv.config();
@@ -48,6 +49,7 @@ app.use('/api/support', supportRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/admin/rooms', roomRoutes);
+app.use('/api/pricing', pricingRoutes);
 
 // Health Check API
 app.get('/api/health', async (req, res) => {

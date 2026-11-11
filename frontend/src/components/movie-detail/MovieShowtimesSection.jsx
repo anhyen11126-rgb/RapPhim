@@ -1,6 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { calculateDynamicPrices, getRoomPriceRange } from '../../utils/pricing';
+import {
+  calculateDynamicPrices,
+  getRoomPriceRange,
+  loadPricingConfig,
+  DEFAULT_PRICING_CONFIG,
+} from '../../utils/pricing';
 
 const MovieShowtimesSection = ({
   movie,
@@ -25,8 +30,15 @@ const MovieShowtimesSection = ({
     ? (selectedDate.fullDate.getDay() === 0 || selectedDate.fullDate.getDay() === 5 || selectedDate.fullDate.getDay() === 6)
     : false;
 
-  // Quản lý bộ lọc theo Quận / Huyện tại Đà Nẵng
+  // Quản lý bộ lọc theo Quận / Huyện tại Đà Nẵng + Cấu hình giá động từ DB
   const [selectedDistrict, setSelectedDistrict] = useState('Tất cả');
+  const [pricingConfig, setPricingConfig] = useState(DEFAULT_PRICING_CONFIG);
+
+  useEffect(() => {
+    loadPricingConfig().then((cfg) => {
+      if (cfg) setPricingConfig(cfg);
+    });
+  }, []);
 
   // Lấy danh sách các Quận / Huyện có rạp tại Đà Nẵng
   const availableDistricts = useMemo(() => {
@@ -223,7 +235,7 @@ const MovieShowtimesSection = ({
               <div className="flex items-center space-x-2 text-xs">
                 <span className="text-slate-400">Giá vé dao động:</span>
                 <span className="text-amber-400 font-black text-sm">
-                  {getRoomPriceRange('imax', isWeekend).label}
+                  {getRoomPriceRange('imax', isWeekend, pricingConfig).label}
                 </span>
               </div>
             </div>
@@ -234,12 +246,15 @@ const MovieShowtimesSection = ({
                 const isChosen = currentActiveShowtime?.id === st.id;
                 const isUrgent = st.availableSeats > 0 && st.availableSeats <= 15;
                 const endTime = getEndTime(st.time, movie.duration);
-                const imaxPricing = calculateDynamicPrices({
-                  ...st,
-                  startTime: selectedDate?.fullDate,
-                  roomName: 'Phòng IMAX 01',
-                  format: 'IMAX Laser 2D',
-                });
+                const imaxPricing = calculateDynamicPrices(
+                  {
+                    ...st,
+                    startTime: selectedDate?.fullDate,
+                    roomName: 'Phòng IMAX 01',
+                    format: 'IMAX Laser 2D',
+                  },
+                  pricingConfig
+                );
                 const slotPrice = imaxPricing.priceStandard;
 
                 return (
@@ -330,7 +345,7 @@ const MovieShowtimesSection = ({
               <div className="flex items-center space-x-2 text-xs">
                 <span className="text-slate-400">Giá vé dao động:</span>
                 <span className="text-blue-400 font-black text-sm">
-                  {getRoomPriceRange('2d', isWeekend).label}
+                  {getRoomPriceRange('2d', isWeekend, pricingConfig).label}
                 </span>
               </div>
             </div>
@@ -342,12 +357,15 @@ const MovieShowtimesSection = ({
                 const isSoldOut = st.availableSeats === 0;
                 const isUrgent = st.availableSeats > 0 && st.availableSeats <= 15;
                 const endTime = getEndTime(st.time, movie.duration);
-                const stdPricing = calculateDynamicPrices({
-                  ...st,
-                  startTime: selectedDate?.fullDate,
-                  roomName: st.roomName || 'Rạp 03 (Tầng 2)',
-                  format: '2D Tiêu Chuẩn Dolby 7.1',
-                });
+                const stdPricing = calculateDynamicPrices(
+                  {
+                    ...st,
+                    startTime: selectedDate?.fullDate,
+                    roomName: st.roomName || 'Rạp 03 (Tầng 2)',
+                    format: '2D Tiêu Chuẩn Dolby 7.1',
+                  },
+                  pricingConfig
+                );
                 const slotPrice = stdPricing.priceStandard;
 
                 return (
@@ -448,7 +466,7 @@ const MovieShowtimesSection = ({
               <div className="flex items-center space-x-2 text-xs">
                 <span className="text-slate-400">Giá vé dao động:</span>
                 <span className="text-emerald-400 font-black text-sm">
-                  {getRoomPriceRange('3d', isWeekend).label}
+                  {getRoomPriceRange('3d', isWeekend, pricingConfig).label}
                 </span>
               </div>
             </div>
@@ -459,12 +477,15 @@ const MovieShowtimesSection = ({
                 const isChosen = currentActiveShowtime?.id === st.id;
                 const isUrgent = st.availableSeats > 0 && st.availableSeats <= 15;
                 const endTime = getEndTime(st.time, movie.duration);
-                const threeDPricing = calculateDynamicPrices({
-                  ...st,
-                  startTime: selectedDate?.fullDate,
-                  roomName: st.roomName || 'Rạp 05 (Tầng 3)',
-                  format: 'RealD 3D HFR',
-                });
+                const threeDPricing = calculateDynamicPrices(
+                  {
+                    ...st,
+                    startTime: selectedDate?.fullDate,
+                    roomName: st.roomName || 'Rạp 05 (Tầng 3)',
+                    format: 'RealD 3D HFR',
+                  },
+                  pricingConfig
+                );
                 const slotPrice = threeDPricing.priceStandard;
 
                 return (
@@ -566,7 +587,7 @@ const MovieShowtimesSection = ({
             <div className="text-left md:text-right">
               <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Giá vé dự kiến:</span>
               <span className="text-xl sm:text-2xl font-black text-amber-400">
-                {(calculateDynamicPrices({ ...currentActiveShowtime, startTime: selectedDate?.fullDate }).priceStandard).toLocaleString('vi-VN')} đ
+                {(calculateDynamicPrices({ ...currentActiveShowtime, startTime: selectedDate?.fullDate }, pricingConfig).priceStandard).toLocaleString('vi-VN')} đ
               </span>
             </div>
             <button

@@ -62,6 +62,7 @@ const showtimeSeatSchema = new mongoose.Schema(
 
 // Đảm bảo trong 1 suất chiếu, số ghế là duy nhất
 showtimeSeatSchema.index({ showtimeId: 1, seatNumber: 1 }, { unique: true });
+showtimeSeatSchema.index({ showtimeId: 1, status: 1, holdExpiresAt: 1 });
 
 const ShowtimeSeat = mongoose.models.ShowtimeSeat || mongoose.model('ShowtimeSeat', showtimeSeatSchema);
 export default ShowtimeSeat;

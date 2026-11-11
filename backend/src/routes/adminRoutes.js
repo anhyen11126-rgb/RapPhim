@@ -6,8 +6,11 @@ import {
   updateMovie,
   deleteMovie,
   createShowtime,
+  updateShowtime,
   getAdminShowtimes,
   deleteShowtime,
+  getAdminPricingConfig,
+  updateAdminPricingConfig,
   getAdminBookings,
   updateBookingStatus,
   getAdminCinemas,
@@ -25,6 +28,13 @@ import {
   sendAdminTestOtp,
   deleteAdminOtp,
   clearExpiredAdminOtps,
+  getAdminChatbotData,
+  updateAdminChatbotConfig,
+  addAdminChatbotFaq,
+  updateAdminChatbotFaq,
+  deleteAdminChatbotFaq,
+  deleteAdminChatLog,
+  clearAdminChatLogs,
 } from '../controllers/adminController.js';
 import { authenticateAdmin } from '../middleware/authMiddleware.js';
 
@@ -40,7 +50,6 @@ router.get('/dashboard/stats', authenticateAdmin, getDashboardStats);
 router.post('/movies', authenticateAdmin, createMovie);
 router.put('/movies/:id', authenticateAdmin, updateMovie);
 router.delete('/movies/:id', authenticateAdmin, deleteMovie);
-//jjjj
 // Quản lý Cụm rạp
 router.get('/cinemas', authenticateAdmin, getAdminCinemas);
 router.post('/cinemas', authenticateAdmin, createCinema);
@@ -50,7 +59,12 @@ router.delete('/cinemas/:id', authenticateAdmin, deleteCinema);
 // Quản lý Suất chiếu
 router.get('/showtimes', authenticateAdmin, getAdminShowtimes);
 router.post('/showtimes', authenticateAdmin, createShowtime);
+router.put('/showtimes/:id', authenticateAdmin, updateShowtime);
 router.delete('/showtimes/:id', authenticateAdmin, deleteShowtime);
+
+// Quản lý Bảng giá vé (Cấu hình động từ MongoDB)
+router.get('/pricing', authenticateAdmin, getAdminPricingConfig);
+router.put('/pricing', authenticateAdmin, updateAdminPricingConfig);
 
 // Quản lý Đặt vé
 router.get('/bookings', authenticateAdmin, getAdminBookings);
@@ -74,6 +88,15 @@ router.get('/otps', authenticateAdmin, getAdminOtps);
 router.post('/otps', authenticateAdmin, sendAdminTestOtp);
 router.delete('/otps/:id', authenticateAdmin, deleteAdminOtp);
 router.delete('/otps-cleanup/expired', authenticateAdmin, clearExpiredAdminOtps);
+
+// Quản lý Trợ lý ảo Chatbot AI (Database, Kho tri thức FAQ & Lịch sử Chat)
+router.get('/chatbot', authenticateAdmin, getAdminChatbotData);
+router.put('/chatbot/config', authenticateAdmin, updateAdminChatbotConfig);
+router.post('/chatbot/faqs', authenticateAdmin, addAdminChatbotFaq);
+router.put('/chatbot/faqs/:faqId', authenticateAdmin, updateAdminChatbotFaq);
+router.delete('/chatbot/faqs/:faqId', authenticateAdmin, deleteAdminChatbotFaq);
+router.delete('/chatbot/logs/:id', authenticateAdmin, deleteAdminChatLog);
+router.delete('/chatbot/logs-cleanup/all', authenticateAdmin, clearAdminChatLogs);
 
 export default router;
 
