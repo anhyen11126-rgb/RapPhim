@@ -10,9 +10,11 @@ import Cinema from '../models/Cinema.js';
 import User from '../models/User.js';
 import Concession from '../models/Concession.js';
 import Promotion from '../models/Promotion.js';
+import OtpVerification from '../models/OtpVerification.js';
 import { ensureCleanConcessions, resolveConcessionVisuals } from './concessionController.js';
 import { ensureCleanPromotions, resolvePromotionVisuals } from './promotionController.js';
 import { ensure3DShowtimesSynced } from './cinemaController.js';
+import { generateAndSendEmailOtp } from './authController.js';
 
 // Đăng nhập Admin
 export const adminLogin = async (req, res) => {
@@ -124,7 +126,22 @@ export const getDashboardStats = async (req, res) => {
 // Quản lý Phim: Tạo phim mới
 export const createMovie = async (req, res) => {
   try {
-    const { title, posterUrl, trailerUrl, description, genre, duration, ageRating, releaseDate, status, price } = req.body;
+    const {
+      title,
+      posterUrl,
+      poster,
+      trailerUrl,
+      description,
+      genre,
+      duration,
+      ageRating,
+      techFormat,
+      formats,
+      rating,
+      releaseDate,
+      status,
+      price,
+    } = req.body;
 
     const slug =
       title
@@ -137,16 +154,33 @@ export const createMovie = async (req, res) => {
       '-' +
       Date.now();
 
+    const parsedFormats = Array.isArray(formats)
+      ? formats.map((f) => String(f).trim()).filter(Boolean)
+      : typeof formats === 'string' && formats.trim()
+      ? formats
+          .split(/[,•|]+/)
+          .map((f) => f.trim())
+          .filter(Boolean)
+      : ['2D', '3D', techFormat || 'IMAX'];
+
+    const resolvedPoster =
+      posterUrl ||
+      poster ||
+      'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop';
+
     const movie = await Movie.create({
       title,
       slug,
-      posterUrl: posterUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop',
-      poster: posterUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop',
+      posterUrl: resolvedPoster,
+      poster: resolvedPoster,
       trailerUrl: trailerUrl || '',
       description: description || '',
       genre: genre || 'Chưa phân loại',
       duration: parseInt(duration, 10) || 120,
-      ageRating: ageRating || 'P',
+      ageRating: ageRating || 'T16',
+      techFormat: techFormat || parsedFormats[parsedFormats.length - 1] || 'IMAX',
+      formats: parsedFormats,
+      rating: rating ? String(rating) : '4.8',
       releaseDate: releaseDate ? new Date(releaseDate) : new Date(),
       status: status || 'NOW_SHOWING',
       price: parseFloat(price) || 95000,
@@ -171,6 +205,19 @@ export const updateMovie = async (req, res) => {
     if (data.releaseDate) data.releaseDate = new Date(data.releaseDate);
     if (data.posterUrl && !data.poster) data.poster = data.posterUrl;
     if (data.poster && !data.posterUrl) data.posterUrl = data.poster;
+    if (data.formats !== undefined) {
+      data.formats = Array.isArray(data.formats)
+        ? data.formats.map((f) => String(f).trim()).filter(Boolean)
+        : typeof data.formats === 'string' && data.formats.trim()
+        ? data.formats
+            .split(/[,•|]+/)
+            .map((f) => f.trim())
+            .filter(Boolean)
+        : ['2D', '3D', data.techFormat || 'IMAX'];
+    }
+    if (data.rating !== undefined) {
+      data.rating = String(data.rating);
+    }
 
     const updated = await Movie.findByIdAndUpdate(id, data, { new: true }).lean();
 
@@ -587,5 +634,85 @@ export const deletePromotion = async (req, res) => {
     res.json({ success: true, message: 'Đã xóa khuyến mãi' });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi xóa khuyến mãi', error: error.message });
+  }
+};
+
+// ==================== QUẢN LÝ MÃ XÁC THỰC OTP (DATABASE & EMAIL) ====================
+export const getAdminOtps = async (req, res) => {
+  try {
+    const now = new Date();
+    // Tự động chuyển các mã PENDING đã quá 5 phút sang EXPIRED trong Database
+    await OtpVerification.updateMany(
+      { status: 'PENDING', expiresAt: { $lt: now } },
+      { $set: { status: 'EXPIRED' } }
+    );
+
+    const otps = await OtpVerification.find().sort({ createdAt: -1 }).limit(100).lean();
+    const senderEmail =
+      process.env.EMAIL_USER?.trim() && process.env.EMAIL_USER?.trim() !== 'your_email@gmail.com'
+        ? process.env.EMAIL_USER.trim()
+        : 'rapphim265@gmail.com';
+
+    res.json({
+      senderEmail,
+      otps: otps.map((item) => ({
+        ...item,
+        id: item._id.toString(),
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi lấy danh sách mã OTP', error: error.message });
+  }
+};
+
+export const sendAdminTestOtp = async (req, res) => {
+  try {
+    const { email, type } = req.body;
+    if (!email || !email.trim()) {
+      return res.status(400).json({ message: 'Vui lòng nhập địa chỉ Email nhận mã OTP' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const result = await generateAndSendEmailOtp({
+      email: cleanEmail,
+      type: type === 'reset_password' ? 'reset_password' : 'register',
+    });
+
+    res.status(201).json({
+      success: true,
+      message: result.emailSent
+        ? `Đã tạo mã OTP (${result.otpCode}) và gửi thành công tới hộp thư ${cleanEmail}!`
+        : `Đã lưu mã OTP (${result.otpCode}) vào Database (Lỗi SMTP: ${result.emailErrorMsg || 'Không xác định'})`,
+      otp: result.otpRecord
+        ? { ...result.otpRecord.toObject(), id: result.otpRecord._id.toString() }
+        : null,
+      emailSent: result.emailSent,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi tạo và gửi mã OTP', error: error.message });
+  }
+};
+
+export const deleteAdminOtp = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await OtpVerification.findByIdAndDelete(id);
+    res.json({ success: true, message: 'Đã xóa bản ghi OTP khỏi Database' });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi xóa mã OTP', error: error.message });
+  }
+};
+
+export const clearExpiredAdminOtps = async (req, res) => {
+  try {
+    const result = await OtpVerification.deleteMany({
+      status: { $in: ['EXPIRED', 'VERIFIED'] },
+    });
+    res.json({
+      success: true,
+      message: `Đã dọn dẹp ${result.deletedCount || 0} mã OTP đã sử dụng / hết hạn khỏi Database.`,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi dọn dẹp mã OTP', error: error.message });
   }
 };

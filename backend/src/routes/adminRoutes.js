@@ -21,6 +21,10 @@ import {
   getAdminPromotions,
   createPromotion,
   deletePromotion,
+  getAdminOtps,
+  sendAdminTestOtp,
+  deleteAdminOtp,
+  clearExpiredAdminOtps,
 } from '../controllers/adminController.js';
 import { authenticateAdmin } from '../middleware/authMiddleware.js';
 
@@ -64,6 +68,12 @@ router.delete('/concessions/:id', authenticateAdmin, deleteConcession);
 router.get('/promotions', authenticateAdmin, getAdminPromotions);
 router.post('/promotions', authenticateAdmin, createPromotion);
 router.delete('/promotions/:id', authenticateAdmin, deletePromotion);
+
+// Quản lý Mã xác thực OTP (Database & Email)
+router.get('/otps', authenticateAdmin, getAdminOtps);
+router.post('/otps', authenticateAdmin, sendAdminTestOtp);
+router.delete('/otps/:id', authenticateAdmin, deleteAdminOtp);
+router.delete('/otps-cleanup/expired', authenticateAdmin, clearExpiredAdminOtps);
 
 export default router;
 

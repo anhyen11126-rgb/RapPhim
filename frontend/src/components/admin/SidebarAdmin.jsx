@@ -10,6 +10,7 @@ const SidebarAdmin = () => {
     { to: '/admin/showtimes', label: 'Quản lý suất chiếu', icon: '🕒' },
     { to: '/admin/bookings', label: 'Quản lý đặt vé', icon: '🎟️' },
     { to: '/admin/users', label: 'Quản lý thành viên', icon: '👥' },
+    { to: '/admin/otps', label: 'Quản lý mã OTP', icon: '🔐' },
     { to: '/admin/concessions', label: 'Bắp nước & Combo', icon: '🍿' },
     { to: '/admin/promotions', label: 'Khuyến mãi & Voucher', icon: '🏷️' },
   ];

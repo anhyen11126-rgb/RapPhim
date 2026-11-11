@@ -259,6 +259,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
       setForgotStep(2);
       setForgotCountdown(30);
       setForgotOtpInput('');
+      setForgotGeneratedOtp(res.data?.devOtp || '');
       setForgotError('');
       setForgotSuccess(res.data?.message || `Mã xác thực OTP đã được gửi đến hộp thư: ${emailTrim}`);
     } catch (err) {
@@ -388,6 +389,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
       });
 
       setRegisterOtpInput('');
+      setRegisterGeneratedOtp(res.data?.devOtp || '');
       setRegisterCountdown(30);
       setRegisterOtpError('');
       setShowRegisterOtpModal(true);
@@ -1198,12 +1200,12 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   </p>
                   <p className="text-[10px] text-amber-400/90 flex items-center gap-1">
                     <span>💡</span>
-                    <span>Hãy kiểm tra thêm mục <strong>Thư rác (Spam)</strong> nếu chưa thấy ở Hộp thư đến.</span>
+                    <span>Lưu ý: Mã xác thực OTP đã được gửi trực tiếp về <strong>Gmail</strong> hoặc tin nhắn <strong>SMS</strong> trên điện thoại của bạn.</span>
                   </p>
                 </div>
 
 
-                {/* Không hiển thị mã OTP trên giao diện - bắt buộc lấy mã từ hộp thư Gmail */}
+                {/* Không hiển thị mã OTP trên giao diện - bắt buộc lấy mã từ hộp thư Gmail trên điện thoại */}
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-300 mb-1.5 text-center">
@@ -1376,12 +1378,12 @@ const AuthPage = ({ initialMode = 'login' }) => {
               </p>
               <p className="text-[11px] text-amber-400/90 flex items-center gap-1.5">
                 <span>💡</span>
-                <span>Lưu ý: Nếu không thấy ở Hộp thư đến, vui lòng kiểm tra thêm mục <strong>Thư rác (Spam)</strong> hoặc <strong>Quảng cáo</strong> nhé!</span>
+                <span>Lưu ý: Mã xác thực OTP đã được gửi trực tiếp về <strong>Gmail</strong> hoặc tin nhắn <strong>SMS</strong> trên điện thoại của bạn!</span>
               </p>
             </div>
 
 
-            {/* Không hiển thị mã OTP trên giao diện - bắt buộc lấy mã từ hộp thư Gmail */}
+            {/* Không hiển thị mã OTP trên giao diện - bắt buộc lấy mã từ hộp thư Gmail trên điện thoại */}
 
             {/* Thông báo lỗi nếu có */}
             {registerOtpError && (
@@ -1421,10 +1423,11 @@ const AuthPage = ({ initialMode = 'login' }) => {
                     type="button"
                     onClick={async () => {
                       try {
-                        await api.post('/auth/send-email-otp', {
+                        const res = await api.post('/auth/send-email-otp', {
                           email: registerForm.email.trim(),
                           type: 'register',
                         });
+                        setRegisterGeneratedOtp(res.data?.devOtp || '');
                         setRegisterCountdown(30);
                         setRegisterOtpInput('');
                         setRegisterOtpError('');

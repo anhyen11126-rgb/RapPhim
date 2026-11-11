@@ -118,9 +118,13 @@ const movieSchema = new mongoose.Schema(
       type: String,
       default: 'OFFICIAL IMAX LASER TRAILER • 4K UHD • Dolby Atmos',
     },
+    techFormat: {
+      type: String,
+      default: 'IMAX',
+    },
     formats: {
       type: [String],
-      default: ['IMAX Laser', '3D', '2D Dolby Atmos'],
+      default: ['2D', '3D', 'IMAX'],
     },
   },
   {

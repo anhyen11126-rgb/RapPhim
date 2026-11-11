@@ -3,10 +3,79 @@ import Movie from '../models/Movie.js';
 import Showtime from '../models/Showtime.js';
 import { ensure3DShowtimesSynced } from './cinemaController.js';
 
+let hasSyncedMovieFormats = false;
+
+export const resolveMovieFormatSpec = (m = {}) => {
+  const title = (m.title || '').toLowerCase();
+  const genre = (m.genre || '').toLowerCase();
+
+  let defaultTech = 'IMAX';
+  let defaultFormats = ['2D', '3D', 'IMAX'];
+
+  if (title.includes('oppenheimer')) {
+    defaultTech = 'Dolby 7.1';
+    defaultFormats = ['2D', '70mm IMAX'];
+  } else if (title.includes('godzilla') || title.includes('venom') || title.includes('deadpool') || title.includes('spider')) {
+    defaultTech = '4DX';
+    defaultFormats = ['2D', '3D', '4DX'];
+  } else if (
+    title.includes('cô dâu') ||
+    title.includes('mai') ||
+    title.includes('lật mặt') ||
+    title.includes('quật mộ') ||
+    genre.includes('tâm lý') ||
+    genre.includes('gia đình')
+  ) {
+    defaultTech = 'Dolby 7.1';
+    defaultFormats = ['2D', 'Dolby 7.1'];
+  } else if (title.includes('inside out') || title.includes('panda') || title.includes('transformers') || genre.includes('hoạt hình')) {
+    defaultTech = 'RealD 3D';
+    defaultFormats = ['2D', '3D', 'RealD 3D'];
+  } else if (title.includes('dune') || title.includes('avatar')) {
+    defaultTech = 'IMAX';
+    defaultFormats = ['2D', '3D', 'IMAX'];
+  }
+
+  const rawFormats = Array.isArray(m.formats) ? m.formats : [];
+  const isLegacyDefault =
+    rawFormats.length === 0 ||
+    rawFormats.join(',') === 'IMAX Laser,3D,2D Dolby Atmos' ||
+    rawFormats.some((f) => f === '2D Dolby Atmos' || f === 'IMAX Laser');
+
+  const finalTech =
+    !m.techFormat || m.techFormat === 'IMAX Laser' ? defaultTech : m.techFormat;
+  const finalFormats = isLegacyDefault ? defaultFormats : rawFormats;
+
+  return {
+    techFormat: finalTech,
+    formats: finalFormats,
+  };
+};
+
+export const ensureMovieFormatsClean = async () => {
+  if (hasSyncedMovieFormats) return;
+  try {
+    const allMovies = await Movie.find({});
+    for (const doc of allMovies) {
+      const spec = resolveMovieFormatSpec(doc);
+      const currentJoin = Array.isArray(doc.formats) ? doc.formats.join(',') : '';
+      if (doc.techFormat !== spec.techFormat || currentJoin !== spec.formats.join(',')) {
+        doc.techFormat = spec.techFormat;
+        doc.formats = spec.formats;
+        await doc.save();
+      }
+    }
+    hasSyncedMovieFormats = true;
+  } catch (err) {
+    console.warn('Movie formats sync warning:', err.message);
+  }
+};
+
 // Lấy danh sách phim (kèm lọc theo trạng thái / thể loại / tìm kiếm)
 export const getMovies = async (req, res) => {
   try {
     await ensure3DShowtimesSynced();
+    await ensureMovieFormatsClean();
     const { status, genre, search } = req.query;
     const filter = {};
 
@@ -50,8 +119,11 @@ export const getMovies = async (req, res) => {
           };
         });
 
+        const spec = resolveMovieFormatSpec(m);
+
         return {
           ...m,
+          ...spec,
           id: m._id.toString(),
           firstShowtimeId: showtimes.length > 0 ? showtimes[0]._id.toString() : null,
           showtimes: formattedShowtimes,
@@ -69,6 +141,7 @@ export const getMovies = async (req, res) => {
 // Lấy chi tiết 1 phim kèm danh sách suất chiếu
 export const getMovieById = async (req, res) => {
   try {
+    await ensureMovieFormatsClean();
     const { id } = req.params;
 
     let movie = null;
@@ -92,19 +165,24 @@ export const getMovieById = async (req, res) => {
     const formattedShowtimes = showtimes.map((st) => ({
       ...st,
       id: st._id.toString(),
-      cinema: st.cinemaId ? {
-        id: st.cinemaId._id ? st.cinemaId._id.toString() : st.cinemaId.id,
-        name: st.cinemaId.name,
-        city: st.cinemaId.city,
-        address: st.cinemaId.address,
-        slug: st.cinemaId.slug,
-        isFlagship: st.cinemaId.isFlagship,
-        distance: st.cinemaId.distance,
-      } : null,
+      cinema: st.cinemaId
+        ? {
+            id: st.cinemaId._id ? st.cinemaId._id.toString() : st.cinemaId.id,
+            name: st.cinemaId.name,
+            city: st.cinemaId.city,
+            address: st.cinemaId.address,
+            slug: st.cinemaId.slug,
+            isFlagship: st.cinemaId.isFlagship,
+            distance: st.cinemaId.distance,
+          }
+        : null,
     }));
+
+    const spec = resolveMovieFormatSpec(movie);
 
     res.json({
       ...movie,
+      ...spec,
       id: movie._id.toString(),
       showtimes: formattedShowtimes,
     });

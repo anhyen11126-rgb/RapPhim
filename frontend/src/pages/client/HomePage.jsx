@@ -53,12 +53,13 @@ const HomePage = () => {
               ? 'Phim dành cho mọi lứa tuổi'
               : `Phim cấm khán giả dưới ${m.ageRating ? m.ageRating.replace('T', '') : 16} tuổi`,
           techFormat:
-            Array.isArray(m.formats) && m.formats.length > 0
-              ? m.formats[0]
-              : m.techFormat || 'IMAX Laser',
+            m.techFormat ||
+            (Array.isArray(m.formats) && m.formats.length > 0
+              ? m.formats[m.formats.length - 1]
+              : 'IMAX'),
           rating: m.rating || '4.8',
           duration: m.duration || 120,
-          formats: Array.isArray(m.formats) && m.formats.length > 0 ? m.formats : ['2D', '3D', 'IMAX Laser'],
+          formats: Array.isArray(m.formats) && m.formats.length > 0 ? m.formats : ['2D', '3D', 'IMAX'],
           poster: m.poster || m.posterUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop',
           posterUrl: m.posterUrl || m.poster,
           bannerUrl: m.bannerUrl || '',

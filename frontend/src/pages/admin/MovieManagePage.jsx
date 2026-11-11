@@ -8,6 +8,7 @@ const MovieManagePage = () => {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingMovie, setEditingMovie] = useState(null);
   const [selectedMovieForShowtime, setSelectedMovieForShowtime] = useState(null);
   const [showtimeFormData, setShowtimeFormData] = useState({
     roomName: 'Phòng 01 - IMAX Laser',
@@ -31,19 +32,37 @@ const MovieManagePage = () => {
     }
   };
 
-  const handleCreateMovie = async (movieData) => {
+  const handleSaveMovie = async (movieData) => {
     try {
-      await api.post('/admin/movies', {
+      const payload = {
         ...movieData,
         posterUrl: movieData.poster,
-      });
+      };
+      if (editingMovie) {
+        const movieId = editingMovie.id || editingMovie._id;
+        await api.put(`/admin/movies/${movieId}`, payload);
+        alert('Cập nhật thông tin & định dạng phim thành công!');
+      } else {
+        await api.post('/admin/movies', payload);
+        alert('Thêm phim mới thành công!');
+      }
       setIsModalOpen(false);
+      setEditingMovie(null);
       fetchMovies();
-      alert('Thêm phim mới thành công!');
     } catch (err) {
-      console.error('Lỗi tạo phim:', err);
-      alert('Không thể tạo phim: ' + (err.response?.data?.message || err.message));
+      console.error('Lỗi lưu phim:', err);
+      alert('Không thể lưu phim: ' + (err.response?.data?.message || err.message));
     }
+  };
+
+  const handleOpenCreateModal = () => {
+    setEditingMovie(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (movie) => {
+    setEditingMovie(movie);
+    setIsModalOpen(true);
   };
 
   const handleDeleteMovie = async (id) => {
@@ -90,10 +109,12 @@ const MovieManagePage = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-black">Quản Lý Danh Mục Phim & Suất Chiếu</h1>
-              <p className="text-xs text-slate-400">Danh sách phim thực tế được lưu trữ trong Database</p>
+              <p className="text-xs text-slate-400">
+                Danh sách phim, nhãn công nghệ (IMAX / Dolby 7.1 / 4DX / RealD 3D) và định dạng được lưu trữ trong Database
+              </p>
             </div>
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleOpenCreateModal}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg hover:shadow-red-600/30"
             >
               + Thêm Phim Mới
@@ -105,9 +126,9 @@ const MovieManagePage = () => {
               <thead className="bg-slate-800 text-slate-400 uppercase text-xs">
                 <tr>
                   <th className="px-4 py-3">Poster</th>
-                  <th className="px-4 py-3">Tên phim</th>
-                  <th className="px-4 py-3">Độ tuổi</th>
-                  <th className="px-4 py-3">Thể loại</th>
+                  <th className="px-4 py-3">Tên phim & Thể loại</th>
+                  <th className="px-4 py-3">Độ tuổi & Đánh giá</th>
+                  <th className="px-4 py-3">Nhãn & Định dạng</th>
                   <th className="px-4 py-3">Thời lượng</th>
                   <th className="px-4 py-3">Số suất chiếu</th>
                   <th className="px-4 py-3 text-right">Hành động</th>
@@ -127,42 +148,76 @@ const MovieManagePage = () => {
                     </td>
                   </tr>
                 ) : (
-                  movies.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="px-4 py-3">
-                        <img
-                          src={m.posterUrl || 'https://via.placeholder.com/100x150'}
-                          alt={m.title}
-                          className="w-12 h-16 object-cover rounded-lg shadow-sm"
-                        />
-                      </td>
-                      <td className="px-4 py-3 font-bold text-white max-w-xs">{m.title}</td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs bg-red-600 text-white font-bold px-2 py-0.5 rounded">
-                          {m.ageRating}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-400">{m.genre}</td>
-                      <td className="px-4 py-3">{m.duration} phút</td>
-                      <td className="px-4 py-3 font-semibold text-emerald-400">
-                        {m._count?.showtimes || 0} suất
-                      </td>
-                      <td className="px-4 py-3 text-right space-x-2">
-                        <button
-                          onClick={() => setSelectedMovieForShowtime(m)}
-                          className="text-xs bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white px-3 py-1.5 rounded-lg transition-colors font-medium"
-                        >
-                          + Mở suất chiếu
-                        </button>
-                        <button
-                          onClick={() => handleDeleteMovie(m.id)}
-                          className="text-xs bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-3 py-1.5 rounded-lg transition-colors font-medium"
-                        >
-                          Xóa
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  movies.map((m) => {
+                    const formatsDisplay = Array.isArray(m.formats)
+                      ? m.formats.join(' • ')
+                      : m.formats || '2D • 3D • IMAX';
+                    return (
+                      <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="px-4 py-3">
+                          <img
+                            src={m.posterUrl || m.poster || 'https://via.placeholder.com/100x150'}
+                            alt={m.title}
+                            className="w-12 h-16 object-cover rounded-lg shadow-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-3 max-w-xs">
+                          <div className="font-bold text-white line-clamp-1">{m.title}</div>
+                          <div className="text-xs text-slate-400 line-clamp-1 mt-0.5">{m.genre}</div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`text-[11px] font-black px-2 py-0.5 rounded ${
+                                m.ageRating === 'T13'
+                                  ? 'bg-amber-500 text-slate-950'
+                                  : m.ageRating === 'P'
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-red-600 text-white'
+                              }`}
+                            >
+                              {m.ageRating || 'T16'}
+                            </span>
+                            <span className="text-xs font-bold text-amber-400 bg-slate-950/80 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                              ★ {m.rating || '4.8'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-amber-300 border border-amber-500/30">
+                              {m.techFormat || 'IMAX'}
+                            </span>
+                            <span className="text-xs text-slate-300 font-semibold">{formatsDisplay}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">🕒 {m.duration} phút</td>
+                        <td className="px-4 py-3 font-semibold text-emerald-400 whitespace-nowrap">
+                          {m._count?.showtimes || 0} suất
+                        </td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap space-x-1.5">
+                          <button
+                            onClick={() => handleOpenEditModal(m)}
+                            className="text-xs bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+                          >
+                            ✏️ Sửa
+                          </button>
+                          <button
+                            onClick={() => setSelectedMovieForShowtime(m)}
+                            className="text-xs bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+                          >
+                            + Mở suất
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMovie(m.id)}
+                            className="text-xs bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+                          >
+                            Xóa
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -170,11 +225,15 @@ const MovieManagePage = () => {
         </main>
       </div>
 
-      {/* Modal Thêm Phim */}
+      {/* Modal Thêm / Chỉnh Sửa Phim */}
       <MovieModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleCreateMovie}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingMovie(null);
+        }}
+        onSave={handleSaveMovie}
+        initialData={editingMovie}
       />
 
       {/* Modal Mở Suất Chiếu Nhanh */}
@@ -195,6 +254,7 @@ const MovieManagePage = () => {
                   <option value="Phòng 01 - IMAX Laser">Phòng 01 - IMAX Laser</option>
                   <option value="Phòng 02 - 2D Dolby Atmos">Phòng 02 - 2D Dolby Atmos</option>
                   <option value="Phòng 03 - 2D Tiêu chuẩn">Phòng 03 - 2D Tiêu chuẩn</option>
+                  <option value="Rạp 05 (Tầng 3 - RealD 3D)">Rạp 05 (Tầng 3 - RealD 3D)</option>
                 </select>
               </div>
 

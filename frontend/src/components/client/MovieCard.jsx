@@ -1,8 +1,67 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
+const formatMovieFormatsLine = (formats, techFormat) => {
+  const cleanItem = (str) =>
+    String(str || '')
+      .trim()
+      .replace(/^2D Dolby Atmos$/i, '2D')
+      .replace(/^IMAX Laser$/i, 'IMAX');
+
+  if (Array.isArray(formats) && formats.length > 0) {
+    const cleaned = formats.map(cleanItem).filter(Boolean);
+    // Nếu mảng cũ là ['IMAX', '3D', '2D'] thì sắp xếp lại 2D • 3D • IMAX cho chuẩn như ảnh mẫu
+    if (
+      cleaned.length === 3 &&
+      cleaned[0].toUpperCase() === 'IMAX' &&
+      cleaned[1].toUpperCase() === '3D' &&
+      cleaned[2].toUpperCase() === '2D'
+    ) {
+      return '2D • 3D • IMAX';
+    }
+    return cleaned.join(' • ');
+  }
+
+  if (typeof formats === 'string' && formats.trim()) {
+    return formats
+      .split(/[,•|]+/)
+      .map(cleanItem)
+      .filter(Boolean)
+      .join(' • ');
+  }
+
+  return `2D • 3D • ${cleanItem(techFormat) || 'IMAX'}`;
+};
+
+const getTechBadgeStyle = (tech) => {
+  const normalized = String(tech || '').toLowerCase();
+  if (normalized.includes('dolby')) {
+    return 'bg-emerald-950/90 text-emerald-400 border-emerald-500/40';
+  }
+  if (normalized.includes('4dx')) {
+    return 'bg-slate-900/90 text-slate-200 border-slate-500/40';
+  }
+  if (normalized.includes('3d')) {
+    return 'bg-cyan-950/90 text-cyan-300 border-cyan-500/40';
+  }
+  return 'bg-slate-900/85 text-amber-100 border-amber-500/30';
+};
+
+const getAgeBadgeStyle = (age) => {
+  const normalized = String(age || 'T16').toUpperCase();
+  if (normalized === 'T13') {
+    return 'bg-amber-500 text-slate-950';
+  }
+  if (normalized === 'P') {
+    return 'bg-emerald-600 text-white';
+  }
+  return 'bg-red-600 text-white';
+};
+
 const MovieCard = ({ movie }) => {
   const movieDetailPath = `/movie/${movie?.id || movie?._id || movie?.slug}`;
+  const displayTechFormat = String(movie?.techFormat || 'IMAX').replace(/^IMAX Laser$/i, 'IMAX');
+  const displayFormatsLine = formatMovieFormatsLine(movie?.formats, displayTechFormat);
 
   return (
     <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl hover:border-slate-700 transition-all duration-300 flex flex-col group">
@@ -20,17 +79,21 @@ const MovieCard = ({ movie }) => {
 
         {/* Top Badges */}
         <div className="absolute top-3 left-3 flex items-center space-x-1.5">
-          <span className="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded shadow">
+          <span
+            className={`${getAgeBadgeStyle(movie?.ageRating)} text-[10px] font-black px-2 py-0.5 rounded shadow whitespace-nowrap`}
+          >
             {movie?.ageRating || 'T16'}
           </span>
-          <span className="bg-slate-900/80 backdrop-blur-md text-slate-200 text-[10px] font-bold px-2 py-0.5 rounded border border-white/10 shadow">
-            {movie?.techFormat || 'IMAX'}
+          <span
+            className={`${getTechBadgeStyle(displayTechFormat)} backdrop-blur-md text-[10px] font-bold px-2 py-0.5 rounded border shadow whitespace-nowrap`}
+          >
+            {displayTechFormat}
           </span>
         </div>
 
         {/* Rating Badge */}
-        <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center space-x-1 shadow">
-          <span className="text-amber-400 text-xs">⭐</span>
+        <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center space-x-1 shadow whitespace-nowrap">
+          <span className="text-amber-400 text-xs">★</span>
           <span className="text-white text-xs font-bold">{movie?.rating || '4.8'}</span>
         </div>
       </Link>
@@ -38,13 +101,15 @@ const MovieCard = ({ movie }) => {
       {/* Info Body */}
       <div className="p-4 flex flex-col flex-1 justify-between space-y-3">
         <div className="space-y-1.5">
-          {/* Format & Duration */}
-          <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium">
-            <span className="flex items-center space-x-1">
+          {/* Format & Duration - Gọn trên 1 hàng duy nhất */}
+          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400 font-medium whitespace-nowrap">
+            <span className="flex items-center space-x-1 shrink-0">
               <span>🕒</span>
               <span>{movie?.duration || 120} phút</span>
             </span>
-            <span className="text-slate-300 font-semibold">{movie?.formats || '2D • 3D • IMAX'}</span>
+            <span className="text-slate-300 font-semibold truncate text-right" title={displayFormatsLine}>
+              {displayFormatsLine}
+            </span>
           </div>
 
           <p className="text-[11px] text-slate-500 line-clamp-1">{movie?.genre || 'Hành động'}</p>
