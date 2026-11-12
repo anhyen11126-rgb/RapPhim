@@ -1,10 +1,16 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import tls from 'node:tls';
 import User from '../models/User.js';
 import AdminUser from '../models/AdminUser.js';
 import OtpVerification from '../models/OtpVerification.js';
+
+const __authFilename = fileURLToPath(import.meta.url);
+const __authDirname = path.dirname(__authFilename);
+const BACKEND_ENV_PATH = path.resolve(__authDirname, '../../.env');
 
 // Hàm gửi Email trực tiếp qua giao thức SMTP TLS chuẩn của Google (smtp.gmail.com:465)
 // Hoạt động 100% bằng thư viện gốc của Node.js ngay cả khi máy chưa chạy npm install nodemailer
@@ -399,20 +405,17 @@ export const generateAndSendEmailOtp = async ({ email, type = 'register' }) => {
 
   console.log(`[D'AVENOR CINEMA OTP]: Mã cho ${cleanEmail} là -> ${otpCode}`);
 
-  // Tự động đọc lại file .env mới nhất
-  dotenv.config({ override: true });
+  // Tự động đọc lại file backend/.env mới nhất
+  dotenv.config({ path: BACKEND_ENV_PATH, override: true });
 
   const rawUser = process.env.EMAIL_USER?.trim();
   const rawPass = process.env.EMAIL_PASS?.trim();
-  const emailUser =
-    rawUser && rawUser !== 'your_email@gmail.com' ? rawUser : 'rapphim265@gmail.com';
+  const emailUser = rawUser && rawUser !== 'your_email@gmail.com' ? rawUser : '';
   const emailPass =
-    rawPass && rawPass !== 'your_16_digit_app_password' && rawPass !== 'Abc1234@'
-      ? rawPass
-      : 'yaxz ntax jnar sfym';
+    rawPass && rawPass !== 'your_16_digit_app_password' && rawPass !== 'Abc1234@' ? rawPass : '';
 
   let emailSent = false;
-  let emailErrorMsg = null;
+  let emailErrorMsg = !emailUser || !emailPass ? 'Chưa cấu hình EMAIL_USER / EMAIL_PASS (Mật khẩu ứng dụng 16 ký tự) trong backend/.env' : null;
 
   if (emailUser && emailPass) {
     const subject =
@@ -567,11 +570,22 @@ export const sendEmailOtp = async (req, res) => {
       type: type || 'register',
     });
 
+    if (!emailSent) {
+      const isGoogleAuthBlock = String(emailErrorMsg || '').includes('534') || String(emailErrorMsg || '').includes('535');
+      return res.status(502).json({
+        success: false,
+        emailSent: false,
+        message: isGoogleAuthBlock
+          ? 'Gmail gửi OTP hiện bị Google từ chối đăng nhập (lỗi 534/535: Mật khẩu ứng dụng đã hết hiệu lực hoặc cần xác minh lại). Vui lòng tạo lại App Password 16 ký tự trong Google Account và cập nhật backend/.env.'
+          : `Không thể gửi email OTP đến ${cleanEmail}: ${emailErrorMsg || 'Lỗi kết nối SMTP Gmail'}`,
+        emailErrorMsg,
+      });
+    }
+
     res.json({
       success: true,
-      message: `Mã xác thực OTP đã được gửi về Gmail hoặc SMS cho ${cleanEmail}. Vui lòng mở điện thoại để lấy mã.`,
-      emailSent,
-      emailErrorMsg: emailSent ? undefined : emailErrorMsg,
+      message: `Mã xác thực OTP đã được gửi về Gmail ${cleanEmail}. Vui lòng kiểm tra Hộp thư đến (hoặc Spam).`,
+      emailSent: true,
     });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi trong quá trình gửi mã OTP qua email', error: error.message });
