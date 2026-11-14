@@ -47,5 +47,8 @@ const otpVerificationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// TTL Index: Tự động xóa vĩnh viễn các bản ghi OTP hết hạn khỏi MongoDB Atlas để cơ sở dữ liệu luôn nhẹ
+otpVerificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 export default mongoose.model('OtpVerification', otpVerificationSchema);
 

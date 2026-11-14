@@ -89,10 +89,9 @@ const autoSeedCinemaShowtimes = async (cinema, targetDate) => {
     const dayOfWeek = targetDate.getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
 
-    const featuredMovies = movies.filter((m) =>
-      ['dune-hanh-tinh-cat-phan-2', 'mai', 'kung-fu-panda-4', 'godzilla-x-kong-de-che-moi', 'quat-mo-trung-ma', 'lat-mat-7-mot-dieu-uoc'].includes(m.slug)
-    );
-    const selectedMovies = featuredMovies.length >= 3 ? featuredMovies : movies.slice(0, 4);
+    // Ưu tiên lấy các bộ phim đang được kích hoạt chiếu (NOW_SHOWING) trong cơ sở dữ liệu
+    const nowShowingMovies = movies.filter((m) => m.status === 'NOW_SHOWING');
+    const selectedMovies = nowShowingMovies.length >= 3 ? nowShowingMovies : movies.slice(0, 5);
 
     const hasImax = cinema.tags?.includes('IMAX Laser') || (cinema.name || '').includes('Vincom');
     const roomConfigs = [

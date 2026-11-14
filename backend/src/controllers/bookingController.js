@@ -23,6 +23,16 @@ export const holdSeats = async (req, res) => {
     const stId = new mongoose.Types.ObjectId(showtimeId);
     const now = new Date();
 
+    const targetShowtime = await Showtime.findById(stId);
+    if (!targetShowtime) {
+      return res.status(404).json({ message: 'Không tìm thấy suất chiếu' });
+    }
+    if (targetShowtime.isLocked) {
+      return res.status(403).json({
+        message: 'Suất chiếu này hiện đang tạm khóa hoặc điều chỉnh lịch chiếu bởi ban quản trị. Vui lòng chọn suất chiếu khác.',
+      });
+    }
+
     // Tìm các ghế yêu cầu
     const requestedSeats = await ShowtimeSeat.find({
       showtimeId: stId,
@@ -93,6 +103,16 @@ export const checkoutBooking = async (req, res) => {
     }
 
     const stId = new mongoose.Types.ObjectId(showtimeId);
+
+    const targetShowtime = await Showtime.findById(stId);
+    if (!targetShowtime) {
+      return res.status(404).json({ message: 'Không tìm thấy suất chiếu' });
+    }
+    if (targetShowtime.isLocked) {
+      return res.status(403).json({
+        message: 'Suất chiếu này hiện đang tạm khóa hoặc điều chỉnh lịch chiếu bởi ban quản trị. Không thể thanh toán.',
+      });
+    }
 
     // Kiểm tra xem có ghế nào đã BOOKED chưa
     const alreadyBooked = await ShowtimeSeat.find({

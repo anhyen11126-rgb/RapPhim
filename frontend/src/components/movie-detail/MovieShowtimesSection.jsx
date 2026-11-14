@@ -74,9 +74,32 @@ const MovieShowtimesSection = ({
       }
     }
   }, [displayedCinemas, selectedCinemaId, onSelectCinemaId]);
+
+  const jumpToPeriod = (type) => {
+    const d = new Date();
+    if (type === 'this_week') {
+      onSelectDateIndex(0);
+    } else if (type === 'next_week') {
+      const dayOfWeek = d.getDay();
+      const diffToNextMon = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+      const nextMon = new Date(d);
+      nextMon.setDate(d.getDate() + diffToNextMon);
+      const nextMonIso = `${nextMon.getFullYear()}-${String(nextMon.getMonth() + 1).padStart(2, '0')}-${String(nextMon.getDate()).padStart(2, '0')}`;
+      const foundIdx = dateTabs.findIndex((item) => item.isoDate === nextMonIso);
+      if (foundIdx !== -1) onSelectDateIndex(foundIdx);
+      else onSelectDateIndex(Math.min(7, dateTabs.length - 1));
+    } else if (type === 'month_11') {
+      const foundIdx = dateTabs.findIndex((item) => item.isoDate?.includes('-11-'));
+      if (foundIdx !== -1) onSelectDateIndex(foundIdx);
+    } else if (type === 'month_12') {
+      const foundIdx = dateTabs.findIndex((item) => item.isoDate?.includes('-12-'));
+      if (foundIdx !== -1) onSelectDateIndex(foundIdx);
+    }
+  };
+
   return (
     <section id="showtimes-section" className="relative z-20 max-w-[1560px] mx-auto px-4 sm:px-8 lg:px-12 mt-12">
-      <div className="bg-[#101625] border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8">
+      <div className="bg-[#101625] border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
         
         {/* Header Khu Vực Đặt Vé */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800/80 pb-6">
@@ -94,7 +117,49 @@ const MovieShowtimesSection = ({
           </div>
         </div>
 
-        {/* HÀNG CÁC TABS NGÀY CHIẾU (7 NGÀY) */}
+        {/* BỘ LỌC ĐIỀU HƯỚNG NHANH THEO TUẦN / THÁNG */}
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#0c111d] p-3 rounded-2xl border border-slate-800/70">
+          <div className="flex items-center space-x-2 text-xs text-slate-300 font-bold">
+            <span>📅</span>
+            <span>Xem lịch chiếu:</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => jumpToPeriod('this_week')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                selectedDateIndex === 0
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700'
+              }`}
+            >
+              ⚡ Tuần này
+            </button>
+            <button
+              type="button"
+              onClick={() => jumpToPeriod('next_week')}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 transition-all"
+            >
+              ⏩ Tuần sau
+            </button>
+            <button
+              type="button"
+              onClick={() => jumpToPeriod('month_11')}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-900/40 text-indigo-300 hover:bg-indigo-800/60 transition-all border border-indigo-700/40"
+            >
+              🍂 Tháng 11
+            </button>
+            <button
+              type="button"
+              onClick={() => jumpToPeriod('month_12')}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-900/40 text-purple-300 hover:bg-purple-800/60 transition-all border border-purple-700/40"
+            >
+              ❄️ Tháng 12
+            </button>
+          </div>
+        </div>
+
+        {/* HÀNG CÁC TABS NGÀY CHIẾU (30 NGÀY) */}
         <div className="flex items-center space-x-3 overflow-x-auto pb-2 scrollbar-none">
           {dateTabs.map((d) => (
             <button

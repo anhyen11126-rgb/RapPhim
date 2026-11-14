@@ -32,6 +32,10 @@ const showtimeSchema = new mongoose.Schema(
       required: true,
       default: 95000,
     },
+    isLocked: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

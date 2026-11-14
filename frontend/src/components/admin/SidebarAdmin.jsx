@@ -8,6 +8,7 @@ const SidebarAdmin = () => {
     { to: '/admin/cinemas', label: 'Quản lý cụm rạp', icon: '🏢' },
     { to: '/admin/rooms', label: 'Quản lý phòng chiếu', icon: '📽️' },
     { to: '/admin/showtimes', label: 'Quản lý suất chiếu', icon: '🕒' },
+    { to: '/admin/showtimes-occupancy', label: 'Tỷ lệ lấp đầy & Ghế', icon: '📈' },
     { to: '/admin/pricing', label: 'Quản lý giá vé', icon: '💰' },
     { to: '/admin/bookings', label: 'Quản lý đặt vé', icon: '🎟️' },
     { to: '/admin/users', label: 'Quản lý thành viên', icon: '👥' },

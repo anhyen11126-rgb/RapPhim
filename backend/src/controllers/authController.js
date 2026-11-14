@@ -504,13 +504,16 @@ export const generateAndSendEmailOtp = async ({ email, type = 'register' }) => {
     }
   }
 
-  // Đánh dấu các mã OTP cũ đang PENDING của cùng email này thành EXPIRED và lưu bản ghi mới vào MongoDB
+  // Tự động xóa vĩnh viễn các mã OTP đã hết hạn hoặc mã cũ của cùng email này để giữ Database luôn nhẹ
   let otpDoc = null;
   try {
-    await OtpVerification.updateMany(
-      { email: cleanEmail, status: 'PENDING' },
-      { $set: { status: 'EXPIRED' } }
-    );
+    await OtpVerification.deleteMany({
+      $or: [
+        { email: cleanEmail },
+        { expiresAt: { $lt: new Date() } },
+        { status: 'EXPIRED' },
+      ],
+    });
     otpDoc = await OtpVerification.create({
       email: cleanEmail,
       code: otpCode,
@@ -632,9 +635,9 @@ export const verifyEmailOtp = async (req, res) => {
     if (Date.now() > activeExpiresAt || dbRecord?.status === 'EXPIRED') {
       otpCache.delete(cleanEmail);
       if (dbRecord?._id) {
-        await OtpVerification.findByIdAndUpdate(dbRecord._id, { status: 'EXPIRED' }).catch(() => {});
+        await OtpVerification.findByIdAndDelete(dbRecord._id).catch(() => {});
       }
-      return res.status(400).json({ message: 'Mã OTP đã hết hạn (5 phút). Vui lòng bấm Gửi lại mã mới.' });
+      return res.status(400).json({ message: 'Mã OTP đã hết hạn (5 phút) và đã được xóa khỏi hệ thống. Vui lòng bấm Gửi lại mã mới.' });
     }
 
     if (activeCode !== cleanOtp) {
@@ -709,8 +712,11 @@ export const resetPassword = async (req, res) => {
     user.password = hashedPassword;
     await user.save();
 
-    // Xóa OTP sau khi đổi mật khẩu thành công
+    // Xóa OTP sau khi đổi mật khẩu thành công khỏi cache và Database để nhẹ hệ thống
     otpCache.delete(user.email);
+    if (dbRecord?._id) {
+      await OtpVerification.findByIdAndDelete(dbRecord._id).catch(() => {});
+    }
 
     res.json({
       success: true,

@@ -47,19 +47,47 @@ const TheatersPage = () => {
     });
   }, []);
 
-  // Sinh 7 ngày liên tiếp tính từ hôm nay theo giờ địa phương chuẩn
-  const dates = Array.from({ length: 7 }).map((_, idx) => {
+  const [customDate, setCustomDate] = useState('');
+
+  // Sinh 30 ngày liên tiếp tính từ hôm nay theo giờ địa phương chuẩn (hỗ trợ xem tuần này, tuần sau, tháng 11, tháng 12)
+  const dates = Array.from({ length: 30 }).map((_, idx) => {
     const d = new Date();
     d.setDate(d.getDate() + idx);
     const dayNames = ['CHỦ NHẬT', 'THỨ 2', 'THỨ 3', 'THỨ 4', 'THỨ 5', 'THỨ 6', 'THỨ 7'];
-    const dayStr = idx === 0 ? 'HÔM NAY' : dayNames[d.getDay()];
+    const dayStr = idx === 0 ? 'HÔM NAY' : idx === 1 ? 'NGÀY MAI' : dayNames[d.getDay()];
     const dateStr = `${d.getDate()}/${d.getMonth() + 1}`;
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     const isoDate = `${year}-${month}-${day}`;
-    return { dayStr, dateStr, isoDate };
+    return { dayStr, dateStr, isoDate, d };
   });
+
+  const jumpToPeriod = (type) => {
+    const d = new Date();
+    setCustomDate('');
+    if (type === 'this_week') {
+      setActiveDateIndex(0);
+    } else if (type === 'next_week') {
+      const dayOfWeek = d.getDay();
+      const diffToNextMon = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+      const nextMon = new Date(d);
+      nextMon.setDate(d.getDate() + diffToNextMon);
+      const nextMonIso = nextMon.toISOString().slice(0, 10);
+      const foundIdx = dates.findIndex((item) => item.isoDate === nextMonIso);
+      if (foundIdx !== -1) setActiveDateIndex(foundIdx);
+      else setActiveDateIndex(7);
+    } else if (type === 'month_11') {
+      const foundIdx = dates.findIndex((item) => item.isoDate.startsWith(`${d.getFullYear()}-11`));
+      if (foundIdx !== -1) setActiveDateIndex(foundIdx);
+    } else if (type === 'month_12') {
+      const foundIdx = dates.findIndex((item) => item.isoDate.startsWith(`${d.getFullYear()}-12`));
+      if (foundIdx !== -1) setActiveDateIndex(foundIdx);
+      else {
+        setCustomDate(`${d.getFullYear()}-12-01`);
+      }
+    }
+  };
 
   // 1. Tải danh sách rạp từ API Backend khi thay đổi bộ lọc (Khu vực, Công nghệ, Tìm kiếm)
   useEffect(() => {
@@ -131,7 +159,7 @@ const TheatersPage = () => {
     const fetchCinemaShowtimes = async () => {
       try {
         setLoadingShowtimes(true);
-        const selectedDate = dates[activeDateIndex]?.isoDate;
+        const selectedDate = customDate || dates[activeDateIndex]?.isoDate;
         const res = await api.get(`/cinemas/${selectedCinemaId}/showtimes`, {
           params: { date: selectedDate },
         });
@@ -152,7 +180,7 @@ const TheatersPage = () => {
     };
 
     fetchCinemaShowtimes();
-  }, [selectedCinemaId, activeDateIndex]);
+  }, [selectedCinemaId, activeDateIndex, customDate]);
 
   // Điều hướng sang màn hình chọn ghế với showtimeId thật từ DB
   const handleSelectShowtime = (showtimeId) => {
@@ -409,26 +437,93 @@ const TheatersPage = () => {
                   </div>
                 </div>
 
-                {/* 2. CHỌN NGÀY CHIẾU */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                {/* 2. CHỌN NGÀY CHIẾU & ĐIỀU HƯỚNG THEO TUẦN / THÁNG */}
+                <div className="bg-[#0f1422] p-4 rounded-2xl border border-slate-800 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center space-x-2">
                       <span className="text-base">📅</span>
-                      <h3 className="text-base font-black text-white">Lịch chiếu rạp</h3>
+                      <h3 className="text-sm font-black text-white uppercase tracking-wider">Lịch chiếu theo tuần & tháng</h3>
                     </div>
-                    <span className="text-xs text-slate-400 font-medium">Tháng {new Date().getMonth() + 1}, {new Date().getFullYear()}</span>
+                    
+                    {/* Các nút nhảy nhanh theo tuần/tháng theo yêu cầu */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => jumpToPeriod('this_week')}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                          !customDate && activeDateIndex === 0
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700'
+                        }`}
+                      >
+                        ⚡ Tuần này
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => jumpToPeriod('next_week')}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 transition-all"
+                      >
+                        ⏩ Tuần sau
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => jumpToPeriod('month_11')}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-900/40 text-indigo-300 hover:bg-indigo-800/60 transition-all border border-indigo-700/40"
+                      >
+                        🍂 Tháng 11
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => jumpToPeriod('month_12')}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-900/40 text-purple-300 hover:bg-purple-800/60 transition-all border border-purple-700/40"
+                      >
+                        ❄️ Tháng 12
+                      </button>
+                      
+                      {/* Chọn ngày cụ thể bất kỳ */}
+                      <div className="flex items-center pl-1">
+                        <input
+                          type="date"
+                          value={customDate || dates[activeDateIndex]?.isoDate || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCustomDate(val);
+                            const idx = dates.findIndex((d) => d.isoDate === val);
+                            if (idx !== -1) setActiveDateIndex(idx);
+                          }}
+                          className="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-2 py-1 outline-none focus:border-blue-500 cursor-pointer"
+                        />
+                      </div>
+                    </div>
                   </div>
 
+                  {customDate && !dates.some((d) => d.isoDate === customDate) && (
+                    <div className="flex items-center justify-between bg-blue-950/40 border border-blue-500/40 px-3 py-1.5 rounded-xl text-xs text-blue-200">
+                      <span>Đang xem lịch ngày: <strong className="text-white">{customDate}</strong></span>
+                      <button
+                        type="button"
+                        onClick={() => { setCustomDate(''); setActiveDateIndex(0); }}
+                        className="text-xs text-blue-400 hover:underline"
+                      >
+                        Quay lại hôm nay ↺
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Thanh cuộn 30 ngày */}
                   <div className="flex items-center space-x-2 overflow-x-auto scrollbar-none pb-1">
                     {dates.map((item, idx) => {
-                      const isActive = idx === activeDateIndex;
+                      const isActive = !customDate ? idx === activeDateIndex : item.isoDate === customDate;
                       return (
                         <button
                           key={idx}
-                          onClick={() => setActiveDateIndex(idx)}
+                          onClick={() => {
+                            setCustomDate('');
+                            setActiveDateIndex(idx);
+                          }}
                           className={`flex flex-col items-center justify-center px-4 py-2.5 rounded-2xl min-w-[88px] transition-all border ${isActive
                             ? 'bg-[#2563eb] text-white border-blue-500 shadow-lg shadow-blue-600/30 font-bold'
-                            : 'bg-[#0f1422] text-slate-400 hover:text-white border-slate-800 hover:bg-slate-800/60'
+                            : 'bg-[#141b2d] text-slate-400 hover:text-white border-slate-800 hover:bg-slate-800/60'
                             }`}
                         >
                           <span className={`text-[10px] tracking-wider font-semibold uppercase ${isActive ? 'text-blue-100' : 'text-slate-500'}`}>

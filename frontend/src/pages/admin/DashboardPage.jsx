@@ -80,8 +80,9 @@ const DashboardPage = () => {
   ];
 
   const quickActions = [
+    { to: '/admin/showtimes-occupancy', title: 'Tỷ Lệ Lấp Đầy & Ghế', icon: '📈', desc: 'Giám sát ma trận ghế & tỷ lệ lấp đầy thời gian thực' },
     { to: '/admin/cinemas', title: 'Quản Lý Cụm Rạp', icon: '🏢', desc: 'Thêm/sửa 22 cụm rạp toàn quốc' },
-    { to: '/admin/showtimes', title: 'Mở Suất Chiếu', icon: '🕒', desc: 'Lên lịch chiếu & ma trận 48 ghế' },
+    { to: '/admin/showtimes', title: 'Mở Suất Chiếu', icon: '🕒', desc: 'Lên lịch chiếu & ma trận 88 ghế' },
     { to: '/admin/movies', title: 'Quản Lý Phim', icon: '🎬', desc: 'Thêm phim bom tấn, trailer, poster' },
     { to: '/admin/bookings', title: 'Duyệt Đơn Đặt Vé', icon: '🎟️', desc: 'Tra cứu mã vé & xác nhận thanh toán' },
     { to: '/admin/concessions', title: 'Bắp Nước & Combo', icon: '🍿', desc: 'Cập nhật giá combo F&B' },

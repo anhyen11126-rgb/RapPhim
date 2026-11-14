@@ -27,6 +27,7 @@ import BookingManagePage from './pages/admin/BookingManagePage';
 import CinemaManagePage from './pages/admin/CinemaManagePage';
 import RoomManagePage from './pages/admin/RoomManagePage';
 import ShowtimeManagePage from './pages/admin/ShowtimeManagePage';
+import ShowtimeOccupancyPage from './pages/admin/ShowtimeOccupancyPage';
 import PricingManagePage from './pages/admin/PricingManagePage';
 import UserManagePage from './pages/admin/UserManagePage';
 import OtpManagePage from './pages/admin/OtpManagePage';
@@ -86,6 +87,8 @@ function App() {
           <Route path="/admin/cinemas" element={<CinemaManagePage />} />
           <Route path="/admin/rooms" element={<RoomManagePage />} />
           <Route path="/admin/showtimes" element={<ShowtimeManagePage />} />
+          <Route path="/admin/showtimes-occupancy" element={<ShowtimeOccupancyPage />} />
+          <Route path="/admin/occupancy" element={<Navigate to="/admin/showtimes-occupancy" replace />} />
           <Route path="/admin/pricing" element={<PricingManagePage />} />
           <Route path="/admin/bookings" element={<BookingManagePage />} />
           <Route path="/admin/users" element={<UserManagePage />} />

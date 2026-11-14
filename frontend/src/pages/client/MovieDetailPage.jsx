@@ -7,6 +7,7 @@ import MovieHeroTrailer from '../../components/movie-detail/MovieHeroTrailer';
 import MovieSidebarInfo from '../../components/movie-detail/MovieSidebarInfo';
 import MovieOverviewHighlights from '../../components/movie-detail/MovieOverviewHighlights';
 import MovieCastSection from '../../components/movie-detail/MovieCastSection';
+import MovieStatsReviewsSection from '../../components/movie-detail/MovieStatsReviewsSection';
 import MovieShowtimesSection from '../../components/movie-detail/MovieShowtimesSection';
 
 // Kiểu dáng phân loại độ tuổi chuẩn rạp
@@ -145,13 +146,13 @@ const MovieDetailPage = () => {
     }
   };
 
-  // Tạo danh sách 7 ngày liên tiếp từ hôm nay
+  // Tạo danh sách 30 ngày liên tiếp từ hôm nay (hỗ trợ xem tuần này, tuần sau, tháng 11, tháng 12)
   const generateDateTabs = () => {
     const tabs = [];
     const daysOfWeek = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
     const now = new Date();
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 30; i++) {
       const d = new Date(now);
       d.setDate(now.getDate() + i);
 
@@ -159,10 +160,11 @@ const MovieDetailPage = () => {
       if (i === 0) tag = 'HÔM NAY';
       else if (i === 1) tag = 'NGÀY MAI';
       else if (d.getDay() === 0 || d.getDay() === 6) tag = 'CUỐI TUẦN';
-      else tag = `NGÀY ${i + 1}`;
+      else tag = `THỨ ${d.getDay() + 1}`;
 
       const dateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
       const dayName = daysOfWeek[d.getDay()];
+      const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
       tabs.push({
         index: i,
@@ -170,6 +172,7 @@ const MovieDetailPage = () => {
         dateStr,
         dayName,
         fullDate: d,
+        isoDate,
       });
     }
     return tabs;
@@ -398,6 +401,12 @@ const MovieDetailPage = () => {
             />
 
             <MovieCastSection cast={movie.cast} />
+
+            {/* THỐNG KÊ DOANH THU, VÉ, GHẾ & ĐÁNH GIÁ RIÊNG TỪNG BỘ PHIM */}
+            <MovieStatsReviewsSection
+              movie={movie}
+              onScrollToBooking={scrollToBooking}
+            />
           </div>
         </div>
       </section>

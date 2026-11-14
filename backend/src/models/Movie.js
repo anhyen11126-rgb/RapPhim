@@ -80,12 +80,33 @@ const movieSchema = new mongoose.Schema(
     ],
     rating: {
       type: Number,
-      default: 4.8,
+      default: 4.6,
     },
     ratingCount: {
       type: String,
-      default: '12.4k lượt đánh giá',
+      default: '120 lượt đánh giá',
     },
+    stats: {
+      revenue: { type: Number, default: 125000000 },
+      ticketsSold: { type: Number, default: 850 },
+      seatsBooked: { type: Number, default: 850 },
+      seatsAvailable: { type: Number, default: 150 },
+    },
+    ratingBreakdown: {
+      fiveStar: { type: Number, default: 90 },
+      fourStar: { type: Number, default: 20 },
+      threeStar: { type: Number, default: 7 },
+      twoStar: { type: Number, default: 2 },
+      oneStar: { type: Number, default: 1 },
+    },
+    reviews: [
+      {
+        userName: { type: String, default: '' },
+        rating: { type: Number, default: 5 },
+        comment: { type: String, default: '' },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
     rottenTomatoes: {
       type: String,
       default: '94%',

@@ -8,6 +8,7 @@ import {
   createShowtime,
   updateShowtime,
   getAdminShowtimes,
+  batchScheduleShowtimes,
   deleteShowtime,
   getAdminPricingConfig,
   updateAdminPricingConfig,
@@ -18,6 +19,7 @@ import {
   updateCinema,
   deleteCinema,
   getAdminUsers,
+  deleteAdminUser,
   getAdminConcessions,
   createConcession,
   deleteConcession,
@@ -35,6 +37,9 @@ import {
   deleteAdminChatbotFaq,
   deleteAdminChatLog,
   clearAdminChatLogs,
+  getShowtimeOccupancyAnalytics,
+  toggleShowtimeLock,
+  getShowtimeBookings,
 } from '../controllers/adminController.js';
 import { authenticateAdmin } from '../middleware/authMiddleware.js';
 
@@ -56,8 +61,12 @@ router.post('/cinemas', authenticateAdmin, createCinema);
 router.put('/cinemas/:id', authenticateAdmin, updateCinema);
 router.delete('/cinemas/:id', authenticateAdmin, deleteCinema);
 
-// Quản lý Suất chiếu
+// Quản lý Suất chiếu & Thống kê Tỷ lệ lấp đầy
 router.get('/showtimes', authenticateAdmin, getAdminShowtimes);
+router.post('/showtimes/schedule-batch', authenticateAdmin, batchScheduleShowtimes);
+router.get('/showtimes-occupancy', authenticateAdmin, getShowtimeOccupancyAnalytics);
+router.put('/showtimes/:id/toggle-lock', authenticateAdmin, toggleShowtimeLock);
+router.get('/showtimes/:id/bookings', authenticateAdmin, getShowtimeBookings);
 router.post('/showtimes', authenticateAdmin, createShowtime);
 router.put('/showtimes/:id', authenticateAdmin, updateShowtime);
 router.delete('/showtimes/:id', authenticateAdmin, deleteShowtime);
@@ -72,6 +81,7 @@ router.put('/bookings/:id/status', authenticateAdmin, updateBookingStatus);
 
 // Quản lý Khách hàng & Thành viên
 router.get('/users', authenticateAdmin, getAdminUsers);
+router.delete('/users/:id', authenticateAdmin, deleteAdminUser);
 
 // Quản lý Bắp nước
 router.get('/concessions', authenticateAdmin, getAdminConcessions);
