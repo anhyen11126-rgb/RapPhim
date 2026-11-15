@@ -76,28 +76,35 @@ const ShowtimeManagePage = () => {
         params.endDate = filterEndDate;
       }
 
-      const [stRes, mRes, cRes, rRes, loadedPricing] = await Promise.all([
+      const [stResult, mResult, cResult, rResult, cfgResult] = await Promise.allSettled([
         api.get('/admin/showtimes', { params }),
         api.get('/movies'),
         api.get('/admin/cinemas'),
         api.get('/admin/rooms'),
         loadPricingConfig(true),
       ]);
-      const activeCfg = loadedPricing || DEFAULT_PRICING_CONFIG;
-      setPricingConfig(activeCfg);
-      setShowtimes(stRes.data || []);
-      setMovies(mRes.data || []);
-      setCinemas(cRes.data || []);
-      setRooms(rRes.data || []);
 
-      if (mRes.data?.length > 0 && cRes.data?.length > 0) {
-        const defaultRoomName = rRes.data?.[0]?.name || 'Phòng IMAX 01 (Grand Hall)';
+      const activeCfg = (cfgResult.status === 'fulfilled' && cfgResult.value) || DEFAULT_PRICING_CONFIG;
+      setPricingConfig(activeCfg);
+
+      const stList = (stResult.status === 'fulfilled' && Array.isArray(stResult.value?.data)) ? stResult.value.data : [];
+      const mList = (mResult.status === 'fulfilled' && Array.isArray(mResult.value?.data)) ? mResult.value.data : [];
+      const cList = (cResult.status === 'fulfilled' && Array.isArray(cResult.value?.data)) ? cResult.value.data : [];
+      const rList = (rResult.status === 'fulfilled' && Array.isArray(rResult.value?.data)) ? rResult.value.data : [];
+
+      setShowtimes(stList);
+      setMovies(mList);
+      setCinemas(cList);
+      setRooms(rList);
+
+      if (mList.length > 0 && cList.length > 0) {
+        const defaultRoomName = rList[0]?.name || 'Phòng IMAX 01 (Grand Hall)';
         setFormData((prev) => ({
           ...prev,
-          movieId: mRes.data[0].id || mRes.data[0]._id,
-          cinemaId: cRes.data[0].id || cRes.data[0]._id,
-          roomName: defaultRoomName,
-          price: resolveSuggestedPrice(defaultRoomName, prev.startTime, activeCfg),
+          movieId: prev.movieId || mList[0].id || mList[0]._id,
+          cinemaId: prev.cinemaId || cList[0].id || cList[0]._id,
+          roomName: prev.roomName || defaultRoomName,
+          price: prev.price || resolveSuggestedPrice(defaultRoomName, prev.startTime, activeCfg),
         }));
 
         // Khởi tạo các phim được chọn cho batch scheduler nếu chưa có
@@ -105,7 +112,7 @@ const ShowtimeManagePage = () => {
           ...prev,
           selectedMovieIds: prev.selectedMovieIds.length > 0
             ? prev.selectedMovieIds
-            : mRes.data.slice(0, 4).map((m) => m.id || m._id),
+            : mList.slice(0, 4).map((m) => m.id || m._id),
         }));
       }
     } catch (err) {
@@ -272,11 +279,11 @@ const ShowtimeManagePage = () => {
   };
 
   const filteredShowtimes = showtimes.filter((st) => {
-    const cId = st.cinemaId?._id || st.cinemaId?.id || st.cinemaId;
-    const mId = st.movieId?._id || st.movieId?.id || st.movieId;
+    const cId = st.cinemaId?._id || st.cinemaId?.id || st.cinemaId || st.cinema?._id || st.cinema?.id || st.cinema;
+    const mId = st.movieId?._id || st.movieId?.id || st.movieId || st.movie?._id || st.movie?.id || st.movie;
     const rName = (st.roomName || '').toLowerCase();
-    const matchCinema = filterCinemaId === 'ALL' || cId === filterCinemaId;
-    const matchMovie = filterMovieId === 'ALL' || mId === filterMovieId;
+    const matchCinema = filterCinemaId === 'ALL' || String(cId) === String(filterCinemaId);
+    const matchMovie = filterMovieId === 'ALL' || String(mId) === String(filterMovieId);
     let matchRoom = true;
     if (filterRoomTech === 'IMAX') matchRoom = rName.includes('imax');
     else if (filterRoomTech === '3D') matchRoom = rName.includes('3d') || rName.includes('05');

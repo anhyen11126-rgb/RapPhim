@@ -7,7 +7,7 @@ import {
   formatRoomPriceRangeFromConfig,
 } from '../services/pricingConfigService.js';
 
-// Danh sách phòng chuẩn ban đầu của cụm rạp D'AVENOR Thanh Khê Plaza (khoảng giá tự động tính theo TicketPricingConfig)
+// Danh sách 8 phòng chuẩn ban đầu của cụm rạp D'AVENOR Thanh Khê Plaza (88 ghế/phòng = 704 ghế)
 const DEFAULT_ROOMS = [
   {
     roomNumber: 1,
@@ -21,21 +21,71 @@ const DEFAULT_ROOMS = [
   },
   {
     roomNumber: 2,
-    name: 'Rạp 03 (Tầng 2 - 2D Dolby)',
-    shortName: 'Phòng 2 (Dolby)',
-    roomType: 'Dolby Atmos',
-    formatFeature: '2D Phụ Đề • Chuẩn Dolby 7.1 • Màn chiếu 4K sắc nét',
-    defaultSlots: '18:00 • 19:45 • 21:15 • 23:00',
+    name: 'Rạp 02 (Tầng 2 - 2D Tiêu chuẩn)',
+    shortName: 'Phòng 2 (2D)',
+    roomType: '2D Tiêu chuẩn',
+    formatFeature: '2D Digital Phụ đề • Màn chiếu phẳng 4K sắc nét',
+    defaultSlots: '10:00 • 13:00 • 15:45 • 18:30 • 21:15',
     totalSeats: 88,
     status: 'ACTIVE',
   },
   {
     roomNumber: 3,
+    name: 'Rạp 03 (Tầng 2 - 2D Dolby Atmos)',
+    shortName: 'Phòng 3 (Dolby Atmos)',
+    roomType: 'Dolby Atmos',
+    formatFeature: '2D Dolby Atmos 64 kênh • Âm thanh vòm đa chiều 360°',
+    defaultSlots: '11:15 • 14:30 • 17:45 • 20:30 • 23:00',
+    totalSeats: 88,
+    status: 'ACTIVE',
+  },
+  {
+    roomNumber: 4,
+    name: 'Rạp 04 (Tầng 3 - 4DX Sound)',
+    shortName: 'Phòng 4 (4DX Sound)',
+    roomType: '4DX Sound',
+    formatFeature: '4DX Dynamic Motion • Hiệu ứng âm thanh và rung chuyển ghế',
+    defaultSlots: '10:30 • 13:30 • 16:30 • 19:30 • 22:15',
+    totalSeats: 88,
+    status: 'ACTIVE',
+  },
+  {
+    roomNumber: 5,
     name: 'Rạp 05 (Tầng 3 - RealD 3D)',
-    shortName: 'Phòng 3 (RealD 3D)',
+    shortName: 'Phòng 5 (RealD 3D)',
     roomType: 'RealD 3D',
     formatFeature: '3D Phụ Đề • RealD 3D High Frame Rate • Kính 3D siêu nhẹ',
-    defaultSlots: '18:30 • 20:00 • 21:15 • 22:15',
+    defaultSlots: '12:00 • 15:00 • 18:00 • 21:00',
+    totalSeats: 88,
+    status: 'ACTIVE',
+  },
+  {
+    roomNumber: 6,
+    name: 'Phòng VIP Recliner 06 (Tầng 3)',
+    shortName: 'Phòng 6 (VIP Recliner)',
+    roomType: '2D Tiêu chuẩn',
+    formatFeature: 'Ghế bọc da chỉnh điện ngả 180° • Phục vụ bắp nước tận nơi',
+    defaultSlots: '11:00 • 14:00 • 17:00 • 20:00 • 22:45',
+    totalSeats: 88,
+    status: 'ACTIVE',
+  },
+  {
+    roomNumber: 7,
+    name: 'Rạp 07 (Tầng 4 - Studio 2D)',
+    shortName: 'Phòng 7 (Studio 2D)',
+    roomType: '2D Tiêu chuẩn',
+    formatFeature: 'Màn chiếu cong điện ảnh • Máy chiếu Laser 4K Christie',
+    defaultSlots: '09:45 • 12:45 • 15:45 • 18:45 • 21:45',
+    totalSeats: 88,
+    status: 'ACTIVE',
+  },
+  {
+    roomNumber: 8,
+    name: 'Phòng Grand Luxe 08 (Tầng 4)',
+    shortName: 'Phòng 8 (Grand Luxe)',
+    roomType: 'Dolby Atmos',
+    formatFeature: 'Phòng chiếu sang trọng bậc nhất • Âm thanh Dolby Atmos siêu thực',
+    defaultSlots: '10:15 • 13:15 • 16:15 • 19:15 • 22:15',
     totalSeats: 88,
     status: 'ACTIVE',
   },
@@ -49,20 +99,18 @@ export const getRooms = async (req, res) => {
     const pricingConfig = await ensurePricingConfig();
 
     let cinema = null;
-    if (cinemaId && mongoose.Types.ObjectId.isValid(cinemaId)) {
-      filter.cinemaId = cinemaId;
+    if (cinemaId && cinemaId !== 'ALL' && mongoose.Types.ObjectId.isValid(cinemaId)) {
+      filter.cinemaId = new mongoose.Types.ObjectId(cinemaId);
       cinema = await Cinema.findById(cinemaId).lean();
     } else {
-      // Mặc định lấy cụm rạp D'AVENOR Thanh Khê Plaza
-      cinema = await Cinema.findOne({ city: 'Đà Nẵng' }).lean();
-      if (cinema) {
-        filter.cinemaId = cinema._id;
-      }
+      // Mặc định tìm cụm rạp D'AVENOR Thanh Khê Plaza nếu cần seed
+      cinema = await Cinema.findOne({ city: 'Đà Nẵng' }).lean() || await Cinema.findOne().lean();
+      // Không gán filter.cinemaId để hiển thị đầy đủ tất cả phòng trong Database
     }
 
     let rooms = await Room.find(filter).sort({ roomNumber: 1, createdAt: 1 }).lean();
 
-    // Tự động khởi tạo 3 phòng chuẩn nếu DB chưa có
+    // Tự động khởi tạo 8 phòng chuẩn nếu DB chưa có
     if (rooms.length === 0 && cinema) {
       const toInsert = DEFAULT_ROOMS.map((r) => ({
         ...r,

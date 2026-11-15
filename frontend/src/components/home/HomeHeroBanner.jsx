@@ -168,10 +168,10 @@ const HomeHeroBanner = ({
                   "Hành trình điện ảnh kịch tính và ngoạn mục đang chờ đón bạn thưởng thức tại hệ thống rạp D'AVENOR CINEMA."}
               </p>
 
-              {/* Hàng nút bấm */}
+              {/* Hàng nút bấm: Luôn mở trang Chi tiết phim */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <Link
-                  to={`/booking/seat/${currentHeroMovie?.firstShowtimeId || '6ae624fdb0ee30fb919c72d6'}`}
+                  to={`/movie/${currentHeroMovie?.id || currentHeroMovie?._id || currentHeroMovie?.slug}`}
                   className="bg-[#9bb4fb] hover:bg-[#86a1f8] text-[#0a1120] font-black px-5 py-2.5 rounded-lg text-xs flex items-center space-x-2 transition-all shadow-md hover:scale-105 active:scale-95"
                 >
                   <span>🎟️</span>
@@ -293,8 +293,10 @@ const HomeHeroBanner = ({
                 </p>
               </div>
               <Link
-                to={`/booking/seat/${
-                  (activeTrailerMovie || currentHeroMovie)?.firstShowtimeId || '6ae624fdb0ee30fb919c72d6'
+                to={`/movie/${
+                  (activeTrailerMovie || currentHeroMovie)?.id ||
+                  (activeTrailerMovie || currentHeroMovie)?._id ||
+                  (activeTrailerMovie || currentHeroMovie)?.slug
                 }`}
                 onClick={() => {
                   setIsTrailerOpen(false);

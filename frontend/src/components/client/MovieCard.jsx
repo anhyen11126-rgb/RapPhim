@@ -125,10 +125,10 @@ const MovieCard = ({ movie }) => {
           </p>
         </div>
 
-        {/* Nút Đặt vé toàn chiều rộng (Đã gỡ bỏ nút dấu chấm than) */}
+        {/* Nút Đặt vé toàn chiều rộng: Luôn mở trang Chi tiết phim */}
         <div className="pt-2">
           <Link
-            to={movie?.firstShowtimeId ? `/booking/seat/${movie.firstShowtimeId}` : movieDetailPath}
+            to={movieDetailPath}
             className="w-full bg-[#1b2234] hover:bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center space-x-2 border border-slate-700/80 hover:border-blue-500 shadow-md hover:shadow-blue-500/20 active:scale-[0.98]"
           >
             <span>🎟️</span>

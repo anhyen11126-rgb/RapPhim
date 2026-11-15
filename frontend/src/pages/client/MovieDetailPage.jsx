@@ -210,7 +210,7 @@ const MovieDetailPage = () => {
   // Phân bổ suất chiếu thực tế từ database
   const allShowtimes = Array.isArray(movie.showtimes) ? movie.showtimes : [];
   const realShowtimeIds = allShowtimes.map((st) => st._id || st.id || st.showtimeId).filter(Boolean);
-  const primaryShowtimeId = movie.firstShowtimeId || realShowtimeIds[0] || '6ae624fdb0ee30fb919c72d6';
+  const primaryShowtimeId = movie.firstShowtimeId || realShowtimeIds[0] || '6aecb21dd70710fc53a15c06';
 
   const fallbackImaxTimes = [
     {

@@ -416,7 +416,7 @@ export const getMovieById = async (req, res) => {
 export const addMovieReview = async (req, res) => {
   try {
     const { id } = req.params;
-    const { userName, rating, comment } = req.body;
+    const { userName, rating, comment, userId, userEmail } = req.body;
 
     if (!userName || !userName.trim()) {
       return res.status(400).json({ message: 'Vui lòng nhập tên người đánh giá' });
@@ -440,6 +440,8 @@ export const addMovieReview = async (req, res) => {
 
     const newReview = {
       userName: userName.trim(),
+      userId: userId && mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : undefined,
+      userEmail: userEmail ? String(userEmail).trim() : undefined,
       rating: star,
       comment: comment.trim(),
       createdAt: new Date(),
@@ -489,5 +491,89 @@ export const addMovieReview = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi gửi nhận xét phim', error: error.message });
+  }
+};
+
+// Khách hàng xóa bình luận / nhận xét phim nếu viết nhầm
+export const deleteMovieReview = async (req, res) => {
+  try {
+    const { id, reviewId } = req.params;
+    const { comment, userName } = req.body || {};
+
+    let movie = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      movie = await Movie.findById(id);
+    } else {
+      movie = await Movie.findOne({ slug: id });
+    }
+
+    if (!movie) {
+      return res.status(404).json({ message: 'Không tìm thấy phim yêu cầu' });
+    }
+
+    if (!Array.isArray(movie.reviews)) movie.reviews = [];
+
+    let removedReview = null;
+
+    if (reviewId && reviewId !== 'by-content' && mongoose.Types.ObjectId.isValid(reviewId)) {
+      removedReview = movie.reviews.find((r) => r._id?.toString() === reviewId);
+      movie.reviews = movie.reviews.filter((r) => r._id?.toString() !== reviewId);
+    } else if (comment) {
+      const idx = movie.reviews.findIndex(
+        (r) => r.comment === comment && (!userName || r.userName === userName)
+      );
+      if (idx !== -1) {
+        removedReview = movie.reviews[idx];
+        movie.reviews.splice(idx, 1);
+      }
+    } else if (reviewId) {
+      const idx = movie.reviews.findIndex((r) => r._id?.toString() === reviewId);
+      if (idx !== -1) {
+        removedReview = movie.reviews[idx];
+        movie.reviews.splice(idx, 1);
+      }
+    }
+
+    // Cập nhật lại ratingBreakdown nếu có xóa review
+    if (removedReview && movie.ratingBreakdown) {
+      const star = removedReview.rating || 5;
+      if (star === 5) movie.ratingBreakdown.fiveStar = Math.max(0, (movie.ratingBreakdown.fiveStar || 0) - 1);
+      else if (star === 4) movie.ratingBreakdown.fourStar = Math.max(0, (movie.ratingBreakdown.fourStar || 0) - 1);
+      else if (star === 3) movie.ratingBreakdown.threeStar = Math.max(0, (movie.ratingBreakdown.threeStar || 0) - 1);
+      else if (star === 2) movie.ratingBreakdown.twoStar = Math.max(0, (movie.ratingBreakdown.twoStar || 0) - 1);
+      else if (star === 1) movie.ratingBreakdown.oneStar = Math.max(0, (movie.ratingBreakdown.oneStar || 0) - 1);
+
+      const totalVotes =
+        (movie.ratingBreakdown.fiveStar || 0) +
+        (movie.ratingBreakdown.fourStar || 0) +
+        (movie.ratingBreakdown.threeStar || 0) +
+        (movie.ratingBreakdown.twoStar || 0) +
+        (movie.ratingBreakdown.oneStar || 0);
+
+      const weightedScore =
+        (movie.ratingBreakdown.fiveStar || 0) * 5 +
+        (movie.ratingBreakdown.fourStar || 0) * 4 +
+        (movie.ratingBreakdown.threeStar || 0) * 3 +
+        (movie.ratingBreakdown.twoStar || 0) * 2 +
+        (movie.ratingBreakdown.oneStar || 0) * 1;
+
+      if (totalVotes > 0) {
+        movie.rating = Number((weightedScore / totalVotes).toFixed(1));
+        movie.ratingCount = `${totalVotes} lượt đánh giá`;
+      }
+    }
+
+    await movie.save();
+
+    res.json({
+      success: true,
+      message: 'Đã xóa bình luận thành công',
+      reviews: movie.reviews,
+      rating: movie.rating,
+      ratingCount: movie.ratingCount,
+      ratingBreakdown: movie.ratingBreakdown,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi xóa nhận xét phim', error: error.message });
   }
 };

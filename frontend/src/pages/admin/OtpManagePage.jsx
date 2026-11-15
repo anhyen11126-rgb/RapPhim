@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import SidebarAdmin from '../../components/admin/SidebarAdmin';
 import TopbarAdmin from '../../components/admin/TopbarAdmin';
 import api from '../../services/api';
@@ -173,6 +174,23 @@ const OtpManagePage = () => {
                 🧹 Dọn sạch Database ngay
               </button>
             </div>
+          </div>
+
+          {/* Sub-tabs điều hướng Người dùng & Mã OTP */}
+          <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
+            <Link
+              to="/admin/users"
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 flex items-center space-x-2 transition-all cursor-pointer"
+            >
+              <span>👥</span>
+              <span>Danh Sách Khách Hàng & Thành Viên</span>
+            </Link>
+            <button
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white shadow-md shadow-blue-600/30 flex items-center space-x-2 cursor-default"
+            >
+              <span>🔐</span>
+              <span>Bảo Mật & Mã Xác Thực OTP ({otps.length})</span>
+            </button>
           </div>
 
           {/* 4 Thẻ thống kê trạng thái OTP & Cơ chế Auto-Purge */}

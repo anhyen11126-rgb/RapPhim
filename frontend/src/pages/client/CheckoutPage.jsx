@@ -167,7 +167,7 @@ const CheckoutPage = () => {
         );
 
       const payload = {
-        showtimeId: String(showtimeId || showtime?._id || showtime?.id || '6ae624fdb0ee30fb919c72d6'),
+        showtimeId: String(showtimeId || showtime?._id || showtime?.id || '6aecb21dd70710fc53a15c06'),
         seatNumbers: selectedSeats,
         customerName,
         customerPhone,

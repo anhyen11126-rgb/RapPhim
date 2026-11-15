@@ -102,6 +102,8 @@ const movieSchema = new mongoose.Schema(
     reviews: [
       {
         userName: { type: String, default: '' },
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        userEmail: { type: String, default: '' },
         rating: { type: Number, default: 5 },
         comment: { type: String, default: '' },
         createdAt: { type: Date, default: Date.now },
@@ -146,6 +148,10 @@ const movieSchema = new mongoose.Schema(
     formats: {
       type: [String],
       default: ['2D', '3D', 'IMAX'],
+    },
+    analytics: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
     },
   },
   {

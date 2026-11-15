@@ -1,61 +1,109 @@
 import React from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 
 const SidebarAdmin = () => {
-  const navItems = [
-    { to: '/admin/dashboard', label: 'Bảng thống kê', icon: '📊' },
-    { to: '/admin/movies', label: 'Quản lý phim', icon: '🎬' },
-    { to: '/admin/cinemas', label: 'Quản lý cụm rạp', icon: '🏢' },
-    { to: '/admin/rooms', label: 'Quản lý phòng chiếu', icon: '📽️' },
-    { to: '/admin/showtimes', label: 'Quản lý suất chiếu', icon: '🕒' },
-    { to: '/admin/showtimes-occupancy', label: 'Tỷ lệ lấp đầy & Ghế', icon: '📈' },
-    { to: '/admin/pricing', label: 'Quản lý giá vé', icon: '💰' },
-    { to: '/admin/bookings', label: 'Quản lý đặt vé', icon: '🎟️' },
-    { to: '/admin/users', label: 'Quản lý thành viên', icon: '👥' },
-    { to: '/admin/otps', label: 'Quản lý mã OTP', icon: '🔐' },
-    { to: '/admin/chatbot', label: 'Quản lý Chatbot AI', icon: '🤖' },
-    { to: '/admin/concessions', label: 'Bắp nước & Combo', icon: '🍿' },
-    { to: '/admin/promotions', label: 'Khuyến mãi & Voucher', icon: '🏷️' },
+  const location = useLocation();
+
+  const navSections = [
+    {
+      group: 'BÁO CÁO & PHÂN TÍCH',
+      items: [
+        { to: '/admin/statistics', label: 'Thống kê & Báo cáo', icon: '📊', badge: 'V2.0' },
+      ],
+    },
+    {
+      group: 'VẬN HÀNH RẠP CHIẾU',
+      items: [
+        { to: '/admin/movies', label: 'Quản lý Phim', icon: '🎬' },
+        { to: '/admin/showtimes', label: 'Suất chiếu & Lịch phim', icon: '🕒' },
+        {
+          to: '/admin/rooms',
+          label: 'Cụm rạp & Phòng chiếu',
+          icon: '🏢',
+          isActiveExtra: location.pathname.startsWith('/admin/cinemas'),
+        },
+        { to: '/admin/pricing', label: 'Cấu hình giá vé', icon: '💰' },
+      ],
+    },
+    {
+      group: 'KINH DOANH & DỊCH VỤ',
+      items: [
+        { to: '/admin/bookings', label: 'Quản lý Đặt vé', icon: '🎟️' },
+        { to: '/admin/concessions', label: 'Bắp nước & Combo', icon: '🍿' },
+        { to: '/admin/promotions', label: 'Khuyến mãi & Voucher', icon: '🏷️' },
+      ],
+    },
+    {
+      group: 'HỆ THỐNG & NGƯỜI DÙNG',
+      items: [
+        { to: '/admin/users', label: 'Quản lý Thành viên', icon: '👥' },
+        { to: '/admin/otps', label: 'Quản lý mã OTP', icon: '🔐' },
+        { to: '/admin/chatbot', label: 'Trợ lý ảo Chatbot AI', icon: '🤖' },
+      ],
+    },
   ];
 
   return (
-    <aside className="w-64 bg-slate-900 text-slate-300 h-screen sticky top-0 self-start flex flex-col border-r border-slate-800 shrink-0 z-20">
-      <div className="h-16 shrink-0 flex items-center justify-between px-6 border-b border-slate-800">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-full bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-500 font-black text-sm">
+    <aside className="w-64 bg-slate-900 text-slate-300 h-screen sticky top-0 self-start flex flex-col border-r border-slate-800 shrink-0 z-20 select-none">
+      {/* Brand Header */}
+      <div className="h-16 shrink-0 flex items-center justify-between px-5 border-b border-slate-800 bg-slate-950/60">
+        <Link to="/admin/statistics" className="flex items-center space-x-2.5 group">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-500 to-rose-700 flex items-center justify-center text-white font-black text-sm shadow-md shadow-red-600/30 group-hover:scale-105 transition-transform">
             D
           </div>
-          <span className="text-base font-black text-white tracking-wider">D'AVENOR ADMIN</span>
-        </div>
+          <div>
+            <span className="text-sm font-black text-white tracking-wider block leading-tight">D'AVENOR</span>
+            <span className="text-[10px] text-slate-400 font-semibold tracking-widest block uppercase">Cinema Admin</span>
+          </div>
+        </Link>
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+          Online
+        </span>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        <div className="text-[10px] uppercase font-bold text-slate-500 px-3 py-1.5 tracking-wider">
-          Chức năng quản trị
-        </div>
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-                isActive
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 font-bold'
-                  : 'hover:bg-slate-800 text-slate-400 hover:text-white'
-              }`
-            }
-          >
-            <span className="text-base">{item.icon}</span>
-            <span>{item.label}</span>
-          </NavLink>
+      {/* Nav Groups */}
+      <nav className="flex-1 p-3 space-y-4 overflow-y-auto custom-scrollbar">
+        {navSections.map((sec, sIdx) => (
+          <div key={sIdx} className="space-y-1">
+            <div className="text-[10px] font-extrabold text-slate-400 px-3 tracking-wider">
+              {sec.group}
+            </div>
+            {sec.items.map((item) => {
+              const isMatch = item.isActiveExtra || location.pathname === item.to;
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => {
+                    const active = isActive || isMatch;
+                    return `flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+                      active
+                        ? 'bg-red-600 text-white font-bold shadow-md shadow-red-600/30'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                    }`;
+                  }}
+                >
+                  <div className="flex items-center space-x-2.5 truncate">
+                    <span className="text-base shrink-0">{item.icon}</span>
+                    <span className="truncate">{item.label}</span>
+                  </div>
+                  {item.badge && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-red-500/30 text-red-200 border border-red-400/40">
+                      {item.badge}
+                    </span>
+                  )}
+                </NavLink>
+              );
+            })}
+          </div>
         ))}
       </nav>
 
-      {/* Nút thoát về Client */}
-      <div className="p-3 shrink-0 border-t border-slate-800 bg-slate-950/40">
+      {/* Footer Nav Link */}
+      <div className="p-3 shrink-0 border-t border-slate-800 bg-slate-950/50">
         <Link
           to="/"
-          className="flex items-center justify-center space-x-2 w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all"
+          className="flex items-center justify-center space-x-2 w-full py-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700/60"
         >
           <span>🌐</span>
           <span>Xem trang khách hàng</span>
@@ -66,4 +114,3 @@ const SidebarAdmin = () => {
 };
 
 export default SidebarAdmin;
-

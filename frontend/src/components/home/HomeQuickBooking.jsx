@@ -71,7 +71,7 @@ const HomeQuickBooking = ({
       ? activeMovie.showtimes
       : [
           {
-            id: activeMovie?.firstShowtimeId || '6ae624fdb0ee30fb919c72d6',
+            id: activeMovie?.firstShowtimeId || '6aecb21dd70710fc53a15c06',
             roomName: 'IMAX Laser (Phòng 1)',
             format: 'IMAX Laser 2D',
             time: '19:30',
@@ -107,7 +107,7 @@ const HomeQuickBooking = ({
       selectedShowtimeId ||
       activeMovie?.firstShowtimeId ||
       availableShowtimes[0]?.id ||
-      '6ae624fdb0ee30fb919c72d6';
+      '6aecb21dd70710fc53a15c06';
 
     const chosenSlot =
       availableShowtimes.find((st) => String(st.id) === String(targetShowtimeId)) ||
