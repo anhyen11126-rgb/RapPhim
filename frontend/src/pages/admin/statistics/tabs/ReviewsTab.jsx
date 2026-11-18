@@ -6,6 +6,8 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
   const [selectedStarFilter, setSelectedStarFilter] = useState('ALL');
   const [selectedMovieId, setSelectedMovieId] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 12;
 
   const metrics = reviewsData?.metrics || {};
   const starDistribution = reviewsData?.starDistribution || [];
@@ -42,6 +44,12 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
       return matchStar && matchMovie && matchSearch;
     });
   }, [allReviews, selectedStarFilter, selectedMovieId, searchTerm]);
+
+  const totalPages = Math.ceil(filteredReviews.length / pageSize) || 1;
+  const paginatedReviews = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredReviews.slice(start, start + pageSize);
+  }, [filteredReviews, currentPage, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -209,7 +217,10 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
               type="text"
               placeholder="Tìm theo nội dung..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
               className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-44"
             />
           </div>
@@ -217,38 +228,89 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
 
         {/* Lưới các thẻ nhận xét thực tế */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredReviews.length > 0 ? (
-            filteredReviews.slice(0, 9).map((rev, idx) => (
-              <div
-                key={idx}
-                className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-4 space-y-2.5 text-xs hover:border-slate-600 transition-all"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 rounded-full bg-red-600/20 border border-red-500/40 text-red-400 font-bold flex items-center justify-center shrink-0">
-                      {rev.userName ? rev.userName.charAt(0).toUpperCase() : 'U'}
-                    </div>
-                    <div>
-                      <strong className="text-white block">{rev.userName || 'Khán giả xem rạp'}</strong>
-                      <span className="text-[10px] text-slate-400 truncate block max-w-[150px]">
-                        {rev.movieTitle}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-amber-400 font-black shrink-0">★ {rev.rating}</span>
-                </div>
+          {paginatedReviews.length > 0 ? (
+            paginatedReviews.map((rev, idx) => {
+              const reviewDateStr = rev.createdAt
+                ? new Date(rev.createdAt).toLocaleDateString('vi-VN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                  })
+                : 'Gần đây';
 
-                <p className="text-slate-300 italic line-clamp-3 leading-relaxed">
-                  "{rev.comment}"
-                </p>
-              </div>
-            ))
+              return (
+                <div
+                  key={idx}
+                  className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-4 space-y-2.5 text-xs hover:border-slate-600 transition-all"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="w-8 h-8 rounded-full bg-red-600/20 border border-red-500/40 text-red-400 font-bold flex items-center justify-center shrink-0">
+                        {rev.userName ? rev.userName.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                      <div>
+                        <strong className="text-white block">{rev.userName || 'Khán giả xem rạp'}</strong>
+                        <div className="flex items-center space-x-1.5 text-[10px] text-slate-400">
+                          <span className="truncate max-w-[130px]">{rev.movieTitle}</span>
+                          <span>•</span>
+                          <span className="text-slate-500">{reviewDateStr}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-amber-400 font-black shrink-0 bg-amber-950/40 border border-amber-500/30 px-2 py-0.5 rounded text-[11px]">
+                      ★ {rev.rating}
+                    </span>
+                  </div>
+
+                  <p className="text-slate-300 italic line-clamp-3 leading-relaxed">
+                    "{rev.comment}"
+                  </p>
+                </div>
+              );
+            })
           ) : (
             <div className="col-span-full py-12 text-center text-xs text-slate-500">
               Không tìm thấy nhận xét nào phù hợp với bộ lọc.
             </div>
           )}
         </div>
+
+        {/* Phân trang nhận xét */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-4 border-t border-slate-800 text-xs text-slate-400">
+            <span>Trang {currentPage} / {totalPages} (Tổng {filteredReviews.length} nhận xét)</span>
+            <div className="flex items-center space-x-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
+              >
+                ‹
+              </button>
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`px-2.5 py-1 rounded font-bold cursor-pointer ${
+                    currentPage === i + 1 ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

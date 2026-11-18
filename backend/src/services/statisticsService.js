@@ -76,7 +76,12 @@ class StatisticsService {
 
     // 1.1 Lấy bookings kỳ hiện tại và kỳ trước
     const [currentBookings, prevBookings, cancelledBookings] = await Promise.all([
-      Booking.find(bookingMatch).populate('showtimeId').lean(),
+      Booking.find(bookingMatch)
+        .populate({
+          path: 'showtimeId',
+          populate: { path: 'movieId', select: 'title poster posterUrl' },
+        })
+        .lean(),
       Booking.find(prevBookingMatch).lean(),
       Booking.find({
         createdAt: { $gte: start, $lte: end },
@@ -482,8 +487,20 @@ class StatisticsService {
     // Bảng báo cáo doanh thu chi tiết theo ngày
     const revenueTableRows = Object.values(dailyMap).sort((a, b) => b.rawDate - a.rawDate);
 
+    // Chuỗi dữ liệu biểu đồ doanh thu theo thời gian (theo thứ tự ngày tăng dần)
+    const revenueChartData = Object.values(dailyMap)
+      .sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate))
+      .map((d) => ({
+        date: d.date.slice(0, 5),
+        netRevenue: d.netRev,
+        ticketRevenue: d.ticketRev,
+        concessionRevenue: d.concessionRev,
+        tickets: d.tickets,
+      }));
+
     return {
       timeRangeLabel: label,
+      revenueChartData,
       metrics: {
         grossRevenue,
         grossFormatted: formatCurrency(grossRevenue),
@@ -665,6 +682,8 @@ class StatisticsService {
     }
 
     const totalSellable = showtimes.length > 0 ? showtimes.length * 88 : 704;
+    const bookedSeats = totalTickets;
+    const availableSeats = Math.max(0, totalSellable - bookedSeats);
     const avgOccupancy = totalSellable > 0 ? Number(Math.min(100, (totalTickets / totalSellable) * 100).toFixed(1)) : (movie.analytics?.eightRoomsStats?.avgOccupancy || 78.5);
 
     // Phân bố đánh giá
@@ -696,6 +715,9 @@ class StatisticsService {
         totalRevenue,
         revenueFormatted: formatCurrency(totalRevenue),
         totalTickets,
+        bookedSeats,
+        availableSeats,
+        totalSeats: totalSellable,
         showtimesCount: showtimes.length,
         avgOccupancy,
       },
@@ -738,6 +760,9 @@ class StatisticsService {
     }
     if (cinemaId && cinemaId !== 'ALL' && mongoose.Types.ObjectId.isValid(cinemaId)) {
       query.cinemaId = new mongoose.Types.ObjectId(cinemaId);
+    }
+    if (filters.room && filters.room !== 'ALL') {
+      query.roomName = { $regex: filters.room, $options: 'i' };
     }
 
     let showtimes = await Showtime.find(query)
@@ -844,8 +869,13 @@ class StatisticsService {
       }
     });
 
-    // Tạo sơ đồ chuẩn 88 ghế của rạp D'AVENOR CINEMA:
-    // Hàng A-D: Regular 48 ghế (12 ghế / hàng)
+    // 1. Lấy trạng thái ghế thực tế từ collection ShowtimeSeat (nếu có)
+    const dbSeats = await ShowtimeSeat.find({ showtimeId: showtime._id }).lean();
+    const seatMap = new Map();
+    dbSeats.forEach((s) => seatMap.set(s.seatNumber, s));
+
+    // 2. Tạo sơ đồ chuẩn 88 ghế của phòng chiếu D'AVENOR CINEMA:
+    // Hàng A-D: Standard 48 ghế (12 ghế / hàng)
     // Hàng E-G: VIP 30 ghế (10 ghế / hàng)
     // Hàng H: Sweetbox 10 ghế (5 cặp)
     const rows = [
@@ -859,17 +889,33 @@ class StatisticsService {
       { row: 'H', type: 'SWEETBOX', count: 10 },
     ];
 
+    let bookedCount = 0;
+    let availableCount = 0;
+    let holdingCount = 0;
+
     const seatMatrix = rows.map((r) => {
       const seats = [];
       for (let c = 1; c <= r.count; c++) {
         const code = `${r.row}${c}`;
-        const isBooked = bookedSeatNumbers.has(code);
+        const dbSeat = seatMap.get(code);
+
+        let status = 'AVAILABLE';
+        if (dbSeat) {
+          status = dbSeat.status || 'AVAILABLE';
+        } else if (bookedSeatNumbers.has(code)) {
+          status = 'BOOKED';
+        }
+
+        if (status === 'BOOKED') bookedCount++;
+        else if (status === 'HOLDING') holdingCount++;
+        else availableCount++;
+
         seats.push({
           code,
           row: r.row,
           col: c,
-          type: r.type,
-          status: isBooked ? 'BOOKED' : 'AVAILABLE',
+          type: dbSeat?.type || r.type,
+          status,
         });
       }
       return {
@@ -879,8 +925,9 @@ class StatisticsService {
       };
     });
 
-    const bookedCount = bookedSeatNumbers.size;
-    const availableCount = 88 - bookedCount;
+    // Đồng bộ số ghế đã đặt với đơn đặt vé thực tế
+    bookedCount = Math.max(bookedCount, bookedSeatNumbers.size);
+    availableCount = Math.max(0, 88 - bookedCount - holdingCount);
     const occupancyRate = Number(((bookedCount / 88) * 100).toFixed(1));
 
     return {
@@ -898,6 +945,7 @@ class StatisticsService {
         totalSeats: 88,
         bookedCount,
         availableCount,
+        holdingCount,
         occupancyRate,
         totalRevenue,
         revenueFormatted: formatCurrency(totalRevenue),

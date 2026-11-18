@@ -113,13 +113,22 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
                     <div className="flex items-center justify-center gap-1.5 flex-wrap">
                       {r.seats.map((s) => {
                         const isBooked = s.status === 'BOOKED';
+                        const isHolding = s.status === 'HOLDING';
+                        const isLocked = s.status === 'LOCKED';
+
                         return (
                           <div
                             key={s.code}
-                            title={`${s.code} (${s.type}) - ${isBooked ? 'Đã đặt' : 'Còn trống'}`}
+                            title={`${s.code} (${s.type}) - ${
+                              isBooked ? 'Đã đặt' : isHolding ? 'Đang giữ chỗ' : isLocked ? 'Khóa/Bảo trì' : 'Còn trống'
+                            }`}
                             className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md text-[9px] font-bold flex items-center justify-center pointer-events-none transition-all ${
                               isBooked
-                                ? 'bg-red-600 text-white border border-red-500'
+                                ? 'bg-red-600 text-white border border-red-500 shadow-sm shadow-red-600/30'
+                                : isHolding
+                                ? 'bg-amber-600/30 text-amber-300 border border-dashed border-amber-400 animate-pulse'
+                                : isLocked
+                                ? 'bg-slate-900 text-slate-600 border border-slate-800 line-through'
                                 : s.type === 'VIP'
                                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                                 : s.type === 'SWEETBOX'
@@ -138,11 +147,17 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
               </div>
 
               {/* Chú giải trạng thái ghế */}
-              <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400 pt-4 border-t border-slate-800">
+              <div className="flex flex-wrap items-center justify-center gap-3.5 text-xs text-slate-400 pt-4 border-t border-slate-800">
                 <span className="flex items-center space-x-1.5">
                   <span className="w-3 h-3 rounded bg-red-600 border border-red-500"></span>
                   <span>Đã đặt ({data.stats.bookedCount})</span>
                 </span>
+                {data.stats.holdingCount > 0 && (
+                  <span className="flex items-center space-x-1.5">
+                    <span className="w-3 h-3 rounded bg-amber-600/30 border border-dashed border-amber-400"></span>
+                    <span>Đang giữ chỗ ({data.stats.holdingCount})</span>
+                  </span>
+                )}
                 <span className="flex items-center space-x-1.5">
                   <span className="w-3 h-3 rounded bg-slate-800 border border-slate-700 text-slate-300"></span>
                   <span>Ghế Thường trống (A-D)</span>

@@ -238,6 +238,7 @@ const StatisticsPage = () => {
                 onSelectShowtime={(id) => setSelectedShowtimeId(id)}
                 onPageChange={(p) => setFilters({ ...filters, page: p })}
                 onSearch={(term) => setFilters({ ...filters, search: term, page: 1 })}
+                onRoomFilter={(room) => setFilters({ ...filters, room, page: 1 })}
               />
             )}
 

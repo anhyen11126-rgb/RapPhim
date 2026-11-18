@@ -47,13 +47,14 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
         <table className="w-full text-left text-xs text-slate-300">
           <thead className="bg-slate-800/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
             <tr>
-              <th className="py-3 px-4 min-w-[240px]">Tác phẩm điện ảnh</th>
+              <th className="py-3 px-4 min-w-[220px]">Tác phẩm điện ảnh</th>
               <th className="py-3 px-3 text-center">Trạng thái</th>
               <th className="py-3 px-3 text-center">Suất chiếu</th>
               <th className="py-3 px-3 text-center">Vé đã bán</th>
-              <th className="py-3 px-3 text-center">Ghế trống</th>
-              <th className="py-3 px-4 min-w-[140px]">Tỷ lệ lấp đầy</th>
-              <th className="py-3 px-4 text-right">Doanh thu vé</th>
+              <th className="py-3 px-3 text-center">Ghế đã đặt</th>
+              <th className="py-3 px-3 text-center">Ghế còn trống</th>
+              <th className="py-3 px-4 min-w-[130px]">Tỷ lệ lấp đầy</th>
+              <th className="py-3 px-4 text-right">Tổng doanh thu</th>
               <th className="py-3 px-3 text-center">Đánh giá</th>
               <th className="py-3 px-3 text-right">Thao tác</th>
             </tr>
@@ -61,7 +62,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
           <tbody className="divide-y divide-slate-800 font-medium">
             {loading ? (
               <tr>
-                <td colSpan="9" className="py-16 text-center">
+                <td colSpan="10" className="py-16 text-center">
                   <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                   <span className="text-slate-400 text-xs">Đang nạp dữ liệu phim...</span>
                 </td>
@@ -125,7 +126,12 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
                       {formatNumber(m.ticketsSold)}
                     </td>
 
-                    {/* Ghế trống */}
+                    {/* Ghế đã đặt */}
+                    <td className="py-3 px-3 text-center font-bold text-amber-400">
+                      {formatNumber(m.bookedSeats || m.ticketsSold)}
+                    </td>
+
+                    {/* Ghế còn trống */}
                     <td className="py-3 px-3 text-center text-slate-400">
                       {formatNumber(m.availableSeats)}
                     </td>
@@ -170,7 +176,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
                       <button
                         type="button"
                         onClick={() => onSelectMovie && onSelectMovie(m.id)}
-                        className="px-2.5 py-1 bg-slate-800 hover:bg-red-600 hover:text-white text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all"
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-red-600 hover:text-white text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
                         title="Xem hồ sơ chi tiết tác phẩm"
                       >
                         Chi tiết
@@ -181,7 +187,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
               })
             ) : (
               <tr>
-                <td colSpan="9" className="py-12 text-center text-slate-500">
+                <td colSpan="10" className="py-12 text-center text-slate-500">
                   Không tìm thấy bộ phim nào phù hợp với bộ lọc.
                 </td>
               </tr>

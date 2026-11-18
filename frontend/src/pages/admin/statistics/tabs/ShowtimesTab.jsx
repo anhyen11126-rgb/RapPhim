@@ -7,16 +7,37 @@ const ShowtimesTab = ({
   onSelectShowtime,
   onPageChange,
   onSearch,
+  onRoomFilter,
 }) => {
   const [searchInput, setSearchInput] = useState('');
+  const [selectedRoom, setSelectedRoom] = useState('ALL');
   const items = showtimesData?.items || [];
   const total = showtimesData?.total || 0;
   const page = showtimesData?.page || 1;
   const totalPages = showtimesData?.totalPages || 1;
 
+  const ROOM_OPTIONS = [
+    { value: 'ALL', label: 'Tất cả phòng chiếu' },
+    { value: '01', label: 'Rạp 01 (IMAX Laser Grand)' },
+    { value: '02', label: 'Rạp 02 (2D Tiêu chuẩn)' },
+    { value: '03', label: 'Rạp 03 (2D Dolby Atmos)' },
+    { value: '04', label: 'Rạp 04 (4DX Sound)' },
+    { value: '05', label: 'Rạp 05 (RealD 3D)' },
+    { value: '06', label: 'Rạp 06 (Gold Class VIP)' },
+    { value: '07', label: 'Rạp 07 (L\'Amour Giường Nằm)' },
+    { value: '08', label: 'Rạp 08 (Cine & Suite)' },
+  ];
+
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (onSearch) onSearch(searchInput);
+  };
+
+  const handleRoomChange = (roomVal) => {
+    setSelectedRoom(roomVal);
+    if (onRoomFilter) {
+      onRoomFilter(roomVal);
+    }
   };
 
   return (
@@ -30,22 +51,41 @@ const ShowtimesTab = ({
           </p>
         </div>
 
-        {/* Thanh tìm kiếm */}
-        <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2">
-          <input
-            type="text"
-            placeholder="Tìm theo phim, phòng..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-52"
-          />
-          <button
-            type="submit"
-            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow"
-          >
-            Tìm
-          </button>
-        </form>
+        {/* Bộ lọc phòng chiếu & Tìm kiếm */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Lọc theo Phòng chiếu */}
+          <div className="flex items-center space-x-1.5 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs">
+            <span className="text-slate-400">Phòng:</span>
+            <select
+              value={selectedRoom}
+              onChange={(e) => handleRoomChange(e.target.value)}
+              className="bg-transparent text-white font-semibold outline-none cursor-pointer text-xs"
+            >
+              {ROOM_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Ô tìm kiếm */}
+          <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2">
+            <input
+              type="text"
+              placeholder="Tìm theo phim, phòng..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-44 sm:w-52"
+            />
+            <button
+              type="submit"
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow cursor-pointer"
+            >
+              Tìm
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* Bảng dữ liệu suất chiếu */}

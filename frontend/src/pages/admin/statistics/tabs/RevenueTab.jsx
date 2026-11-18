@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import StatisticCard from '../components/StatisticCard';
+import RevenueChart from '../components/RevenueChart';
 import { formatCurrency, formatNumber, formatPercent } from '../utils/statisticsFormatter';
 
 const RevenueTab = ({ data, loading }) => {
@@ -84,7 +85,24 @@ const RevenueTab = ({ data, loading }) => {
         />
       </div>
 
-      {/* 2. CƠ CẤU DOANH THU & PHƯƠNG THỨC THANH TOÁN */}
+      {/* 2. BIỂU ĐỒ DOANH THU TOÀN RẠP (VÉ XEM PHIM & BẮP NƯỚC) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+          <div>
+            <h3 className="text-base sm:text-lg font-bold text-white">Biểu Đồ Doanh Thu Toàn Rạp</h3>
+            <p className="text-xs text-slate-400">
+              Diễn biến doanh thu thực tế phân tách giữa Vé xem phim và Dịch vụ Bắp nước theo các ngày
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1 rounded-lg">
+            Thực thu qua các cổng
+          </span>
+        </div>
+
+        <RevenueChart data={data?.revenueChartData || []} loading={loading} />
+      </div>
+
+      {/* 3. CƠ CẤU DOANH THU & PHƯƠNG THỨC THANH TOÁN */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Cơ cấu Vé vs Bắp nước (6 cols) */}
         <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-xl">

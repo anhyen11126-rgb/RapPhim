@@ -102,8 +102,8 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
               </div>
             </div>
 
-            {/* Dãy 4 Chỉ số KPI */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* Dãy 6 Chỉ số KPI Phân tích chuyên sâu */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
                 <span className="text-[11px] text-slate-400 block">Doanh thu thuần</span>
                 <span className="text-sm sm:text-base font-bold text-emerald-400 block mt-1">
@@ -114,6 +114,18 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                 <span className="text-[11px] text-slate-400 block">Vé đã bán</span>
                 <span className="text-sm sm:text-base font-bold text-white block mt-1">
                   {formatNumber(data.stats.totalTickets)} vé
+                </span>
+              </div>
+              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+                <span className="text-[11px] text-slate-400 block">Ghế đã đặt</span>
+                <span className="text-sm sm:text-base font-bold text-amber-400 block mt-1">
+                  {formatNumber(data.stats.bookedSeats || data.stats.totalTickets)} ghế
+                </span>
+              </div>
+              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+                <span className="text-[11px] text-slate-400 block">Ghế còn trống</span>
+                <span className="text-sm sm:text-base font-bold text-slate-200 block mt-1">
+                  {formatNumber(data.stats.availableSeats ?? Math.max(0, (data.stats.totalSeats || 704) - data.stats.totalTickets))} ghế
                 </span>
               </div>
               <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
@@ -194,24 +206,54 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
               </div>
             </div>
 
-            {/* Nhận xét thực tế của khách hàng */}
+            {/* Nhận xét thực tế của từng khách hàng */}
             <div className="space-y-2.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Nhận xét xác thực từ khán giả ({data.reviews?.length || 0})
-              </h4>
-              <div className="space-y-2">
-                {(data.reviews || []).slice(0, 4).map((rev, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-xl bg-slate-800/30 border border-slate-800 space-y-1 text-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <strong className="text-white">{rev.userName || 'Khán giả xem rạp'}</strong>
-                      <span className="text-amber-400 font-bold">★ {rev.rating}</span>
-                    </div>
-                    <p className="text-slate-300 italic">"{rev.comment}"</p>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Nhận xét xác thực từ khán giả ({data.reviews?.length || 0})
+                </h4>
+                <span className="text-[10px] text-slate-500">Dữ liệu từ người dùng thực</span>
+              </div>
+              
+              <div className="max-h-64 overflow-y-auto space-y-2 pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                {(data.reviews || []).length > 0 ? (
+                  (data.reviews || []).map((rev, idx) => {
+                    const reviewDateStr = rev.createdAt
+                      ? new Date(rev.createdAt).toLocaleDateString('vi-VN', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        })
+                      : 'Gần đây';
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-xl bg-slate-800/30 border border-slate-800/80 space-y-1.5 text-xs hover:border-slate-700 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <span className="w-6 h-6 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 text-[10px] font-bold flex items-center justify-center shrink-0">
+                              {rev.userName ? rev.userName.charAt(0).toUpperCase() : 'U'}
+                            </span>
+                            <div>
+                              <strong className="text-white block">{rev.userName || 'Khán giả xem rạp'}</strong>
+                              <span className="text-[10px] text-slate-400">{reviewDateStr}</span>
+                            </div>
+                          </div>
+                          <span className="text-amber-400 font-bold bg-amber-950/40 border border-amber-500/30 px-2 py-0.5 rounded text-[11px]">
+                            ★ {rev.rating}
+                          </span>
+                        </div>
+                        <p className="text-slate-300 italic pl-8 leading-relaxed">"{rev.comment}"</p>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-4 text-center text-xs text-slate-500 bg-slate-800/20 rounded-xl">
+                    Chưa có nhận xét nào cho bộ phim này.
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>

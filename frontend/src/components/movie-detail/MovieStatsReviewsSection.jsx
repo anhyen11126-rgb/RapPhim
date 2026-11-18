@@ -239,8 +239,8 @@ const MovieStatsReviewsSection = ({ movie }) => {
 
   return (
     <div className="bg-[#0f1422] border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl relative">
-      {/* 1. HEADER: POSTER NHỎ + TÊN PHIM + BADGE ĐANG CHIẾU + PHỤ ĐỀ */}
-      <div className="flex items-start space-x-4">
+      {/* 1. HEADER: POSTER NHỎ + TÊN PHIM + BADGE ĐANG CHIẾU */}
+      <div className="flex items-start space-x-4 border-b border-slate-800/80 pb-5">
         <div className="w-14 h-20 sm:w-16 sm:h-24 rounded-xl overflow-hidden border border-slate-700/60 shadow-lg shrink-0 bg-slate-900">
           <img
             src={posterSrc}
@@ -255,49 +255,15 @@ const MovieStatsReviewsSection = ({ movie }) => {
 
         <div className="flex-1 min-w-0">
           <h3 className="text-lg sm:text-xl font-black text-white truncate">{movie.title}</h3>
-          <div className="mt-1 flex items-center space-x-2">
+          <div className="mt-1.5 flex items-center space-x-2">
             <span className="bg-emerald-950/60 text-emerald-400 border border-emerald-500/40 text-[11px] font-semibold px-2.5 py-0.5 rounded-full inline-flex items-center space-x-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               <span>{movie.status === 'COMING_SOON' ? 'Sắp chiếu' : 'Đang chiếu'}</span>
             </span>
+            <span className="text-xs text-slate-400 font-medium">• Đánh giá & nhận xét từ khán giả</span>
           </div>
-          <p className="text-xs text-slate-400 mt-2 font-medium">Thống kê riêng của bộ phim</p>
         </div>
       </div>
-
-      {/* 2. 4 CHỈ SỐ DOANH THU & VÉ (TỔNG DOANH THU MÀU XANH LÁ) */}
-      <div className="grid grid-cols-2 gap-y-5 gap-x-6 pt-2">
-        <div>
-          <span className="text-xs text-slate-400 block font-normal">Tổng doanh thu</span>
-          <span className="text-2xl sm:text-3xl font-black text-[#22c55e] tracking-tight block mt-1">
-            {movie.stats?.revenueText ||
-              `${Math.round((movie.stats?.revenue || 125000000) / 1000000)} triệu`}
-          </span>
-        </div>
-
-        <div>
-          <span className="text-xs text-slate-400 block font-normal">Vé đã bán</span>
-          <span className="text-2xl sm:text-3xl font-black text-white tracking-tight block mt-1">
-            {(movie.stats?.ticketsSold || 850).toLocaleString('vi-VN')}
-          </span>
-        </div>
-
-        <div>
-          <span className="text-xs text-slate-400 block font-normal">Ghế đã đặt</span>
-          <span className="text-2xl sm:text-3xl font-black text-white tracking-tight block mt-1">
-            {(movie.stats?.seatsBooked || 850).toLocaleString('vi-VN')}
-          </span>
-        </div>
-
-        <div>
-          <span className="text-xs text-slate-400 block font-normal">Ghế còn trống</span>
-          <span className="text-2xl sm:text-3xl font-black text-white tracking-tight block mt-1">
-            {(movie.stats?.seatsAvailable || 150).toLocaleString('vi-VN')}
-          </span>
-        </div>
-      </div>
-
-      <div className="border-t border-slate-800/80"></div>
 
       {/* 3. KHU VỰC ĐÁNH GIÁ KHÁCH HÀNG (ĐIỂM SỐ + THANH PHÂN BỔ 5 SAO) */}
       <div className="space-y-4">
