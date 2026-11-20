@@ -28,8 +28,25 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const timeoutRef = useRef(null);
 
   const tierInfo = getTierInfo(currentUser);
+  const isAdmin = currentUser?.role === 'ADMIN';
+
+  // Hiệu ứng rê chuột (Hover) mở dropdown mượt mà
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setIsDropdownOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => {
+      setIsDropdownOpen(false);
+    }, 150);
+  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -38,14 +55,19 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('adminUser');
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
+    sessionStorage.removeItem('adminUser');
     setCurrentUser(null);
     setIsDropdownOpen(false);
     window.dispatchEvent(new Event('authChange'));
@@ -86,51 +108,102 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Nút bấm Avatar cá nhân */}
-      <div
-        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className="flex items-center space-x-2.5 bg-[#121929] hover:bg-slate-800 border border-slate-700/80 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all hover:border-slate-600 shadow-sm"
-      >
-        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-slate-800 to-slate-700 border border-slate-600/80 flex items-center justify-center shrink-0 shadow-inner">
-          {currentUser.avatar ? (
-            <img
-              src={currentUser.avatar}
-              alt={currentUser.name || 'User Avatar'}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <svg className="w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="currentColor">
-              <path
-                fillRule="evenodd"
-                d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z"
-                clipRule="evenodd"
+    <div
+      className="relative"
+      ref={dropdownRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* NÚT KÍCH HOẠT: DÀNH CHO ADMIN - THIẾT KẾ DẠNG VIÊN THUỐC (👤 Trang Quản Lý ▼) */}
+      {isAdmin ? (
+        <div
+          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          className="flex items-center bg-[#121929] hover:bg-slate-800/90 border border-slate-700/80 rounded-full pl-1 pr-2.5 py-1 shadow-md transition-all hover:border-slate-600 cursor-pointer select-none"
+          title="Bấm để mở menu quản trị"
+        >
+          {/* 1. Hình đại diện 👤 hiển thị bình thường trên navbar */}
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-slate-800 to-slate-700 border border-slate-600/80 flex items-center justify-center shrink-0 shadow-inner">
+            {currentUser.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name || 'Admin Avatar'}
+                className="w-full h-full object-cover"
               />
-            </svg>
-          )}
-        </div>
-        <div className="text-left hidden sm:block">
-          <span className="text-xs font-bold text-white block leading-tight">
-            {currentUser.name}
-          </span>
-          <span className={`text-[10px] font-semibold block leading-none ${tierInfo.color}`}>
-            {tierInfo.label} • {currentUser.role === 'ADMIN' ? 'Admin' : `${currentUser.points ?? 0} điểm`}
-          </span>
-        </div>
-        <span className="text-slate-500 text-[9px]">▼</span>
-      </div>
+            ) : (
+              <svg className="w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+          </div>
 
-      {/* Dropdown Menu */}
+          {/* 2. Chữ "Trang Quản Lý": Nhấn vào để mở menu bên dưới */}
+          <span
+            className="pl-2 pr-1.5 py-1 text-xs font-bold text-slate-200 hover:text-white transition-colors cursor-pointer select-none whitespace-nowrap"
+          >
+            Trang Quản Lý
+          </span>
+
+          {/* 3. Mũi tên ▼ */}
+          <span
+            className="text-slate-400 hover:text-white text-[10px] pl-1 pr-0.5 py-1 transition-colors select-none"
+          >
+            ▼
+          </span>
+        </div>
+      ) : (
+        /* GIAO DIỆN KHÁCH HÀNG THƯỜNG */
+        <div
+          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          className="flex items-center space-x-2.5 bg-[#121929] hover:bg-slate-800 border border-slate-700/80 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all hover:border-slate-600 shadow-sm"
+        >
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-slate-800 to-slate-700 border border-slate-600/80 flex items-center justify-center shrink-0 shadow-inner">
+            {currentUser.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name || 'User Avatar'}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <svg className="w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+          </div>
+          <div className="text-left hidden sm:block">
+            <span className="text-xs font-bold text-white block leading-tight">
+              {currentUser.name}
+            </span>
+            <span className={`text-[10px] font-semibold block leading-none ${tierInfo.color}`}>
+              {tierInfo.label} • {currentUser.points ?? 0} điểm
+            </span>
+          </div>
+          <span className="text-slate-500 text-[9px]">▼</span>
+        </div>
+      )}
+
+      {/* DROPDOWN MENU (Hỗ trợ cả Hover & Click mượt mà) */}
       {isDropdownOpen && (
-        <div className="absolute right-0 mt-2 w-64 bg-[#0f1422] border border-slate-800 rounded-2xl shadow-2xl py-2 z-50 space-y-1 animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 top-full pt-1.5 w-64 z-50 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-[#0f1422] border border-slate-800 rounded-2xl shadow-2xl py-2 space-y-1">
+            {/* Header Thông Tin Tài Khoản */}
           <div className="px-4 py-3 border-b border-slate-800/80 flex items-center space-x-3">
             <div
               onClick={() => {
-                setIsDropdownOpen(false);
-                onOpenAvatarModal();
+                if (onOpenAvatarModal) {
+                  setIsDropdownOpen(false);
+                  onOpenAvatarModal();
+                }
               }}
               title="Bấm để đổi ảnh đại diện"
-              className="relative group w-11 h-11 rounded-full overflow-hidden bg-gradient-to-tr from-slate-800 to-slate-700 border-2 border-slate-600 hover:border-blue-400 flex items-center justify-center shrink-0 cursor-pointer shadow-md transition-all hover:scale-105"
+              className="relative group w-11 h-11 rounded-full overflow-hidden bg-gradient-to-tr from-slate-800 to-slate-700 border-2 border-slate-600 hover:border-amber-400 cursor-pointer hover:scale-105 transition-all flex items-center justify-center shrink-0 shadow-md"
             >
               {currentUser.avatar ? (
                 <img
@@ -152,82 +225,85 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                  TÀI KHOẢN D'AVENOR
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsDropdownOpen(false);
-                    onOpenAvatarModal();
-                  }}
-                  className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold underline cursor-pointer"
-                >
-                  Đổi ảnh
-                </button>
-              </div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                {isAdmin ? 'TÀI KHOẢN ADMIN' : "TÀI KHOẢN D'AVENOR"}
+              </span>
               <strong className="text-xs text-white block truncate">{currentUser.name}</strong>
               <span className="text-[11px] text-slate-400 block truncate">{currentUser.email}</span>
               <span className={`text-[10px] font-bold block mt-0.5 ${tierInfo.color}`}>
-                {tierInfo.label} • {currentUser.role === 'ADMIN' ? 'Admin' : `${currentUser.points ?? 0} điểm`}
+                {tierInfo.label} • {isAdmin ? 'Admin' : `${currentUser.points ?? 0} điểm`}
               </span>
             </div>
           </div>
 
-          <Link
-            to="/my-tickets"
-            onClick={() => setIsDropdownOpen(false)}
-            className="flex items-center space-x-2 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors"
-          >
-            <span>🎟️</span>
-            <span>Vé của tôi & Lịch sử</span>
-          </Link>
+          {/* NẾU LÀ ADMIN: TRANG QUẢN LÝ VÀ ĐĂNG XUẤT (ẢNH ĐẠI DIỆN ĐÃ ĐỔI ĐƯỢC Ở TRÊN) */}
+          {isAdmin ? (
+            <div className="py-1">
+              <Link
+                to="/admin/statistics"
+                onClick={() => setIsDropdownOpen(false)}
+                className="flex items-center space-x-2 px-4 py-2.5 text-xs text-slate-200 hover:text-white hover:bg-slate-800/70 transition-colors font-medium cursor-pointer"
+              >
+                <span>🛡️</span>
+                <span>Trang Quản Lý</span>
+              </Link>
 
-          <Link
-            to="/promotions"
-            onClick={() => setIsDropdownOpen(false)}
-            className="flex items-center space-x-2 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors"
-          >
-            <span>🎁</span>
-            <span>Kho Voucher đổi thưởng</span>
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => {
-              setIsDropdownOpen(false);
-              onOpenAvatarModal();
-            }}
-            className="w-full text-left flex items-center space-x-2 px-4 py-2 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors font-medium cursor-pointer"
-          >
-            <span>🖼️</span>
-            <span>Đổi ảnh đại diện</span>
-          </button>
-
-          {currentUser.role === 'ADMIN' && (
-            <Link
-              to="/admin/dashboard"
-              onClick={() => setIsDropdownOpen(false)}
-              className="flex items-center justify-between px-3.5 py-2.5 mx-2 my-1.5 text-xs text-amber-200 hover:text-white bg-gradient-to-r from-red-600/30 via-amber-600/25 to-red-600/30 hover:from-red-600/50 hover:to-amber-600/50 border border-amber-500/40 rounded-xl transition-all font-black shadow-md shadow-amber-500/10 cursor-pointer"
-            >
-              <div className="flex items-center space-x-2">
-                <span className="text-base">🪪</span>
-                <span>Vào Trang Quản Trị Admin</span>
+              <div className="pt-1 border-t border-slate-800/80 mt-1">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full text-left flex items-center space-x-2 px-4 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer font-semibold"
+                >
+                  <span>🚪</span>
+                  <span>Đăng xuất</span>
+                </button>
               </div>
-              <span className="text-amber-400 text-xs">➔</span>
-            </Link>
-          )}
+            </div>
+          ) : (
+            /* NẾU LÀ KHÁCH HÀNG THƯỜNG */
+            <>
+              <Link
+                to="/my-tickets"
+                onClick={() => setIsDropdownOpen(false)}
+                className="flex items-center space-x-2 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors"
+              >
+                <span>🎟️</span>
+                <span>Vé của tôi & Lịch sử</span>
+              </Link>
 
-          <div className="border-t border-slate-800/80 pt-1">
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="w-full text-left flex items-center space-x-2 px-4 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer"
-            >
-              <span>🚪</span>
-              <span>Đăng xuất</span>
-            </button>
+              <Link
+                to="/promotions"
+                onClick={() => setIsDropdownOpen(false)}
+                className="flex items-center space-x-2 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors"
+              >
+                <span>🎁</span>
+                <span>Kho Voucher đổi thưởng</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDropdownOpen(false);
+                  if (onOpenAvatarModal) onOpenAvatarModal();
+                }}
+                className="w-full text-left flex items-center space-x-2 px-4 py-2 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors font-medium cursor-pointer"
+              >
+                <span>🖼️</span>
+                <span>Đổi ảnh đại diện</span>
+              </button>
+
+              <div className="pt-1 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full text-left flex items-center space-x-2 px-4 py-2.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer font-semibold"
+                >
+                  <span>🚪</span>
+                  <span>Đăng xuất</span>
+                </button>
+              </div>
+            </>
+          )}
           </div>
         </div>
       )}
@@ -236,4 +312,3 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
 };
 
 export default NavUserMenu;
-

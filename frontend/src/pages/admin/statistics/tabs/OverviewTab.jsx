@@ -15,7 +15,7 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
 
   return (
     <div className="space-y-6">
-      {/* 1. DÃY 6 KPI CARDS CHỦ CHỐT (ĐÁP ỨNG TOÀN DIỆN YÊU CẦU 1 CỦA GIẢNG VIÊN) */}
+      {/* 1. DÃY 6 KPI CARDS CHỦ CHỐT */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {/* KPI 1: Tổng Doanh Thu Tháng */}
         <StatisticCard
@@ -155,15 +155,14 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
                 >
                   <div className="flex items-center space-x-3 min-w-0">
                     <span
-                      className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${
-                        idx === 0
+                      className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${idx === 0
                           ? 'bg-amber-500 text-slate-950 font-black'
                           : idx === 1
-                          ? 'bg-slate-300 text-slate-950 font-black'
-                          : idx === 2
-                          ? 'bg-amber-700 text-white font-black'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
+                            ? 'bg-slate-300 text-slate-950 font-black'
+                            : idx === 2
+                              ? 'bg-amber-700 text-white font-black'
+                              : 'bg-slate-800 text-slate-400'
+                        }`}
                     >
                       {idx + 1}
                     </span>

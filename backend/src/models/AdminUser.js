@@ -22,6 +22,10 @@ const adminUserSchema = new mongoose.Schema(
       type: String,
       default: 'ADMIN',
     },
+    avatar: {
+      type: String,
+      default: '',
+    },
   },
   {
     timestamps: true,

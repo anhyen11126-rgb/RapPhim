@@ -34,15 +34,17 @@ const SidebarAdmin = () => {
 
   return (
     <aside className="w-64 bg-slate-900 text-slate-300 h-screen sticky top-0 self-start flex flex-col border-r border-slate-800 shrink-0 z-20 select-none">
-      {/* Brand Header */}
-      <div className="h-16 shrink-0 flex items-center justify-between px-5 border-b border-slate-800 bg-slate-950/60">
-        <Link to="/admin/statistics" className="flex items-center space-x-2.5 group">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-500 to-rose-700 flex items-center justify-center text-white font-black text-sm shadow-md shadow-red-600/30 group-hover:scale-105 transition-transform">
-            D
-          </div>
-          <div>
-            <span className="text-sm font-black text-white tracking-wider block leading-tight">D'AVENOR</span>
-            <span className="text-[10px] text-slate-400 font-semibold tracking-widest block uppercase">Cinema Admin</span>
+      {/* Brand Header: Logo Vương Miện & D'AVENOR CINEMA (Không có khung) */}
+      <div className="h-16 shrink-0 flex items-center justify-between px-4 border-b border-slate-800 bg-slate-950/70">
+        <Link to="/admin/statistics" className="flex items-center space-x-2 group py-1" title="D'AVENOR CINEMA">
+          <img
+            src="/Logo.png"
+            alt="D'AVENOR CINEMA"
+            className="h-10 w-auto object-contain drop-shadow-[0_2px_12px_rgba(212,175,55,0.35)] group-hover:scale-105 transition-transform duration-300 block"
+          />
+          <div className="border-l border-slate-800/80 pl-2">
+            <span className="text-[10px] font-black tracking-wider text-amber-400/90 uppercase block leading-none">ADMIN</span>
+            <span className="text-[9px] text-slate-500 font-semibold tracking-wider block mt-0.5">PANEL V2.0</span>
           </div>
         </Link>
         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">

@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import tls from 'node:tls';
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import AdminUser from '../models/AdminUser.js';
 import OtpVerification from '../models/OtpVerification.js';
@@ -333,7 +334,7 @@ export const getMe = async (req, res) => {
   }
 };
 
-// 4. Cập nhật ảnh đại diện (Avatar) cho người dùng
+// 4. Cập nhật ảnh đại diện (Avatar) cho người dùng hoặc Ban Quản Trị
 export const updateAvatar = async (req, res) => {
   try {
     const { avatar, email, userId } = req.body;
@@ -350,18 +351,58 @@ export const updateAvatar = async (req, res) => {
       try {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
-        targetUserId = decoded.id;
+        if (decoded?.id) {
+          targetUserId = decoded.id;
+        }
       } catch {
         // Tiếp tục thử fallback theo email/userId
       }
     }
 
     let user = null;
+    let isAdminAccount = false;
     const cleanAvatar = typeof avatar === 'string' ? avatar.trim() : '';
+
+    // 1. Thử tìm và cập nhật trong collection User
     if (targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
       user = await User.findByIdAndUpdate(targetUserId, { avatar: cleanAvatar }, { new: true });
-    } else if (email) {
-      user = await User.findOneAndUpdate({ email: email.toLowerCase().trim() }, { avatar: cleanAvatar }, { new: true });
+    }
+    if (!user && email) {
+      const cleanEmail = email.toLowerCase().trim();
+      user = await User.findOneAndUpdate(
+        {
+          $or: [
+            { email: cleanEmail },
+            { email: cleanEmail.replace('@davenor.vn', '@movietix.vn') },
+            { email: cleanEmail.replace('@movietix.vn', '@davenor.vn') },
+          ],
+        },
+        { avatar: cleanAvatar },
+        { new: true }
+      );
+    }
+
+    // 2. Nếu không có trong User, thử tìm và cập nhật trong collection AdminUser
+    if (!user) {
+      if (targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
+        user = await AdminUser.findByIdAndUpdate(targetUserId, { avatar: cleanAvatar }, { new: true });
+        if (user) isAdminAccount = true;
+      }
+    }
+    if (!user && email) {
+      const cleanEmail = email.toLowerCase().trim();
+      user = await AdminUser.findOneAndUpdate(
+        {
+          $or: [
+            { email: cleanEmail },
+            { email: cleanEmail.replace('@davenor.vn', '@movietix.vn') },
+            { email: cleanEmail.replace('@movietix.vn', '@davenor.vn') },
+          ],
+        },
+        { avatar: cleanAvatar },
+        { new: true }
+      );
+      if (user) isAdminAccount = true;
     }
 
     if (!user) {
@@ -375,14 +416,15 @@ export const updateAvatar = async (req, res) => {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
-        phone: user.phone,
-        role: user.role,
-        tier: user.tier,
-        points: user.points,
+        phone: user.phone || '',
+        role: user.role || (isAdminAccount ? 'ADMIN' : 'CUSTOMER'),
+        tier: user.tier || 'STANDARD',
+        points: user.points !== undefined && user.points !== null ? user.points : (isAdminAccount ? 'Quản trị viên' : 0),
         avatar: user.avatar || '',
       },
     });
   } catch (error) {
+    console.error('Lỗi cập nhật ảnh đại diện:', error);
     res.status(500).json({ message: 'Lỗi cập nhật ảnh đại diện', error: error.message });
   }
 };

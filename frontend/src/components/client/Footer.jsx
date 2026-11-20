@@ -7,17 +7,12 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           {/* Logo & Giới thiệu */}
           <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-[#101726] border border-slate-700/80 flex items-center justify-center shadow-md">
-                <img
-                  src="/Logo.png"
-                  alt="D'AVENOR CINEMA"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <span className="text-xl font-black tracking-tight text-white">
-                D'AVENOR CINEMA
-              </span>
+            <div className="flex items-center">
+              <img
+                src="/Logo.png"
+                alt="D'AVENOR CINEMA"
+                className="h-14 w-auto object-contain drop-shadow-[0_2px_12px_rgba(212,175,55,0.3)] block"
+              />
             </div>
             <p className="text-slate-400 text-xs leading-relaxed">
               Trải nghiệm điện ảnh đỉnh cao với hệ thống rạp chiếu hiện đại, công nghệ IMAX & Dolby Atmos tiêu chuẩn quốc tế tại Việt Nam.

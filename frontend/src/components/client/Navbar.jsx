@@ -55,20 +55,18 @@ const Navbar = () => {
   return (
     <header className="bg-[#0b0f19] border-b border-slate-800/80 sticky top-0 z-50 transition-all">
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 lg:px-10 h-16 flex items-center justify-between gap-4">
-        {/* Cụm Trái: Brand Logo & Navigation */}
+        {/* Cụm Trái: Brand Logo & Navigation (Không có viền khung) */}
         <div className="flex items-center space-x-5 lg:space-x-7">
           <Link
             to="/"
-            className="group flex items-center space-x-3 transition-all duration-300"
+            className="group flex items-center transition-all duration-300 py-1"
             title="D'AVENOR CINEMA"
           >
-            <div className="h-9 sm:h-10 w-[86px] sm:w-[96px] rounded-xl overflow-hidden border border-slate-700/80 group-hover:border-blue-400 group-hover:shadow-[0_0_18px_rgba(59,130,246,0.65),0_0_35px_rgba(37,99,235,0.3)] group-hover:ring-1 group-hover:ring-blue-400/50 transition-all duration-300 shrink-0">
-              <img
-                src="/Logo.png"
-                alt="D'AVENOR CINEMA Logo"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 block"
-              />
-            </div>
+            <img
+              src="/Logo.png"
+              alt="D'AVENOR CINEMA Logo"
+              className="h-10 sm:h-11 w-auto object-contain drop-shadow-[0_2px_12px_rgba(212,175,55,0.35)] group-hover:scale-105 transition-transform duration-300 block"
+            />
           </Link>
 
           {/* Menu Điều Hướng */}
@@ -119,7 +117,7 @@ const Navbar = () => {
           </nav>
         </div>
 
-        {/* Cụm Phải: Search, Đà Nẵng Location, Admin Shortcut, User Auth & Profile */}
+        {/* Cụm Phải: Search, Đà Nẵng Location, User Auth & Profile */}
         <div className="flex items-center space-x-3">
           {/* 1. Thanh tìm kiếm phim trực tiếp Database */}
           <NavSearchBar />
@@ -130,19 +128,7 @@ const Navbar = () => {
             setSelectedCity={setSelectedCity}
           />
 
-          {/* 3. Nút tắt nhanh vào Admin nếu là Quản trị viên */}
-          {currentUser?.role === 'ADMIN' && (
-            <Link
-              to="/admin/dashboard"
-              className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-black shadow-md shadow-red-600/30 border border-red-400/40 transition-all hover:scale-105 shrink-0 cursor-pointer"
-              title="Vào Bảng điều khiển Quản trị viên Admin"
-            >
-              <span>🛡️</span>
-              <span>Trang Admin</span>
-            </Link>
-          )}
-
-          {/* 4. Menu tài khoản người dùng & Đăng nhập / Đăng ký */}
+          {/* 3. Menu tài khoản người dùng & Nút Admin thống nhất */}
           <NavUserMenu
             currentUser={currentUser}
             setCurrentUser={setCurrentUser}

@@ -117,6 +117,15 @@ const NavAvatarModal = ({ isOpen, onClose, currentUser, setCurrentUser }) => {
         avatar: newAvatar,
       };
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      if (localStorage.getItem('adminUser')) {
+        localStorage.setItem('adminUser', JSON.stringify(updatedUser));
+      }
+      if (sessionStorage.getItem('user')) {
+        sessionStorage.setItem('user', JSON.stringify(updatedUser));
+      }
+      if (sessionStorage.getItem('adminUser')) {
+        sessionStorage.setItem('adminUser', JSON.stringify(updatedUser));
+      }
       setCurrentUser(updatedUser);
       window.dispatchEvent(new Event('authChange'));
 

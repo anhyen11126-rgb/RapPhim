@@ -482,17 +482,12 @@ const AuthPage = ({ initialMode = 'login' }) => {
         </Link>
 
         {/* Logo D'AVENOR CINEMA */}
-        <Link to="/" className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-full overflow-hidden bg-[#101726] border border-slate-700/80 flex items-center justify-center shadow-md">
-            <img
-              src="/Logo.png"
-              alt="D'AVENOR CINEMA Logo"
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <span className="text-sm sm:text-base font-black tracking-tight text-white hidden sm:inline">
-            D'AVENOR CINEMA
-          </span>
+        <Link to="/" className="flex items-center group py-1" title="D'AVENOR CINEMA">
+          <img
+            src="/Logo.png"
+            alt="D'AVENOR CINEMA Logo"
+            className="h-10 sm:h-11 w-auto object-contain drop-shadow-[0_2px_10px_rgba(212,175,55,0.35)] group-hover:scale-105 transition-transform"
+          />
         </Link>
 
         {/* Cinema Pass text */}
