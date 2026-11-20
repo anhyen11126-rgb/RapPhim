@@ -13,7 +13,7 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
   const booked = occupancy.booked || 0;
   const available = occupancy.available || 0;
   const holding = occupancy.holding || 0;
-  const total = occupancy.totalSellable || booked + available + holding || 704;
+  const total = occupancy.totalSellable || (booked + available + holding);
   const rate = occupancy.rate ?? (total > 0 ? Number(((booked / total) * 100).toFixed(1)) : 0);
 
   // Tính toán góc SVG vòng tròn Donut
@@ -94,7 +94,7 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
         <div className="flex items-center justify-between sm:space-x-8">
           <div className="flex items-center space-x-2">
             <span className="w-3 h-3 rounded-full bg-slate-700"></span>
-            <span className="text-slate-300 font-medium">Ghế còn trống:</span>
+            <span className="text-slate-300 font-medium">Ghế chưa đặt:</span>
           </div>
           <div className="text-right">
             <strong className="text-emerald-400 font-bold">{formatNumber(available)}</strong>
@@ -114,8 +114,8 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
         </div>
 
         <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-          <span>Tổng ghế mở bán:</span>
-          <span className="font-bold text-white">{formatNumber(total)} ghế</span>
+          <span>Tổng ghế toàn rạp:</span>
+          <span className="font-bold text-white">{formatNumber(total || 704)} ghế</span>
         </div>
       </div>
     </div>

@@ -7,44 +7,38 @@ import OverviewTab from './tabs/OverviewTab';
 import RevenueTab from './tabs/RevenueTab';
 import MoviesTab from './tabs/MoviesTab';
 import ShowtimesTab from './tabs/ShowtimesTab';
-import CustomersTab from './tabs/CustomersTab';
-import ReviewsTab from './tabs/ReviewsTab';
 import MovieDetailDrawer from './drawers/MovieDetailDrawer';
 import ShowtimeDetailDrawer from './drawers/ShowtimeDetailDrawer';
 import statisticsApi from './services/statisticsApi';
 
 const TABS = [
   { id: 'overview', label: 'Tổng quan', icon: '📊' },
-  { id: 'revenue', label: 'Doanh thu', icon: '💳' },
-  { id: 'movies', label: 'Phim', icon: '🎬' },
-  { id: 'showtimes', label: 'Suất chiếu', icon: '🕒' },
-  { id: 'customers', label: 'Khách hàng', icon: '👥' },
-  { id: 'reviews', label: 'Đánh giá', icon: '⭐' },
+  { id: 'revenue', label: 'Doanh thu & Chi phí', icon: '💳' },
+  { id: 'movies', label: 'Phim & Lợi nhuận', icon: '🎬' },
+  { id: 'showtimes', label: 'Suất chiếu', icon: '⏱️' },
 ];
 
 const StatisticsPage = () => {
   // Tab hiện tại
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Bộ lọc dùng chung (Global Filter)
+  // Bộ lọc dùng chung (Mặc định chọn Báo cáo Tháng 11/2026 có dữ liệu đầy đủ)
   const [filters, setFilters] = useState({
-    timeRange: '7_days',
+    timeRange: 'by_month',
+    month: 11,
+    year: 2026,
     customStart: '',
     customEnd: '',
-    cinemaId: 'ALL',
     movieId: 'ALL',
   });
 
-  // Dữ liệu cho các Tab
+  // Dữ liệu cho 4 Tabs chính
   const [overviewData, setOverviewData] = useState(null);
   const [revenueData, setRevenueData] = useState(null);
   const [moviesData, setMoviesData] = useState(null);
   const [showtimesData, setShowtimesData] = useState(null);
-  const [customersData, setCustomersData] = useState(null);
-  const [reviewsData, setReviewsData] = useState(null);
 
-  // Danh mục để chọn trên thanh lọc
-  const [cinemasList, setCinemasList] = useState([]);
+  // Danh mục phim để chọn trên thanh lọc
   const [moviesList, setMoviesList] = useState([]);
 
   // Trạng thái tải dữ liệu
@@ -58,18 +52,14 @@ const StatisticsPage = () => {
   const [selectedMovieId, setSelectedMovieId] = useState(null);
   const [selectedShowtimeId, setSelectedShowtimeId] = useState(null);
 
-  // 1. Nạp danh mục rạp & phim cho bộ lọc
+  // 1. Nạp danh mục phim cho bộ lọc
   useEffect(() => {
     const fetchDropdownOptions = async () => {
       try {
-        const [cinemasRes, moviesRes] = await Promise.all([
-          statisticsApi.getCinemas(),
-          statisticsApi.getFilterMovies(),
-        ]);
-        if (Array.isArray(cinemasRes.data)) setCinemasList(cinemasRes.data);
+        const moviesRes = await statisticsApi.getFilterMovies();
         if (Array.isArray(moviesRes.data)) setMoviesList(moviesRes.data);
       } catch (err) {
-        console.warn('Lỗi nạp danh mục bộ lọc:', err.message);
+        console.warn('Lỗi nạp danh mục phim bộ lọc:', err.message);
       }
     };
     fetchDropdownOptions();
@@ -96,12 +86,6 @@ const StatisticsPage = () => {
         } else if (activeTab === 'showtimes') {
           const res = await statisticsApi.getShowtimes(currentFilters);
           if (res.data?.data) setShowtimesData(res.data.data);
-        } else if (activeTab === 'customers') {
-          const res = await statisticsApi.getCustomers(currentFilters);
-          if (res.data?.data) setCustomersData(res.data.data);
-        } else if (activeTab === 'reviews') {
-          const res = await statisticsApi.getReviews(currentFilters);
-          if (res.data?.data) setReviewsData(res.data.data);
         }
 
         const now = new Date();
@@ -175,16 +159,15 @@ const StatisticsPage = () => {
             </div>
           )}
 
-          {/* 2. Global Filter Bar dùng chung */}
+          {/* 2. Global Filter Bar dùng chung: 2 bộ lọc Thời gian & Phim */}
           <StatisticsFilter
             filters={filters}
             onChange={(newFilters) => setFilters(newFilters)}
-            cinemas={cinemasList}
             movies={moviesList}
-            showMovieFilter={activeTab !== 'movies' && activeTab !== 'customers'}
+            showMovieFilter={activeTab !== 'movies'}
           />
 
-          {/* 3. Dãy 6 Tabs điều hướng chuyên nghiệp */}
+          {/* 3. Dãy 4 Tabs điều hướng chính: Tổng quan, Doanh thu & Chi phí, Phim & Lợi nhuận, Suất chiếu */}
           <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800">
             {TABS.map((tab) => {
               const isActive = activeTab === tab.id;
@@ -239,22 +222,6 @@ const StatisticsPage = () => {
                 onPageChange={(p) => setFilters({ ...filters, page: p })}
                 onSearch={(term) => setFilters({ ...filters, search: term, page: 1 })}
                 onRoomFilter={(room) => setFilters({ ...filters, room, page: 1 })}
-              />
-            )}
-
-            {activeTab === 'customers' && (
-              <CustomersTab
-                customersData={customersData}
-                loading={loading}
-                onPageChange={(p) => setFilters({ ...filters, page: p })}
-              />
-            )}
-
-            {activeTab === 'reviews' && (
-              <ReviewsTab
-                reviewsData={reviewsData}
-                loading={loading}
-                onSelectMovie={(id) => setSelectedMovieId(id)}
               />
             )}
           </div>

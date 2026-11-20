@@ -12,21 +12,66 @@ export const getVietnamDate = (date = new Date()) => {
 
 /**
  * Phân tích khoảng thời gian lọc (Global Time Range)
- * Hỗ trợ: today, yesterday, 7_days, 30_days, this_month, last_month, this_year, custom, all
+ * Hỗ trợ đúng 6 tùy chọn chuẩn:
+ * 1. today: 00:00:00 hôm nay đến thời điểm hiện tại
+ * 2. 7_days: 00:00:00 cách đây 6 ngày đến thời điểm hiện tại
+ * 3. this_month: 00:00:00 ngày 1 tháng này đến thời điểm hiện tại
+ * 4. last_month: 00:00:00 ngày 1 tháng trước đến 23:59:59.999 ngày cuối tháng trước
+ * 5. this_year: 00:00:00 ngày 1/1 năm nay đến thời điểm hiện tại
+ * 6. custom: 00:00:00 ngày bắt đầu đến 23:59:59.999 ngày kết thúc
  */
-export const parseDateFilter = (timeRange = '7_days', customStart = null, customEnd = null) => {
+export const parseDateFilter = (
+  timeRange = 'this_month',
+  customStart = null,
+  customEnd = null,
+  month = null,
+  year = null
+) => {
+  // Hỗ trợ truyền 1 object options: parseDateFilter({ timeRange, month, year, customStart, customEnd })
+  if (typeof timeRange === 'object' && timeRange !== null) {
+    const opts = timeRange;
+    timeRange = opts.timeRange || 'this_month';
+    customStart = opts.customStart || null;
+    customEnd = opts.customEnd || null;
+    month = opts.month || null;
+    year = opts.year || null;
+  }
+
   const now = new Date();
   let start = new Date();
   let end = new Date();
+  let showtimeEnd = new Date();
   let prevStart = new Date();
   let prevEnd = new Date();
-  let label = '7 ngày gần nhất';
+  let label = 'Tháng này';
+
+  // Nếu có chỉ định month & year cụ thể (theo Yêu cầu 1 của giảng viên)
+  if (timeRange === 'by_month' || (month != null && year != null)) {
+    const m = Number(month) || (now.getMonth() + 1);
+    const y = Number(year) || now.getFullYear();
+
+    start = new Date(y, m - 1, 1, 0, 0, 0, 0);
+    // Nếu là tháng hiện tại thì end tính đến hiện tại, nếu tháng khác thì tính trọn tháng
+    const isCurrentMonth = y === now.getFullYear() && m === (now.getMonth() + 1);
+    end = isCurrentMonth ? new Date(now) : new Date(y, m, 0, 23, 59, 59, 999);
+    showtimeEnd = new Date(y, m, 0, 23, 59, 59, 999);
+
+    // Kỳ trước: tháng trước đó
+    const prevMonthDate = new Date(y, m - 2, 1);
+    const prevM = prevMonthDate.getMonth() + 1;
+    const prevY = prevMonthDate.getFullYear();
+    prevStart = new Date(prevY, prevM - 1, 1, 0, 0, 0, 0);
+    prevEnd = new Date(prevY, prevM, 0, 23, 59, 59, 999);
+
+    label = `Tháng ${m}/${y}`;
+    return { start, end, showtimeEnd, prevStart, prevEnd, label, month: m, year: y };
+  }
 
   switch (timeRange) {
     case 'today': {
       start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      // Kỳ trước: ngày hôm qua
+      end = new Date(now);
+      showtimeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
       prevStart = new Date(start);
       prevStart.setDate(prevStart.getDate() - 1);
       prevEnd = new Date(end);
@@ -34,49 +79,29 @@ export const parseDateFilter = (timeRange = '7_days', customStart = null, custom
       label = 'Hôm nay';
       break;
     }
-    case 'yesterday': {
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
-      // Kỳ trước: ngày hôm kia
-      prevStart = new Date(start);
-      prevStart.setDate(prevStart.getDate() - 1);
-      prevEnd = new Date(end);
-      prevEnd.setDate(prevEnd.getDate() - 1);
-      label = 'Hôm qua';
-      break;
-    }
     case '7_days': {
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
       start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
-      // Kỳ trước: 7 ngày trước đó nữa
-      const duration = end.getTime() - start.getTime();
+      end = new Date(now);
+      showtimeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const duration = 7 * 24 * 60 * 60 * 1000;
+      prevStart = new Date(start.getTime() - duration);
       prevEnd = new Date(start.getTime() - 1);
-      prevStart = new Date(prevEnd.getTime() - duration);
-      label = '7 ngày gần nhất';
-      break;
-    }
-    case '30_days': {
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
-      const duration = end.getTime() - start.getTime();
-      prevEnd = new Date(start.getTime() - 1);
-      prevStart = new Date(prevEnd.getTime() - duration);
-      label = '30 ngày gần nhất';
+      label = '7 ngày qua';
       break;
     }
     case 'this_month': {
       start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-      // Kỳ trước: tháng trước
+      end = new Date(now);
+      showtimeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
       prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-      prevEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      prevEnd = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
       label = `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
       break;
     }
     case 'last_month': {
       start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
       end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-      // Kỳ trước: tháng trước nữa
+      showtimeEnd = new Date(end);
       prevStart = new Date(now.getFullYear(), now.getMonth() - 2, 1, 0, 0, 0, 0);
       prevEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59, 999);
       label = `Tháng trước (${start.getMonth() + 1}/${start.getFullYear()})`;
@@ -84,10 +109,10 @@ export const parseDateFilter = (timeRange = '7_days', customStart = null, custom
     }
     case 'this_year': {
       start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-      // Kỳ trước: năm trước
+      end = new Date(now);
+      showtimeEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
       prevStart = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0);
-      prevEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+      prevEnd = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
       label = `Năm ${now.getFullYear()}`;
       break;
     }
@@ -96,32 +121,35 @@ export const parseDateFilter = (timeRange = '7_days', customStart = null, custom
         start = new Date(customStart);
         start.setHours(0, 0, 0, 0);
       } else {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
       }
       if (customEnd) {
         end = new Date(customEnd);
         end.setHours(23, 59, 59, 999);
       } else {
-        end = new Date();
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
       }
+      showtimeEnd = new Date(end);
       const duration = end.getTime() - start.getTime();
       prevEnd = new Date(start.getTime() - 1);
       prevStart = new Date(prevEnd.getTime() - duration);
       label = `${start.toLocaleDateString('vi-VN')} – ${end.toLocaleDateString('vi-VN')}`;
       break;
     }
-    case 'all':
     default: {
-      start = new Date('2020-01-01T00:00:00.000Z');
-      end = new Date('2030-12-31T23:59:59.999Z');
-      prevStart = new Date('2010-01-01T00:00:00.000Z');
-      prevEnd = new Date('2019-12-31T23:59:59.999Z');
-      label = 'Toàn thời gian';
+      // Mặc định an toàn: 7 ngày qua
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+      end = new Date(now);
+      showtimeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const duration = 7 * 24 * 60 * 60 * 1000;
+      prevStart = new Date(start.getTime() - duration);
+      prevEnd = new Date(start.getTime() - 1);
+      label = '7 ngày qua';
       break;
     }
   }
 
-  return { start, end, prevStart, prevEnd, label };
+  return { start, end, showtimeEnd, prevStart, prevEnd, label };
 };
 
 /**
@@ -157,6 +185,31 @@ export const countSeatsFromString = (seatsStr = '') => {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean).length;
+};
+
+/**
+ * Định dạng tiền tệ VND chính xác
+ * Ví dụ: 1852389000 -> "1.852.389.000 ₫"
+ */
+export const formatExactCurrency = (amount = 0) => {
+  return `${Number(amount || 0).toLocaleString('vi-VN')} ₫`;
+};
+
+/**
+ * Định dạng tiền tệ rút gọn hiện đại (cho thẻ KPI)
+ * Ví dụ: 1852389000 -> "1,85 tỷ ₫", 125000000 -> "125 tr ₫"
+ */
+export const formatCompactCurrency = (amount = 0) => {
+  const num = Number(amount || 0);
+  if (num >= 1000000000) {
+    const b = (num / 1000000000).toFixed(2).replace(/\.00$/, '').replace('.', ',');
+    return `${b} tỷ ₫`;
+  }
+  if (num >= 1000000) {
+    const m = (num / 1000000).toFixed(1).replace(/\.0$/, '').replace('.', ',');
+    return `${m} tr ₫`;
+  }
+  return formatExactCurrency(num);
 };
 
 /**

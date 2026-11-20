@@ -20,19 +20,12 @@ import PromotionsPage from './pages/client/PromotionsPage';
 import SupportPage from './pages/client/SupportPage';
 import AuthPage from './pages/client/AuthPage';
 
-// Pages Admin (7-10 & Mở rộng đầy đủ)
+// Pages Admin (4 Mục Chủ Chốt: Thống Kê · Phim · Ghế & Phòng · Chatbot)
 import StatisticsPage from './pages/admin/statistics/StatisticsPage';
 import MovieManagePage from './pages/admin/MovieManagePage';
-import BookingManagePage from './pages/admin/BookingManagePage';
-import CinemaManagePage from './pages/admin/CinemaManagePage';
 import RoomManagePage from './pages/admin/RoomManagePage';
-import ShowtimeManagePage from './pages/admin/ShowtimeManagePage';
-import PricingManagePage from './pages/admin/PricingManagePage';
-import UserManagePage from './pages/admin/UserManagePage';
-import OtpManagePage from './pages/admin/OtpManagePage';
+import SeatManagePage from './pages/admin/SeatManagePage';
 import ChatbotManagePage from './pages/admin/ChatbotManagePage';
-import ConcessionManagePage from './pages/admin/ConcessionManagePage';
-import PromotionManagePage from './pages/admin/PromotionManagePage';
 
 // Client Layout bọc Navbar, Footer và Chatbot AI (Màn hình 6)
 const ClientLayout = () => {
@@ -80,23 +73,28 @@ function App() {
 
         {/* Cụm màn hình Quản trị viên (Được bảo vệ bằng AdminProtectedRoute) */}
         <Route element={<AdminProtectedRoute />}>
+          {/* 4 Mục Quản Trị Chủ Chốt */}
           <Route path="/admin" element={<Navigate to="/admin/statistics" replace />} />
           <Route path="/admin/statistics" element={<StatisticsPage />} />
-          <Route path="/admin/movie-analytics" element={<StatisticsPage />} />
+          <Route path="/admin/movies" element={<MovieManagePage />} />
+          <Route path="/admin/rooms" element={<RoomManagePage />} />
+          <Route path="/admin/seats" element={<SeatManagePage />} />
+          <Route path="/admin/chatbot" element={<ChatbotManagePage />} />
+
+          {/* Điều hướng thông minh & khóa các URL cũ ngoài 4 mục */}
+          <Route path="/admin/cinemas" element={<Navigate to="/admin/rooms" replace />} />
+          <Route path="/admin/showtimes" element={<Navigate to="/admin/seats" replace />} />
+          <Route path="/admin/movie-analytics" element={<Navigate to="/admin/statistics" replace />} />
           <Route path="/admin/dashboard" element={<Navigate to="/admin/statistics" replace />} />
           <Route path="/admin/showtimes-occupancy" element={<Navigate to="/admin/statistics" replace />} />
           <Route path="/admin/occupancy" element={<Navigate to="/admin/statistics" replace />} />
-          <Route path="/admin/movies" element={<MovieManagePage />} />
-          <Route path="/admin/cinemas" element={<CinemaManagePage />} />
-          <Route path="/admin/rooms" element={<RoomManagePage />} />
-          <Route path="/admin/showtimes" element={<ShowtimeManagePage />} />
-          <Route path="/admin/pricing" element={<PricingManagePage />} />
-          <Route path="/admin/bookings" element={<BookingManagePage />} />
-          <Route path="/admin/users" element={<UserManagePage />} />
-          <Route path="/admin/otps" element={<OtpManagePage />} />
-          <Route path="/admin/chatbot" element={<ChatbotManagePage />} />
-          <Route path="/admin/concessions" element={<ConcessionManagePage />} />
-          <Route path="/admin/promotions" element={<PromotionManagePage />} />
+          <Route path="/admin/pricing" element={<Navigate to="/admin/statistics" replace />} />
+          <Route path="/admin/bookings" element={<Navigate to="/admin/statistics" replace />} />
+          <Route path="/admin/users" element={<Navigate to="/admin/statistics" replace />} />
+          <Route path="/admin/otps" element={<Navigate to="/admin/statistics" replace />} />
+          <Route path="/admin/concessions" element={<Navigate to="/admin/statistics" replace />} />
+          <Route path="/admin/promotions" element={<Navigate to="/admin/statistics" replace />} />
+          <Route path="/admin/*" element={<Navigate to="/admin/statistics" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

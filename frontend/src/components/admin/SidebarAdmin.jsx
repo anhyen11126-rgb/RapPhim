@@ -4,42 +4,31 @@ import { NavLink, Link, useLocation } from 'react-router-dom';
 const SidebarAdmin = () => {
   const location = useLocation();
 
-  const navSections = [
+  const navItems = [
     {
-      group: 'BÁO CÁO & PHÂN TÍCH',
-      items: [
-        { to: '/admin/statistics', label: 'Thống kê & Báo cáo', icon: '📊', badge: 'V2.0' },
-      ],
+      to: '/admin/statistics',
+      label: 'Thống kê doanh thu',
+      icon: '📊',
+      badge: 'V2.0',
+      isActiveExtra: location.pathname === '/admin' || location.pathname.startsWith('/admin/statistics'),
     },
     {
-      group: 'VẬN HÀNH RẠP CHIẾU',
-      items: [
-        { to: '/admin/movies', label: 'Quản lý Phim', icon: '🎬' },
-        { to: '/admin/showtimes', label: 'Suất chiếu & Lịch phim', icon: '🕒' },
-        {
-          to: '/admin/rooms',
-          label: 'Cụm rạp & Phòng chiếu',
-          icon: '🏢',
-          isActiveExtra: location.pathname.startsWith('/admin/cinemas'),
-        },
-        { to: '/admin/pricing', label: 'Cấu hình giá vé', icon: '💰' },
-      ],
+      to: '/admin/movies',
+      label: 'Quản lý Phim',
+      icon: '🎬',
+      isActiveExtra: location.pathname.startsWith('/admin/movies'),
     },
     {
-      group: 'KINH DOANH & DỊCH VỤ',
-      items: [
-        { to: '/admin/bookings', label: 'Quản lý Đặt vé', icon: '🎟️' },
-        { to: '/admin/concessions', label: 'Bắp nước & Combo', icon: '🍿' },
-        { to: '/admin/promotions', label: 'Khuyến mãi & Voucher', icon: '🏷️' },
-      ],
+      to: '/admin/rooms',
+      label: 'Quản lý Ghế & Phòng',
+      icon: '💺',
+      isActiveExtra: location.pathname.startsWith('/admin/rooms') || location.pathname.startsWith('/admin/seats'),
     },
     {
-      group: 'HỆ THỐNG & NGƯỜI DÙNG',
-      items: [
-        { to: '/admin/users', label: 'Quản lý Thành viên', icon: '👥' },
-        { to: '/admin/otps', label: 'Quản lý mã OTP', icon: '🔐' },
-        { to: '/admin/chatbot', label: 'Trợ lý ảo Chatbot AI', icon: '🤖' },
-      ],
+      to: '/admin/chatbot',
+      label: 'Trợ lý ảo Chatbot AI',
+      icon: '🤖',
+      isActiveExtra: location.pathname.startsWith('/admin/chatbot'),
     },
   ];
 
@@ -61,42 +50,38 @@ const SidebarAdmin = () => {
         </span>
       </div>
 
-      {/* Nav Groups */}
-      <nav className="flex-1 p-3 space-y-4 overflow-y-auto custom-scrollbar">
-        {navSections.map((sec, sIdx) => (
-          <div key={sIdx} className="space-y-1">
-            <div className="text-[10px] font-extrabold text-slate-400 px-3 tracking-wider">
-              {sec.group}
-            </div>
-            {sec.items.map((item) => {
-              const isMatch = item.isActiveExtra || location.pathname === item.to;
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) => {
-                    const active = isActive || isMatch;
-                    return `flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                      active
-                        ? 'bg-red-600 text-white font-bold shadow-md shadow-red-600/30'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                    }`;
-                  }}
-                >
-                  <div className="flex items-center space-x-2.5 truncate">
-                    <span className="text-base shrink-0">{item.icon}</span>
-                    <span className="truncate">{item.label}</span>
-                  </div>
-                  {item.badge && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-red-500/30 text-red-200 border border-red-400/40">
-                      {item.badge}
-                    </span>
-                  )}
-                </NavLink>
-              );
-            })}
-          </div>
-        ))}
+      {/* Nav Menu */}
+      <nav className="flex-1 p-3 space-y-2 overflow-y-auto custom-scrollbar">
+        <div className="text-[10px] font-extrabold text-slate-400 px-3 tracking-wider uppercase mb-2">
+          DANH MỤC QUẢN TRỊ
+        </div>
+        {navItems.map((item) => {
+          const isMatch = item.isActiveExtra || location.pathname === item.to;
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) => {
+                const active = isActive || isMatch;
+                return `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+                  active
+                    ? 'bg-red-600 text-white font-bold shadow-md shadow-red-600/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                }`;
+              }}
+            >
+              <div className="flex items-center space-x-2.5 truncate">
+                <span className="text-base shrink-0">{item.icon}</span>
+                <span className="truncate">{item.label}</span>
+              </div>
+              {item.badge && (
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-red-500/30 text-red-200 border border-red-400/40">
+                  {item.badge}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Footer Nav Link */}

@@ -10,6 +10,12 @@ import {
   getReviews,
   exportReport,
 } from '../controllers/statisticsController.js';
+import {
+  getExpenses,
+  createExpense,
+  updateExpense,
+  deleteExpense,
+} from '../controllers/expenseController.js';
 import { authenticateAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -37,5 +43,11 @@ router.get('/showtimes/:id', flexibleAdminAuth, getShowtimeDetail);
 router.get('/customers', flexibleAdminAuth, getCustomers);
 router.get('/reviews', flexibleAdminAuth, getReviews);
 router.get('/export', flexibleAdminAuth, exportReport);
+
+// Quản lý chi phí rạp & phim (Expense Management)
+router.get('/expenses', flexibleAdminAuth, getExpenses);
+router.post('/expenses', flexibleAdminAuth, createExpense);
+router.put('/expenses/:id', flexibleAdminAuth, updateExpense);
+router.delete('/expenses/:id', flexibleAdminAuth, deleteExpense);
 
 export default router;

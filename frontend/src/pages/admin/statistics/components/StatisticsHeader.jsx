@@ -16,38 +16,30 @@ const StatisticsHeader = ({
   };
 
   return (
-    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
       <div>
-        <div className="flex items-center space-x-2 text-xs text-slate-400 font-medium mb-1">
-          <span>Hệ thống quản trị D'AVENOR</span>
-          <span>/</span>
-          <span className="text-red-500 font-semibold">Thống kê & Báo cáo</span>
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-          <span>Thống kê & Báo cáo</span>
-          <span className="bg-red-600/20 text-red-400 border border-red-500/30 text-xs font-semibold px-2.5 py-0.5 rounded-md">
-            Doanh nghiệp
-          </span>
+        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+          Thống kê & Báo cáo
         </h1>
-        <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Theo dõi hiệu quả kinh doanh, doanh thu, công suất phòng chiếu và chất lượng dịch vụ rạp.
+        <p className="text-xs text-slate-400 mt-0.5">
+          Theo dõi doanh thu, vé bán, công suất phòng chiếu và hiệu quả kinh doanh rạp.
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2.5">
         {/* Thời gian cập nhật gần nhất */}
-        <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-xl text-xs text-slate-300">
+        <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-xs text-slate-300">
           <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
           <span>Cập nhật: <strong className="text-white font-medium">{lastUpdated || 'Vừa xong'}</strong></span>
         </div>
 
-        {/* Nút Làm mới dữ liệu */}
+        {/* Nút Làm mới dữ liệu (Neutral dark style) */}
         <button
           type="button"
           onClick={onRefresh}
           disabled={isRefreshing}
-          className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white px-3.5 py-2 rounded-xl text-xs font-semibold border border-slate-700 transition-all disabled:opacity-50"
-          title="Làm mới toàn bộ dữ liệu từ MongoDB Atlas"
+          className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white px-3 py-1.5 rounded-xl text-xs font-semibold border border-slate-700 transition-all disabled:opacity-50 cursor-pointer"
+          title="Làm mới dữ liệu từ hệ thống"
         >
           <svg
             className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-red-400' : 'text-slate-400'}`}
@@ -65,13 +57,13 @@ const StatisticsHeader = ({
           <span>{isRefreshing ? 'Đang nạp...' : 'Làm mới'}</span>
         </button>
 
-        {/* Nút Xuất báo cáo với dropdown tùy chọn loại file */}
+        {/* Nút Xuất báo cáo (Brand red style) */}
         <div className="relative">
           <button
             type="button"
             onClick={() => setShowExportMenu(!showExportMenu)}
             disabled={isExporting}
-            className="flex items-center space-x-2 bg-red-600 hover:bg-red-500 active:scale-95 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg shadow-red-600/20 transition-all disabled:opacity-50"
+            className="flex items-center space-x-1.5 bg-red-600 hover:bg-red-500 active:scale-95 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-red-600/20 transition-all disabled:opacity-50 cursor-pointer"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -81,7 +73,7 @@ const StatisticsHeader = ({
                 d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
               />
             </svg>
-            <span>{isExporting ? 'Đang trích xuất...' : 'Xuất báo cáo'}</span>
+            <span>{isExporting ? 'Đang xuất...' : 'Xuất báo cáo'}</span>
             <svg className="w-3 h-3 text-red-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
             </svg>
@@ -95,34 +87,18 @@ const StatisticsHeader = ({
               <button
                 type="button"
                 onClick={() => handleSelectExport('revenue')}
-                className="w-full text-left px-3.5 py-2 hover:bg-slate-800 text-slate-200 flex items-center justify-between"
+                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center justify-between"
               >
                 <span>Báo cáo Doanh thu & Dòng tiền</span>
-                <span className="text-[10px] text-slate-500">CSV</span>
+                <span className="text-[10px] text-slate-400 font-semibold">CSV</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleSelectExport('movies')}
-                className="w-full text-left px-3.5 py-2 hover:bg-slate-800 text-slate-200 flex items-center justify-between"
+                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center justify-between"
               >
                 <span>Báo cáo Hiệu suất Phim</span>
-                <span className="text-[10px] text-slate-500">CSV</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSelectExport('showtimes')}
-                className="w-full text-left px-3.5 py-2 hover:bg-slate-800 text-slate-200 flex items-center justify-between"
-              >
-                <span>Báo cáo Suất chiếu & Ghế</span>
-                <span className="text-[10px] text-slate-500">CSV</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSelectExport('customers')}
-                className="w-full text-left px-3.5 py-2 hover:bg-slate-800 text-slate-200 flex items-center justify-between"
-              >
-                <span>Báo cáo Khách hàng chi tiêu</span>
-                <span className="text-[10px] text-slate-500">CSV</span>
+                <span className="text-[10px] text-slate-400 font-semibold">CSV</span>
               </button>
             </div>
           )}

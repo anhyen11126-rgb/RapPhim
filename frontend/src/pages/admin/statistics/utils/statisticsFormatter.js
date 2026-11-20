@@ -7,6 +7,31 @@ export const formatCurrency = (val = 0) => {
 };
 
 /**
+ * Format tiền tệ VND chính xác
+ * Ví dụ: 1852389000 -> "1.852.389.000 ₫"
+ */
+export const formatExactCurrency = (val = 0) => {
+  return `${Number(val || 0).toLocaleString('vi-VN')} ₫`;
+};
+
+/**
+ * Format tiền tệ rút gọn hiện đại (cho thẻ KPI)
+ * Ví dụ: 1852389000 -> "1,85 tỷ ₫", 125000000 -> "125 tr ₫"
+ */
+export const formatCompactCurrency = (val = 0) => {
+  const num = Number(val || 0);
+  if (num >= 1000000000) {
+    const b = (num / 1000000000).toFixed(2).replace(/\.00$/, '').replace('.', ',');
+    return `${b} tỷ ₫`;
+  }
+  if (num >= 1000000) {
+    const m = (num / 1000000).toFixed(1).replace(/\.0$/, '').replace('.', ',');
+    return `${m} tr ₫`;
+  }
+  return formatExactCurrency(num);
+};
+
+/**
  * Format số lượng có dấu phân cách
  * Ví dụ: 15420 -> "15.420"
  */

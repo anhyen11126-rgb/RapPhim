@@ -11,10 +11,10 @@ const CustomersTab = ({ customersData, loading, onPageChange }) => {
 
   return (
     <div className="space-y-6">
-      {/* 1. DÃY 5 CHỈ SỐ KHÁCH HÀNG */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      {/* 1. DÃY 3 CHỈ SỐ KHÁCH HÀNG THIẾT YẾU */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatisticCard
-          title="Tổng Khách Hàng Đăng Ký"
+          title="Tổng Số Khách Hàng"
           value={`${formatNumber(metrics.totalRegistered || 0)} người`}
           tooltip="Tổng tài khoản khách hàng thực tế trong cơ sở dữ liệu (không bao gồm Admin)"
           loading={loading}
@@ -32,30 +32,12 @@ const CustomersTab = ({ customersData, loading, onPageChange }) => {
         />
 
         <StatisticCard
-          title="Khách Đã Giao Dịch"
+          title="Khách Hàng Đã Giao Dịch"
           value={`${formatNumber(metrics.transactingCount || 0)} người`}
           tooltip="Số lượng khách hàng đã hoàn tất ít nhất một đơn đặt vé xem phim"
           loading={loading}
           icon="💳"
           iconBg="bg-purple-500/10 text-purple-400"
-        />
-
-        <StatisticCard
-          title="Khách Hàng Quay Lại"
-          value={`${formatNumber(metrics.returningCount || 0)} người`}
-          tooltip="Khách hàng trung thành đã thực hiện từ 2 đơn đặt vé trở lên"
-          loading={loading}
-          icon="🔁"
-          iconBg="bg-amber-500/10 text-amber-400"
-        />
-
-        <StatisticCard
-          title="Chi Tiêu TB / Khách"
-          value={metrics.avgSpendFormatted || '0 đ'}
-          tooltip="Giá trị tích lũy trung bình mỗi khách hàng chi tiêu tại rạp"
-          loading={loading}
-          icon="📈"
-          iconBg="bg-red-500/10 text-red-400"
         />
       </div>
 

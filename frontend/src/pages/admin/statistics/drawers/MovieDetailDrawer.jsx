@@ -37,9 +37,9 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
         <div className="flex items-start justify-between border-b border-slate-800 pb-4">
           <div>
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-bold text-red-500 uppercase tracking-wider">Hồ sơ phân tích</span>
+              <span className="text-xs font-bold text-red-500 uppercase tracking-wider">Hồ sơ phân tích tài chính & suất chiếu</span>
               <span className="text-slate-600">•</span>
-              <span className="text-xs text-slate-400">Dữ liệu thời gian thực</span>
+              <span className="text-xs text-slate-400">Dữ liệu thực tế</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-white mt-1">
               {data?.movie?.title || 'Chi tiết phim'}
@@ -48,7 +48,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-sm transition-all"
+            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-sm transition-all cursor-pointer"
           >
             ✕
           </button>
@@ -102,43 +102,152 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
               </div>
             </div>
 
-            {/* Dãy 6 Chỉ số KPI Phân tích chuyên sâu */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
-                <span className="text-[11px] text-slate-400 block">Doanh thu thuần</span>
-                <span className="text-sm sm:text-base font-bold text-emerald-400 block mt-1">
-                  {formatCurrency(data.stats.totalRevenue)}
+            {/* Dãy Chỉ số Hiệu Suất Bán Vé & Công Suất */}
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5">
+                1. Hiệu suất bán vé & Ghế ngồi
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+                  <span className="text-[11px] text-slate-400 block">Số suất chiếu</span>
+                  <span className="text-sm font-bold text-white block mt-1">
+                    {formatNumber(data.stats.showtimesCount)} suất
+                  </span>
+                </div>
+                <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+                  <span className="text-[11px] text-slate-400 block">Vé đã bán</span>
+                  <span className="text-sm font-bold text-white block mt-1">
+                    {formatNumber(data.stats.totalTickets)} vé
+                  </span>
+                </div>
+                <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+                  <span className="text-[11px] text-slate-400 block">Ghế còn trống</span>
+                  <span className="text-sm font-bold text-slate-300 block mt-1">
+                    {formatNumber(data.stats.availableSeats || 0)} ghế
+                  </span>
+                </div>
+                <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+                  <span className="text-[11px] text-slate-400 block">Tỷ lệ bán vé TB</span>
+                  <span className="text-sm font-bold text-amber-400 block mt-1">
+                    {formatPercent(data.stats.avgOccupancy)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Dãy Chỉ số Tài chính: Doanh Thu, Chi Phí & Lợi Nhuận (Yêu cầu 3 của giảng viên) */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  2. Báo cáo Tài chính & Lợi nhuận phim
+                </h4>
+                <span
+                  className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                    data.stats.profitStatus === 'PROFIT'
+                      ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/40'
+                      : 'bg-rose-950/80 text-rose-400 border-rose-500/40'
+                  }`}
+                >
+                  {data.stats.profitStatusLabel || (data.stats.profit >= 0 ? 'Có lãi' : 'Bị lỗ')} (Biên LN {data.stats.profitMargin}%)
                 </span>
               </div>
-              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
-                <span className="text-[11px] text-slate-400 block">Vé đã bán</span>
-                <span className="text-sm sm:text-base font-bold text-white block mt-1">
-                  {formatNumber(data.stats.totalTickets)} vé
-                </span>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl">
+                  <span className="text-[10px] text-slate-400 block">Doanh thu thuần</span>
+                  <strong className="text-emerald-400 text-xs block mt-0.5">
+                    {data.stats.revenueFormatted}
+                  </strong>
+                </div>
+                <div className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl">
+                  <span className="text-[10px] text-slate-400 block">Chi phí trực tiếp</span>
+                  <strong className="text-rose-300 text-xs block mt-0.5">
+                    {data.stats.directExpensesFormatted || '0 đ'}
+                  </strong>
+                </div>
+                <div className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl">
+                  <span className="text-[10px] text-slate-400 block">Chi phí phân bổ</span>
+                  <strong className="text-amber-300 text-xs block mt-0.5">
+                    {data.stats.allocatedExpensesFormatted || '0 đ'}
+                  </strong>
+                </div>
+                <div className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl">
+                  <span className="text-[10px] text-slate-400 block">Lợi nhuận thuần</span>
+                  <strong
+                    className={`text-xs block mt-0.5 ${
+                      data.stats.profit >= 0 ? 'text-emerald-400 font-black' : 'text-rose-400 font-black'
+                    }`}
+                  >
+                    {data.stats.profitFormatted}
+                  </strong>
+                </div>
               </div>
-              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
-                <span className="text-[11px] text-slate-400 block">Ghế đã đặt</span>
-                <span className="text-sm sm:text-base font-bold text-amber-400 block mt-1">
-                  {formatNumber(data.stats.bookedSeats || data.stats.totalTickets)} ghế
-                </span>
+
+              <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-800/80 leading-relaxed">
+                💡 Chi phí trực tiếp bao gồm phí bản quyền nhà phát hành (~46%) và marketing phim. Chi phí phân bổ là phần chi phí vận hành chung của rạp chia theo tỷ lệ doanh thu.
               </div>
-              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
-                <span className="text-[11px] text-slate-400 block">Ghế còn trống</span>
-                <span className="text-sm sm:text-base font-bold text-slate-200 block mt-1">
-                  {formatNumber(data.stats.availableSeats ?? Math.max(0, (data.stats.totalSeats || 704) - data.stats.totalTickets))} ghế
-                </span>
+            </div>
+
+            {/* Danh sách các chứng từ / khoản chi thực tế của phim */}
+            {data.expensesList && data.expensesList.length > 0 && (
+              <div className="space-y-2.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  3. Danh mục chi phí trực tiếp ({data.expensesList.length} khoản chi)
+                </h4>
+                <div className="space-y-2">
+                  {data.expensesList.map((exp) => (
+                    <div
+                      key={exp.id}
+                      className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 text-xs flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-mono text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded">
+                            {exp.costCode}
+                          </span>
+                          <span className="font-bold text-white">{exp.title}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          Ngày: {new Date(exp.date).toLocaleDateString('vi-VN')} • {exp.notes || 'Không có ghi chú'}
+                        </div>
+                      </div>
+                      <span className="font-bold text-rose-400 text-xs shrink-0">
+                        {exp.formattedAmount}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
-                <span className="text-[11px] text-slate-400 block">Số suất chiếu</span>
-                <span className="text-sm sm:text-base font-bold text-white block mt-1">
-                  {formatNumber(data.stats.showtimesCount)} suất
-                </span>
-              </div>
-              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
-                <span className="text-[11px] text-slate-400 block">Lấp đầy TB</span>
-                <span className="text-sm sm:text-base font-bold text-amber-400 block mt-1">
-                  {formatPercent(data.stats.avgOccupancy)}
-                </span>
+            )}
+
+            {/* Danh sách suất chiếu của phim */}
+            <div className="space-y-2.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                4. Lịch chiếu tại rạp ({data.showtimesList?.length || 0} suất)
+              </h4>
+              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                {(data.showtimesList || []).map((st) => (
+                  <div
+                    key={st.id}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800 text-xs"
+                  >
+                    <div>
+                      <span className="font-semibold text-white">{st.roomName}</span>
+                      <span className="text-slate-400 ml-2">({st.cinemaName})</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <span className="text-slate-300">
+                        {new Date(st.startTime).toLocaleString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          day: '2-digit',
+                          month: '2-digit',
+                        })}
+                      </span>
+                      <span className="text-emerald-400 font-bold">{formatCurrency(st.price)}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -172,88 +281,6 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                     </div>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Danh sách suất chiếu gần nhất của phim */}
-            <div className="space-y-2.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Các suất chiếu phục vụ ({data.showtimesList?.length || 0})
-              </h4>
-              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin scrollbar-thumb-slate-800">
-                {(data.showtimesList || []).map((st) => (
-                  <div
-                    key={st.id}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800 text-xs"
-                  >
-                    <div>
-                      <span className="font-semibold text-white">{st.roomName}</span>
-                      <span className="text-slate-400 ml-2">({st.cinemaName})</span>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <span className="text-slate-300">
-                        {new Date(st.startTime).toLocaleString('vi-VN', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          day: '2-digit',
-                          month: '2-digit',
-                        })}
-                      </span>
-                      <span className="text-emerald-400 font-bold">{formatCurrency(st.price)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Nhận xét thực tế của từng khách hàng */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Nhận xét xác thực từ khán giả ({data.reviews?.length || 0})
-                </h4>
-                <span className="text-[10px] text-slate-500">Dữ liệu từ người dùng thực</span>
-              </div>
-              
-              <div className="max-h-64 overflow-y-auto space-y-2 pr-1 scrollbar-thin scrollbar-thumb-slate-800">
-                {(data.reviews || []).length > 0 ? (
-                  (data.reviews || []).map((rev, idx) => {
-                    const reviewDateStr = rev.createdAt
-                      ? new Date(rev.createdAt).toLocaleDateString('vi-VN', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                        })
-                      : 'Gần đây';
-
-                    return (
-                      <div
-                        key={idx}
-                        className="p-3 rounded-xl bg-slate-800/30 border border-slate-800/80 space-y-1.5 text-xs hover:border-slate-700 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <span className="w-6 h-6 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 text-[10px] font-bold flex items-center justify-center shrink-0">
-                              {rev.userName ? rev.userName.charAt(0).toUpperCase() : 'U'}
-                            </span>
-                            <div>
-                              <strong className="text-white block">{rev.userName || 'Khán giả xem rạp'}</strong>
-                              <span className="text-[10px] text-slate-400">{reviewDateStr}</span>
-                            </div>
-                          </div>
-                          <span className="text-amber-400 font-bold bg-amber-950/40 border border-amber-500/30 px-2 py-0.5 rounded text-[11px]">
-                            ★ {rev.rating}
-                          </span>
-                        </div>
-                        <p className="text-slate-300 italic pl-8 leading-relaxed">"{rev.comment}"</p>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="p-4 text-center text-xs text-slate-500 bg-slate-800/20 rounded-xl">
-                    Chưa có nhận xét nào cho bộ phim này.
-                  </div>
-                )}
               </div>
             </div>
           </div>

@@ -97,7 +97,7 @@ const ShowtimesTab = ({
               <th className="py-3 px-3">Phòng chiếu</th>
               <th className="py-3 px-3">Định dạng</th>
               <th className="py-3 px-3">Thời gian</th>
-              <th className="py-3 px-3 text-center">Khách</th>
+              <th className="py-3 px-3 text-center">Người đặt</th>
               <th className="py-3 px-3 text-center">Ghế đã đặt</th>
               <th className="py-3 px-3 text-center">Còn trống</th>
               <th className="py-3 px-4 min-w-[120px]">Lấp đầy</th>
@@ -167,7 +167,10 @@ const ShowtimesTab = ({
 
                     {/* Ghế đã đặt */}
                     <td className="py-3 px-3 text-center font-bold text-white">
-                      {st.bookedSeats} <span className="text-[10px] text-slate-500 font-normal">/ 88</span>
+                      {st.bookedSeats}{' '}
+                      <span className="text-[10px] text-slate-500 font-normal">
+                        / {st.totalSeats || 88}
+                      </span>
                     </td>
 
                     {/* Còn trống */}

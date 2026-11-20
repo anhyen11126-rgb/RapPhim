@@ -7,10 +7,10 @@ export const statisticsApi = {
   // 1. Tổng quan (KPIs, Biểu đồ doanh thu, Tỷ lệ lấp đầy, Top phim, Khung giờ vàng)
   getOverview: (params = {}) => api.get('/admin/statistics/overview', { params }),
 
-  // 2. Phân tích Doanh thu (Chỉ số tài chính, biểu đồ kỳ, doanh thu rạp, thanh toán, bảng chi tiết)
+  // 2. Phân tích Doanh thu & Chi phí - Lợi nhuận
   getRevenue: (params = {}) => api.get('/admin/statistics/revenue', { params }),
 
-  // 3. Thống kê Phim
+  // 3. Thống kê Phim (Tỷ lệ bán vé, Doanh thu, Chi phí, Lợi nhuận từng phim)
   getMovies: (params = {}) => api.get('/admin/statistics/movies', { params }),
   getMovieDetail: (id) => api.get(`/admin/statistics/movies/${id}`),
 
@@ -32,6 +32,12 @@ export const statisticsApi = {
     });
     return res;
   },
+
+  // 8. Quản lý chi phí rạp & phim (Expense CRUD)
+  getExpenses: (params = {}) => api.get('/admin/statistics/expenses', { params }),
+  createExpense: (data) => api.post('/admin/statistics/expenses', data),
+  updateExpense: (id, data) => api.put(`/admin/statistics/expenses/${id}`, data),
+  deleteExpense: (id) => api.delete(`/admin/statistics/expenses/${id}`),
 
   // Danh mục hỗ trợ lọc
   getCinemas: () => api.get('/cinemas'),

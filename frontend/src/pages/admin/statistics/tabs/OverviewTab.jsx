@@ -15,73 +15,80 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
 
   return (
     <div className="space-y-6">
-      {/* 1. DÃY 6 KPI CARDS CHỦ CHỐT */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {/* KPI 1: Doanh thu thuần */}
+      {/* 1. DÃY 6 KPI CARDS CHỦ CHỐT (ĐÁP ỨNG TOÀN DIỆN YÊU CẦU 1 CỦA GIẢNG VIÊN) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        {/* KPI 1: Tổng Doanh Thu Tháng */}
         <StatisticCard
-          title={kpis.netRevenue?.title || 'Tổng Doanh Thu Thuần'}
+          title={kpis.netRevenue?.title || 'Doanh thu tháng'}
           value={kpis.netRevenue?.formatted || '0 đ'}
+          exactValue={kpis.netRevenue?.exactFormatted || ''}
           growth={kpis.netRevenue?.growth}
-          tooltip={kpis.netRevenue?.tooltip}
+          tooltip={kpis.netRevenue?.tooltip || 'Tổng doanh thu thực tế sau hoàn tiền trong kỳ'}
           loading={loading}
           icon="💳"
           iconBg="bg-emerald-500/10 text-emerald-400"
         />
 
-        {/* KPI 2: Vé bán hợp lệ */}
+        {/* KPI 2: Số Vé Bán Ra Trong Tháng */}
         <StatisticCard
-          title={kpis.validTicketsSold?.title || 'Vé Đã Bán Hợp Lệ'}
+          title={kpis.validTicketsSold?.title || 'Vé đã bán'}
           value={kpis.validTicketsSold?.formatted || '0 vé'}
+          exactValue={kpis.validTicketsSold?.value != null ? `${kpis.validTicketsSold.value.toLocaleString('vi-VN')} vé` : ''}
           growth={kpis.validTicketsSold?.growth}
-          tooltip={kpis.validTicketsSold?.tooltip}
+          tooltip={kpis.validTicketsSold?.tooltip || 'Tổng số vé bán ra từ các đơn đặt thành công trong tháng'}
           loading={loading}
           icon="🎟️"
           iconBg="bg-blue-500/10 text-blue-400"
         />
 
-        {/* KPI 3: Khách hàng */}
+        {/* KPI 3: Số Bộ Phim Đã Chiếu */}
         <StatisticCard
-          title={kpis.totalCustomers?.title || 'Tổng Khách Hàng'}
-          value={kpis.totalCustomers?.formatted || '0 khách'}
-          tooltip={kpis.totalCustomers?.tooltip}
+          title={kpis.distinctMovies?.title || 'Phim đã chiếu'}
+          value={kpis.distinctMovies?.formatted || '0 phim'}
+          exactValue={kpis.distinctMovies?.value != null ? `${kpis.distinctMovies.value} tác phẩm` : ''}
+          tooltip={kpis.distinctMovies?.tooltip || 'Số lượng phim khác nhau có suất chiếu phục vụ trong tháng'}
           loading={loading}
-          icon="👤"
+          icon="🎬"
           iconBg="bg-purple-500/10 text-purple-400"
         />
 
-        {/* KPI 4: Phim đang chiếu */}
+        {/* KPI 4: Tổng Số Suất Chiếu */}
         <StatisticCard
-          title={kpis.nowShowingMovies?.title || 'Phim Đang Chiếu'}
-          value={kpis.nowShowingMovies?.formatted || '0 phim'}
-          tooltip={kpis.nowShowingMovies?.tooltip}
+          title={kpis.totalShowtimes?.title || 'Tổng suất chiếu'}
+          value={kpis.totalShowtimes?.formatted || '0 suất'}
+          exactValue={kpis.totalShowtimes?.value != null ? `${kpis.totalShowtimes.value.toLocaleString('vi-VN')} suất chiếu` : ''}
+          tooltip={kpis.totalShowtimes?.tooltip || 'Tổng số suất chiếu phim phục vụ khán giả tại rạp trong tháng'}
           loading={loading}
-          icon="🎬"
-          iconBg="bg-red-500/10 text-red-400"
-        />
-
-        {/* KPI 5: Ghế đã đặt */}
-        <StatisticCard
-          title={kpis.bookedSeats?.title || 'Ghế Đã Đặt'}
-          value={kpis.bookedSeats?.formatted || '0 ghế'}
-          growth={kpis.bookedSeats?.growth}
-          tooltip={kpis.bookedSeats?.tooltip}
-          loading={loading}
-          icon="💺"
+          icon="⏱️"
           iconBg="bg-amber-500/10 text-amber-400"
         />
 
-        {/* KPI 6: Ghế còn trống */}
+        {/* KPI 5: Tổng Chi Phí Phát Sinh */}
         <StatisticCard
-          title={kpis.availableSeats?.title || 'Ghế Còn Trống'}
-          value={kpis.availableSeats?.formatted || '0 ghế'}
-          tooltip={kpis.availableSeats?.tooltip}
+          title={kpis.totalExpenses?.title || 'Tổng chi phí'}
+          value={kpis.totalExpenses?.formatted || '0 đ'}
+          exactValue={kpis.totalExpenses?.exactFormatted || ''}
+          tooltip={kpis.totalExpenses?.tooltip || 'Tổng chi phí thực tế gồm bản quyền, marketing và vận hành rạp'}
           loading={loading}
-          icon="🪑"
-          iconBg="bg-slate-700/40 text-slate-300"
+          icon="📉"
+          iconBg="bg-rose-500/10 text-rose-400"
+        />
+
+        {/* KPI 6: Lợi Nhuận Rạp (Lãi/Lỗ Cụ Thể & Biên Lợi Nhuận) */}
+        <StatisticCard
+          title={kpis.profit?.title || 'Lợi nhuận rạp'}
+          value={kpis.profit?.formatted || '0 đ'}
+          exactValue={kpis.profit?.exactFormatted || ''}
+          growth={kpis.profit?.growth}
+          subtitle={kpis.profit?.statusLabel ? `${kpis.profit.statusLabel} (Biên LN ${kpis.profit.margin}%)` : ''}
+          tooltip={kpis.profit?.tooltip || 'Lợi nhuận = Doanh thu thuần trừ Tổng chi phí'}
+          loading={loading}
+          icon={kpis.profit?.status === 'LOSS' ? '⚠️' : '💰'}
+          iconBg={kpis.profit?.status === 'LOSS' ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}
         />
       </div>
 
-      {/* 2. KHỐI BIỂU ĐỒ DOANH THU & DONUT CÔNG SUẤT PHÒNG CHIẾU */}
+      {/* 2. KHỐI BIỂU ĐỒ DOANH THU & DONUT TỶ LỆ BÁN VÉ / CÔNG SUẤT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Cột trái (7 cols): Biểu đồ Doanh thu */}
         <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
@@ -98,22 +105,30 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
           <RevenueChart data={data?.revenueChartData || []} loading={loading} />
         </div>
 
-        {/* Cột phải (5 cols): Tỷ lệ lấp đầy ghế */}
+        {/* Cột phải (5 cols): Tỷ lệ bán vé trung bình & công suất phòng chiếu */}
         <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
             <div>
-              <h3 className="text-base sm:text-lg font-bold text-white">Tỷ Lệ Lấp Đầy Ghế</h3>
-              <p className="text-xs text-slate-400">Công suất khai thác các phòng chiếu toàn hệ thống</p>
+              <h3 className="text-base sm:text-lg font-bold text-white">Tỷ Lệ Bán Vé & Công Suất</h3>
+              <p className="text-xs text-slate-400">Hiệu suất lấp đầy ghế bình quân toàn cụm rạp</p>
             </div>
             <span className="text-xs font-semibold text-amber-400 bg-amber-950/60 border border-amber-500/30 px-2.5 py-1 rounded-lg">
-              8 Phòng Chiếu
+              {occupancy.rate != null ? `Tỷ lệ bán: ${occupancy.rate}%` : '8 Phòng Chiếu'}
             </span>
           </div>
 
           <OccupancyChart occupancy={occupancy} loading={loading} />
 
-          <div className="pt-2 border-t border-slate-800/60 text-[11px] text-slate-400 text-center">
-            💡 Công thức chuẩn: <strong className="text-white">Tổng ghế đặt / Tổng ghế mở bán × 100%</strong>
+          <div className="pt-2 border-t border-slate-800/60 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>
+              Ghế đã bán: <strong className="text-emerald-400 font-bold">{formatNumber(occupancy.booked || 0)}</strong>
+            </span>
+            <span>
+              Ghế trống: <strong className="text-slate-300 font-bold">{formatNumber(occupancy.available || 0)}</strong>
+            </span>
+            <span>
+              Tổng mở bán: <strong className="text-white font-bold">{formatNumber(occupancy.totalSellable || 704)}</strong>
+            </span>
           </div>
         </div>
       </div>
