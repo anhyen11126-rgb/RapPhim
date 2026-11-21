@@ -132,7 +132,13 @@ const MovieCard = ({ movie }) => {
             className="w-full bg-[#1b2234] hover:bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center space-x-2 border border-slate-700/80 hover:border-blue-500 shadow-md hover:shadow-blue-500/20 active:scale-[0.98]"
           >
             <span>🎟️</span>
-            <span>{movie?.status === 'COMING_SOON' ? 'Đặt trước vé' : 'Đặt vé ngay'}</span>
+            <span>
+              {movie?.status === 'ENDED'
+                ? 'Đã công chiếu'
+                : movie?.status === 'COMING_SOON'
+                ? 'Đặt trước vé'
+                : 'Đặt vé ngay'}
+            </span>
           </Link>
         </div>
       </div>

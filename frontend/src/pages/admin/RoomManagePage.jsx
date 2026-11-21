@@ -183,7 +183,7 @@ const RoomManagePage = () => {
               className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white shadow-md shadow-blue-600/30 flex items-center space-x-2 cursor-default"
             >
               <span>📽️</span>
-              <span>8 Phòng Chiếu & Sức Chứa</span>
+              <span>9 Phòng Chiếu & Sức Chứa (88 Ghế/Phòng)</span>
             </button>
             <Link
               to="/admin/seats"

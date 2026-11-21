@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Footer = () => {
   return (
@@ -30,16 +31,39 @@ const Footer = () => {
             </div>
           </div>
 
-          {/* Cột 1: Hệ thống Rạp */}
+          {/* Cột 1: Cụm Rạp Chiếu Flagship */}
           <div className="space-y-3">
-            <h4 className="font-bold text-white tracking-wide text-sm">Hệ thống Rạp</h4>
-            <ul className="space-y-2 text-slate-400 text-xs">
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Vincom Ngô Quyền (IMAX)</li>
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Indochina Riverside</li>
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Lotte Mart Đà Nẵng</li>
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Thanh Khê Plaza</li>
-              <li className="hover:text-slate-200 transition-colors cursor-pointer">D'AVENOR Ngũ Hành Sơn Resort</li>
-            </ul>
+            <h4 className="font-bold text-white tracking-wide text-sm">Cụm Rạp Chiếu</h4>
+            <div className="space-y-2.5 text-slate-400 text-xs">
+              <Link
+                to="/theaters"
+                className="group block"
+              >
+                <div className="font-bold text-amber-400 group-hover:text-amber-300 transition-colors flex items-center space-x-1.5">
+                  <span>📍</span>
+                  <span>D'AVENOR Thanh Khê Plaza</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed group-hover:text-slate-300 transition-colors">
+                  Tầng 4 TTTM Thanh Khê Plaza, 295 Điện Biên Phủ, Q. Thanh Khê, TP. Đà Nẵng
+                </p>
+              </Link>
+              <div className="text-[11px] space-y-1 text-slate-400 pt-0.5">
+                <p>• <span className="text-slate-300 font-medium">Giờ mở cửa:</span> 08:00 – 02:00 sáng</p>
+                <p>• <span className="text-slate-300 font-medium">Quy mô:</span> 9 phòng chiếu (3 IMAX Laser, 3 Dolby Atmos, 3 Gold Class • 88 ghế/phòng)</p>
+                <p>• <span className="text-slate-300 font-medium">Gửi xe:</span> Hầm B1 & B2 miễn phí 24/7</p>
+              </div>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <span className="bg-[#18130e] border border-amber-500/40 text-amber-400 text-[10px] px-2 py-0.5 rounded font-medium">
+                  IMAX Laser
+                </span>
+                <span className="bg-[#111726] border border-slate-700/80 text-slate-300 text-[10px] px-2 py-0.5 rounded font-medium">
+                  Dolby Atmos
+                </span>
+                <span className="bg-[#111726] border border-slate-700/80 text-slate-300 text-[10px] px-2 py-0.5 rounded font-medium">
+                  RealD 3D
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Cột 2: Chính sách & Hỗ trợ */}

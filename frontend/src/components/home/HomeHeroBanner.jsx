@@ -131,12 +131,18 @@ const HomeHeroBanner = ({
               <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
                 <span
                   className={`px-2.5 py-0.5 rounded text-[10px] font-black tracking-wider uppercase border ${
-                    currentHeroMovie?.status === 'COMING_SOON'
+                    currentHeroMovie?.status === 'ENDED'
+                      ? 'bg-slate-700/60 text-slate-300 border-slate-500/40'
+                      : currentHeroMovie?.status === 'COMING_SOON'
                       ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
                       : 'bg-[#064e3b]/80 text-[#34d399] border-[#059669]/40'
                   }`}
                 >
-                  {currentHeroMovie?.status === 'COMING_SOON' ? 'SẮP KHỞI CHIẾU' : 'ĐANG CÔNG CHIẾU TOÀN CẦU'}
+                  {currentHeroMovie?.status === 'ENDED'
+                    ? 'PHIM ĐÃ CÔNG CHIẾU'
+                    : currentHeroMovie?.status === 'COMING_SOON'
+                    ? 'SẮP CHIẾU'
+                    : 'ĐANG CÔNG CHIẾU TẠI RẠP'}
                 </span>
                 <span className="text-slate-300 font-medium text-[11px] px-1">
                   {currentHeroMovie?.techFormat || 'IMAX Laser • Dolby Atmos'}
@@ -176,7 +182,11 @@ const HomeHeroBanner = ({
                 >
                   <span>🎟️</span>
                   <span>
-                    {currentHeroMovie?.status === 'COMING_SOON' ? 'Đặt trước vé ngay' : 'Đặt vé ngay'}
+                    {currentHeroMovie?.status === 'ENDED'
+                      ? 'Xem thông tin phim'
+                      : currentHeroMovie?.status === 'COMING_SOON'
+                      ? 'Đặt trước vé ngay'
+                      : 'Đặt vé ngay'}
                   </span>
                 </Link>
 

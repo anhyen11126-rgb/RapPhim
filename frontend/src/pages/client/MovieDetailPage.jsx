@@ -214,6 +214,24 @@ const MovieDetailPage = () => {
 
   const fallbackImaxTimes = [
     {
+      id: 'imax-morning',
+      realId: realShowtimeIds[0] || primaryShowtimeId,
+      time: '09:30',
+      roomName: 'Phòng IMAX 01',
+      availableSeats: 65,
+      price: 140000,
+      tag: 'CA SÁNG',
+    },
+    {
+      id: 'imax-afternoon',
+      realId: realShowtimeIds[0] || primaryShowtimeId,
+      time: '14:30',
+      roomName: 'Phòng IMAX 01',
+      availableSeats: 52,
+      price: 150000,
+      tag: 'CA CHIỀU',
+    },
+    {
       id: 'imax-1',
       realId: realShowtimeIds[0] || primaryShowtimeId,
       time: '17:30',
@@ -252,6 +270,24 @@ const MovieDetailPage = () => {
   ];
 
   const fallbackStandardTimes = [
+    {
+      id: 'std-morning',
+      realId: realShowtimeIds[0] || primaryShowtimeId,
+      time: '09:30',
+      roomName: 'Rạp 03 (Tầng 2)',
+      availableSeats: 58,
+      price: 45000,
+      tag: 'CA SÁNG',
+    },
+    {
+      id: 'std-afternoon',
+      realId: realShowtimeIds[0] || primaryShowtimeId,
+      time: '14:00',
+      roomName: 'Rạp 03 (Tầng 2)',
+      availableSeats: 48,
+      price: 45000,
+      tag: 'CA CHIỀU',
+    },
     {
       id: 'std-1',
       realId: realShowtimeIds[0] || primaryShowtimeId,
@@ -333,8 +369,8 @@ const MovieDetailPage = () => {
     filteredCinemas.find((c) => (c._id || c.id) === selectedCinemaId) ||
     filteredCinemas[0] ||
     cinemas[0] || {
-      name: "D'AVENOR Vincom Ngô Quyền",
-      address: 'Tầng 4 Vincom Plaza, 910A Ngô Quyền, Q. Sơn Trà, Đà Nẵng',
+      name: "D'AVENOR Thanh Khê Plaza",
+      address: 'Tầng 4 TTTM Thanh Khê Plaza, 295 Điện Biên Phủ, Q. Thanh Khê, Đà Nẵng',
     };
 
   // Helper tính giờ kết thúc suất chiếu

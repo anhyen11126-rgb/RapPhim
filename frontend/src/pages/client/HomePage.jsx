@@ -66,6 +66,7 @@ const HomePage = () => {
           trailerUrl: m.trailerUrl || '',
           description: m.description || '',
           status: m.status || 'NOW_SHOWING',
+          releaseDate: m.releaseDate,
           firstShowtimeId: m.firstShowtimeId,
           showtimes:
             Array.isArray(m.showtimes) && m.showtimes.length > 0
@@ -75,13 +76,26 @@ const HomePage = () => {
                 : []),
         }));
 
-        setMoviesList(formattedMovies);
-        if (formattedMovies.length > 0) {
-          setSelectedMovieId(String(formattedMovies[0].id));
-          if (formattedMovies[0].showtimes && formattedMovies[0].showtimes.length > 0) {
-            setSelectedShowtimeId(String(formattedMovies[0].showtimes[0].id));
-          } else if (formattedMovies[0].firstShowtimeId) {
-            setSelectedShowtimeId(String(formattedMovies[0].firstShowtimeId));
+        // Sắp xếp ưu tiên 3 bộ phim Đang Chiếu Tại Rạp (Dune 2, Mai, Deadpool & Wolverine) liền kề nhau ở đầu danh sách slider
+        const prioritySlugs = ['dune-hanh-tinh-cat-phan-2', 'mai', 'deadpool-and-wolverine'];
+        const sortedMovies = [...formattedMovies].sort((a, b) => {
+          const aPriority = prioritySlugs.indexOf(a.slug);
+          const bPriority = prioritySlugs.indexOf(b.slug);
+          if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
+          if (aPriority !== -1) return -1;
+          if (bPriority !== -1) return 1;
+          if (a.status === 'NOW_SHOWING' && b.status !== 'NOW_SHOWING') return -1;
+          if (b.status === 'NOW_SHOWING' && a.status !== 'NOW_SHOWING') return 1;
+          return 0;
+        });
+
+        setMoviesList(sortedMovies);
+        if (sortedMovies.length > 0) {
+          setSelectedMovieId(String(sortedMovies[0].id));
+          if (sortedMovies[0].showtimes && sortedMovies[0].showtimes.length > 0) {
+            setSelectedShowtimeId(String(sortedMovies[0].showtimes[0].id));
+          } else if (sortedMovies[0].firstShowtimeId) {
+            setSelectedShowtimeId(String(sortedMovies[0].firstShowtimeId));
           }
         }
       }

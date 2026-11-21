@@ -14,17 +14,17 @@ const CinemaManagePage = () => {
   const [editingCinema, setEditingCinema] = useState(null);
 
   const [formData, setFormData] = useState({
-    name: '',
-    city: 'TP. Hồ Chí Minh',
-    address: '',
+    name: "D'AVENOR Thanh Khê Plaza",
+    city: 'Đà Nẵng',
+    address: 'Tầng 4 TTTM Thanh Khê Plaza, 295 Điện Biên Phủ, Q. Thanh Khê, Đà Nẵng',
     hotline: '1900 8899',
-    openingHours: '08:30 - 24:00',
-    parking: 'Hầm giữ xe 24/7 (Miễn phí 3h)',
-    roomCount: 7,
-    isFlagship: false,
-    specialBadge: '',
+    openingHours: '08:00 - 02:00 sáng',
+    parking: 'Hầm giữ xe B1 & B2 24/7 (Miễn phí)',
+    roomCount: 9,
+    isFlagship: true,
+    specialBadge: "Cụm rạp Flagship D'AVENOR Thanh Khê - Đà Nẵng",
     image: '/images/cinemas/davenor-flagship-cinema.jpg',
-    tags: ['Dolby Atmos', 'IMAX Laser'],
+    tags: ['IMAX Laser', 'Dolby Atmos', 'RealD 3D'],
   });
 
   useEffect(() => {
@@ -62,17 +62,17 @@ const CinemaManagePage = () => {
     } else {
       setEditingCinema(null);
       setFormData({
-        name: "D'AVENOR ",
-        city: 'TP. Hồ Chí Minh',
-        address: '',
+        name: "D'AVENOR Thanh Khê Plaza",
+        city: 'Đà Nẵng',
+        address: 'Tầng 4 TTTM Thanh Khê Plaza, 295 Điện Biên Phủ, Q. Thanh Khê, Đà Nẵng',
         hotline: '1900 8899',
-        openingHours: '08:30 - 24:00',
-        parking: 'Hầm giữ xe 24/7 (Miễn phí 3h)',
-        roomCount: 7,
-        isFlagship: false,
-        specialBadge: '',
+        openingHours: '08:00 - 02:00 sáng',
+        parking: 'Hầm giữ xe B1 & B2 24/7 (Miễn phí)',
+        roomCount: 9,
+        isFlagship: true,
+        specialBadge: "Cụm rạp Flagship D'AVENOR Thanh Khê - Đà Nẵng",
         image: '/images/cinemas/davenor-flagship-cinema.jpg',
-        tags: ['Dolby Atmos', 'IMAX Laser'],
+        tags: ['IMAX Laser', 'Dolby Atmos', 'RealD 3D'],
       });
     }
     setIsModalOpen(true);

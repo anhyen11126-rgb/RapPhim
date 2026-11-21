@@ -17,6 +17,6 @@ export const FALLBACK_CINEMAS = [
     openingHours: '08:00 - 02:00 sáng',
     hotline: '1900 8899',
     parking: 'Hầm B1 & B2 TTTM Thanh Khê Plaza 24/7',
-    roomCount: 8,
+    roomCount: 9,
   },
 ];

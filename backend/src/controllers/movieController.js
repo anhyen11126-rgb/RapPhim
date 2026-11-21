@@ -64,7 +64,7 @@ export const resolveMovieStatsAndReviews = async (movie, showtimes = []) => {
     baseRevenue = 168000000;
     baseTickets = 1150;
     baseAvailable = 90;
-    baseRating = 4.7;
+    baseRating = 4.8;
     baseCount = 210;
     baseBreakdown = { fiveStar: 165, fourStar: 33, threeStar: 8, twoStar: 3, oneStar: 1 };
     baseReviews = [
@@ -91,7 +91,7 @@ export const resolveMovieStatsAndReviews = async (movie, showtimes = []) => {
     baseRevenue = 135000000;
     baseTickets = 910;
     baseAvailable = 140;
-    baseRating = 4.8;
+    baseRating = 4.9;
     baseCount = 154;
     baseBreakdown = { fiveStar: 120, fourStar: 24, threeStar: 7, twoStar: 2, oneStar: 1 };
     baseReviews = [
@@ -321,20 +321,53 @@ export const getMovies = async (req, res) => {
           .select('_id startTime roomName formatFeature price')
           .lean();
 
-        const formattedShowtimes = showtimes.map((st) => {
+        // Chỉ chấp nhận 3 phòng chuẩn duy nhất: Phòng IMAX Laser, Phòng Dolby Atmos, Phòng Gold Class
+        const validRooms = ['Phòng IMAX Laser', 'Phòng Dolby Atmos', 'Phòng Gold Class'];
+        const cleanShowtimes = showtimes.filter((st) =>
+          validRooms.some((vr) => (st.roomName || '').includes(vr.replace('Phòng ', '')))
+        );
+
+        const formattedShowtimes = cleanShowtimes.map((st) => {
           const startTimeDate = new Date(st.startTime);
           const timeStr = startTimeDate.toLocaleTimeString('vi-VN', {
             hour: '2-digit',
             minute: '2-digit',
           });
+          const dateStr = startTimeDate.toISOString().slice(0, 10);
           return {
             id: st._id.toString(),
+            date: dateStr,
             time: timeStr,
-            roomName: st.roomName || 'Phòng 01 - IMAX Laser',
-            format: st.formatFeature || 'IMAX Laser',
-            price: st.price || 95000,
+            roomName: st.roomName || 'Phòng IMAX Laser',
+            format: st.formatFeature || 'IMAX Laser 2D',
+            price: st.price || 150000,
           };
         });
+
+        // Sắp xếp ưu tiên: Giờ vàng 19:30 lên trước, sau đó là ca tiếp theo (sau khi dọn dẹp) 22:xx rồi mới đến ca ngày
+        formattedShowtimes.sort((a, b) => {
+          const getPriority = (t) => {
+            if (t === '19:30') return 1;
+            if (t && t.startsWith('22:')) return 2;
+            if (t && t.startsWith('16:')) return 3;
+            if (t && (t.startsWith('13:') || t.startsWith('12:'))) return 4;
+            return 5;
+          };
+          const pA = getPriority(a.time);
+          const pB = getPriority(b.time);
+          if (pA !== pB) return pA - pB;
+
+          const roomOrder = ['IMAX', 'Atmos', 'Gold'];
+          const rA = roomOrder.findIndex((ro) => (a.roomName || '').includes(ro));
+          const rB = roomOrder.findIndex((ro) => (b.roomName || '').includes(ro));
+          return (rA === -1 ? 99 : rA) - (rB === -1 ? 99 : rB);
+        });
+
+        // Tìm suất 19:30 Phòng IMAX Laser làm firstShowtimeId
+        const primeImax = formattedShowtimes.find(
+          (st) => st.time === '19:30' && (st.roomName || '').includes('IMAX')
+        );
+        const resolvedFirstId = primeImax ? primeImax.id : (formattedShowtimes[0]?.id || null);
 
         const spec = resolveMovieFormatSpec(m);
         const statsAndReviews = await resolveMovieStatsAndReviews(m, showtimes);
@@ -344,12 +377,25 @@ export const getMovies = async (req, res) => {
           ...spec,
           ...statsAndReviews,
           id: m._id.toString(),
-          firstShowtimeId: showtimes.length > 0 ? showtimes[0]._id.toString() : null,
+          firstShowtimeId: resolvedFirstId,
           showtimes: formattedShowtimes,
-          _count: { showtimes: showtimes.length },
+          _count: { showtimes: formattedShowtimes.length },
         };
       })
     );
+
+    // Ưu tiên 3 bộ phim Đang Chiếu Tại Rạp (Dune 2, Mai, Deadpool & Wolverine) lên đầu danh sách
+    const prioritySlugs = ['dune-hanh-tinh-cat-phan-2', 'mai', 'deadpool-and-wolverine'];
+    moviesWithShowtimes.sort((a, b) => {
+      const aPriority = prioritySlugs.indexOf(a.slug);
+      const bPriority = prioritySlugs.indexOf(b.slug);
+      if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
+      if (aPriority !== -1) return -1;
+      if (bPriority !== -1) return 1;
+      if (a.status === 'NOW_SHOWING' && b.status !== 'NOW_SHOWING') return -1;
+      if (b.status === 'NOW_SHOWING' && a.status !== 'NOW_SHOWING') return 1;
+      return 0;
+    });
 
     res.json(moviesWithShowtimes);
   } catch (error) {
