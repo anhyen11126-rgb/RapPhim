@@ -40,7 +40,7 @@ const SidebarAdmin = () => {
           <img
             src="/Logo.png"
             alt="D'AVENOR CINEMA"
-            className="h-10 w-auto object-contain drop-shadow-[0_2px_12px_rgba(212,175,55,0.35)] group-hover:scale-105 transition-transform duration-300 block"
+            className="h-10 w-auto object-contain drop-shadow-[0_2px_12px_rgba(66,223,255,0.35)] group-hover:scale-105 transition-transform duration-300 block"
           />
           <div className="border-l border-slate-800/80 pl-2">
             <span className="text-[10px] font-black tracking-wider text-amber-400/90 uppercase block leading-none">ADMIN</span>

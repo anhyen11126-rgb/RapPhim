@@ -131,7 +131,7 @@ const HomePage = () => {
   };
 
   return (
-    <div className="bg-[#0c1017] text-slate-100 min-h-screen">
+    <div className="bg-[#0B1026] text-[#F8F7FF] min-h-screen">
       {/* 1. HERO SECTION: CINEMATIC BILLBOARD BANNER WITH CAROUSEL */}
       <HomeHeroBanner
         moviesList={moviesList}

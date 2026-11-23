@@ -36,97 +36,187 @@ const getAgeBadgeStyle = (ageRating) => {
   }
 };
 
-// Phân bố chuẩn 18 bộ phim theo 6 tháng (mỗi tháng đúng 3 bộ phim)
-// Tháng 11/2026 (Đang chiếu), Tháng 12/2026 và các tháng năm 2027 (T1, T2, T3, T4/2027) là Sắp chiếu
-const MONTHLY_SCHEDULE = [
-  {
-    month: 11,
-    year: 2026,
-    code: 'month-2026-11',
-    label: 'Tháng 11/2026 (Hiện tại)',
-    defaultDate: '2026-11-21',
-    status: 'NOW_SHOWING',
-    statusLabel: 'Đang công chiếu tại rạp',
-    badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-    slugs: ['dune-hanh-tinh-cat-phan-2', 'mai', 'deadpool-and-wolverine'],
-  },
-  {
-    month: 12,
-    year: 2026,
-    code: 'month-2026-12',
-    label: 'Tháng 12/2026',
-    defaultDate: '2026-12-15',
-    status: 'COMING_SOON',
-    statusLabel: 'Sắp chiếu',
-    badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-    slugs: ['moana-2', 'mufasa-the-lion-king', 'venom-the-last-dance'],
-  },
-  {
-    month: 1,
-    year: 2027,
-    code: 'month-2027-01',
-    label: 'Tháng 01/2027',
-    defaultDate: '2027-01-15',
-    status: 'COMING_SOON',
-    statusLabel: 'Sắp chiếu',
-    badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-    slugs: ['co-dau-hao-mon', 'transformers-one', 'inside-out-2'],
-  },
-  {
-    month: 2,
-    year: 2027,
-    code: 'month-2027-02',
-    label: 'Tháng 02/2027',
-    defaultDate: '2027-02-15',
-    status: 'COMING_SOON',
-    statusLabel: 'Sắp chiếu',
-    badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-    slugs: ['captain-america-brave-new-world', 'joker-folie-a-deux', 'kung-fu-panda-4'],
-  },
-  {
-    month: 3,
-    year: 2027,
-    code: 'month-2027-03',
-    label: 'Tháng 03/2027',
-    defaultDate: '2027-03-15',
-    status: 'COMING_SOON',
-    statusLabel: 'Sắp chiếu',
-    badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-    slugs: ['quat-mo-trung-ma', 'lat-mat-7-mot-dieu-uoc', 'godzilla-x-kong-de-che-moi'],
-  },
-  {
-    month: 4,
-    year: 2027,
-    code: 'month-2027-04',
-    label: 'Tháng 04/2027',
-    defaultDate: '2027-04-15',
-    status: 'COMING_SOON',
-    statusLabel: 'Sắp chiếu',
-    badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-    slugs: ['oppenheimer', 'spider-man-no-way-home', 'avatar-the-way-of-water'],
-  },
-];
+// Helper lấy chuỗi YYYY-MM-DD theo giờ thực tế địa phương
+export const getIsoDateString = (dateObj) => {
+  const d = dateObj instanceof Date ? dateObj : new Date(dateObj);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
-// Hàm bóc tách tháng/năm từ lựa chọn Ngày chiếu
-const parseSelectedDateInfo = (val) => {
-  if (!val || val === 'Hôm nay' || val === 'Ngày mai' || val === 'Ngày kia') {
-    return { month: 11, year: 2026, dateStr: '2026-11-21', isPast: false };
+// Helper lấy nhãn ngày ngắn (DD-MM)
+export const getFormattedDayMonth = (dateObj) => {
+  const d = dateObj instanceof Date ? dateObj : new Date(dateObj);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${day}-${month}`;
+};
+
+// Sinh 3 mốc ngày gần nhất linh hoạt theo thời gian thực (Hôm nay, Ngày mai, Ngày kia)
+export const getDynamicRecentDays = () => {
+  const now = new Date();
+
+  const today = new Date(now);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const dayAfter = new Date(now);
+  dayAfter.setDate(now.getDate() + 2);
+
+  return {
+    today: {
+      key: 'Hôm nay',
+      dateStr: getIsoDateString(today),
+      label: `Hôm nay (${getFormattedDayMonth(today)})`,
+      dateObj: today,
+    },
+    tomorrow: {
+      key: 'Ngày mai',
+      dateStr: getIsoDateString(tomorrow),
+      label: `Ngày mai (${getFormattedDayMonth(tomorrow)})`,
+      dateObj: tomorrow,
+    },
+    dayAfter: {
+      key: 'Ngày kia',
+      dateStr: getIsoDateString(dayAfter),
+      label: `Ngày kia (${getFormattedDayMonth(dayAfter)})`,
+      dateObj: dayAfter,
+    },
+  };
+};
+
+// Sinh lịch chiếu 6 tháng linh hoạt theo năm/tháng thực tế hiện tại
+// Tháng hiện tại là "Đang chiếu", 5 tháng tiếp theo là "Sắp chiếu"
+export const generateDynamicMonthlySchedule = () => {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1 - 12
+
+  const movieSlices = [
+    {
+      status: 'NOW_SHOWING',
+      statusLabel: 'Đang công chiếu tại rạp',
+      badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+      shortNames: 'Dune 2, Mai, Deadpool',
+      slugs: ['dune-hanh-tinh-cat-phan-2', 'mai', 'deadpool-and-wolverine'],
+    },
+    {
+      status: 'COMING_SOON',
+      statusLabel: 'Sắp chiếu',
+      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+      shortNames: 'Moana 2, Mufasa, Venom',
+      slugs: ['moana-2', 'mufasa-the-lion-king', 'venom-the-last-dance'],
+    },
+    {
+      status: 'COMING_SOON',
+      statusLabel: 'Sắp chiếu',
+      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+      shortNames: 'Cô Dâu, Transformers, Inside Out',
+      slugs: ['co-dau-hao-mon', 'transformers-one', 'inside-out-2'],
+    },
+    {
+      status: 'COMING_SOON',
+      statusLabel: 'Sắp chiếu',
+      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+      shortNames: 'Cap 4, Joker 2, Panda 4',
+      slugs: ['captain-america-brave-new-world', 'joker-folie-a-deux', 'kung-fu-panda-4'],
+    },
+    {
+      status: 'COMING_SOON',
+      statusLabel: 'Sắp chiếu',
+      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+      shortNames: 'Quật Mộ, Lật Mặt, Godzilla',
+      slugs: ['quat-mo-trung-ma', 'lat-mat-7-mot-dieu-uoc', 'godzilla-x-kong-de-che-moi'],
+    },
+    {
+      status: 'COMING_SOON',
+      statusLabel: 'Sắp chiếu',
+      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+      shortNames: 'Oppenheimer, Spider-Man, Avatar',
+      slugs: ['oppenheimer', 'spider-man-no-way-home', 'avatar-the-way-of-water'],
+    },
+  ];
+
+  return movieSlices.map((slice, idx) => {
+    const targetDate = new Date(currentYear, currentMonth - 1 + idx, 1);
+    const m = targetDate.getMonth() + 1;
+    const y = targetDate.getFullYear();
+    const mStr = String(m).padStart(2, '0');
+    const isCurrent = idx === 0;
+
+    return {
+      month: m,
+      year: y,
+      code: `month-${y}-${mStr}`,
+      label: `Tháng ${mStr}/${y}${isCurrent ? ' (Hiện tại)' : ''}`,
+      dropdownLabel: `Tháng ${mStr}/${y} (${isCurrent ? 'Đang chiếu' : 'Sắp chiếu'}: ${slice.shortNames})`,
+      defaultDate: isCurrent ? getIsoDateString(now) : `${y}-${mStr}-15`,
+      status: slice.status,
+      statusLabel: slice.statusLabel,
+      badgeColor: slice.badgeColor,
+      slugs: slice.slugs,
+    };
+  });
+};
+
+// Hàm bóc tách tháng/năm từ lựa chọn Ngày chiếu một cách linh hoạt theo giờ thực tế
+export const parseSelectedDateInfo = (val) => {
+  const dynamicDays = getDynamicRecentDays();
+  const todayIso = dynamicDays.today.dateStr;
+
+  if (!val || val === 'Hôm nay') {
+    const d = dynamicDays.today.dateObj;
+    return {
+      month: d.getMonth() + 1,
+      year: d.getFullYear(),
+      dateStr: dynamicDays.today.dateStr,
+      isPast: false,
+    };
+  }
+  if (val === 'Ngày mai') {
+    const d = dynamicDays.tomorrow.dateObj;
+    return {
+      month: d.getMonth() + 1,
+      year: d.getFullYear(),
+      dateStr: dynamicDays.tomorrow.dateStr,
+      isPast: false,
+    };
+  }
+  if (val === 'Ngày kia') {
+    const d = dynamicDays.dayAfter.dateObj;
+    return {
+      month: d.getMonth() + 1,
+      year: d.getFullYear(),
+      dateStr: dynamicDays.dayAfter.dateStr,
+      isPast: false,
+    };
   }
   if (typeof val === 'string' && val.startsWith('month-')) {
     const parts = val.replace('month-', '').split('-');
     const y = parseInt(parts[0], 10);
     const m = parseInt(parts[1], 10);
-    const isPast = y < 2026 || (y === 2026 && m < 11);
-    return { month: m, year: y, dateStr: `${parts[0]}-${parts[1].padStart(2, '0')}-15`, isPast };
+    const now = new Date();
+    const curY = now.getFullYear();
+    const curM = now.getMonth() + 1;
+    const isPast = y < curY || (y === curY && m < curM);
+    const isCurrentMonth = y === curY && m === curM;
+    const dateStr = isCurrentMonth ? todayIso : `${parts[0]}-${parts[1].padStart(2, '0')}-15`;
+    return { month: m, year: y, dateStr, isPast };
   }
   const parsed = new Date(val);
   if (!isNaN(parsed.getTime())) {
     const y = parsed.getFullYear();
     const m = parsed.getMonth() + 1;
-    const isPast = y < 2026 || (y === 2026 && m < 11);
+    const isPast = val < todayIso;
     return { month: m, year: y, dateStr: val, isPast };
   }
-  return { month: 11, year: 2026, dateStr: '2026-11-21', isPast: false };
+  const d = dynamicDays.today.dateObj;
+  return {
+    month: d.getMonth() + 1,
+    year: d.getFullYear(),
+    dateStr: todayIso,
+    isPast: false,
+  };
 };
 
 // Tính toán chính xác khung giờ chiếu dựa trên thời lượng phim và khoảng nghỉ dọn dẹp (30-45 phút)
@@ -324,14 +414,21 @@ const HomeQuickBooking = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // 3 mốc ngày gần nhất linh hoạt theo thời gian thực (Hôm nay, Ngày mai, Ngày kia)
+  const dynamicDays = useMemo(() => getDynamicRecentDays(), []);
+
+  // Lịch 6 tháng luân phiên linh hoạt từ tháng hiện tại
+  const monthlySchedule = useMemo(() => generateDynamicMonthlySchedule(), []);
+
   // Xác định lịch tháng tương ứng với ngày chiếu đang được chọn
   const { month, year, dateStr, isPast } = useMemo(
     () => parseSelectedDateInfo(selectedDate),
     [selectedDate]
   );
 
-  // Kiểm tra ngày đã qua (trước ngày 21/11/2026) -> không thể đặt vé
+  // Kiểm tra ngày đã qua so với ngày thực tế hôm nay -> không thể đặt vé
   const isPastDate = useMemo(() => {
+    const todayIso = dynamicDays.today.dateStr;
     if (!selectedDate || selectedDate === 'Hôm nay' || selectedDate === 'Ngày mai' || selectedDate === 'Ngày kia') {
       return false;
     }
@@ -339,28 +436,21 @@ const HomeQuickBooking = ({
       const parts = selectedDate.replace('month-', '').split('-');
       const y = parseInt(parts[0], 10);
       const m = parseInt(parts[1], 10);
-      return y < 2026 || (y === 2026 && m < 11);
+      const now = new Date();
+      const curY = now.getFullYear();
+      const curM = now.getMonth() + 1;
+      return y < curY || (y === curY && m < curM);
     }
-    return selectedDate < '2026-11-21';
-  }, [selectedDate]);
-
-  // Kiểm tra xem có phải là ngày tương lai từ ngày 22/11/2026 trở đi (Đặt vé trước bình thường)
-  const isAdvanceBooking = useMemo(() => {
-    if (selectedDate === 'Ngày mai' || selectedDate === 'Ngày kia') return true;
-    if (typeof selectedDate === 'string' && selectedDate.startsWith('month-')) {
-      return selectedDate !== 'month-2026-11';
-    }
-    if (selectedDate > '2026-11-21') return true;
-    return false;
-  }, [selectedDate]);
+    return selectedDate < todayIso;
+  }, [selectedDate, dynamicDays]);
 
   const currentSchedule = useMemo(() => {
     const matched =
-      MONTHLY_SCHEDULE.find((s) => s.month === month && s.year === year) ||
-      MONTHLY_SCHEDULE.find((s) => s.status === 'NOW_SHOWING') ||
-      MONTHLY_SCHEDULE[0];
+      monthlySchedule.find((s) => s.month === month && s.year === year) ||
+      monthlySchedule.find((s) => s.status === 'NOW_SHOWING') ||
+      monthlySchedule[0];
 
-    // Nếu người dùng chọn ngày/tháng trong quá khứ (trước tháng 11/2026)
+    // Nếu người dùng chọn ngày/tháng trong quá khứ so với thời điểm hiện tại
     if (isPast || isPastDate) {
       return {
         ...matched,
@@ -370,7 +460,7 @@ const HomeQuickBooking = ({
       };
     }
     return matched;
-  }, [month, year, isPast, isPastDate]);
+  }, [month, year, isPast, isPastDate, monthlySchedule]);
 
   // Lọc chính xác 3 bộ phim tương ứng với tháng đó
   const quickBookingMovies = useMemo(() => {
@@ -403,6 +493,18 @@ const HomeQuickBooking = ({
     quickBookingMovies.find((m) => String(m.id) === String(selectedMovieId)) ||
     quickBookingMovies[0];
   const activeBadge = getAgeBadgeStyle(activeMovie?.ageRating);
+
+  // Phim của tháng hiện tại -> "Đặt vé"
+  // Phim của các tháng tương lai -> "Đặt trước vé"
+  const isAdvanceBooking = useMemo(() => {
+    if (activeMovie?.status === 'COMING_SOON') return true;
+    const now = new Date();
+    const curY = now.getFullYear();
+    const curM = now.getMonth() + 1;
+    if (year > curY || (year === curY && month > curM)) return true;
+    if (currentSchedule?.status === 'COMING_SOON') return true;
+    return false;
+  }, [activeMovie?.status, year, month, currentSchedule?.status]);
 
   // Cấu hình suất chiếu thích ứng: Chỉ gồm 3 phòng (IMAX Laser, Dolby Atmos, Gold Class)
   // và tuân thủ chặt chẽ thời lượng phim + thời gian dọn dẹp (30-45 phút)
@@ -506,53 +608,36 @@ const HomeQuickBooking = ({
   }, [availableShowtimes, selectedShowtimeId, setSelectedShowtimeId]);
 
   // Xử lý khi chọn ngày từ Date Picker:
-  // - Nếu ngày cũ trước 21/11 (như 20/11) thì bị chặn / bôi đen
-  // - Nếu từ ngày 21/11, 22/11 trở đi thì vẫn chọn coi lịch phim bình thường
+  // - Nếu ngày cũ trong quá khứ so với hôm nay thì chặn và cảnh báo
+  // - Cho phép chọn từ ngày hôm nay trở đi linh hoạt
   const handleDateChangeFromPicker = (val) => {
     if (!val) return;
-    if (val < '2026-11-21') {
-      alert('Không thể chọn ngày chiếu trong quá khứ! Vui lòng chọn từ ngày 21/11/2026 trở đi.');
+    const todayIso = dynamicDays.today.dateStr;
+    if (val < todayIso) {
+      alert(`Không thể chọn ngày chiếu trong quá khứ! Vui lòng chọn từ ngày hôm nay (${dynamicDays.today.label}) trở đi.`);
       return;
     }
 
-    if (val === '2026-11-21') {
+    if (val === dynamicDays.today.dateStr) {
       setSelectedDate('Hôm nay');
       return;
     }
-    if (val === '2026-11-22') {
+    if (val === dynamicDays.tomorrow.dateStr) {
       setSelectedDate('Ngày mai');
       return;
     }
-    if (val === '2026-11-23') {
+    if (val === dynamicDays.dayAfter.dateStr) {
       setSelectedDate('Ngày kia');
       return;
     }
 
-    if (val.startsWith('2026-11')) {
-      setSelectedDate('month-2026-11');
+    const matchedMonth = monthlySchedule.find((s) => val.startsWith(`${s.year}-${String(s.month).padStart(2, '0')}`));
+    if (matchedMonth) {
+      setSelectedDate(matchedMonth.code);
       return;
     }
-    if (val.startsWith('2026-12')) {
-      setSelectedDate('month-2026-12');
-      return;
-    }
-    if (val.startsWith('2027-01')) {
-      setSelectedDate('month-2027-01');
-      return;
-    }
-    if (val.startsWith('2027-02')) {
-      setSelectedDate('month-2027-02');
-      return;
-    }
-    if (val.startsWith('2027-03')) {
-      setSelectedDate('month-2027-03');
-      return;
-    }
-    if (val.startsWith('2027-04')) {
-      setSelectedDate('month-2027-04');
-      return;
-    }
-    setSelectedDate('month-2026-11');
+
+    setSelectedDate(val);
   };
 
   // Mở Native Date Picker Calendar của trình duyệt
@@ -575,41 +660,76 @@ const HomeQuickBooking = ({
 
     const targetShowtimeId =
       selectedShowtimeId ||
-      activeMovie?.firstShowtimeId ||
       availableShowtimes[0]?.id ||
+      activeMovie?.firstShowtimeId ||
       '6aecb21dd70710fc53a15c06';
 
     const chosenSlot =
       availableShowtimes.find((st) => String(st.id) === String(targetShowtimeId)) ||
       availableShowtimes[0];
 
-    navigate(`/booking/seat/${targetShowtimeId}`, {
-      state: {
-        slotInfo: {
-          id: targetShowtimeId,
-          showtimeId: targetShowtimeId,
-          roomName: chosenSlot?.roomName || 'Phòng VIP Recliner 06',
-          format: chosenSlot?.format || 'IMAX Laser 2D',
-          time: chosenSlot?.time || '19:30',
-          price: chosenSlot?.price || 95000,
-          cinemaName: selectedTheater || "D'AVENOR Thanh Khê Plaza",
-        },
+    const cleanRoomName = chosenSlot?.roomName || 'Phòng IMAX Laser';
+    const roomType = cleanRoomName.toLowerCase().includes('atmos')
+      ? 'ATMOS'
+      : cleanRoomName.toLowerCase().includes('gold')
+      ? 'GOLD'
+      : 'IMAX';
+
+    const format =
+      chosenSlot?.format ||
+      (roomType === 'GOLD'
+        ? 'Gold Class Luxury'
+        : roomType === 'ATMOS'
+        ? '2D Dolby Atmos'
+        : 'IMAX Laser 2D');
+
+    const time = chosenSlot?.time || '19:30';
+    const price =
+      chosenSlot?.price ||
+      (roomType === 'GOLD' ? 190000 : roomType === 'ATMOS' ? 120000 : 150000);
+
+    const slotInfo = {
+      id: targetShowtimeId,
+      showtimeId: targetShowtimeId,
+      movieId: activeMovie?.id || activeMovie?._id,
+      movie: {
+        id: activeMovie?.id || activeMovie?._id,
+        _id: activeMovie?._id || activeMovie?.id,
+        title: activeMovie?.title || 'Phim đang chọn',
+        ageRating: activeMovie?.ageRating || 'T18',
+        duration: activeMovie?.duration || 120,
+        poster: activeMovie?.poster || activeMovie?.posterUrl,
+        genre: activeMovie?.genre || 'Điện ảnh cao cấp',
+        slug: activeMovie?.slug,
+        rating: activeMovie?.rating || '4.8',
+        status: activeMovie?.status || 'NOW_SHOWING',
       },
+      roomName: cleanRoomName,
+      roomType, // 'IMAX' | 'ATMOS' | 'GOLD'
+      format,
+      time,
+      date: dateStr || dynamicDays.today.dateStr,
+      price,
+      cinemaName: selectedTheater || "D'AVENOR Thanh Khê Plaza",
+    };
+
+    navigate(`/booking/seat/${targetShowtimeId}`, {
+      state: { slotInfo },
     });
   };
 
   return (
     <section className="relative z-30 max-w-[1560px] mx-auto px-6 sm:px-10 lg:px-14 mt-2 sm:mt-3">
-      <div className="bg-[#101521] border border-slate-800/90 rounded-2xl p-4 shadow-2xl">
+      <div className="bg-[#11152F]/95 backdrop-blur-xl border border-[#AA9BFF]/25 rounded-2xl p-4 shadow-[0_12px_40px_rgba(11,16,38,0.9),0_0_25px_rgba(66,223,255,0.12)]">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 items-end">
           {/* 1. Chọn Phim */}
           <div className="sm:col-span-1 lg:col-span-3 space-y-1 relative" ref={movieDropdownRef}>
             <div className="flex items-center justify-between h-5">
-              <label className="text-[11px] font-medium text-slate-400 flex items-center space-x-1.5">
-                <span>🎬</span>
+              <label className="text-[11px] font-medium text-[#BEC5E5] flex items-center space-x-1.5">
+                <span className="text-[#42DFFF]">🎬</span>
                 <span>Phim</span>
               </label>
-              <span className="text-[10px] text-slate-500 font-medium">
+              <span className="text-[10px] text-[#BEC5E5]/70 font-medium">
                 {currentSchedule.label.replace(' (Hiện tại)', '')}
               </span>
             </div>
@@ -617,9 +737,8 @@ const HomeQuickBooking = ({
             <button
               type="button"
               onClick={() => setIsMovieDropdownOpen(!isMovieDropdownOpen)}
-              className={`w-full h-[38px] bg-[#1b2232] hover:bg-[#232c40] border ${
-                isMovieDropdownOpen ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-700/60'
-              } rounded-xl px-2.5 text-xs font-bold text-white transition-all text-left flex items-center justify-between gap-1.5 cursor-pointer group shadow-inner`}
+              className={`w-full h-[38px] bg-[#0B1026] hover:bg-[#20204B] border ${isMovieDropdownOpen ? 'border-[#42DFFF] ring-2 ring-[#42DFFF]/20' : 'border-[#AA9BFF]/25'
+                } rounded-xl px-2.5 text-xs font-bold text-[#F8F7FF] transition-all text-left flex items-center justify-between gap-1.5 cursor-pointer group shadow-inner`}
             >
               <div className="flex items-center space-x-1.5 min-w-0">
                 <span
@@ -627,28 +746,27 @@ const HomeQuickBooking = ({
                 >
                   {activeMovie?.ageRating || 'T18'}
                 </span>
-                <span className="truncate text-slate-100 group-hover:text-blue-300 transition-colors">
+                <span className="truncate text-[#F8F7FF] group-hover:text-[#83F5FF] transition-colors">
                   {activeMovie?.title || 'Chọn phim'}
                 </span>
               </div>
               <div className="flex items-center space-x-1 shrink-0">
                 {currentSchedule.status === 'ENDED' ? (
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-[#20204B] text-[#BEC5E5] border border-[#AA9BFF]/20">
                     Đã công chiếu
                   </span>
                 ) : currentSchedule.status === 'COMING_SOON' ? (
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-[#F4A5FF] border border-[#A855F7]/30">
                     Sắp chiếu
                   </span>
                 ) : (
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/15 text-[#42DFFF] border border-[#42DFFF]/30">
                     Đang chiếu
                   </span>
                 )}
                 <span
-                  className={`text-slate-400 text-[10px] transform transition-transform ${
-                    isMovieDropdownOpen ? 'rotate-180 text-blue-400' : ''
-                  }`}
+                  className={`text-[#BEC5E5] text-[10px] transform transition-transform ${isMovieDropdownOpen ? 'rotate-180 text-[#42DFFF]' : ''
+                    }`}
                 >
                   ▼
                 </span>
@@ -657,22 +775,22 @@ const HomeQuickBooking = ({
 
             {/* Floating Dropdown Menu */}
             {isMovieDropdownOpen && (
-              <div className="absolute left-0 bottom-full sm:bottom-auto sm:top-full mb-2 sm:mb-0 sm:mt-2 w-[330px] sm:w-[390px] bg-[#121826]/98 backdrop-blur-2xl border border-slate-700/90 rounded-2xl p-2.5 shadow-2xl z-50 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between px-2 pb-2 mb-2 border-b border-slate-800/80">
+              <div className="absolute left-0 bottom-full sm:bottom-auto sm:top-full mb-2 sm:mb-0 sm:mt-2 w-[330px] sm:w-[390px] bg-[#11152F]/98 backdrop-blur-2xl border border-[#AA9BFF]/30 rounded-2xl p-2.5 shadow-[0_16px_50px_rgba(11,16,38,0.95),0_0_30px_rgba(168,85,247,0.2)] z-50 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between px-2 pb-2 mb-2 border-b border-[#AA9BFF]/20">
                   <div className="flex items-center space-x-1.5">
-                    <span className="text-amber-400 text-xs">
+                    <span className="text-[#42DFFF] text-xs">
                       {currentSchedule.status === 'NOW_SHOWING'
                         ? '🎬'
                         : currentSchedule.status === 'COMING_SOON'
-                        ? '🍿'
-                        : '🎞️'}
+                          ? '🍿'
+                          : '🎞️'}
                     </span>
-                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-200">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-[#F8F7FF]">
                       {currentSchedule.status === 'NOW_SHOWING'
                         ? 'Phim Đang Chiếu Tại Rạp'
                         : currentSchedule.status === 'COMING_SOON'
-                        ? 'Phim Sắp Chiếu'
-                        : 'Phim Đã Công Chiếu'}
+                          ? 'Phim Sắp Chiếu'
+                          : 'Phim Đã Công Chiếu'}
                     </span>
                   </div>
                   <span
@@ -696,16 +814,15 @@ const HomeQuickBooking = ({
                           }
                           setIsMovieDropdownOpen(false);
                         }}
-                        className={`flex items-center space-x-3 p-2 rounded-xl cursor-pointer transition-all border ${
-                          isSelected
-                            ? 'bg-blue-600/20 border-blue-500/80 shadow-md shadow-blue-500/10'
-                            : 'bg-[#182133]/60 hover:bg-[#202b42] border-transparent hover:border-slate-700'
-                        }`}
+                        className={`flex items-center space-x-3 p-2 rounded-xl cursor-pointer transition-all border ${isSelected
+                          ? 'bg-purple-950/60 border-[#42DFFF]/80 shadow-md shadow-cyan-500/10'
+                          : 'bg-[#0B1026]/70 hover:bg-[#20204B] border-[#AA9BFF]/15 hover:border-[#AA9BFF]/40'
+                          }`}
                       >
                         <img
                           src={m.poster || m.posterUrl}
                           alt={m.title}
-                          className="w-11 h-14 object-cover rounded-lg shrink-0 shadow-md border border-slate-700/50"
+                          className="w-11 h-14 object-cover rounded-lg shrink-0 shadow-md border border-[#AA9BFF]/20"
                           onError={(e) => {
                             e.target.src = '/banner-dune.jpg';
                           }}
@@ -719,21 +836,20 @@ const HomeQuickBooking = ({
                             >
                               {m.ageRating}
                             </span>
-                            <span className="text-[10px] text-amber-400 font-bold flex items-center">
+                            <span className="text-[10px] text-[#83F5FF] font-bold flex items-center">
                               ★ {m.rating || '4.8'}
                             </span>
-                            <span className="text-[10px] text-slate-400">• {m.duration || 120} phút</span>
+                            <span className="text-[10px] text-[#BEC5E5]">• {m.duration || 120} phút</span>
                             {m.status === 'ENDED' && (
-                              <span className="text-[8px] font-bold text-slate-400 bg-slate-800 px-1 py-0.5 rounded border border-slate-700">
+                              <span className="text-[8px] font-bold text-[#BEC5E5] bg-[#20204B] px-1 py-0.5 rounded border border-[#AA9BFF]/20">
                                 Đã công chiếu
                               </span>
                             )}
                           </div>
 
                           <h5
-                            className={`text-xs font-bold truncate ${
-                              isSelected ? 'text-blue-300' : 'text-slate-100'
-                            }`}
+                            className={`text-xs font-bold truncate ${isSelected ? 'text-[#83F5FF]' : 'text-[#F8F7FF]'
+                              }`}
                           >
                             {m.title}
                           </h5>
@@ -742,7 +858,7 @@ const HomeQuickBooking = ({
                             {['IMAX LASER', 'ATMOS', 'GOLD CLASS'].map((fmt, idx) => (
                               <span
                                 key={idx}
-                                className="text-[9px] font-bold bg-slate-800/90 text-amber-300/90 px-1.5 py-0.5 rounded border border-amber-500/30"
+                                className="text-[9px] font-bold bg-[#20204B] text-[#83F5FF] px-1.5 py-0.5 rounded border border-[#42DFFF]/30"
                               >
                                 {fmt}
                               </span>
@@ -751,7 +867,7 @@ const HomeQuickBooking = ({
                         </div>
 
                         {isSelected && (
-                          <div className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 shadow">
+                          <div className="w-5 h-5 rounded-full bg-gradient-to-r from-[#F4A5FF] to-[#42DFFF] text-[#0B1026] flex items-center justify-center text-[10px] font-black shrink-0 shadow">
                             ✓
                           </div>
                         )}
@@ -766,8 +882,8 @@ const HomeQuickBooking = ({
           {/* 2. Rạp chiếu (Cố định cụm rạp duy nhất Thanh Khê Plaza) */}
           <div className="sm:col-span-1 lg:col-span-3 space-y-1">
             <div className="flex items-center h-5">
-              <label className="text-[11px] font-medium text-slate-400 flex items-center space-x-1.5">
-                <span className="text-amber-500">📍</span>
+              <label className="text-[11px] font-medium text-[#BEC5E5] flex items-center space-x-1.5">
+                <span className="text-[#42DFFF]">📍</span>
                 <span>Rạp chiếu</span>
               </label>
             </div>
@@ -776,7 +892,7 @@ const HomeQuickBooking = ({
                 <select
                   value={selectedTheater}
                   onChange={(e) => setSelectedTheater(e.target.value)}
-                  className="w-full h-[38px] bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7"
+                  className="w-full h-[38px] bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-3 text-xs font-bold text-[#F8F7FF] focus:outline-none focus:border-[#42DFFF] appearance-none cursor-pointer pr-7"
                 >
                   {cinemas.map((c) => (
                     <option key={c.id || c._id} value={c.name}>
@@ -784,19 +900,19 @@ const HomeQuickBooking = ({
                     </option>
                   ))}
                 </select>
-                <span className="absolute right-3 top-2.5 text-slate-500 text-[10px] pointer-events-none">
+                <span className="absolute right-3 top-2.5 text-[#BEC5E5] text-[10px] pointer-events-none">
                   ⌵
                 </span>
               </div>
             ) : (
               <div
-                className="w-full h-[38px] bg-[#1b2232] border border-slate-700/60 rounded-xl px-3 text-xs font-bold text-white select-none shadow-sm flex items-center space-x-1.5"
+                className="w-full h-[38px] bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-3 text-xs font-bold text-[#F8F7FF] select-none shadow-sm flex items-center space-x-1.5"
                 title="D'AVENOR Thanh Khê Plaza - 295 Điện Biên Phủ, Q. Thanh Khê, Đà Nẵng"
               >
-                <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 shrink-0">
+                <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-purple-900/60 text-[#83F5FF] border border-[#42DFFF]/40 shrink-0">
                   Q. Thanh Khê
                 </span>
-                <span className="truncate text-slate-100 font-bold">
+                <span className="truncate text-[#F8F7FF] font-bold">
                   D'AVENOR Thanh Khê Plaza
                 </span>
               </div>
@@ -806,19 +922,19 @@ const HomeQuickBooking = ({
           {/* 3. Chọn Ngày & Lịch Chiếu (Hỗ trợ mở Lịch/Datepicker + chia đều 3 phim theo tháng) */}
           <div className="sm:col-span-1 lg:col-span-2 space-y-1">
             <div className="flex items-center h-5">
-              <label className="text-[11px] font-medium text-slate-400 flex items-center space-x-1.5">
-                <span className="text-emerald-500">📅</span>
+              <label className="text-[11px] font-medium text-[#BEC5E5] flex items-center space-x-1.5">
+                <span className="text-[#42DFFF]">📅</span>
                 <span>Ngày chiếu</span>
               </label>
             </div>
 
             <div className="relative">
-              {/* Native Date Picker với min="2026-11-21" để bôi đen / vô hiệu hóa tất cả các ngày trong quá khứ */}
+              {/* Native Date Picker đồng bộ linh hoạt từ ngày hôm nay trở đi */}
               <input
                 ref={dateInputRef}
                 type="date"
-                min="2026-11-21"
-                max="2027-12-31"
+                min={dynamicDays.today.dateStr}
+                max={`${new Date().getFullYear() + 2}-12-31`}
                 value={dateStr}
                 onChange={(e) => handleDateChangeFromPicker(e.target.value)}
                 className="absolute inset-0 opacity-0 pointer-events-none w-full h-full"
@@ -828,21 +944,20 @@ const HomeQuickBooking = ({
               <select
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full h-[38px] bg-[#1b2232] border border-slate-700/60 rounded-xl px-2.5 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-12 truncate"
+                className="w-full h-[38px] bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-2.5 text-xs font-bold text-[#F8F7FF] focus:outline-none focus:border-[#42DFFF] appearance-none cursor-pointer pr-12 truncate"
               >
                 <optgroup label="── NGÀY GẦN NHẤT ──">
-                  <option value="Hôm nay">Hôm nay (21-11)</option>
-                  <option value="Ngày mai">Ngày mai (22-11)</option>
-                  <option value="Ngày kia">Ngày kia (23-11)</option>
+                  <option value="Hôm nay">{dynamicDays.today.label}</option>
+                  <option value="Ngày mai">{dynamicDays.tomorrow.label}</option>
+                  <option value="Ngày kia">{dynamicDays.dayAfter.label}</option>
                 </optgroup>
 
                 <optgroup label="── LỊCH CHIẾU THEO THÁNG (3 PHIM/THÁNG) ──">
-                  <option value="month-2026-11">🟢 Tháng 11/2026 (Đang chiếu: Dune 2, Mai, Deadpool)</option>
-                  <option value="month-2026-12">🟡 Tháng 12/2026 (Sắp chiếu: Moana 2, Mufasa, Venom)</option>
-                  <option value="month-2027-01">🟡 Tháng 01/2027 (Sắp chiếu: Cô Dâu, Transformers, Inside Out)</option>
-                  <option value="month-2027-02">🟡 Tháng 02/2027 (Sắp chiếu: Cap 4, Joker 2, Panda 4)</option>
-                  <option value="month-2027-03">🟡 Tháng 03/2027 (Sắp chiếu: Quật Mộ, Lật Mặt, Godzilla)</option>
-                  <option value="month-2027-04">🟡 Tháng 04/2027 (Sắp chiếu: Oppenheimer, Spider-Man, Avatar)</option>
+                  {monthlySchedule.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.dropdownLabel}
+                    </option>
+                  ))}
                 </optgroup>
               </select>
 
@@ -853,12 +968,12 @@ const HomeQuickBooking = ({
                     e.stopPropagation();
                     handleOpenNativeDatePicker();
                   }}
-                  className="p-1 hover:bg-slate-700/80 rounded text-slate-400 hover:text-blue-400 transition-colors cursor-pointer"
+                  className="p-1 hover:bg-[#20204B] rounded text-[#BEC5E5] hover:text-[#42DFFF] transition-colors cursor-pointer"
                   title="Mở lịch chọn ngày chiếu"
                 >
                   <span className="text-xs">📅</span>
                 </button>
-                <span className="text-slate-500 text-[10px] pointer-events-none">⌵</span>
+                <span className="text-[#BEC5E5] text-[10px] pointer-events-none">⌵</span>
               </div>
             </div>
           </div>
@@ -866,8 +981,8 @@ const HomeQuickBooking = ({
           {/* 4. Chọn Suất Chiếu */}
           <div className="sm:col-span-1 lg:col-span-2 space-y-1">
             <div className="flex items-center h-5">
-              <label className="text-[11px] font-medium text-slate-400 flex items-center space-x-1.5">
-                <span className="text-blue-400">🕒</span>
+              <label className="text-[11px] font-medium text-[#BEC5E5] flex items-center space-x-1.5">
+                <span className="text-[#42DFFF]">🕒</span>
                 <span>Suất chiếu</span>
               </label>
             </div>
@@ -876,7 +991,7 @@ const HomeQuickBooking = ({
                 value={selectedShowtimeId}
                 onChange={(e) => setSelectedShowtimeId(e.target.value)}
                 disabled={isPastDate || currentSchedule.status === 'ENDED'}
-                className="w-full h-[38px] bg-[#1b2232] border border-slate-700/60 rounded-xl px-2.5 text-xs font-bold text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer pr-7 disabled:opacity-60 disabled:cursor-not-allowed truncate"
+                className="w-full h-[38px] bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-2.5 text-xs font-bold text-[#F8F7FF] focus:outline-none focus:border-[#42DFFF] appearance-none cursor-pointer pr-7 disabled:opacity-60 disabled:cursor-not-allowed truncate"
               >
                 {isPastDate ? (
                   <option value="ended">Đã kết thúc suất chiếu</option>
@@ -888,7 +1003,7 @@ const HomeQuickBooking = ({
                   ))
                 )}
               </select>
-              <span className="absolute right-3 top-2.5 text-slate-500 text-[10px] pointer-events-none">
+              <span className="absolute right-3 top-2.5 text-[#BEC5E5] text-[10px] pointer-events-none">
                 ⌵
               </span>
             </div>
@@ -900,7 +1015,7 @@ const HomeQuickBooking = ({
               <button
                 type="button"
                 disabled
-                className="w-full h-[38px] bg-slate-800/80 text-slate-500 border border-slate-700/50 font-bold px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 cursor-not-allowed opacity-60 shadow"
+                className="w-full h-[38px] bg-[#20204B] text-[#BEC5E5]/50 border border-[#AA9BFF]/15 font-bold px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 cursor-not-allowed opacity-60 shadow"
                 title="Ngày chiếu trong quá khứ - Không thể đặt vé"
               >
                 <span>⛔</span>
@@ -910,7 +1025,7 @@ const HomeQuickBooking = ({
               <button
                 type="button"
                 onClick={handleQuickBooking}
-                className="w-full h-[38px] bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-black px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-lg shadow-amber-600/30 cursor-pointer hover:scale-105 active:scale-95"
+                className="w-full h-[38px] bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] font-black px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:brightness-108 cursor-pointer"
                 title="Đặt trước vé xem phim"
               >
                 <span>🎫</span>
@@ -920,10 +1035,11 @@ const HomeQuickBooking = ({
               <button
                 type="button"
                 onClick={handleQuickBooking}
-                className="w-full h-[38px] bg-[#2563eb] hover:bg-blue-600 text-white font-black px-4 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-lg shadow-blue-600/30 cursor-pointer hover:scale-105 active:scale-95"
+                className="w-full h-[38px] bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] font-black px-4 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:brightness-108 cursor-pointer"
+                title="Đặt vé xem phim"
               >
                 <span>🎟️</span>
-                <span>Đặt vé ngay</span>
+                <span>Đặt vé</span>
               </button>
             )}
           </div>

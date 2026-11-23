@@ -53,7 +53,7 @@ const Navbar = () => {
   }, []);
 
   return (
-    <header className="bg-[#0b0f19] border-b border-slate-800/80 sticky top-0 z-50 transition-all">
+    <header className="bg-[#0B1026]/95 backdrop-blur-md border-b border-[#AA9BFF]/25 sticky top-0 z-50 transition-all shadow-[0_4px_24px_rgba(11,16,38,0.85)]">
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 lg:px-10 h-16 flex items-center justify-between gap-4">
         {/* Cụm Trái: Brand Logo & Navigation (Không có viền khung) */}
         <div className="flex items-center space-x-5 lg:space-x-7">
@@ -65,7 +65,7 @@ const Navbar = () => {
             <img
               src="/Logo.png"
               alt="D'AVENOR CINEMA Logo"
-              className="h-10 sm:h-11 w-auto object-contain drop-shadow-[0_2px_12px_rgba(212,175,55,0.35)] group-hover:scale-105 transition-transform duration-300 block"
+              className="h-10 sm:h-11 w-auto object-contain drop-shadow-[0_2px_14px_rgba(66,223,255,0.4)] group-hover:scale-105 transition-transform duration-300 block"
             />
           </Link>
 
@@ -73,10 +73,10 @@ const Navbar = () => {
           <nav className="flex items-center space-x-1 sm:space-x-1.5 overflow-x-auto scrollbar-none">
             <Link
               to="/"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
                 location.pathname === '/'
-                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
+                  ? 'bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] shadow-[0_0_12px_rgba(204,130,255,0.4),0_0_20px_rgba(114,232,255,0.25)] ring-1 ring-[#B4F7FF]/60 font-black'
+                  : 'text-[#E9D5FF]/90 hover:text-white hover:bg-[#171936] font-semibold'
               }`}
             >
               Phim
@@ -84,10 +84,10 @@ const Navbar = () => {
 
             <Link
               to="/theaters"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
                 location.pathname === '/theaters'
-                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
+                  ? 'bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] shadow-[0_0_12px_rgba(204,130,255,0.4),0_0_20px_rgba(114,232,255,0.25)] ring-1 ring-[#B4F7FF]/60 font-black'
+                  : 'text-[#E9D5FF]/90 hover:text-white hover:bg-[#171936] font-semibold'
               }`}
             >
               Rạp chiếu
@@ -95,10 +95,10 @@ const Navbar = () => {
 
             <Link
               to="/promotions"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
                 location.pathname === '/promotions'
-                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
+                  ? 'bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] shadow-[0_0_12px_rgba(204,130,255,0.4),0_0_20px_rgba(114,232,255,0.25)] ring-1 ring-[#B4F7FF]/60 font-black'
+                  : 'text-[#E9D5FF]/90 hover:text-white hover:bg-[#171936] font-semibold'
               }`}
             >
               Ưu đãi
@@ -106,10 +106,10 @@ const Navbar = () => {
 
             <Link
               to="/support"
-              className={`px-3 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-full text-xs transition-all whitespace-nowrap ${
                 location.pathname === '/support'
-                  ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium'
+                  ? 'bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] shadow-[0_0_12px_rgba(204,130,255,0.4),0_0_20px_rgba(114,232,255,0.25)] ring-1 ring-[#B4F7FF]/60 font-black'
+                  : 'text-[#E9D5FF]/90 hover:text-white hover:bg-[#171936] font-semibold'
               }`}
             >
               Hỗ trợ

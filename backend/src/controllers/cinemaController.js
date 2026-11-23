@@ -93,38 +93,44 @@ const autoSeedCinemaShowtimes = async (cinema, targetDate) => {
     const nowShowingMovies = movies.filter((m) => m.status === 'NOW_SHOWING');
     const selectedMovies = nowShowingMovies.length >= 3 ? nowShowingMovies : movies.slice(0, 5);
 
-    const hasImax = cinema.tags?.includes('IMAX Laser') || (cinema.name || '').includes('Vincom');
+    // Chuẩn hóa 3 phòng chiếu đặc quyền duy nhất: IMAX Laser, Dolby Atmos, Gold Class
     const roomConfigs = [
       {
-        roomName: hasImax ? 'Phòng IMAX 01' : 'Phòng Chiếu 01 (Dolby Atmos)',
-        formatFeature: hasImax ? 'IMAX Laser 2D • Âm thanh 12 kênh độc quyền' : '2D Phụ Đề • Âm thanh vòm Dolby Atmos',
-        formatType: hasImax ? 'imax' : '2d',
+        roomName: 'Phòng IMAX Laser',
+        formatFeature: 'IMAX Laser 2D • Màn hình cong khổ lớn 4K Laser',
+        formatType: 'imax',
         slots: [
-          { hour: 17, minute: 30 },
-          { hour: 19, minute: 15 },
-          { hour: 20, minute: 45 },
-          { hour: 22, minute: 30 },
+          { hour: 9, minute: 30 },
+          { hour: 10, minute: 30 },
+          { hour: 14, minute: 0 },
+          { hour: 16, minute: 30 },
+          { hour: 19, minute: 30 },
+          { hour: 22, minute: 50 },
         ],
       },
       {
-        roomName: 'Rạp 03 (Tầng 2)',
-        formatFeature: '2D Phụ Đề • Chuẩn Dolby 7.1 • Màn chiếu 4K',
+        roomName: 'Phòng Dolby Atmos',
+        formatFeature: '2D Dolby Atmos • Hệ thống âm thanh vòm 360°',
         formatType: '2d',
         slots: [
-          { hour: 18, minute: 0 },
-          { hour: 19, minute: 45 },
-          { hour: 21, minute: 15 },
-          { hour: 23, minute: 0 },
+          { hour: 9, minute: 30 },
+          { hour: 10, minute: 30 },
+          { hour: 14, minute: 0 },
+          { hour: 16, minute: 30 },
+          { hour: 19, minute: 30 },
+          { hour: 22, minute: 20 },
         ],
       },
       {
-        roomName: 'Rạp 05 (Tầng 3)',
-        formatFeature: '3D Phụ Đề • RealD 3D High Frame Rate • Kính 3D siêu nhẹ',
-        formatType: '3d',
+        roomName: 'Phòng Gold Class',
+        formatFeature: 'Gold Class Luxury • Ghế Da Recliner & Dịch Vụ VIP',
+        formatType: 'gold_class',
         slots: [
-          { hour: 18, minute: 30 },
-          { hour: 20, minute: 0 },
-          { hour: 21, minute: 15 },
+          { hour: 9, minute: 30 },
+          { hour: 10, minute: 30 },
+          { hour: 14, minute: 0 },
+          { hour: 16, minute: 30 },
+          { hour: 19, minute: 30 },
           { hour: 22, minute: 15 },
         ],
       },

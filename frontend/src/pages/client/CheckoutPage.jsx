@@ -179,45 +179,35 @@ const CheckoutPage = () => {
 
       try {
         const res = await api.post('/bookings/checkout', payload);
-        navigate('/booking-success', {
-          state: { booking: res.data.booking },
-        });
-        return;
+        if (res.data?.success && res.data?.booking) {
+          navigate('/booking-success', {
+            state: { booking: res.data.booking },
+          });
+          return;
+        }
       } catch (apiErr) {
-        console.warn('API checkout warn (chuyển fallback sang trang thành công):', apiErr);
-      }
+        console.error('Lỗi khi thực hiện đặt vé & thanh toán:', apiErr);
+        const errMsg =
+          apiErr.response?.data?.message ||
+          'Không thể hoàn tất thanh toán đặt vé. Vui lòng thử lại!';
+        alert(`⚠️ ${errMsg}`);
 
-      navigate('/booking-success', {
-        state: {
-          booking: {
-            bookingCode: 'MTX-98234-VN',
-            totalAmount: grandTotal,
-            seatNumbers: selectedSeats,
-            paymentMethod: paymentMethod === 'VNPAY' ? 'VNPAY-QR OK' : paymentMethod,
-            customerName,
-            customerPhone,
-            customerEmail,
-            concessions: selectedCombosList.join(', ') || '1x Combo Solo (bắp phô mai + Coca-Cola L)',
-            showtime: {
-              movie: {
-                title: showtime?.movie?.title || 'Dune: Hành Tinh Cát 2',
-                ageRating: showtime?.movie?.ageRating || 'T16',
-              },
-              roomName: showtime?.roomName || "D'AVENOR Center (Phòng IMAX 03)",
-              startTime: showtime?.startTime || new Date(),
-            },
-          },
-        },
-      });
+        // Nếu ghế bị xung đột do khách khác vừa mua trước (HTTP 409 Conflict)
+        // Đưa khách quay lại trang chọn ghế để cập nhật lại sơ đồ ghế mới nhất
+        if (apiErr.response?.status === 409) {
+          navigate(`/booking/seat/${showtimeId}`);
+        }
+        return;
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#070b13] text-slate-100 selection:bg-blue-500 selection:text-white">
-      {/* 1. THANH TIÊU ĐỀ TRÊN CÙNG: QUAY LẠI + TIẾN TRÌNH 3 BƯỚC */}
-      <div className="w-full bg-[#0b101a]/95 backdrop-blur-xl border-b border-slate-800/90 py-3.5 sticky top-0 z-40 shadow-xl">
+    <div className="min-h-screen bg-[#0B1026] text-[#F8F7FF] selection:bg-[#42DFFF] selection:text-[#0B1026]">
+      {/* 1. THANH TIÊU ĐỀ TRÊN CÙNG: QUAY LẠI + TIẾN TRÌNH 3 BƯỚC (HIỆN RA DẦN DẦN) */}
+      <div className="w-full bg-[#11152F]/95 backdrop-blur-xl border-b border-[#AA9BFF]/20 py-3.5 sticky top-0 z-40 shadow-xl animate-smooth-fade">
         <div className="max-w-[1560px] mx-auto px-6 sm:px-10 lg:px-14 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
           {/* Cụm bên trái: Nút Back tròn + Tên phim + Nhãn T16 / IMAX LASER */}
           <div className="flex items-center space-x-3.5">

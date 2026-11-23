@@ -4,10 +4,19 @@ import Booking from '../models/Booking.js';
 import ShowtimeSeat from '../models/ShowtimeSeat.js';
 import Showtime from '../models/Showtime.js';
 import Movie from '../models/Movie.js';
+import {
+  normalizeSeatCode,
+  ensureShowtimeSeats,
+  findOrCreateShowtimeFromKey,
+} from './showtimeController.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'movietix_jwt_secret_key_2026_cdio';
 
-// Khóa ghế tạm thời trong 5 phút khi khách chuyển sang màn hình thanh toán
+/**
+ * Xử lý yêu cầu chọn ghế:
+ * Theo nguyên tắc mới: KHÔNG khóa ghế tạm thời trong DB khi khách chỉ chọn ghế.
+ * Ghế chỉ mang tính chất chọn hiển thị trên client.
+ */
 export const holdSeats = async (req, res) => {
   try {
     const { showtimeId, seatNumbers } = req.body;
@@ -16,71 +25,19 @@ export const holdSeats = async (req, res) => {
       return res.status(400).json({ message: 'Dữ liệu chọn ghế không hợp lệ' });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(showtimeId)) {
-      return res.status(400).json({ message: 'ID suất chiếu không hợp lệ' });
-    }
-
-    const stId = new mongoose.Types.ObjectId(showtimeId);
-    const now = new Date();
-
-    const targetShowtime = await Showtime.findById(stId);
-    if (!targetShowtime) {
-      return res.status(404).json({ message: 'Không tìm thấy suất chiếu' });
-    }
-    if (targetShowtime.isLocked) {
-      return res.status(403).json({
-        message: 'Suất chiếu này hiện đang tạm khóa hoặc điều chỉnh lịch chiếu bởi ban quản trị. Vui lòng chọn suất chiếu khác.',
-      });
-    }
-
-    // Tìm các ghế yêu cầu
-    const requestedSeats = await ShowtimeSeat.find({
-      showtimeId: stId,
-      seatNumber: { $in: seatNumbers },
-    });
-
-    // Kiểm tra xem có ghế nào đã bị đặt (BOOKED) hoặc đang được người khác giữ (HOLDING hợp lệ) không
-    const unavailableSeats = requestedSeats.filter((seat) => {
-      if (seat.status === 'BOOKED') return true;
-      if (seat.status === 'HOLDING' && seat.holdExpiresAt && seat.holdExpiresAt > now) {
-        return true;
-      }
-      return false;
-    });
-
-    if (unavailableSeats.length > 0) {
-      const seatNames = unavailableSeats.map((s) => s.seatNumber).join(', ');
-      return res.status(409).json({
-        message: `Rất tiếc! Ghế (${seatNames}) vừa có khách khác giữ hoặc đã được thanh toán. Vui lòng chọn ghế khác.`,
-      });
-    }
-
-    // Khóa giữ ghế 5 phút
-    const holdExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
-    await ShowtimeSeat.updateMany(
-      {
-        showtimeId: stId,
-        seatNumber: { $in: seatNumbers },
-      },
-      {
-        $set: {
-          status: 'HOLDING',
-          holdExpiresAt,
-        },
-      }
-    );
-
     res.json({
       success: true,
-      message: 'Đã giữ ghế thành công trong 5 phút',
-      holdExpiresAt,
+      message: 'Đã ghi nhận ghế chọn trên giao diện',
     });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi giữ ghế', error: error.message });
+    res.status(500).json({ message: 'Lỗi khi chọn ghế', error: error.message });
   }
 };
 
-// Xác nhận thanh toán & Tạo mã vé điện tử
+/**
+ * Xác nhận thanh toán & Tạo mã vé điện tử chính thức
+ * Cơ chế CONCURRENCY-SAFE NGUYÊN TỬ: Chống bán trùng ghế 100% giữa 2 khách hàng cùng đặt một lúc.
+ */
 export const checkoutBooking = async (req, res) => {
   try {
     const {
@@ -94,73 +51,149 @@ export const checkoutBooking = async (req, res) => {
       paymentMethod = 'MOMO',
     } = req.body;
 
-    if (!showtimeId || !seatNumbers || seatNumbers.length === 0 || !customerName || !customerPhone) {
-      return res.status(400).json({ message: 'Vui lòng cung cấp đầy đủ thông tin đặt vé' });
+    if (
+      !showtimeId ||
+      !Array.isArray(seatNumbers) ||
+      seatNumbers.length === 0 ||
+      !customerName ||
+      !customerPhone
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp đầy đủ thông tin đặt vé và danh sách ghế.',
+      });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(showtimeId)) {
-      return res.status(400).json({ message: 'ID suất chiếu không hợp lệ' });
+    // 1. Chuẩn hóa danh sách ghế: ["A1", "A2", ...]
+    const normalizedSeats = [...new Set(seatNumbers.map((s) => normalizeSeatCode(s)))];
+
+    // 2. Tìm suất chiếu trong Database
+    let targetShowtime = null;
+    if (mongoose.Types.ObjectId.isValid(showtimeId)) {
+      targetShowtime = await Showtime.findById(showtimeId);
+    } else {
+      targetShowtime = await findOrCreateShowtimeFromKey(showtimeId);
     }
 
-    const stId = new mongoose.Types.ObjectId(showtimeId);
-
-    const targetShowtime = await Showtime.findById(stId);
     if (!targetShowtime) {
-      return res.status(404).json({ message: 'Không tìm thấy suất chiếu' });
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy suất chiếu yêu cầu.',
+      });
     }
+
     if (targetShowtime.isLocked) {
       return res.status(403).json({
+        success: false,
         message: 'Suất chiếu này hiện đang tạm khóa hoặc điều chỉnh lịch chiếu bởi ban quản trị. Không thể thanh toán.',
       });
     }
 
-    // Kiểm tra xem có ghế nào đã BOOKED chưa
-    const alreadyBooked = await ShowtimeSeat.find({
-      showtimeId: stId,
-      seatNumber: { $in: seatNumbers },
-      status: 'BOOKED',
-    });
+    const stId = targetShowtime._id;
 
-    if (alreadyBooked.length > 0) {
-      return res.status(409).json({
-        message: 'Một số ghế bạn chọn đã được thanh toán bởi khách khác.',
-      });
-    }
+    // 3. Đảm bảo 88 ghế của suất chiếu này đã tồn tại trong ShowtimeSeat
+    await ensureShowtimeSeats(stId);
 
-    // Sinh mã vé duy nhất: #MTX + 6 chữ số ngẫu nhiên
-    const bookingCode = `MTX${Math.floor(100000 + Math.random() * 900000)}`;
+    // 4. BƯỚC NGUYÊN TỬ (ATOMIC CONCURRENCY CHECK):
+    // Sinh ID và mã vé duy nhất cho giao dịch này
+    const tempBookingId = new mongoose.Types.ObjectId();
+    const bookingCode = `MTX${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
 
-    // 1. Tạo bản ghi Booking
-    const newBooking = await Booking.create({
-      bookingCode,
-      showtimeId: stId,
-      customerName,
-      customerPhone,
-      customerEmail: customerEmail || '',
-      seats: seatNumbers.join(', '),
-      concessions: concessions || '',
-      totalAmount: parseFloat(totalAmount),
-      status: 'PAID',
-      paymentMethod,
-    });
-
-    // 2. Chuyển trạng thái các ghế sang BOOKED
-    await ShowtimeSeat.updateMany(
+    // Thực hiện Atomic Update: Chỉ cập nhật những ghế thuộc suất này VÀ chưa bị BOOKED
+    const acquireResult = await ShowtimeSeat.updateMany(
       {
         showtimeId: stId,
-        seatNumber: { $in: seatNumbers },
+        seatNumber: { $in: normalizedSeats },
+        status: { $ne: 'BOOKED' },
       },
       {
         $set: {
           status: 'BOOKED',
+          bookingId: tempBookingId,
           holdExpiresAt: null,
-          bookingId: newBooking._id,
         },
       }
     );
 
-    // Truy vấn đầy đủ thông tin vé kèm phim và suất chiếu để trả về
-    const showtime = await Showtime.findById(stId).populate('movieId').lean();
+    // Kiểm tra xem có đúng TẤT CẢ các ghế được chiếm độc quyền thành công không
+    if (acquireResult.modifiedCount !== normalizedSeats.length) {
+      // Xung đột đồng thời: Đã có ít nhất 1 ghế vừa được khách khác thanh toán thành công trước!
+      // Hoàn nguyên (rollback) những ghế mà giao dịch này lỡ cập nhật
+      if (acquireResult.modifiedCount > 0) {
+        await ShowtimeSeat.updateMany(
+          {
+            showtimeId: stId,
+            bookingId: tempBookingId,
+          },
+          {
+            $set: {
+              status: 'AVAILABLE',
+              bookingId: null,
+              holdExpiresAt: null,
+            },
+          }
+        );
+      }
+
+      // Tìm tên các ghế đã bị người khác mua trước để báo chi tiết
+      const bookedConflicts = await ShowtimeSeat.find({
+        showtimeId: stId,
+        seatNumber: { $in: normalizedSeats },
+        bookingId: { $ne: tempBookingId },
+        status: 'BOOKED',
+      }).lean();
+
+      const conflictNames =
+        bookedConflicts.map((s) => s.seatNumber).join(', ') || normalizedSeats.join(', ');
+
+      return res.status(409).json({
+        success: false,
+        conflict: true,
+        message: `Rất tiếc! Ghế (${conflictNames}) vừa được khách khác thanh toán thành công trước đó. Vui lòng chọn ghế khác!`,
+        conflictSeats: bookedConflicts.map((s) => s.seatNumber),
+      });
+    }
+
+    // 5. Toàn bộ ghế đã được giữ an toàn, tiến hành tạo Booking chính thức
+    let newBooking;
+    try {
+      newBooking = await Booking.create({
+        _id: tempBookingId,
+        bookingCode,
+        showtimeId: stId,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.toString().trim(),
+        customerEmail: customerEmail ? customerEmail.trim().toLowerCase() : '',
+        seats: normalizedSeats.join(', '),
+        concessions: concessions || '',
+        totalAmount: parseFloat(totalAmount),
+        status: 'PAID',
+        paymentMethod,
+      });
+    } catch (createErr) {
+      // Nếu việc tạo Booking thất bại, rollback trả lại ghế ngay lập tức
+      await ShowtimeSeat.updateMany(
+        {
+          showtimeId: stId,
+          bookingId: tempBookingId,
+        },
+        {
+          $set: {
+            status: 'AVAILABLE',
+            bookingId: null,
+            holdExpiresAt: null,
+          },
+        }
+      );
+      throw createErr;
+    }
+
+    // Truy vấn đầy đủ thông tin vé kèm phim và suất chiếu để trả về client
+    const showtime = await Showtime.findById(stId)
+      .populate('movieId')
+      .populate('cinemaId')
+      .lean();
+
     const formattedBooking = {
       ...newBooking.toObject(),
       id: newBooking._id.toString(),
@@ -168,18 +201,27 @@ export const checkoutBooking = async (req, res) => {
         ? {
             ...showtime,
             id: showtime._id.toString(),
-            movie: showtime.movieId ? { ...showtime.movieId, id: showtime.movieId._id.toString() } : null,
+            movie: showtime.movieId
+              ? { ...showtime.movieId, id: showtime.movieId._id.toString() }
+              : null,
+            cinema: showtime.cinemaId
+              ? { ...showtime.cinemaId, id: showtime.cinemaId._id.toString() }
+              : null,
           }
         : null,
     };
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Đặt vé thành công!',
       booking: formattedBooking,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi thanh toán đặt vé', error: error.message });
+    console.error('Lỗi khi thanh toán đặt vé:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi thanh toán đặt vé: ' + error.message,
+    });
   }
 };
 
@@ -256,7 +298,10 @@ export const getBookingByCode = async (req, res) => {
 
     const booking = await Booking.findOne({ bookingCode: code }).populate({
       path: 'showtimeId',
-      populate: { path: 'movieId' },
+      populate: [
+        { path: 'movieId' },
+        { path: 'cinemaId' },
+      ],
     });
 
     if (!booking) {
@@ -272,6 +317,7 @@ export const getBookingByCode = async (req, res) => {
             ...showtime.toObject(),
             id: showtime._id.toString(),
             movie: showtime.movieId ? { ...showtime.movieId.toObject(), id: showtime.movieId._id.toString() } : null,
+            cinema: showtime.cinemaId ? { ...showtime.cinemaId.toObject(), id: showtime.cinemaId._id.toString() } : null,
           }
         : null,
     };

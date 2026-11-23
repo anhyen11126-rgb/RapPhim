@@ -8,7 +8,7 @@ export const DEFAULT_PRICING_CONFIG = {
   formats: {
     '2D': {
       label: '2D Dolby Atmos / Tiêu chuẩn',
-      roomTypeLabel: '2D Dolby Tiêu Chuẩn',
+      roomTypeLabel: '2D Dolby Atmos',
       vipSurcharge: 20000,
       sweetboxExtra: 30000,
       weekday: { before17: 45000, goldenHour: 55000, lateNight: 45000 },
@@ -91,10 +91,11 @@ export const detectFormatKey = (roomOrFormat = '') => {
       : `${roomOrFormat?.roomName || ''} ${roomOrFormat?.roomType || ''} ${roomOrFormat?.format || ''} ${roomOrFormat?.formatFeature || ''}`.toLowerCase();
 
   if (combined.includes('imax')) return 'IMAX';
-  if (combined.includes('gold class') || combined.includes('gold_class') || combined.includes('lounge')) {
+  if (combined.includes('gold class') || combined.includes('gold_class') || combined.includes('gold') || combined.includes('lounge')) {
     return 'GOLD_CLASS';
   }
   if (combined.includes('3d')) return '3D';
+  if (combined.includes('atmos')) return '2D';
   return '2D';
 };
 

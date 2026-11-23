@@ -85,7 +85,7 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
                 ? location.pathname + location.search
                 : '/',
           }}
-          className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center space-x-1.5"
+          className="bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] font-black text-xs px-4 py-2 rounded-xl shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:brightness-108 transition-all flex items-center space-x-1.5 cursor-pointer active:scale-95"
         >
           <i className="fa-solid fa-arrow-right-from-bracket"></i>
           <span>Đăng nhập</span>
@@ -99,7 +99,7 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
                 ? location.pathname + location.search
                 : '/',
           }}
-          className="hidden sm:inline-flex bg-[#121929] hover:bg-slate-800 text-slate-200 hover:text-white font-semibold text-xs px-3.5 py-2 rounded-xl border border-slate-800 transition-colors"
+          className="hidden sm:inline-flex bg-[#11152F] hover:bg-[#20204B] text-[#F8F7FF] hover:text-white font-semibold text-xs px-3.5 py-2 rounded-xl border border-[#AA9BFF]/30 hover:border-[#AA9BFF]/60 transition-colors"
         >
           Đăng ký
         </Link>
@@ -118,11 +118,11 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
       {isAdmin ? (
         <div
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          className="flex items-center bg-[#121929] hover:bg-slate-800/90 border border-slate-700/80 rounded-full pl-1 pr-2.5 py-1 shadow-md transition-all hover:border-slate-600 cursor-pointer select-none"
+          className="flex items-center bg-[#171936] hover:bg-[#20204B] border border-[#AA9BFF]/35 hover:border-[#72E8FF] rounded-full pl-1 pr-2.5 py-1 shadow-md transition-all cursor-pointer select-none"
           title="Bấm để mở menu quản trị"
         >
           {/* 1. Hình đại diện 👤 hiển thị bình thường trên navbar */}
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-slate-800 to-slate-700 border border-slate-600/80 flex items-center justify-center shrink-0 shadow-inner">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-[#20204B] to-[#11152F] border border-[#AA9BFF]/40 flex items-center justify-center shrink-0 shadow-inner">
             {currentUser.avatar ? (
               <img
                 src={currentUser.avatar}
@@ -130,7 +130,7 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <svg className="w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+              <svg className="w-4 h-4 text-[#42DFFF]" viewBox="0 0 24 24" fill="currentColor">
                 <path
                   fillRule="evenodd"
                   d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z"
@@ -142,14 +142,14 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
 
           {/* 2. Chữ "Trang Quản Lý": Nhấn vào để mở menu bên dưới */}
           <span
-            className="pl-2 pr-1.5 py-1 text-xs font-bold text-slate-200 hover:text-white transition-colors cursor-pointer select-none whitespace-nowrap"
+            className="pl-2 pr-1.5 py-1 text-xs font-bold text-[#F8F7FF] hover:text-[#83F5FF] transition-colors cursor-pointer select-none whitespace-nowrap"
           >
             Trang Quản Lý
           </span>
 
           {/* 3. Mũi tên ▼ */}
           <span
-            className="text-slate-400 hover:text-white text-[10px] pl-1 pr-0.5 py-1 transition-colors select-none"
+            className="text-[#42DFFF] text-[10px] pl-1 pr-0.5 py-1 transition-colors select-none"
           >
             ▼
           </span>
@@ -158,9 +158,9 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
         /* GIAO DIỆN KHÁCH HÀNG THƯỜNG */
         <div
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          className="flex items-center space-x-2.5 bg-[#121929] hover:bg-slate-800 border border-slate-700/80 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all hover:border-slate-600 shadow-sm"
+          className="flex items-center space-x-2 bg-[#171936] hover:bg-[#20204B] border border-[#AA9BFF]/35 hover:border-[#72E8FF] pl-1 pr-2.5 py-1 rounded-full cursor-pointer transition-all shadow-sm"
         >
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-slate-800 to-slate-700 border border-slate-600/80 flex items-center justify-center shrink-0 shadow-inner">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-[#20204B] to-[#11152F] border border-[#AA9BFF]/40 flex items-center justify-center shrink-0 shadow-inner">
             {currentUser.avatar ? (
               <img
                 src={currentUser.avatar}
@@ -168,7 +168,7 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <svg className="w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+              <svg className="w-4 h-4 text-[#42DFFF]" viewBox="0 0 24 24" fill="currentColor">
                 <path
                   fillRule="evenodd"
                   d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z"
@@ -178,132 +178,132 @@ const NavUserMenu = ({ currentUser, setCurrentUser, onOpenAvatarModal }) => {
             )}
           </div>
           <div className="text-left hidden sm:block">
-            <span className="text-xs font-bold text-white block leading-tight">
+            <span className="text-xs font-bold text-[#F8F7FF] block leading-tight">
               {currentUser.name}
             </span>
             <span className={`text-[10px] font-semibold block leading-none ${tierInfo.color}`}>
               {tierInfo.label} • {currentUser.points ?? 0} điểm
             </span>
           </div>
-          <span className="text-slate-500 text-[9px]">▼</span>
+          <span className="text-[#BEC5E5] text-[9px]">▼</span>
         </div>
       )}
 
       {/* DROPDOWN MENU (Hỗ trợ cả Hover & Click mượt mà) */}
       {isDropdownOpen && (
         <div className="absolute right-0 top-full pt-1.5 w-64 z-50 animate-in fade-in zoom-in-95 duration-150">
-          <div className="bg-[#0f1422] border border-slate-800 rounded-2xl shadow-2xl py-2 space-y-1">
+          <div className="bg-[#11152F] border border-[#AA9BFF]/30 rounded-2xl shadow-[0_12px_36px_rgba(11,16,38,0.9),0_0_20px_rgba(168,85,247,0.2)] py-2 space-y-1">
             {/* Header Thông Tin Tài Khoản */}
-          <div className="px-4 py-3 border-b border-slate-800/80 flex items-center space-x-3">
-            <div
-              onClick={() => {
-                if (onOpenAvatarModal) {
-                  setIsDropdownOpen(false);
-                  onOpenAvatarModal();
-                }
-              }}
-              title="Bấm để đổi ảnh đại diện"
-              className="relative group w-11 h-11 rounded-full overflow-hidden bg-gradient-to-tr from-slate-800 to-slate-700 border-2 border-slate-600 hover:border-amber-400 cursor-pointer hover:scale-105 transition-all flex items-center justify-center shrink-0 shadow-md"
-            >
-              {currentUser.avatar ? (
-                <img
-                  src={currentUser.avatar}
-                  alt={currentUser.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <svg className="w-5 h-5 text-slate-300" viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    fillRule="evenodd"
-                    d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              )}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[9px] font-bold">
-                📷 Đổi
-              </div>
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                {isAdmin ? 'TÀI KHOẢN ADMIN' : "TÀI KHOẢN D'AVENOR"}
-              </span>
-              <strong className="text-xs text-white block truncate">{currentUser.name}</strong>
-              <span className="text-[11px] text-slate-400 block truncate">{currentUser.email}</span>
-              <span className={`text-[10px] font-bold block mt-0.5 ${tierInfo.color}`}>
-                {tierInfo.label} • {isAdmin ? 'Admin' : `${currentUser.points ?? 0} điểm`}
-              </span>
-            </div>
-          </div>
-
-          {/* NẾU LÀ ADMIN: TRANG QUẢN LÝ VÀ ĐĂNG XUẤT (ẢNH ĐẠI DIỆN ĐÃ ĐỔI ĐƯỢC Ở TRÊN) */}
-          {isAdmin ? (
-            <div className="py-1">
-              <Link
-                to="/admin/statistics"
-                onClick={() => setIsDropdownOpen(false)}
-                className="flex items-center space-x-2 px-4 py-2.5 text-xs text-slate-200 hover:text-white hover:bg-slate-800/70 transition-colors font-medium cursor-pointer"
-              >
-                <span>🛡️</span>
-                <span>Trang Quản Lý</span>
-              </Link>
-
-              <div className="pt-1 border-t border-slate-800/80 mt-1">
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full text-left flex items-center space-x-2 px-4 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer font-semibold"
-                >
-                  <span>🚪</span>
-                  <span>Đăng xuất</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* NẾU LÀ KHÁCH HÀNG THƯỜNG */
-            <>
-              <Link
-                to="/my-tickets"
-                onClick={() => setIsDropdownOpen(false)}
-                className="flex items-center space-x-2 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors"
-              >
-                <span>🎟️</span>
-                <span>Vé của tôi & Lịch sử</span>
-              </Link>
-
-              <Link
-                to="/promotions"
-                onClick={() => setIsDropdownOpen(false)}
-                className="flex items-center space-x-2 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors"
-              >
-                <span>🎁</span>
-                <span>Kho Voucher đổi thưởng</span>
-              </Link>
-
-              <button
-                type="button"
+            <div className="px-4 py-3 border-b border-[#AA9BFF]/20 flex items-center space-x-3">
+              <div
                 onClick={() => {
-                  setIsDropdownOpen(false);
-                  if (onOpenAvatarModal) onOpenAvatarModal();
+                  if (onOpenAvatarModal) {
+                    setIsDropdownOpen(false);
+                    onOpenAvatarModal();
+                  }
                 }}
-                className="w-full text-left flex items-center space-x-2 px-4 py-2 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors font-medium cursor-pointer"
+                title="Bấm để đổi ảnh đại diện"
+                className="relative group w-11 h-11 rounded-full overflow-hidden bg-gradient-to-tr from-[#20204B] to-[#11152F] border-2 border-[#AA9BFF]/40 hover:border-[#42DFFF] cursor-pointer hover:scale-105 transition-all flex items-center justify-center shrink-0 shadow-md"
               >
-                <span>🖼️</span>
-                <span>Đổi ảnh đại diện</span>
-              </button>
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <svg className="w-5 h-5 text-[#42DFFF]" viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                      fillRule="evenodd"
+                      d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[9px] font-bold">
+                  📷 Đổi
+                </div>
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] uppercase font-bold text-[#BEC5E5] block">
+                  {isAdmin ? 'TÀI KHOẢN ADMIN' : "TÀI KHOẢN D'AVENOR"}
+                </span>
+                <strong className="text-xs text-[#F8F7FF] block truncate">{currentUser.name}</strong>
+                <span className="text-[11px] text-[#929ABD] block truncate">{currentUser.email}</span>
+                <span className={`text-[10px] font-bold block mt-0.5 ${tierInfo.color}`}>
+                  {tierInfo.label} • {isAdmin ? 'Admin' : `${currentUser.points ?? 0} điểm`}
+                </span>
+              </div>
+            </div>
 
-              <div className="pt-1 border-t border-slate-800/80">
+            {/* NẾU LÀ ADMIN: TRANG QUẢN LÝ VÀ ĐĂNG XUẤT (ẢNH ĐẠI DIỆN ĐÃ ĐỔI ĐƯỢC Ở TRÊN) */}
+            {isAdmin ? (
+              <div className="py-1">
+                <Link
+                  to="/admin/statistics"
+                  onClick={() => setIsDropdownOpen(false)}
+                  className="flex items-center space-x-2 px-4 py-2.5 text-xs text-[#BEC5E5] hover:text-[#F8F7FF] hover:bg-[#20204B] transition-colors font-medium cursor-pointer"
+                >
+                  <span>🛡️</span>
+                  <span>Trang Quản Lý</span>
+                </Link>
+
+                <div className="pt-1 border-t border-[#AA9BFF]/20 mt-1">
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full text-left flex items-center space-x-2 px-4 py-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer font-semibold"
+                  >
+                    <span>🚪</span>
+                    <span>Đăng xuất</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* NẾU LÀ KHÁCH HÀNG THƯỜNG */
+              <>
+                <Link
+                  to="/my-tickets"
+                  onClick={() => setIsDropdownOpen(false)}
+                  className="flex items-center space-x-2 px-4 py-2 text-xs text-[#BEC5E5] hover:text-[#F8F7FF] hover:bg-[#20204B] transition-colors"
+                >
+                  <span>🎟️</span>
+                  <span>Vé của tôi & Lịch sử</span>
+                </Link>
+
+                <Link
+                  to="/promotions"
+                  onClick={() => setIsDropdownOpen(false)}
+                  className="flex items-center space-x-2 px-4 py-2 text-xs text-[#BEC5E5] hover:text-[#F8F7FF] hover:bg-[#20204B] transition-colors"
+                >
+                  <span>🎁</span>
+                  <span>Kho Voucher đổi thưởng</span>
+                </Link>
+
                 <button
                   type="button"
-                  onClick={handleLogout}
-                  className="w-full text-left flex items-center space-x-2 px-4 py-2.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer font-semibold"
+                  onClick={() => {
+                    setIsDropdownOpen(false);
+                    if (onOpenAvatarModal) onOpenAvatarModal();
+                  }}
+                  className="w-full text-left flex items-center space-x-2 px-4 py-2 text-xs text-[#42DFFF] hover:text-[#83F5FF] hover:bg-cyan-500/10 transition-colors font-medium cursor-pointer"
                 >
-                  <span>🚪</span>
-                  <span>Đăng xuất</span>
+                  <span>🖼️</span>
+                  <span>Đổi ảnh đại diện</span>
                 </button>
-              </div>
-            </>
-          )}
+
+                <div className="pt-1 border-t border-[#AA9BFF]/20">
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full text-left flex items-center space-x-2 px-4 py-2.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer font-semibold"
+                  >
+                    <span>🚪</span>
+                    <span>Đăng xuất</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

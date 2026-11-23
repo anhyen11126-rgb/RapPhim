@@ -78,7 +78,7 @@ const NavSearchBar = () => {
         }}
         onKeyDown={handleSearchKeyDown}
         placeholder="Tìm phim, diễn viên, rạp..."
-        className="w-full bg-[#131926] border border-slate-800 rounded-full pl-8 pr-8 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+        className="w-full bg-[#171936] border border-[#AA9BFF]/35 rounded-full pl-8 pr-8 py-1.5 text-xs text-[#F8F7FF] placeholder-[#BEC5E5]/60 focus:outline-none focus:border-[#72E8FF] focus:ring-1 focus:ring-[#72E8FF]/50 transition-all"
       />
       {movieSearchQuery && (
         <button
@@ -88,7 +88,7 @@ const NavSearchBar = () => {
             setMovieSearchResults([]);
             setIsSearchDropdownOpen(false);
           }}
-          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-white text-xs cursor-pointer"
+          className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#BEC5E5]/60 hover:text-[#F8F7FF] text-xs cursor-pointer"
         >
           ✕
         </button>
@@ -96,30 +96,30 @@ const NavSearchBar = () => {
 
       {/* Menu Dropdown hiển thị kết quả phim tìm kiếm từ Database */}
       {isSearchDropdownOpen && (
-        <div className="absolute left-0 mt-2 w-80 sm:w-96 bg-[#0c1220] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
-          <div className="px-3.5 py-2 border-b border-slate-800/80 flex items-center justify-between text-[11px]">
-            <span className="font-bold text-slate-400 uppercase tracking-wider">
+        <div className="absolute left-0 mt-2 w-80 sm:w-96 bg-[#171936] border border-[#AA9BFF]/35 rounded-2xl shadow-[0_12px_36px_rgba(11,16,38,0.95),0_0_24px_rgba(168,85,247,0.25)] overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+          <div className="px-3.5 py-2 border-b border-[#AA9BFF]/20 flex items-center justify-between text-[11px]">
+            <span className="font-bold text-[#BEC5E5] uppercase tracking-wider">
               KẾT QUẢ TÌM KIẾM ({movieSearchResults.length})
             </span>
             {isSearchLoading && (
-              <span className="text-blue-400 flex items-center gap-1 font-semibold">
-                <span className="w-2.5 h-2.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></span>
+              <span className="text-[#42DFFF] flex items-center gap-1 font-semibold">
+                <span className="w-2.5 h-2.5 border-2 border-[#42DFFF] border-t-transparent rounded-full animate-spin"></span>
                 Đang tra cứu...
               </span>
             )}
           </div>
 
-          <div className="max-h-80 overflow-y-auto divide-y divide-slate-800/60">
+          <div className="max-h-80 overflow-y-auto divide-y divide-[#AA9BFF]/10">
             {isSearchLoading && movieSearchResults.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400">
+              <div className="py-8 text-center text-xs text-[#BEC5E5]">
                 Đang tìm kiếm phim trong hệ thống...
               </div>
             ) : movieSearchResults.length === 0 ? (
               <div className="py-6 px-4 text-center space-y-1">
-                <p className="text-xs font-semibold text-slate-300">
+                <p className="text-xs font-semibold text-[#F8F7FF]">
                   Không tìm thấy phim với từ khóa "{movieSearchQuery}"
                 </p>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-[#BEC5E5]/70">
                   Thử tìm theo tên khác như 'Spider-Man', 'Dune', 'Mai', 'Godzilla'...
                 </p>
               </div>
@@ -128,9 +128,9 @@ const NavSearchBar = () => {
                 <div
                   key={m.id || m._id}
                   onClick={() => handleSelectMovie(m)}
-                  className="p-3 hover:bg-[#141c2e] transition-colors cursor-pointer flex items-center space-x-3 group"
+                  className="p-3 hover:bg-[#20204B] transition-colors cursor-pointer flex items-center space-x-3 group"
                 >
-                  <div className="w-11 h-15 rounded-lg overflow-hidden bg-slate-900 border border-slate-800 shrink-0">
+                  <div className="w-11 h-15 rounded-lg overflow-hidden bg-[#0B1026] border border-[#AA9BFF]/20 shrink-0">
                     <img
                       src={m.posterUrl || m.poster || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop'}
                       alt={m.title}
@@ -139,30 +139,30 @@ const NavSearchBar = () => {
                   </div>
                   <div className="flex-1 min-w-0 space-y-0.5">
                     <div className="flex items-center space-x-1.5 flex-wrap">
-                      <span className="text-xs font-black text-white group-hover:text-blue-400 transition-colors truncate">
+                      <span className="text-xs font-black text-[#F8F7FF] group-hover:text-[#83F5FF] transition-colors truncate">
                         {m.title}
                       </span>
-                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-purple-500/20 text-[#F4A5FF] border border-[#A855F7]/30">
                         {m.ageRating || 'T16'}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 truncate">
+                    <p className="text-[11px] text-[#BEC5E5] truncate">
                       {m.genre} • {m.duration} phút
                     </p>
                     <div className="flex items-center space-x-2 text-[10px]">
-                      <span className="text-emerald-400 font-semibold">
+                      <span className="text-[#42DFFF] font-semibold">
                         ● {m.status === 'COMING_SOON' ? 'Sắp chiếu' : 'Đang chiếu'}
                       </span>
                       <span className="text-amber-400">⭐ 4.9</span>
                     </div>
                   </div>
-                  <span className="text-slate-500 group-hover:text-blue-400 text-xs">➔</span>
+                  <span className="text-[#BEC5E5] group-hover:text-[#42DFFF] text-xs">➔</span>
                 </div>
               ))
             )}
           </div>
 
-          <div className="px-3.5 py-2 bg-[#090d16] border-t border-slate-800/80 text-[10px] text-slate-500 text-center">
+          <div className="px-3.5 py-2 bg-[#0B1026] border-t border-[#AA9BFF]/20 text-[10px] text-[#929ABD] text-center">
             Nhấn vào phim để xem chi tiết & chọn suất chiếu
           </div>
         </div>

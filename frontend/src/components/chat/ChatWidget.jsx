@@ -32,6 +32,147 @@ const ChatWidget = () => {
   const [isListening, setIsListening] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => getStoredUser());
 
+  // Vị trí kéo thả tự do của Trợ lý AI (null = vị trí mặc định ở góc dưới bên phải)
+  const [position, setPosition] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragInfoRef = useRef({
+    isDown: false,
+    startX: 0,
+    startY: 0,
+    elemStartX: 0,
+    elemStartY: 0,
+    hasMoved: false,
+  });
+  const containerRef = useRef(null);
+  const justDraggedRef = useRef(false);
+
+  // Đưa Trợ lý AI trở về vị trí góc ban đầu
+  const handleResetToDefault = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setPosition(null);
+  };
+
+  // Tự động căn chỉnh lại nếu màn hình thay đổi kích thước
+  useEffect(() => {
+    const handleResize = () => {
+      setPosition((prev) => {
+        if (!prev) return null;
+        const el = containerRef.current;
+        const width = el?.offsetWidth || 150;
+        const height = el?.offsetHeight || 50;
+        const newX = Math.max(12, Math.min(window.innerWidth - width - 12, prev.x));
+        const newY = Math.max(12, Math.min(window.innerHeight - height - 12, prev.y));
+        return { x: newX, y: newY };
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Xử lý kéo thả tự do con AI khắp màn hình (hỗ trợ cả chuột và cảm ứng)
+  const handleDragStart = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+    if (clientX === undefined || clientY === undefined) return;
+
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+
+    dragInfoRef.current = {
+      isDown: true,
+      startX: clientX,
+      startY: clientY,
+      elemStartX: rect.left,
+      elemStartY: rect.top,
+      hasMoved: false,
+    };
+
+    const onMove = (moveEvt) => {
+      if (!dragInfoRef.current.isDown) return;
+      const curX = moveEvt.clientX ?? moveEvt.touches?.[0]?.clientX;
+      const curY = moveEvt.clientY ?? moveEvt.touches?.[0]?.clientY;
+      if (curX === undefined || curY === undefined) return;
+
+      const dx = curX - dragInfoRef.current.startX;
+      const dy = curY - dragInfoRef.current.startY;
+
+      if (!dragInfoRef.current.hasMoved && Math.hypot(dx, dy) > 4) {
+        dragInfoRef.current.hasMoved = true;
+        setIsDragging(true);
+      }
+
+      if (dragInfoRef.current.hasMoved) {
+        if (moveEvt.cancelable) moveEvt.preventDefault();
+        const width = el.offsetWidth || 150;
+        const height = el.offsetHeight || 50;
+
+        const clampedX = Math.max(12, Math.min(window.innerWidth - width - 12, dragInfoRef.current.elemStartX + dx));
+        const clampedY = Math.max(12, Math.min(window.innerHeight - height - 12, dragInfoRef.current.elemStartY + dy));
+
+        setPosition({ x: clampedX, y: clampedY });
+      }
+    };
+
+    const onUp = () => {
+      dragInfoRef.current.isDown = false;
+      if (dragInfoRef.current.hasMoved) {
+        justDraggedRef.current = true;
+        setTimeout(() => {
+          justDraggedRef.current = false;
+        }, 150);
+      }
+      setIsDragging(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+  };
+
+  const getContainerStyle = () => {
+    if (!position) return undefined;
+    if (!isOpen) {
+      return {
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        right: 'auto',
+        bottom: 'auto',
+      };
+    }
+    const chatWidth = typeof window !== 'undefined' && window.innerWidth < 640 ? 360 : 420;
+    const chatHeight = isMinimized ? 64 : typeof window !== 'undefined' && window.innerWidth < 640 ? 580 : 630;
+
+    let left = position.x;
+    if (left + chatWidth > window.innerWidth - 12) {
+      left = Math.max(12, window.innerWidth - chatWidth - 12);
+    }
+    if (left < 12) left = 12;
+
+    let top = position.y;
+    if (top + chatHeight > window.innerHeight - 12) {
+      top = Math.max(12, window.innerHeight - chatHeight - 12);
+    }
+    if (top < 12) top = 12;
+
+    return {
+      left: `${left}px`,
+      top: `${top}px`,
+      right: 'auto',
+      bottom: 'auto',
+    };
+  };
+
   const [botConfig, setBotConfig] = useState({
     botName: "Trợ lý AI D'AVENOR",
     botVersion: 'Concierge v3.0',
@@ -329,71 +470,91 @@ const ChatWidget = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 select-none">
+    <div
+      ref={containerRef}
+      style={getContainerStyle()}
+      className={`fixed z-50 select-none ${!position ? 'bottom-6 right-6' : ''} ${
+        isDragging ? 'transition-none' : 'transition-all duration-300 ease-out'
+      }`}
+    >
       {/* 1. NÚT TRÒ CHUYỆN NỔI (KHI ĐANG ĐÓNG) */}
       {!isOpen && (
         <button
           type="button"
           data-chat-toggle="true"
+          onMouseDown={handleDragStart}
+          onTouchStart={handleDragStart}
+          onDoubleClick={handleResetToDefault}
           onClick={() => {
+            if (justDraggedRef.current) return;
             setIsOpen(true);
             setIsMinimized(false);
           }}
-          className="bg-[#121929]/95 hover:bg-[#1a253f] border border-blue-500/40 text-white rounded-full pl-2 pr-4 py-2 shadow-[0_0_25px_rgba(37,99,235,0.35)] flex items-center space-x-2.5 transition-all hover:scale-105 group backdrop-blur-xl cursor-pointer"
-          title="Trò chuyện cùng Trợ lý AI D'AVENOR CINEMA"
+          className={`bg-[#11152F]/95 hover:bg-[#20204B] border border-[#AA9BFF]/40 text-[#F8F7FF] rounded-full pl-2 pr-4 py-2 shadow-[0_0_20px_rgba(66,223,255,0.35)] flex items-center space-x-2.5 backdrop-blur-xl ${
+            isDragging
+              ? 'cursor-grabbing scale-105 shadow-[0_0_30px_rgba(168,85,247,0.6)] ring-2 ring-[#42DFFF]/60'
+              : 'cursor-grab hover:scale-105 transition-all'
+          } group`}
+          title="Kéo thả để di chuyển • Bấm để trò chuyện • Nhấp đúp để về góc cũ"
         >
-          <div className="relative w-8 h-8 rounded-full bg-[#2563eb] text-white flex items-center justify-center text-sm font-bold shadow-md group-hover:scale-110 transition-transform">
+          <div className="relative w-8 h-8 rounded-full bg-gradient-to-r from-[#42DFFF] to-[#A855F7] text-[#0B1026] flex items-center justify-center text-sm font-bold shadow-md group-hover:scale-110 transition-transform">
             <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z" />
+              <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5z" />
             </svg>
-            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#121929] animate-pulse"></span>
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#11152F] animate-pulse"></span>
           </div>
           <div className="text-left">
-            <span className="text-xs font-black text-white tracking-wide block">
+            <span className="text-xs font-black text-[#F8F7FF] tracking-wide block">
               Trợ lý AI
             </span>
-            <span className="text-[10px] text-emerald-400 font-semibold block leading-none">
+            <span className="text-[10px] text-[#42DFFF] font-semibold block leading-none">
               Trực tuyến
             </span>
           </div>
         </button>
       )}
 
-      {/* 2. CỬA SỔ CHATBOX ĐỈNH CAO (CHUẨN 100% THEO ẢNH MẪU) */}
+      {/* 2. CỬA SỔ CHATBOX ĐỈNH CAO */}
       {isOpen && (
         <div
-          className={`w-[360px] sm:w-[420px] bg-[#0c111d]/98 backdrop-blur-2xl border border-slate-700/80 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden transition-all duration-300 ${isMinimized ? 'h-[64px]' : 'h-[580px] sm:h-[630px]'
+          className={`w-[360px] sm:w-[420px] bg-[#0B1026]/98 backdrop-blur-2xl border border-[#AA9BFF]/30 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.85),0_0_25px_rgba(66,223,255,0.15)] flex flex-col overflow-hidden transition-all duration-300 ${isMinimized ? 'h-[64px]' : 'h-[580px] sm:h-[630px]'
             }`}
         >
-          {/* HEADER CHATBOX */}
-          <div className="bg-[#121826] border-b border-slate-800/90 px-4 py-3.5 flex items-center justify-between text-white shadow-md">
+          {/* HEADER CHATBOX (Hỗ trợ kéo di chuyển cửa sổ & nhấp đúp để về chỗ cũ) */}
+          <div
+            onMouseDown={handleDragStart}
+            onTouchStart={handleDragStart}
+            onDoubleClick={handleResetToDefault}
+            className="bg-[#11152F] border-b border-[#AA9BFF]/20 px-4 py-3.5 flex items-center justify-between text-[#F8F7FF] shadow-md cursor-grab active:cursor-grabbing select-none"
+            title="Kéo thả thanh tiêu đề để di chuyển • Nhấp đúp để về chỗ cũ"
+          >
             {/* Cụm Avatar robot + Tiêu đề + Trạng thái */}
             <div className="flex items-center space-x-3">
-              <div className="relative w-9 h-9 rounded-2xl bg-[#1b253b] border border-blue-500/40 flex items-center justify-center text-base shadow-[0_0_15px_rgba(37,99,235,0.3)]">
-                <svg className="w-5 h-5 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+              <div className="relative w-9 h-9 rounded-2xl bg-[#20204B] border border-[#AA9BFF]/40 flex items-center justify-center text-base shadow-[0_0_15px_rgba(66,223,255,0.25)]">
+                <svg className="w-5 h-5 text-[#42DFFF]" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z" />
                 </svg>
-                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#121826]"></span>
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#11152F]"></span>
               </div>
 
               <div>
                 <div className="flex items-center space-x-1.5">
-                  <h4 className="font-extrabold text-sm text-white tracking-wide">
+                  <h4 className="font-extrabold text-sm text-[#F8F7FF] tracking-wide">
                     {botConfig.botName || "Trợ lý AI D'AVENOR"}
                   </h4>
-                  <span className="text-[10px] font-bold text-blue-400 bg-blue-500/15 border border-blue-500/30 px-1.5 py-0.2 rounded">
+                  <span className="text-[10px] font-bold text-[#83F5FF] bg-[#20204B] border border-[#AA9BFF]/30 px-1.5 py-0.2 rounded">
                     {botConfig.botVersion || 'Concierge v3.0'}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400 flex items-center space-x-1 mt-0.5">
+                <p className="text-[11px] text-[#BEC5E5] flex items-center space-x-1 mt-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
                   <span>Trực tuyến • Đồng bộ Database Đà Nẵng</span>
                 </p>
               </div>
             </div>
 
-            {/* Cụm 3 nút điều khiển góc phải: Reset, Minimize, Close */}
-            <div className="flex items-center space-x-1 text-slate-400">
+            {/* Cụm nút điều khiển góc phải: Làm mới chat, Thu nhỏ & về góc cũ, Đóng */}
+            <div className="flex items-center space-x-1 text-slate-400" onMouseDown={(e) => e.stopPropagation()}>
               <button
                 type="button"
                 onClick={handleResetChat}
@@ -407,9 +568,13 @@ const ChatWidget = () => {
 
               <button
                 type="button"
-                onClick={() => setIsMinimized(!isMinimized)}
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsMinimized(false);
+                  handleResetToDefault();
+                }}
                 className="p-1.5 hover:bg-slate-800 rounded-lg hover:text-white transition-colors cursor-pointer"
-                title={isMinimized ? 'Mở rộng' : 'Thu nhỏ'}
+                title="Thu nhỏ & trở về vị trí góc ban đầu"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="5" y1="12" x2="19" y2="12" />
@@ -418,7 +583,11 @@ const ChatWidget = () => {
 
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsMinimized(false);
+                  handleResetToDefault();
+                }}
                 className="p-1.5 hover:bg-red-500/20 rounded-lg hover:text-red-400 transition-colors cursor-pointer"
                 title="Đóng cửa sổ chat"
               >
@@ -434,10 +603,10 @@ const ChatWidget = () => {
           {!isMinimized && (
             <>
               {/* VÙNG DANH SÁCH TIN NHẮN */}
-              <div ref={messagesContainerRef} className="flex-1 p-4 overflow-y-auto space-y-4 bg-[#080d19] scroll-smooth">
+              <div ref={messagesContainerRef} className="flex-1 p-4 overflow-y-auto space-y-4 bg-[#0B1026] scroll-smooth">
                 {/* Mốc thời gian trung tâm */}
                 <div className="text-center">
-                  <span className="text-[11px] font-medium text-slate-500 bg-[#0d1322] px-3 py-1 rounded-full border border-slate-800/80">
+                  <span className="text-[11px] font-medium text-[#BEC5E5] bg-[#11152F] px-3 py-1 rounded-full border border-[#AA9BFF]/20">
                     Hôm nay, 18:42
                   </span>
                 </div>
@@ -450,8 +619,8 @@ const ChatWidget = () => {
                   >
                     {/* Avatar bot bên trái */}
                     {msg.sender === 'bot' && (
-                      <div className="w-7 h-7 rounded-xl bg-[#172238] border border-blue-500/30 text-blue-400 flex items-center justify-center text-xs shrink-0 shadow-sm mt-0.5">
-                        <svg className="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                      <div className="w-7 h-7 rounded-xl bg-[#20204B] border border-[#AA9BFF]/40 text-[#42DFFF] flex items-center justify-center text-xs shrink-0 shadow-sm mt-0.5">
+                        <svg className="w-4 h-4 text-[#42DFFF]" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2M7.5 13A2.5 2.5 0 0 0 5 15.5 2.5 2.5 0 0 0 7.5 18a2.5 2.5 0 0 0 2.5-2.5A2.5 2.5 0 0 0 7.5 13m9 0a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z" />
                         </svg>
                       </div>
@@ -471,8 +640,8 @@ const ChatWidget = () => {
                         <div className="max-w-[85%]">
                           <div
                             className={`p-3.5 shadow-md ${msg.sender === 'user'
-                                ? 'bg-[#2563eb] text-white rounded-2xl rounded-tr-xs shadow-blue-900/30 font-medium'
-                                : 'bg-[#131b2c] border border-slate-800/90 text-slate-200 rounded-2xl rounded-tl-xs'
+                                ? 'bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] rounded-2xl rounded-tr-xs shadow-[0_0_16px_rgba(168,85,247,0.35)] font-bold'
+                                : 'bg-[#11152F] border border-[#AA9BFF]/20 text-[#F8F7FF] rounded-2xl rounded-tl-xs'
                               }`}
                           >
                             {/* Header huy hiệu gợi ý xanh lá phù hợp ngữ cảnh */}
@@ -512,7 +681,7 @@ const ChatWidget = () => {
                                   return (
                                     <div
                                       key={`${card.movieId || card.title}-${cIdx}`}
-                                      className="bg-[#0c1220] border border-slate-700/80 hover:border-blue-500/60 rounded-xl p-2.5 transition-all"
+                                      className="bg-[#0B1026] border border-[#AA9BFF]/25 hover:border-[#42DFFF]/60 rounded-xl p-2.5 transition-all"
                                     >
                                       <div className="flex items-center justify-between gap-2.5">
                                         <div
@@ -533,25 +702,25 @@ const ChatWidget = () => {
                                           <img
                                             src={card.poster}
                                             alt={card.title}
-                                            className="w-10 h-14 rounded-lg object-cover border border-slate-700 shrink-0"
+                                            className="w-10 h-14 rounded-lg object-cover border border-[#AA9BFF]/25 shrink-0"
                                           />
                                           <div className="min-w-0 flex-1">
-                                            <span className="font-extrabold text-white text-xs block truncate group-hover:text-blue-400 transition-colors">
+                                            <span className="font-extrabold text-[#F8F7FF] text-xs block truncate group-hover:text-[#42DFFF] transition-colors">
                                               {card.title}
                                             </span>
                                             <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                               {card.ageRating && (
-                                                <span className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[9px] font-black text-slate-200">
+                                                <span className="px-1.5 py-0.5 rounded bg-[#20204B] border border-[#AA9BFF]/25 text-[9px] font-black text-[#F8F7FF]">
                                                   {card.ageRating}
                                                 </span>
                                               )}
-                                              <div className="inline-flex items-center space-x-0.5 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 rounded text-[10px] text-amber-400 font-bold">
+                                              <div className="inline-flex items-center space-x-0.5 bg-cyan-500/15 border border-[#42DFFF]/30 px-1.5 py-0.2 rounded text-[10px] text-[#42DFFF] font-bold">
                                                 <span>★</span>
                                                 <span>{card.rating}</span>
                                               </div>
                                             </div>
                                             {slots.length === 1 && (
-                                              <span className="text-[10px] text-slate-400 block truncate mt-1">
+                                              <span className="text-[10px] text-[#BEC5E5] block truncate mt-1">
                                                 {slots[0].time} • {slots[0].room}
                                               </span>
                                             )}
@@ -565,7 +734,7 @@ const ChatWidget = () => {
                                               navigate(`/movie/${card.movieId}`);
                                               setIsOpen(false);
                                             }}
-                                            className="shrink-0 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1.5 rounded-lg text-[10px] font-bold border border-slate-700 cursor-pointer transition-colors"
+                                            className="shrink-0 bg-[#20204B] hover:bg-[#25234D] text-[#F8F7FF] px-2 py-1.5 rounded-lg text-[10px] font-bold border border-[#AA9BFF]/25 cursor-pointer transition-colors"
                                             title="Xem chi tiết & tất cả suất chiếu của phim này"
                                           >
                                             Chi tiết
@@ -578,7 +747,7 @@ const ChatWidget = () => {
                                                 navigate(`/booking/seat/${card.showtimeId}`);
                                                 setIsOpen(false);
                                               }}
-                                              className="shrink-0 bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-lg text-xs font-bold shadow transition-transform hover:scale-105 cursor-pointer"
+                                              className="shrink-0 bg-gradient-to-r from-[#A855F7] to-[#42DFFF] text-[#0B1026] p-2 rounded-lg text-xs font-bold shadow transition-transform hover:scale-105 cursor-pointer"
                                             >
                                               ➔
                                             </button>
@@ -588,7 +757,7 @@ const ChatWidget = () => {
 
                                       {/* Các nút suất chiếu bấm đặt vé trực tiếp */}
                                       {slots.length > 0 && (
-                                        <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-slate-800/80">
+                                        <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-[#AA9BFF]/20">
                                           {slots.map((slot) => (
                                             <button
                                               key={slot.showtimeId}
@@ -597,7 +766,7 @@ const ChatWidget = () => {
                                                 navigate(`/booking/seat/${slot.showtimeId}`);
                                                 setIsOpen(false);
                                               }}
-                                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold rounded-lg shadow-sm transition-all hover:scale-[1.02] cursor-pointer"
+                                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] text-[10px] font-black rounded-lg shadow-sm transition-all hover:scale-[1.02] cursor-pointer"
                                               title={`Đặt vé ${card.title} lúc ${slot.time}`}
                                             >
                                               <span>
@@ -619,11 +788,11 @@ const ChatWidget = () => {
 
                           {/* Thời gian & Trạng thái đã xem */}
                           <div
-                            className={`flex items-center space-x-1 mt-1 text-[10px] text-slate-500 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'
+                            className={`flex items-center space-x-1 mt-1 text-[10px] text-[#929ABD] ${msg.sender === 'user' ? 'justify-end' : 'justify-start'
                               }`}
                           >
                             {msg.sender === 'user' && (
-                              <span className="text-blue-400 font-bold">✔✔</span>
+                              <span className="text-[#42DFFF] font-bold">✔✔</span>
                             )}
                             <span>{msg.time}</span>
                           </div>
@@ -633,7 +802,7 @@ const ChatWidget = () => {
 
                     {/* Avatar user bên phải */}
                     {msg.sender === 'user' && (
-                      <div className="w-7 h-7 rounded-full bg-blue-500/20 border border-blue-400/40 text-blue-300 flex items-center justify-center text-xs shrink-0 shadow-sm mt-0.5">
+                      <div className="w-7 h-7 rounded-full bg-[#A855F7]/20 border border-[#A855F7]/40 text-[#F4A5FF] flex items-center justify-center text-xs shrink-0 shadow-sm mt-0.5">
                         👤
                       </div>
                     )}
@@ -643,14 +812,14 @@ const ChatWidget = () => {
                 {/* Trạng thái đang gõ Loading */}
                 {loading && (
                   <div className="flex items-start gap-2.5">
-                    <div className="w-7 h-7 rounded-xl bg-[#172238] border border-blue-500/30 text-blue-400 flex items-center justify-center text-xs shrink-0 shadow-sm">
+                    <div className="w-7 h-7 rounded-xl bg-[#20204B] border border-[#42DFFF]/40 text-[#42DFFF] flex items-center justify-center text-xs shrink-0 shadow-sm">
                       🤖
                     </div>
-                    <div className="bg-[#131b2c] border border-slate-800 rounded-2xl rounded-tl-xs px-4 py-3 text-slate-400 text-xs flex items-center space-x-2">
-                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce"></span>
-                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce [animation-delay:0.2s]"></span>
-                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce [animation-delay:0.4s]"></span>
-                      <span className="text-[11px] text-slate-300 font-medium pl-1">
+                    <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-2xl rounded-tl-xs px-4 py-3 text-[#BEC5E5] text-xs flex items-center space-x-2">
+                      <span className="w-2 h-2 rounded-full bg-[#42DFFF] animate-bounce"></span>
+                      <span className="w-2 h-2 rounded-full bg-[#A855F7] animate-bounce [animation-delay:0.2s]"></span>
+                      <span className="w-2 h-2 rounded-full bg-[#F4A5FF] animate-bounce [animation-delay:0.4s]"></span>
+                      <span className="text-[11px] text-[#BEC5E5] font-medium pl-1">
                         AI đang tra cứu dữ liệu thời gian thực...
                       </span>
                     </div>
@@ -666,14 +835,14 @@ const ChatWidget = () => {
                     e.currentTarget.scrollLeft += e.deltaY;
                   }
                 }}
-                className="px-3 pt-2 pb-2 bg-[#0c1220] border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto scrollbar-sleek-x scroll-smooth"
+                className="px-3 pt-2 pb-2 bg-[#0B1026] border-t border-[#AA9BFF]/20 flex items-center gap-2 overflow-x-auto scrollbar-sleek-x scroll-smooth"
               >
                 {quickChips.map((chip, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => handleChipClick(chip.query)}
-                    className="shrink-0 bg-[#141b2c] hover:bg-[#1f2b45] border border-slate-700/70 hover:border-blue-500/60 text-slate-300 hover:text-white text-[11px] font-semibold px-3 py-1 rounded-full transition-all cursor-pointer whitespace-nowrap shadow-sm hover:scale-[1.02]"
+                    className="shrink-0 bg-[#11152F] hover:bg-[#20204B] border border-[#AA9BFF]/25 hover:border-[#42DFFF]/60 text-[#BEC5E5] hover:text-[#F8F7FF] text-[11px] font-semibold px-3 py-1 rounded-full transition-all cursor-pointer whitespace-nowrap shadow-sm hover:scale-[1.02]"
                   >
                     {chip.label}
                   </button>
@@ -681,16 +850,16 @@ const ChatWidget = () => {
               </div>
 
               {/* KHU VỰC NHẬP TIN NHẮN (INPUT BOX) */}
-              <div className="p-3 bg-[#0f1524] border-t border-slate-800/80">
+              <div className="p-3 bg-[#11152F] border-t border-[#AA9BFF]/20">
                 <form
                   onSubmit={handleSend}
-                  className="bg-[#151e30] border border-slate-700/80 rounded-2xl flex items-center px-3 py-1.5 focus-within:border-blue-500 focus-within:shadow-[0_0_15px_rgba(37,99,235,0.25)] transition-all"
+                  className="bg-[#0B1026] border border-[#AA9BFF]/30 rounded-2xl flex items-center px-3 py-1.5 focus-within:border-[#42DFFF] focus-within:shadow-[0_0_15px_rgba(66,223,255,0.25)] transition-all"
                 >
                   {/* Nút cộng tác vụ bổ sung (+) */}
                   <button
                     type="button"
                     onClick={() => setInput('Gợi ý cho tôi các ghế VIP đẹp nhất phòng chiếu IMAX')}
-                    className="w-6 h-6 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 flex items-center justify-center text-sm font-bold mr-2 transition-colors cursor-pointer"
+                    className="w-6 h-6 rounded-lg text-[#BEC5E5] hover:text-[#F8F7FF] hover:bg-[#20204B] flex items-center justify-center text-sm font-bold mr-2 transition-colors cursor-pointer"
                     title="Gợi ý câu hỏi"
                   >
                     ⊕
@@ -703,7 +872,7 @@ const ChatWidget = () => {
                     placeholder="Đặt trước 2 vé ghế F6 F7 luôn nhé!..."
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    className="flex-1 bg-transparent text-xs sm:text-[13px] text-white placeholder-slate-500 focus:outline-none"
+                    className="flex-1 bg-transparent text-xs sm:text-[13px] text-[#F8F7FF] placeholder-[#BEC5E5]/50 focus:outline-none"
                   />
 
                   {/* Nút Mic thu âm */}
@@ -712,7 +881,7 @@ const ChatWidget = () => {
                     onClick={handleToggleVoice}
                     className={`p-1.5 rounded-lg transition-colors cursor-pointer mr-1.5 ${isListening
                         ? 'text-red-400 bg-red-500/20 animate-pulse'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                        : 'text-[#BEC5E5] hover:text-[#F8F7FF] hover:bg-[#20204B]'
                       }`}
                     title="Nhập bằng giọng nói"
                   >
@@ -724,25 +893,25 @@ const ChatWidget = () => {
                     </svg>
                   </button>
 
-                  {/* Nút Gửi xanh lam Paper Plane */}
+                  {/* Nút Gửi Paper Plane */}
                   <button
                     type="submit"
                     disabled={loading || !input.trim()}
-                    className={`w-8 h-8 rounded-xl bg-[#2563eb] text-white flex items-center justify-center transition-all shadow-md shadow-blue-600/30 shrink-0 ${loading || !input.trim()
+                    className={`w-8 h-8 rounded-xl bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] flex items-center justify-center transition-all shadow-md shadow-purple-500/25 shrink-0 ${loading || !input.trim()
                         ? 'opacity-40 cursor-not-allowed'
-                        : 'hover:bg-blue-500 hover:scale-105 cursor-pointer'
+                        : 'hover:brightness-110 hover:scale-105 cursor-pointer'
                       }`}
                     title="Gửi tin nhắn"
                   >
-                    <svg className="w-4 h-4 text-white -rotate-45 ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                    <svg className="w-4 h-4 text-[#0B1026] -rotate-45 ml-0.5" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                     </svg>
                   </button>
                 </form>
 
                 {/* Footer chú thích dưới ô nhập */}
-                <div className="flex items-center justify-between text-[10px] pt-2 px-1 text-slate-500">
-                  <div className="flex items-center space-x-1 text-emerald-400/90 font-medium">
+                <div className="flex items-center justify-between text-[10px] pt-2 px-1 text-[#929ABD]">
+                  <div className="flex items-center space-x-1 text-[#42DFFF] font-medium">
                     <span>⚡</span>
                     <span>Trả lời tức thì qua AI DeepSearch</span>
                   </div>

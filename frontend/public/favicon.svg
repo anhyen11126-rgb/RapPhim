@@ -1,33 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <defs>
-    <linearGradient id="crownGold" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FFF2B2" />
-      <stop offset="35%" stop-color="#E6BA47" />
-      <stop offset="70%" stop-color="#B8861E" />
-      <stop offset="100%" stop-color="#7B540E" />
+    <linearGradient id="crownViolet" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F4A5FF" />
+      <stop offset="35%" stop-color="#C084FC" />
+      <stop offset="70%" stop-color="#A855F7" />
+      <stop offset="100%" stop-color="#7C3AED" />
     </linearGradient>
     <linearGradient id="jewelGlow" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#FFFFFF" />
-      <stop offset="50%" stop-color="#FFE680" />
-      <stop offset="100%" stop-color="#C69214" />
+      <stop offset="50%" stop-color="#83F5FF" />
+      <stop offset="100%" stop-color="#42DFFF" />
     </linearGradient>
-    <filter id="goldShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#D4AF37" flood-opacity="0.4" />
+    <filter id="violetShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#A855F7" flood-opacity="0.5" />
     </filter>
   </defs>
 
-  <g filter="url(#goldShadow)">
+  <g filter="url(#violetShadow)">
     <!-- Central Cross -->
-    <path d="M32 6v8M28 10h8" stroke="url(#crownGold)" stroke-width="2.2" stroke-linecap="round" />
+    <path d="M32 6v8M28 10h8" stroke="url(#crownViolet)" stroke-width="2.2" stroke-linecap="round" />
 
     <!-- Crown Body: 5 peaks -->
-    <path d="M12 44 L16 23 L25 31 L32 14 L39 31 L48 23 L52 44 Z" fill="url(#crownGold)" />
+    <path d="M12 44 L16 23 L25 31 L32 14 L39 31 L48 23 L52 44 Z" fill="url(#crownViolet)" />
 
     <!-- Crown Base Band -->
-    <path d="M10 44 Q32 49 54 44 L54 50 Q32 55 10 50 Z" fill="url(#crownGold)" />
+    <path d="M10 44 Q32 49 54 44 L54 50 Q32 55 10 50 Z" fill="url(#crownViolet)" />
 
     <!-- Arch Cutouts inside crown -->
-    <path d="M16 42 Q23 37 32 41 Q41 37 48 42 Z" fill="#0A0E17" opacity="0.65" />
+    <path d="M16 42 Q23 37 32 41 Q41 37 48 42 Z" fill="#0B1026" opacity="0.65" />
 
     <!-- Peak Jewels (Pearls) -->
     <circle cx="16" cy="22" r="2.2" fill="url(#jewelGlow)" />

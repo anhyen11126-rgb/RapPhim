@@ -396,6 +396,16 @@ const MovieDetailPage = () => {
       cinemaName: displayCinema.name,
       format: formatName,
       startTime: selectedDate?.fullDate,
+      movie: {
+        id: movie?.id || movie?._id,
+        _id: movie?._id || movie?.id,
+        title: movie?.title,
+        ageRating: movie?.ageRating,
+        duration: movie?.duration,
+        poster: movie?.poster || movie?.posterUrl,
+        genre: movie?.genre,
+        slug: movie?.slug,
+      },
     };
     setSelectedShowtime(slotData);
     if (directToSeat) {
@@ -407,7 +417,7 @@ const MovieDetailPage = () => {
   };
 
   return (
-    <div className="bg-[#090d16] text-slate-100 min-h-screen pb-28 select-none">
+    <div className="bg-[#0B1026] text-[#F8F7FF] min-h-screen pb-28 select-none">
       {/* 1. HERO TRAILER SECTION (THEATRICAL AMBIENT BANNER & MODAL) */}
       <MovieHeroTrailer
         movie={movie}

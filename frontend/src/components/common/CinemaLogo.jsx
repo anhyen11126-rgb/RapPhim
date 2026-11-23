@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * Logo D'AVENOR CINEMA: Vương miện hoàng gia vàng & Chữ D'AVENOR CINEMA
+ * Logo D'AVENOR CINEMA: Vương miện tím hoàng gia & Chữ D'AVENOR CINEMA xanh neon Holographic
  * Chuẩn nhận diện thương hiệu sang trọng, không có viền khung / hộp bao quanh.
  */
 const CinemaLogo = ({
@@ -15,7 +15,7 @@ const CinemaLogo = ({
       <img
         src="/Logo.png"
         alt="D'AVENOR CINEMA"
-        className={`${className} object-contain drop-shadow-[0_2px_12px_rgba(212,175,55,0.35)] group-hover:scale-105 transition-transform duration-300 block`}
+        className={`${className} object-contain drop-shadow-[0_2px_14px_rgba(66,223,255,0.4)] group-hover:scale-105 transition-transform duration-300 block`}
       />
       {showText && (
         <div className="flex flex-col justify-center leading-tight">

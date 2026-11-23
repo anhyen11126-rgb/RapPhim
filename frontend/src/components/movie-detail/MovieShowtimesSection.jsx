@@ -629,36 +629,36 @@ const MovieShowtimesSection = ({
         </div>
 
         {/* THANH GỢI Ý & ĐẶT VÉ NHANH BÊN TRONG BẢNG */}
-        <div className="bg-gradient-to-r from-[#141d33] via-[#101728] to-[#141d33] border-2 border-blue-500/40 rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row items-center justify-between gap-5 shadow-2xl">
+        <div className="bg-gradient-to-r from-[#20204B] via-[#11152F] to-[#20204B] border-2 border-[#42DFFF]/40 rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row items-center justify-between gap-5 shadow-[0_0_25px_rgba(66,223,255,0.15)]">
           <div className="flex items-center space-x-4 w-full md:w-auto">
-            <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-2xl text-blue-400 shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-[#20204B] border border-[#AA9BFF]/40 flex items-center justify-center text-2xl text-[#42DFFF] shrink-0">
               🎟️
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-black uppercase text-blue-400 tracking-wider">Suất chiếu đang chọn</span>
+                <span className="text-xs font-black uppercase text-[#42DFFF] tracking-wider">Suất chiếu đang chọn</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
               </div>
-              <h4 className="text-sm sm:text-base font-black text-white mt-0.5">
+              <h4 className="text-sm sm:text-base font-black text-[#F8F7FF] mt-0.5">
                 {currentActiveShowtime?.time || '19:15'} ({selectedDate?.tag} {selectedDate?.dateStr}) • {currentActiveShowtime?.format || 'IMAX Laser 2D'}
               </h4>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-[#BEC5E5] mt-1">
                 {displayCinema?.name} • {currentActiveShowtime?.roomName || 'Phòng IMAX 01'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center justify-between md:justify-end space-x-5 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0 border-slate-800">
+          <div className="flex items-center justify-between md:justify-end space-x-5 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0 border-[#AA9BFF]/20">
             <div className="text-left md:text-right">
-              <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Giá vé dự kiến:</span>
-              <span className="text-xl sm:text-2xl font-black text-amber-400">
+              <span className="text-[10px] text-[#BEC5E5] block uppercase font-bold tracking-wider">Giá vé dự kiến:</span>
+              <span className="text-xl sm:text-2xl font-black text-[#42DFFF]">
                 {(calculateDynamicPrices({ ...currentActiveShowtime, startTime: selectedDate?.fullDate }, pricingConfig).priceStandard).toLocaleString('vi-VN')} đ
               </span>
             </div>
             <button
               type="button"
               onClick={onProceedToBooking}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black px-7 py-3.5 rounded-2xl text-sm flex items-center space-x-2.5 transition-all shadow-xl shadow-blue-600/30 hover:scale-105 active:scale-95 cursor-pointer shrink-0"
+              className="bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] font-black px-7 py-3.5 rounded-2xl text-sm flex items-center space-x-2.5 transition-all shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:brightness-108 hover:scale-105 active:scale-95 cursor-pointer shrink-0"
             >
               <span>Tiếp Tục Chọn Ghế</span>
               <span className="text-lg">→</span>

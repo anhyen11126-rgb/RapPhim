@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 // Biểu tượng Cành Nguyệt Quế Hoàng Gia sang trọng (Laurel Wreath)
 const LaurelLeft = () => (
   <svg
-    className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400/95 inline-block drop-shadow-[0_0_10px_rgba(251,191,36,0.7)]"
+    className="w-6 h-6 sm:w-8 sm:h-8 text-[#42DFFF]/95 inline-block drop-shadow-[0_0_10px_rgba(66,223,255,0.7)]"
     viewBox="0 0 32 32"
     fill="currentColor"
   >
@@ -15,7 +15,7 @@ const LaurelLeft = () => (
 
 const LaurelRight = () => (
   <svg
-    className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400/95 inline-block -scale-x-100 drop-shadow-[0_0_10px_rgba(251,191,36,0.7)]"
+    className="w-6 h-6 sm:w-8 sm:h-8 text-[#42DFFF]/95 inline-block -scale-x-100 drop-shadow-[0_0_10px_rgba(66,223,255,0.7)]"
     viewBox="0 0 32 32"
     fill="currentColor"
   >
@@ -86,7 +86,6 @@ const HomeMovieTabs = ({ moviesList }) => {
   const isDragMoved = useRef(false);
   const isAutoScrollingRef = useRef(false);
   const autoScrollTimerRef = useRef(null);
-  const isWheelLockedRef = useRef(false);
   const initialPositionedRef = useRef(false);
 
   const nowShowingMovies = moviesList.filter((m) => m.status === 'NOW_SHOWING');
@@ -112,112 +111,150 @@ const HomeMovieTabs = ({ moviesList }) => {
     ];
   }, [all15ComingSoonMovies]);
 
-  // Khử hoàn toàn lỗi lướt nhanh: Chỉ reset biên khi đã cuộn qua hẳn chu kỳ ngoài và thực hiện tức thời 0ms
-  const checkBoundaryReset = (targetIdx) => {
-    if (isDragging) return;
-    const container = reelScrollRef.current;
-    if (!container || all15ComingSoonMovies.length === 0) return;
-
-    const idx = typeof targetIdx === 'number' ? targetIdx : comingSoonVirtualIndex;
-
-    // Khi đã vượt quá Set 1 (từ index 30 trở đi)
-    if (idx >= 30) {
-      const normalizedIdx = (idx % 15) + 15;
-      const currentCard = cardRefs.current[idx];
-      const normalizedCard = cardRefs.current[normalizedIdx];
-      if (currentCard && normalizedCard) {
-        const shift = normalizedCard.offsetLeft - currentCard.offsetLeft;
-        container.scrollLeft += shift;
-        setComingSoonVirtualIndex(normalizedIdx);
-      }
-    }
-    // Khi đã lùi quá Set 1 (nhỏ hơn index 15)
-    else if (idx < 15) {
-      const normalizedIdx = (idx % 15) + 15;
-      const currentCard = cardRefs.current[idx];
-      const normalizedCard = cardRefs.current[normalizedIdx];
-      if (currentCard && normalizedCard) {
-        const shift = normalizedCard.offsetLeft - currentCard.offsetLeft;
-        container.scrollLeft += shift;
-        setComingSoonVirtualIndex(normalizedIdx);
-      }
-    }
-  };
-
-  // Mượt mà đưa bộ phim mục tiêu về CHÍNH GIỮA sân khấu
+  // Đưa bộ phim mục tiêu về CHÍNH GIỮA màn hình chuẩn xác theo toạ độ thực tế trên mọi độ phân giải và khi phóng to
   const scrollToMovie = (virtualIdx, smooth = true) => {
     if (virtualIdx < 0 || virtualIdx >= loopedMovies.length) return;
     setComingSoonVirtualIndex(virtualIdx);
     const container = reelScrollRef.current;
     const card = cardRefs.current[virtualIdx];
     if (container && card) {
-      const containerWidth = container.clientWidth;
-      const cardLeft = card.offsetLeft;
-      const cardWidth = card.offsetWidth;
-      const targetScroll = cardLeft - containerWidth / 2 + cardWidth / 2;
+      const containerRect = container.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const containerCenter = containerRect.left + containerRect.width / 2;
+      const cardCenter = cardRect.left + cardRect.width / 2;
+      const diff = cardCenter - containerCenter;
 
-      isAutoScrollingRef.current = true;
-      if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
+      if (Math.abs(diff) > 1) {
+        isAutoScrollingRef.current = true;
+        if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
 
-      container.scrollTo({
-        left: Math.max(0, targetScroll),
-        behavior: smooth ? 'smooth' : 'auto',
-      });
+        container.scrollBy({
+          left: diff,
+          behavior: smooth ? 'smooth' : 'auto',
+        });
 
-      // Sau khi cuộn mượt mà hoàn tất, kiểm tra reset chu kỳ êm ái
-      autoScrollTimerRef.current = setTimeout(() => {
-        isAutoScrollingRef.current = false;
-        checkBoundaryReset(virtualIdx);
-      }, smooth ? 400 : 20);
+        autoScrollTimerRef.current = setTimeout(() => {
+          isAutoScrollingRef.current = false;
+          checkBoundaryReset();
+        }, smooth ? 450 : 20);
+      }
     }
   };
 
-  // Đặt vị trí ban đầu tĩnh 1 lần duy nhất khi mở tab
+  // Căn giữa tĩnh bộ phim ban đầu khi mở tab hoặc tải dữ liệu
   useEffect(() => {
-    if (activeTab === 'COMING_SOON' && reelScrollRef.current && !initialPositionedRef.current) {
-      const container = reelScrollRef.current;
-      const middleCard = cardRefs.current[15];
-      if (container && middleCard) {
-        initialPositionedRef.current = true;
-        const target = middleCard.offsetLeft - container.clientWidth / 2 + middleCard.offsetWidth / 2;
-        container.scrollLeft = Math.max(0, target);
-      }
+    if (activeTab === 'COMING_SOON' && reelScrollRef.current) {
+      const timer = setTimeout(() => {
+        const container = reelScrollRef.current;
+        const targetIdx = comingSoonVirtualIndex || 15;
+        const card = cardRefs.current[targetIdx];
+        if (container && card) {
+          const containerRect = container.getBoundingClientRect();
+          const cardRect = card.getBoundingClientRect();
+          const diff = (cardRect.left + cardRect.width / 2) - (containerRect.left + containerRect.width / 2);
+          if (Math.abs(diff) > 2) {
+            container.scrollLeft += diff;
+          }
+        }
+      }, 60);
+      return () => clearTimeout(timer);
     }
-  }, [activeTab]);
+  }, [activeTab, all15ComingSoonMovies.length]);
 
-  // TÍNH NĂNG ĐƯỢC YÊU CẦU: Lăn 1 khấc con chuột là cuộn ngay đến bộ phim tiếp theo nằm CHÍNH GIỮA hoàn hảo
+  // Tự động căn đối chính giữa khi người dùng phóng to/thu nhỏ màn hình hoặc đổi kích thước cửa sổ
+  useEffect(() => {
+    const handleResize = () => {
+      const container = reelScrollRef.current;
+      const card = cardRefs.current[comingSoonVirtualIndex];
+      if (container && card) {
+        const containerRect = container.getBoundingClientRect();
+        const cardRect = card.getBoundingClientRect();
+        const diff = (cardRect.left + cardRect.width / 2) - (containerRect.left + containerRect.width / 2);
+        if (Math.abs(diff) > 2) {
+          container.scrollLeft += diff;
+        }
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [comingSoonVirtualIndex]);
+
+  // Khử hoàn toàn lỗi lướt nhanh: Chỉ reset biên cực xa và thực hiện tức thời 0ms, không animation
+  const checkBoundaryReset = () => {
+    if (isDragging || isAutoScrollingRef.current) return;
+    const container = reelScrollRef.current;
+    if (!container || all15ComingSoonMovies.length === 0) return;
+
+    const card0 = cardRefs.current[0];
+    const card15 = cardRefs.current[15];
+    const card30 = cardRefs.current[30];
+    if (!card0 || !card15 || !card30) return;
+
+    const cycleWidth = card15.offsetLeft - card0.offsetLeft;
+    if (cycleWidth <= 0) return;
+
+    // Khi người dùng lướt qua Set 2 (từ card 30 trở đi)
+    if (container.scrollLeft >= card30.offsetLeft) {
+      container.scrollLeft -= cycleWidth;
+      setComingSoonVirtualIndex((prev) => Math.max(0, prev - 15));
+    }
+    // Khi người dùng lướt lùi qua Set 0 (trước card 15)
+    else if (container.scrollLeft <= card15.offsetLeft - container.clientWidth) {
+      container.scrollLeft += cycleWidth;
+      setComingSoonVirtualIndex((prev) => prev + 15);
+    }
+  };
+
+  // Hỗ trợ cuộn chuột lăn 1:1 tự nhiên, êm ái, tự động cân đối khi dừng lăn
   useEffect(() => {
     const el = reelScrollRef.current;
     if (!el || activeTab !== 'COMING_SOON') return;
 
+    let wheelDebounceTimer = null;
+
     const onWheel = (e) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        return;
+      }
+
       e.preventDefault();
+      // Cuộn 1:1 mượt mà theo đúng bước lăn chuột của người dùng
+      el.scrollLeft += e.deltaY;
 
-      // Nếu đang chuyển động giữa các nấc lăn, bỏ qua các xung thừa
-      if (isWheelLockedRef.current) return;
+      // Sau khi người dùng dừng lăn chuột 250ms, nhẹ nhàng đưa phim gần tâm nhất về chính giữa cho cân đối
+      if (wheelDebounceTimer) clearTimeout(wheelDebounceTimer);
+      wheelDebounceTimer = setTimeout(() => {
+        const container = reelScrollRef.current;
+        if (!container || isDragging) return;
+        const containerRect = container.getBoundingClientRect();
+        const containerCenter = containerRect.left + containerRect.width / 2;
+        let closestIdx = comingSoonVirtualIndex;
+        let minDistance = Infinity;
 
-      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-      if (Math.abs(delta) < 10) return;
+        cardRefs.current.forEach((card, idx) => {
+          if (!card) return;
+          const cardRect = card.getBoundingClientRect();
+          const cardCenter = cardRect.left + cardRect.width / 2;
+          const dist = Math.abs(containerCenter - cardCenter);
+          if (dist < minDistance) {
+            minDistance = dist;
+            closestIdx = idx;
+          }
+        });
 
-      isWheelLockedRef.current = true;
-
-      // Lăn xuống/phải -> Phim tiếp theo; Lăn lên/trái -> Phim trước đó
-      const step = delta > 0 ? 1 : -1;
-      const nextIndex = comingSoonVirtualIndex + step;
-
-      scrollToMovie(nextIndex, true);
-
-      // Khóa 320ms để mỗi lần lăn chuột chuyển đúng 1 phim vào chính giữa mượt mà
-      setTimeout(() => {
-        isWheelLockedRef.current = false;
-      }, 320);
+        scrollToMovie(closestIdx, true);
+      }, 250);
     };
 
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [activeTab, comingSoonVirtualIndex, loopedMovies.length]);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      if (wheelDebounceTimer) clearTimeout(wheelDebounceTimer);
+    };
+  }, [activeTab, comingSoonVirtualIndex, isDragging]);
 
-  // Xử lý kéo thả chuột: Khi thả tay ra, tự động căn chỉnh bộ phim gần nhất vào CHÍNH GIỮA
+  // Xử lý kéo thả chuột chuẩn 1:1 bám sát bàn tay người dùng, thả ra là dừng ngay
   const handleMouseDown = (e) => {
     if (!reelScrollRef.current) return;
     setIsDragging(true);
@@ -229,24 +266,30 @@ const HomeMovieTabs = ({ moviesList }) => {
   const handleMouseLeaveOrUp = () => {
     if (isDragging) {
       setIsDragging(false);
-      // Khi người dùng thả chuột: Trượt bộ phim gần tâm nhất vào ngay chính giữa
-      const container = reelScrollRef.current;
-      if (container) {
-        const centerPoint = container.scrollLeft + container.clientWidth / 2;
-        let closestIndex = comingSoonVirtualIndex;
-        let minDistance = Infinity;
+      checkBoundaryReset();
+      // Nếu người dùng vừa kéo chuột và buông tay: Căn nhẹ phim gần tâm nhất vào chính giữa cho cân đối
+      if (isDragMoved.current) {
+        isDragMoved.current = false;
+        const container = reelScrollRef.current;
+        if (container) {
+          const containerRect = container.getBoundingClientRect();
+          const containerCenter = containerRect.left + containerRect.width / 2;
+          let closestIdx = comingSoonVirtualIndex;
+          let minDistance = Infinity;
 
-        cardRefs.current.forEach((card, idx) => {
-          if (!card) return;
-          const cardCenter = card.offsetLeft + card.offsetWidth / 2;
-          const distance = Math.abs(centerPoint - cardCenter);
-          if (distance < minDistance) {
-            minDistance = distance;
-            closestIndex = idx;
-          }
-        });
+          cardRefs.current.forEach((card, idx) => {
+            if (!card) return;
+            const cardRect = card.getBoundingClientRect();
+            const cardCenter = cardRect.left + cardRect.width / 2;
+            const dist = Math.abs(containerCenter - cardCenter);
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestIdx = idx;
+            }
+          });
 
-        scrollToMovie(closestIndex, true);
+          scrollToMovie(closestIdx, true);
+        }
       }
     }
   };
@@ -262,19 +305,21 @@ const HomeMovieTabs = ({ moviesList }) => {
     reelScrollRef.current.scrollLeft = scrollLeftPos - walk;
   };
 
-  // Cập nhật chỉ số phim khi cuộn
+  // Cập nhật thông tin phim ở giữa khi người dùng tự do lướt theo toạ độ thực tế màn hình
   const handleReelScroll = () => {
-    if (!reelScrollRef.current || loopedMovies.length === 0 || isAutoScrollingRef.current) return;
+    if (!reelScrollRef.current || loopedMovies.length === 0) return;
     const container = reelScrollRef.current;
-    const centerPoint = container.scrollLeft + container.clientWidth / 2;
+    const containerRect = container.getBoundingClientRect();
+    const containerCenter = containerRect.left + containerRect.width / 2;
 
     let closestIndex = comingSoonVirtualIndex;
     let minDistance = Infinity;
 
     cardRefs.current.forEach((card, idx) => {
       if (!card) return;
-      const cardCenter = card.offsetLeft + card.offsetWidth / 2;
-      const distance = Math.abs(centerPoint - cardCenter);
+      const cardRect = card.getBoundingClientRect();
+      const cardCenter = cardRect.left + cardRect.width / 2;
+      const distance = Math.abs(containerCenter - cardCenter);
       if (distance < minDistance) {
         minDistance = distance;
         closestIndex = idx;
@@ -284,6 +329,8 @@ const HomeMovieTabs = ({ moviesList }) => {
     if (closestIndex !== comingSoonVirtualIndex) {
       setComingSoonVirtualIndex(closestIndex);
     }
+
+    checkBoundaryReset();
   };
 
   const handleCardClick = (idx) => {
@@ -291,16 +338,13 @@ const HomeMovieTabs = ({ moviesList }) => {
       isDragMoved.current = false;
       return;
     }
+    // Khi click vào phim: đưa phim đó về chính giữa
     scrollToMovie(idx, true);
   };
 
-  // Xử lý click vào 15 chấm tròn chọn phim theo đường đi ngắn nhất của vòng tròn
+  // Xử lý click vào 15 chấm tròn chọn phim: Luôn nhắm vào chu kỳ Set 1 để phim luôn có đủ 2 bên đối xứng
   const handleDotClick = (targetRealIdx) => {
-    const currentRealIdx = comingSoonVirtualIndex % 15;
-    let diff = targetRealIdx - currentRealIdx;
-    if (diff > 7) diff -= 15;
-    if (diff < -7) diff += 15;
-    const targetVirtualIdx = comingSoonVirtualIndex + diff;
+    const targetVirtualIdx = targetRealIdx + 15;
     scrollToMovie(targetVirtualIdx, true);
   };
 
@@ -422,15 +466,15 @@ const HomeMovieTabs = ({ moviesList }) => {
   return (
     <section className="max-w-[1560px] mx-auto px-4 sm:px-8 lg:px-14 py-8">
       {/* Header Tabs */}
-      <div className="flex items-center justify-between gap-4 pb-6 border-b border-slate-800">
+      <div className="flex items-center justify-between gap-4 pb-6 border-b border-[#AA9BFF]/25">
         <div className="flex items-center space-x-2 sm:space-x-3 overflow-x-auto scrollbar-none w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setActiveTab('NOW_SHOWING')}
             className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'NOW_SHOWING'
-                ? 'bg-[#2563eb] text-white shadow-lg shadow-blue-600/30 ring-1 ring-blue-400/50'
-                : 'bg-[#121828] text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] shadow-[0_0_16px_rgba(168,85,247,0.35),0_0_24px_rgba(66,223,255,0.20)] ring-1 ring-[#83F5FF]/60'
+                : 'bg-[#11152F] text-[#BEC5E5] hover:text-[#F8F7FF] hover:bg-[#20204B] border border-[#AA9BFF]/25'
             }`}
           >
             🎬 Phim Đang Chiếu ({nowShowingMovies.length})
@@ -441,8 +485,8 @@ const HomeMovieTabs = ({ moviesList }) => {
             onClick={() => setActiveTab('COMING_SOON')}
             className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'COMING_SOON'
-                ? 'bg-[#2563eb] text-white shadow-lg shadow-blue-600/30 ring-1 ring-blue-400/50'
-                : 'bg-[#121828] text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] shadow-[0_0_16px_rgba(168,85,247,0.35),0_0_24px_rgba(66,223,255,0.20)] ring-1 ring-[#83F5FF]/60'
+                : 'bg-[#11152F] text-[#BEC5E5] hover:text-[#F8F7FF] hover:bg-[#20204B] border border-[#AA9BFF]/25'
             }`}
           >
             🍿 Phim Sắp Chiếu ({all15ComingSoonMovies.length || comingSoonMovies.length})
@@ -450,28 +494,28 @@ const HomeMovieTabs = ({ moviesList }) => {
         </div>
       </div>
 
-      {/* 1. NỘI DUNG TAB PHIM ĐANG CHIẾU: SÂN KHẤU 3 PHIM ĐẲNG CẤP */}
+      {/* 1. NỘI DUNG TAB PHIM ĐANG CHIẾU: SÂN KHẤU 3 PHIM ĐẲNG CẤP (TỐI ƯU CHIỀU CAO & CÂN ĐỐI 10/10) */}
       {activeTab === 'NOW_SHOWING' && nowShowingMovies.length > 0 && (
-        <div className="mt-8 relative w-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#18130e]/95 via-[#0d121c] to-[#080c14] border border-amber-500/25 p-4 sm:p-8 lg:p-12 shadow-2xl">
-          {/* Ánh sáng sân khấu vàng kim ấm áp lộng lẫy */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[360px] bg-gradient-to-b from-amber-500/25 via-amber-500/8 to-transparent blur-3xl pointer-events-none rounded-full" />
+        <div className="mt-6 relative w-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#20204B]/95 via-[#11152F] to-[#0B1026] border border-[#AA9BFF]/30 p-3.5 sm:p-5 lg:p-6 shadow-[0_12px_45px_rgba(11,16,38,0.95)]">
+          {/* Ánh sáng sân khấu neon tím cyan lộng lẫy */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[320px] bg-gradient-to-b from-[#A855F7]/20 via-[#42DFFF]/15 to-transparent blur-3xl pointer-events-none rounded-full" />
 
-          {/* Tiêu đề Cành Nguyệt Quế Hoàng Gia - Đã fix hoàn toàn chữ 'g' hiện đầy đủ và không bị cắt */}
-          <div className="text-center mb-8 sm:mb-12 relative z-10">
+          {/* Tiêu đề Cành Nguyệt Quế Hoàng Gia */}
+          <div className="text-center mb-3 sm:mb-4 relative z-10">
             <div className="flex items-center justify-center space-x-2 sm:space-x-3">
               <LaurelLeft />
-              <h2 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-normal font-sans bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent drop-shadow-[0_2px_14px_rgba(251,191,36,0.5)] pt-1 pb-4 leading-normal inline-block">
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-normal font-sans bg-gradient-to-r from-[#FFFFFF] via-[#F4A5FF] via-[#C56BFF] to-[#E9B5FF] bg-clip-text text-transparent [filter:drop-shadow(0_0_14px_rgba(204,130,255,0.45))] pt-0 pb-1 leading-normal inline-block">
                 Phim Đang Chiếu
               </h2>
               <LaurelRight />
             </div>
-            <p className="mt-1 text-xs sm:text-sm md:text-base text-amber-200/80 font-medium tracking-wide">
+            <p className="mt-0.5 text-xs sm:text-sm text-[#E9B5FF] font-medium tracking-wide">
               Khám phá những bộ phim hot nhất đang có tại D'AVENOR Cinema
             </p>
           </div>
 
-          {/* 3 BỘ PHIM ĐANG CHIẾU SONG SONG */}
-          <div className="relative z-10 max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-center gap-5 sm:gap-6 lg:gap-8 pt-8 sm:pt-12 pb-16">
+          {/* 3 BỘ PHIM ĐANG CHIẾU SONG SONG - CÂN ĐỐI HOÀN HẢO */}
+          <div className="relative z-10 max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-center gap-4 sm:gap-5 lg:gap-6 pt-2 sm:pt-3 pb-5 sm:pb-6">
             {nowShowingMovies.slice(0, 3).map((movie, idx) => {
               const isActive = activeNowShowingIndex === idx;
               const badge = getAgeHotBadge(movie);
@@ -482,10 +526,10 @@ const HomeMovieTabs = ({ moviesList }) => {
                   key={movie.id || movie._id || idx}
                   onMouseEnter={() => setActiveNowShowingIndex(idx)}
                   onClick={() => setActiveNowShowingIndex(idx)}
-                  className={`relative w-full max-w-[340px] sm:max-w-[360px] md:max-w-[380px] aspect-[1/1.45] rounded-3xl overflow-hidden transition-all duration-500 ease-out cursor-pointer group ${
+                  className={`relative w-full max-w-[315px] sm:max-w-[335px] md:max-w-[350px] aspect-[1/1.45] rounded-3xl overflow-hidden transition-all duration-500 ease-out cursor-pointer group ${
                     isActive
-                      ? 'scale-100 md:scale-105 -translate-y-2 md:-translate-y-5 z-20 shadow-[0_12px_45px_rgba(245,158,11,0.45),inset_0_0_20px_rgba(245,158,11,0.15)] ring-4 ring-amber-400/50 border-2 border-amber-400 opacity-100'
-                      : 'scale-95 translate-y-0 z-10 border border-slate-700/80 hover:border-amber-500/40 opacity-55 hover:opacity-85 shadow-2xl'
+                      ? 'scale-100 md:scale-105 -translate-y-1.5 md:-translate-y-3 z-20 ring-2 ring-[#72E8FF]/70 border-2 border-[#B4F7FF] shadow-[0_0_28px_rgba(114,232,255,0.30),0_0_16px_rgba(233,181,255,0.25)] opacity-100'
+                      : 'scale-95 translate-y-0 z-10 border border-[#AA9BFF]/35 hover:border-[#72E8FF]/60 opacity-80 hover:opacity-95 shadow-xl'
                   }`}
                 >
                   <img
@@ -494,22 +538,22 @@ const HomeMovieTabs = ({ moviesList }) => {
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                   />
 
-                  <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-black/85 via-black/40 to-transparent pointer-events-none z-10" />
+                  <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-[#0B1026]/90 via-[#0B1026]/40 to-transparent pointer-events-none z-10" />
 
                   <div
                     className={`absolute inset-0 bg-gradient-to-t transition-opacity duration-500 pointer-events-none ${
                       isActive
-                        ? 'from-black via-black/65 to-transparent opacity-100'
-                        : 'from-black/95 via-black/60 to-transparent opacity-90'
+                        ? 'from-[#0B1026] via-[#0B1026]/75 to-transparent opacity-100'
+                        : 'from-[#0B1026]/95 via-[#0B1026]/50 to-transparent opacity-85'
                     }`}
                   />
 
-                  {/* Ánh sáng sàn dịu mắt tỏa đều không bị cắt vạch */}
+                  {/* Ánh sáng sàn cyan dịu mắt tỏa đều */}
                   {isActive && (
-                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-4/5 h-16 bg-gradient-to-r from-transparent via-amber-400/30 to-transparent blur-xl pointer-events-none rounded-full" />
+                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-4/5 h-16 bg-gradient-to-r from-transparent via-[#42DFFF]/35 to-transparent blur-xl pointer-events-none rounded-full" />
                   )}
 
-                  {/* Huy hiệu độ tuổi trên cùng bên trái: P màu xanh, chuyển dần sang đỏ HOT có ngọn lửa 🔥 */}
+                  {/* Huy hiệu độ tuổi */}
                   <div className="absolute top-3.5 left-3.5 z-20">
                     <span
                       className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-black backdrop-blur-md transition-all border shadow ${badge.cls}`}
@@ -518,42 +562,39 @@ const HomeMovieTabs = ({ moviesList }) => {
                       {badge.isHot && (
                         <span className="flex items-center space-x-0.5 pl-1 border-l border-white/25">
                           <span className="text-xs">🔥</span>
-                          <span className="text-[11px] font-black uppercase tracking-wider text-yellow-200">HOT</span>
+                          <span className="text-[11px] font-black uppercase tracking-wider text-pink-200">HOT</span>
                         </span>
                       )}
                     </span>
                   </div>
 
-                  {/* Huy hiệu Rating cao chuẩn bom tấn trên cùng bên phải */}
+                  {/* Huy hiệu Rating cao chuẩn bom tấn */}
                   <div className="absolute top-3.5 right-3.5 z-20">
-                    <span className="bg-slate-950/85 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-amber-500/40 text-xs font-bold text-amber-400 flex items-center space-x-1 shadow">
+                    <span className="bg-[#0B1026]/90 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-[#42DFFF]/40 text-xs font-bold text-[#42DFFF] flex items-center space-x-1 shadow">
                       <span>★</span>
                       <span className="text-white">{ratingDisplay}</span>
                     </span>
                   </div>
 
-                  {/* Thông tin phim theo bố cục chuẩn: Thể loại -> Tên phim -> Mô tả (bỏ tên tác giả) */}
-                  <div className="absolute bottom-5 inset-x-3.5 sm:inset-x-5 text-center z-10">
-                    {/* 1. Thể loại phim (ở trên tên phim giống ảnh chụp) */}
-                    <div className="text-xs text-slate-400 font-medium tracking-wide mb-1 line-clamp-1">
+                  {/* Thông tin phim */}
+                  <div className="absolute bottom-3.5 sm:bottom-4 inset-x-3 sm:inset-x-4 text-center z-10">
+                    <div className={`text-[11px] sm:text-xs font-medium tracking-wide mb-0.5 line-clamp-1 ${isActive ? 'text-[#E9B5FF]' : 'text-[#E9B5FF]/90'}`}>
                       {movie.genre || 'Hành động, Phiêu lưu'}
                     </div>
 
-                    {/* 2. Tên phim đầy đủ, nổi bật */}
                     <h3
-                      className={`font-black drop-shadow-md mb-1.5 transition-all tracking-tight leading-snug px-1 flex items-center justify-center text-center min-h-[44px] sm:min-h-[50px] ${
+                      className={`font-black drop-shadow-md mb-1 transition-all tracking-tight leading-snug px-1 flex items-center justify-center text-center min-h-[38px] sm:min-h-[44px] ${
                         isActive
-                          ? 'text-lg sm:text-2xl text-white'
-                          : 'text-base sm:text-xl text-slate-200'
+                          ? 'text-base sm:text-xl text-[#FFFFFF]'
+                          : 'text-sm sm:text-lg text-[#F8F7FF]/90'
                       }`}
                     >
                       {movie.title}
                     </h3>
 
-                    {/* 3. Tóm tắt nội dung phim (ở dưới tên phim giống ảnh chụp) */}
                     <p
-                      className={`text-xs leading-relaxed mb-4 px-2 line-clamp-2 transition-colors ${
-                        isActive ? 'text-slate-300' : 'text-slate-400'
+                      className={`text-[11px] sm:text-xs leading-relaxed mb-2.5 sm:mb-3 px-1 line-clamp-2 transition-colors ${
+                        isActive ? 'text-[#E9B5FF]' : 'text-[#BEC5E5]/90'
                       }`}
                     >
                       {movie.description || 'Hành trình điện ảnh kịch tính và hấp dẫn trên màn ảnh rộng.'}
@@ -561,13 +602,13 @@ const HomeMovieTabs = ({ moviesList }) => {
 
                     <Link
                       to={`/movie/${movie.slug || movie.id}`}
-                      className={`w-full inline-flex items-center justify-center space-x-2 font-black py-2.5 sm:py-3 px-6 rounded-full text-xs sm:text-sm transition-all cursor-pointer shadow-lg ${
+                      className={`w-full inline-flex items-center justify-center space-x-2 font-black py-2 sm:py-2.5 px-5 rounded-full text-xs transition-all cursor-pointer shadow-lg ${
                         isActive
-                          ? 'bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-slate-950 shadow-amber-500/40 hover:scale-[1.03] active:scale-95'
-                          : 'bg-[#1b2234] hover:bg-amber-500 text-slate-200 hover:text-slate-950 border border-slate-700/80 hover:border-amber-400'
+                          ? 'bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] hover:brightness-108 text-[#0B1026] shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:scale-[1.03] active:scale-95'
+                          : 'bg-[#171936]/90 hover:bg-[#20204B] text-[#E9B5FF] hover:text-white border border-[#AA9BFF]/35 hover:border-[#72E8FF]'
                       }`}
                     >
-                      <span className="text-sm">▶</span>
+                      <span className="text-xs">▶</span>
                       <span>Đặt vé ngay</span>
                     </Link>
                   </div>
@@ -577,48 +618,47 @@ const HomeMovieTabs = ({ moviesList }) => {
           </div>
 
           {/* Vé CINEMA TICKET & Bỏng Ngô góc dưới bên phải */}
-          <div className="absolute right-6 bottom-4 hidden lg:flex items-center space-x-3.5 pointer-events-none select-none z-20">
+          <div className="absolute right-5 bottom-3.5 hidden lg:flex items-center space-x-3 pointer-events-none select-none z-20">
             <div className="relative flex items-center justify-center">
-              <div className="absolute inset-0 bg-amber-400/30 rounded-full blur-md" />
-              <span className="text-3xl filter drop-shadow-[0_0_12px_rgba(251,191,36,0.9)] transform hover:scale-110 transition-transform">
+              <div className="absolute inset-0 bg-[#A855F7]/30 rounded-full blur-md" />
+              <span className="text-2xl filter drop-shadow-[0_0_12px_rgba(168,85,247,0.9)] transform hover:scale-110 transition-transform">
                 🍿
               </span>
             </div>
 
             <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 rounded-xl blur-sm opacity-80 animate-pulse" />
-              <div className="relative bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 text-slate-950 px-4 py-1.5 rounded-lg font-black text-xs tracking-wider uppercase shadow-[0_0_22px_rgba(251,191,36,0.85)] border-2 border-dashed border-slate-950/60 flex items-center space-x-2">
+              <div className="absolute -inset-1 bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] to-[#42DFFF] rounded-xl blur-sm opacity-80 animate-pulse" />
+              <div className="relative bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] to-[#42DFFF] text-[#0B1026] px-3.5 py-1.5 rounded-lg font-black text-[11px] tracking-wider uppercase shadow-[0_0_22px_rgba(168,85,247,0.85)] border-2 border-dashed border-[#0B1026]/60 flex items-center space-x-1.5">
                 <span>🎟️</span>
                 <span>CINEMA TICKET</span>
-                <span className="w-2 h-2 rounded-full bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.9)] animate-ping" />
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(66,223,255,0.9)] animate-ping" />
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. NỘI DUNG TAB PHIM SẮP CHIẾU: CUỘN NGANG MƯỢT MÀ CHO CẢ 15 PHIM (KHÔNG CÓ DẤU MŨI TÊN)
-          TỰ ĐỘNG CẬP NHẬT THÁNG KHỞI CHIẾU KHI CUỘN QUA TỪNG PHIM */}
+      {/* 2. NỘI DUNG TAB PHIM SẮP CHIẾU (TỐI ƯU CHIỀU CAO & CÂN ĐỐI 10/10) */}
       {activeTab === 'COMING_SOON' && all15ComingSoonMovies.length > 0 && (
-        <div className="mt-8 relative w-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#18130e]/95 via-[#0d121c] to-[#080c14] border border-amber-500/25 p-4 sm:p-8 lg:p-12 shadow-2xl">
-          {/* Ánh sáng sân khấu vàng kim ấm áp lộng lẫy */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[360px] bg-gradient-to-b from-amber-500/25 via-amber-500/8 to-transparent blur-3xl pointer-events-none rounded-full" />
+        <div className="mt-6 relative w-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#20204B]/95 via-[#11152F] to-[#0B1026] border border-[#AA9BFF]/30 p-3.5 sm:p-5 lg:p-6 shadow-[0_12px_45px_rgba(11,16,38,0.95)]">
+          {/* Ánh sáng sân khấu neon */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[320px] bg-gradient-to-b from-[#A855F7]/20 via-[#42DFFF]/15 to-transparent blur-3xl pointer-events-none rounded-full" />
 
-          {/* Tiêu đề Cành Nguyệt Quế Hoàng Gia - Đã fix chữ 'g' hiện đầy đủ */}
-          <div className="text-center mb-4 sm:mb-6 relative z-10">
+          {/* Tiêu đề Cành Nguyệt Quế */}
+          <div className="text-center mb-3 sm:mb-4 relative z-10">
             <div className="flex items-center justify-center space-x-2 sm:space-x-3">
               <LaurelLeft />
-              <h2 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-normal font-sans bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent drop-shadow-[0_2px_14px_rgba(251,191,36,0.5)] pt-1 pb-4 leading-normal inline-block">
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-normal font-sans bg-gradient-to-r from-[#F4A5FF] via-[#C56BFF] via-[#83F5FF] to-[#F4A5FF] bg-clip-text text-transparent drop-shadow-[0_2px_16px_rgba(168,85,247,0.45)] pt-0 pb-1 leading-normal inline-block">
                 Phim Sắp Chiếu
               </h2>
               <LaurelRight />
             </div>
-            <p className="mt-1 text-xs sm:text-sm text-amber-200/80 font-medium tracking-wide">
+            <p className="mt-0.5 text-xs sm:text-sm text-[#BEC5E5] font-medium tracking-wide">
               Cuộn lướt xem toàn bộ 15 bom tấn sắp ra mắt (Tháng 12/2026 – Tháng 04/2027)
             </p>
           </div>
 
-          {/* VÒNG LẶP VÔ TẬN LIỀN MẠCH (KHÔNG BAO GIỜ BỊ NGẮT QUÃNG HOẶC ĐỨNG LẠI Ở CUỐI) */}
+          {/* VÒNG LẶP VÔ TẬN LIỀN MẠCH */}
           <div
             ref={reelScrollRef}
             onScroll={handleReelScroll}
@@ -626,7 +666,7 @@ const HomeMovieTabs = ({ moviesList }) => {
             onMouseLeave={handleMouseLeaveOrUp}
             onMouseUp={handleMouseLeaveOrUp}
             onMouseMove={handleMouseMove}
-            className="relative z-10 w-full overflow-x-auto scrollbar-none flex items-center gap-6 sm:gap-7 pt-10 sm:pt-14 pb-16 px-4 sm:px-8 cursor-grab active:cursor-grabbing select-none"
+            className="relative z-10 w-full overflow-x-auto scrollbar-none flex items-center gap-5 sm:gap-6 pt-5 sm:pt-7 pb-8 px-4 sm:px-8 cursor-grab active:cursor-grabbing select-none"
           >
             {loopedMovies.map((movie, idx) => {
               const isActive = comingSoonVirtualIndex === idx;
@@ -639,12 +679,12 @@ const HomeMovieTabs = ({ moviesList }) => {
                   key={`${movie.slug || movie.id || idx}-loop-${idx}`}
                   ref={(el) => (cardRefs.current[idx] = el)}
                   onClick={() => handleCardClick(idx)}
-                  className={`relative w-[280px] sm:w-[320px] md:w-[340px] shrink-0 aspect-[1/1.45] rounded-3xl overflow-hidden transition-[transform,opacity,box-shadow,border-color] duration-300 ease-out select-none ${
+                  className={`relative w-[265px] sm:w-[295px] md:w-[315px] shrink-0 aspect-[1/1.45] rounded-3xl overflow-hidden transition-[transform,opacity,box-shadow,border-color] duration-300 ease-out select-none ${
                     isActive
-                      ? 'scale-100 md:scale-105 -translate-y-2 md:-translate-y-4 z-30 shadow-[0_12px_45px_rgba(245,158,11,0.45),inset_0_0_20px_rgba(245,158,11,0.15)] ring-4 ring-amber-400/50 border-2 border-amber-400 opacity-100 cursor-default'
+                      ? 'scale-100 md:scale-105 -translate-y-1.5 md:-translate-y-3 z-30 shadow-[0_12px_45px_rgba(168,85,247,0.4),inset_0_0_20px_rgba(66,223,255,0.2)] ring-4 ring-[#42DFFF]/50 border-2 border-[#83F5FF] opacity-100 cursor-default'
                       : distance === 1
-                      ? 'scale-95 translate-y-0 z-20 border border-slate-700/80 hover:border-amber-400/60 opacity-75 hover:opacity-100 shadow-xl cursor-pointer'
-                      : 'scale-90 translate-y-1 z-10 border border-slate-800 hover:border-slate-700 opacity-40 hover:opacity-75 shadow-lg cursor-pointer'
+                      ? 'scale-95 translate-y-0 z-20 border border-[#AA9BFF]/30 hover:border-[#42DFFF]/60 opacity-75 hover:opacity-100 shadow-xl cursor-pointer'
+                      : 'scale-90 translate-y-1 z-10 border border-[#AA9BFF]/15 hover:border-[#AA9BFF]/30 opacity-40 hover:opacity-75 shadow-lg cursor-pointer'
                   }`}
                 >
                   <img
@@ -654,22 +694,22 @@ const HomeMovieTabs = ({ moviesList }) => {
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 pointer-events-none"
                   />
 
-                  <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-black/85 via-black/40 to-transparent pointer-events-none z-10" />
+                  <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-[#0B1026]/90 via-[#0B1026]/40 to-transparent pointer-events-none z-10" />
 
                   <div
                     className={`absolute inset-0 bg-gradient-to-t transition-opacity duration-500 pointer-events-none ${
                       isActive
-                        ? 'from-black via-black/65 to-transparent opacity-100'
-                        : 'from-black/95 via-black/60 to-transparent opacity-90'
+                        ? 'from-[#0B1026] via-[#0B1026]/75 to-transparent opacity-100'
+                        : 'from-[#0B1026]/95 via-[#0B1026]/65 to-transparent opacity-90'
                     }`}
                   />
 
-                  {/* Ánh sáng sàn dịu mắt tỏa đều không bị cắt vạch */}
+                  {/* Ánh sáng sàn cyan */}
                   {isActive && (
-                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-4/5 h-16 bg-gradient-to-r from-transparent via-amber-400/30 to-transparent blur-xl pointer-events-none rounded-full" />
+                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-4/5 h-16 bg-gradient-to-r from-transparent via-[#42DFFF]/35 to-transparent blur-xl pointer-events-none rounded-full" />
                   )}
 
-                  {/* Huy hiệu độ tuổi góc trên bên trái: P màu xanh, chuyển dần sang đỏ HOT ngọn lửa 🔥 */}
+                  {/* Huy hiệu độ tuổi */}
                   <div className="absolute top-3.5 left-3.5 z-20">
                     <span
                       className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-black backdrop-blur-md transition-all border shadow ${badge.cls}`}
@@ -678,55 +718,52 @@ const HomeMovieTabs = ({ moviesList }) => {
                       {badge.isHot && (
                         <span className="flex items-center space-x-0.5 pl-1 border-l border-white/25">
                           <span className="text-xs">🔥</span>
-                          <span className="text-[11px] font-black uppercase tracking-wider text-yellow-200">HOT</span>
+                          <span className="text-[11px] font-black uppercase tracking-wider text-pink-200">HOT</span>
                         </span>
                       )}
                     </span>
                   </div>
 
-                  {/* Huy hiệu Rating cao góc trên bên phải */}
+                  {/* Huy hiệu Rating */}
                   <div className="absolute top-3.5 right-3.5 z-20">
-                    <span className="bg-slate-950/85 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-amber-500/40 text-xs font-bold text-amber-400 flex items-center space-x-1 shadow">
+                    <span className="bg-[#0B1026]/90 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-[#42DFFF]/40 text-xs font-bold text-[#42DFFF] flex items-center space-x-1 shadow">
                       <span>★</span>
                       <span className="text-white">{ratingDisplay}</span>
                     </span>
                   </div>
 
-                  {/* Thông tin phim theo bố cục chuẩn: Thể loại -> Tên phim -> Mô tả (bỏ tên tác giả) */}
-                  <div className="absolute bottom-5 inset-x-3.5 sm:inset-x-5 text-center z-10">
-                    {/* 1. Thể loại phim (ở trên tên phim giống ảnh chụp) */}
-                    <div className="text-xs text-slate-400 font-medium tracking-wide mb-1 line-clamp-1">
+                  {/* Thông tin phim */}
+                  <div className="absolute bottom-3.5 sm:bottom-4 inset-x-3 sm:inset-x-4 text-center z-10">
+                    <div className="text-[11px] sm:text-xs text-[#BEC5E5] font-medium tracking-wide mb-0.5 line-clamp-1">
                       {movie.genre || 'Hành động, Phiêu lưu'}
                     </div>
 
-                    {/* 2. Tên phim đầy đủ, nổi bật */}
                     <h3
-                      className={`font-black drop-shadow-md mb-1.5 transition-all tracking-tight leading-snug px-1 flex items-center justify-center text-center min-h-[44px] sm:min-h-[50px] ${
+                      className={`font-black drop-shadow-md mb-1 transition-all tracking-tight leading-snug px-1 flex items-center justify-center text-center min-h-[38px] sm:min-h-[44px] ${
                         isActive
-                          ? 'text-lg sm:text-2xl text-white'
-                          : 'text-base sm:text-xl text-slate-200'
+                          ? 'text-base sm:text-xl text-[#F8F7FF]'
+                          : 'text-sm sm:text-lg text-[#BEC5E5]'
                       }`}
                     >
                       {movie.title}
                     </h3>
 
-                    {/* 3. Tóm tắt nội dung phim (ở dưới tên phim giống ảnh chụp) */}
                     <p
-                      className={`text-xs leading-relaxed mb-4 px-2 line-clamp-2 transition-colors ${
-                        isActive ? 'text-slate-300' : 'text-slate-400'
+                      className={`text-[11px] sm:text-xs leading-relaxed mb-2.5 sm:mb-3 px-1 line-clamp-2 transition-colors ${
+                        isActive ? 'text-[#BEC5E5]' : 'text-[#BEC5E5]/70'
                       }`}
                     >
                       {movie.description || 'Hành trình điện ảnh kịch tính và hấp dẫn trên màn ảnh rộng.'}
                     </p>
 
-                    {/* Nút Đặt Vé: Nếu đang ở chính giữa thì click chuyển trang đặt vé, nếu ở 2 bên thì click kéo phim về giữa */}
+                    {/* Nút Đặt Vé */}
                     {isActive ? (
                       <Link
                         to={`/movie/${movie.slug || movie.id}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full inline-flex items-center justify-center space-x-2 font-black py-2.5 sm:py-3 px-6 rounded-full text-xs sm:text-sm transition-all cursor-pointer shadow-lg bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-slate-950 shadow-amber-500/40 hover:scale-[1.03] active:scale-95"
+                        className="w-full inline-flex items-center justify-center space-x-2 font-black py-2 sm:py-2.5 px-5 rounded-full text-xs transition-all cursor-pointer shadow-lg bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] hover:brightness-108 text-[#0B1026] shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:scale-[1.03] active:scale-95"
                       >
-                        <span className="text-sm">▶</span>
+                        <span className="text-xs">▶</span>
                         <span>Đặt trước vé</span>
                       </Link>
                     ) : (
@@ -736,9 +773,9 @@ const HomeMovieTabs = ({ moviesList }) => {
                           e.stopPropagation();
                           scrollToMovie(idx, true);
                         }}
-                        className="w-full inline-flex items-center justify-center space-x-2 font-black py-2.5 sm:py-3 px-6 rounded-full text-xs sm:text-sm transition-all cursor-pointer shadow-lg bg-[#1b2234] hover:bg-amber-500 text-slate-200 hover:text-slate-950 border border-slate-700/80 hover:border-amber-400"
+                        className="w-full inline-flex items-center justify-center space-x-2 font-black py-2 sm:py-2.5 px-5 rounded-full text-xs transition-all cursor-pointer shadow-lg bg-[#171936]/90 hover:bg-[#20204B] text-[#E9B5FF] hover:text-white border border-[#AA9BFF]/35 hover:border-[#72E8FF]"
                       >
-                        <span className="text-sm">▶</span>
+                        <span className="text-xs">▶</span>
                         <span>Đặt trước vé</span>
                       </button>
                     )}
@@ -748,23 +785,23 @@ const HomeMovieTabs = ({ moviesList }) => {
             })}
           </div>
 
-          {/* DÒNG THÔNG BÁO LỊCH CHIẾU NHỎ GỌN TỰ ĐỘNG CẬP NHẬT THEO PHIM ĐANG CUỘN */}
-          <div className="mt-4 text-center relative z-20">
-            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-slate-950/85 border border-amber-500/35 text-amber-300 text-xs font-medium shadow-md">
-              <span className="text-amber-400">📅</span>
-              <span className="text-slate-400">Lịch khởi chiếu:</span>
-              <span className="text-amber-300 font-bold">
+          {/* DÒNG THÔNG BÁO LỊCH CHIẾU */}
+          <div className="mt-2.5 text-center relative z-20">
+            <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[#0B1026]/90 border border-[#AA9BFF]/35 text-[#F8F7FF] text-xs font-medium shadow-md">
+              <span className="text-[#42DFFF]">📅</span>
+              <span className="text-[#BEC5E5]">Lịch khởi chiếu:</span>
+              <span className="text-[#83F5FF] font-bold">
                 {getMovieReleaseMonth(activeComingSoonMovie)}
               </span>
-              <span className="text-slate-600">•</span>
-              <span className="text-slate-400">Phim {comingSoonRealIndex + 1}/15:</span>
-              <span className="text-white font-bold truncate max-w-[180px] sm:max-w-none">
+              <span className="text-[#BEC5E5]/40">•</span>
+              <span className="text-[#BEC5E5]">Phim {comingSoonRealIndex + 1}/15:</span>
+              <span className="text-[#F8F7FF] font-bold truncate max-w-[180px] sm:max-w-none">
                 {activeComingSoonMovie?.title}
               </span>
             </div>
 
-            {/* Hàng 15 chấm tròn / viên thuốc biểu thị vòng tròn vô tận - Click chấm nào phim đó xoay về giữa */}
-            <div className="flex items-center justify-center space-x-1.5 mt-3">
+            {/* Hàng 15 chấm tròn */}
+            <div className="flex items-center justify-center space-x-1.5 mt-2.5">
               {all15ComingSoonMovies.map((m, i) => (
                 <button
                   key={i}
@@ -773,8 +810,8 @@ const HomeMovieTabs = ({ moviesList }) => {
                   title={`Phim ${i + 1}: ${m?.title} (${getMovieReleaseMonth(m)})`}
                   className={`transition-all duration-300 cursor-pointer rounded-full ${
                     comingSoonRealIndex === i
-                      ? 'w-7 h-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 shadow-[0_0_10px_rgba(251,191,36,0.9)]'
-                      : 'w-1.5 h-1.5 bg-slate-700/80 hover:bg-amber-400/60'
+                      ? 'w-7 h-1.5 bg-gradient-to-r from-[#A855F7] to-[#42DFFF] shadow-[0_0_10px_rgba(66,223,255,0.8)]'
+                      : 'w-1.5 h-1.5 bg-[#20204B] hover:bg-[#42DFFF]/60'
                   }`}
                 />
               ))}
@@ -782,20 +819,20 @@ const HomeMovieTabs = ({ moviesList }) => {
           </div>
 
           {/* Vé COMING SOON & Bỏng Ngô góc dưới bên phải */}
-          <div className="absolute right-6 bottom-4 hidden lg:flex items-center space-x-3.5 pointer-events-none select-none z-20">
+          <div className="absolute right-5 bottom-3.5 hidden lg:flex items-center space-x-3 pointer-events-none select-none z-20">
             <div className="relative flex items-center justify-center">
-              <div className="absolute inset-0 bg-amber-400/30 rounded-full blur-md" />
-              <span className="text-3xl filter drop-shadow-[0_0_12px_rgba(251,191,36,0.9)] transform hover:scale-110 transition-transform">
+              <div className="absolute inset-0 bg-[#A855F7]/30 rounded-full blur-md" />
+              <span className="text-2xl filter drop-shadow-[0_0_12px_rgba(168,85,247,0.9)] transform hover:scale-110 transition-transform">
                 🍿
               </span>
             </div>
 
             <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 rounded-xl blur-sm opacity-80 animate-pulse" />
-              <div className="relative bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 text-slate-950 px-4 py-1.5 rounded-lg font-black text-xs tracking-wider uppercase shadow-[0_0_22px_rgba(251,191,36,0.85)] border-2 border-dashed border-slate-950/60 flex items-center space-x-2">
+              <div className="absolute -inset-1 bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] to-[#42DFFF] rounded-xl blur-sm opacity-80 animate-pulse" />
+              <div className="relative bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] to-[#42DFFF] text-[#0B1026] px-3.5 py-1.5 rounded-lg font-black text-[11px] tracking-wider uppercase shadow-[0_0_22px_rgba(168,85,247,0.85)] border-2 border-dashed border-[#0B1026]/60 flex items-center space-x-1.5">
                 <span>🎟️</span>
                 <span>COMING SOON</span>
-                <span className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.9)] animate-ping" />
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(66,223,255,0.9)] animate-ping" />
               </div>
             </div>
           </div>

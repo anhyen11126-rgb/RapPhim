@@ -130,45 +130,45 @@ const PromotionsPage = () => {
   };
 
   return (
-    <div className="bg-[#0b0f19] min-h-screen text-slate-100 pb-20">
+    <div className="bg-[#0B1026] min-h-screen text-[#F8F7FF] pb-20">
       {/* 1. BREADCRUMBS & TIÊU ĐỀ TRANG */}
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 pt-5 pb-4">
         {/* Breadcrumb */}
-        <div className="flex items-center space-x-2 text-xs text-slate-400 mb-2 font-medium">
+        <div className="flex items-center space-x-2 text-xs text-[#BEC5E5] mb-2 font-medium">
           <Link to="/" className="hover:text-white transition-colors">
             Trang chủ
           </Link>
           <span>/</span>
-          <span className="text-slate-200">Ưu đãi & Khuyến mãi</span>
+          <span className="text-[#F8F7FF]">Ưu đãi & Khuyến mãi</span>
         </div>
 
         {/* Tiêu đề & Thẻ Thống kê bên phải */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center space-x-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] font-bold px-2.5 py-1 rounded-full mb-1.5">
+            <div className="inline-flex items-center space-x-2 bg-[#20204B] border border-[#AA9BFF]/30 text-[#83F5FF] text-[11px] font-bold px-2.5 py-1 rounded-full mb-1.5">
               <span>🔥</span>
               <span>HOT DEAL • Ưu đãi độc quyền tại D'AVENOR Thanh Khê Plaza</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#F4A5FF] via-[#C56BFF] via-[#83F5FF] to-[#F4A5FF] bg-clip-text text-transparent tracking-tight">
               Ưu Đãi & Kho Voucher Độc Quyền
             </h1>
           </div>
 
           {/* Thẻ Thống kê mã của bạn */}
-          <div className="bg-[#121929] border border-slate-800 rounded-2xl px-5 py-3 flex items-center space-x-5 shadow-lg">
+          <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-2xl px-5 py-3 flex items-center space-x-5 shadow-lg">
             <div className="flex items-center space-x-3">
               <span className="text-2xl">🎟️</span>
               <div>
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">Mã của bạn</span>
+                <span className="text-[10px] font-bold text-[#BEC5E5] block uppercase">Mã của bạn</span>
                 <span className="text-xs font-black text-white">05 Sẵn sàng</span>
               </div>
             </div>
-            <div className="h-7 w-[1px] bg-slate-800" />
+            <div className="h-7 w-[1px] bg-[#AA9BFF]/20" />
             <div className="flex items-center space-x-3">
               <span className="text-2xl">💰</span>
               <div>
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">Tiết kiệm tối đa</span>
-                <span className="text-xs font-black text-amber-400">120.000đ</span>
+                <span className="text-[10px] font-bold text-[#BEC5E5] block uppercase">Tiết kiệm tối đa</span>
+                <span className="text-xs font-black text-[#42DFFF]">120.000đ</span>
               </div>
             </div>
           </div>
@@ -177,61 +177,61 @@ const PromotionsPage = () => {
 
       {/* 2. HERO FEATURED PROMOTION (SIÊU BÃO THỨ 3) */}
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 py-3">
-        <div className="relative rounded-3xl overflow-hidden border border-slate-800/90 bg-gradient-to-br from-[#101728] via-[#0d1322] to-[#0a0e19] shadow-2xl p-6 sm:p-10">
+        <div className="relative rounded-3xl overflow-hidden border border-[#AA9BFF]/25 bg-gradient-to-br from-[#11152F] via-[#20204B]/60 to-[#0B1026] shadow-2xl p-6 sm:p-10">
           {/* Background ambient glow */}
-          <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-10 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#A855F7]/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-10 w-80 h-80 bg-[#42DFFF]/15 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             {/* Cột trái: Nội dung Hot Deal & Countdown */}
             <div className="lg:col-span-7 space-y-5">
-              <div className="inline-flex items-center space-x-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-black px-3 py-1 rounded-md">
+              <div className="inline-flex items-center space-x-1.5 bg-[#A855F7]/20 text-[#F4A5FF] border border-[#A855F7]/40 text-xs font-black px-3 py-1 rounded-md">
                 <span>⚡</span>
                 <span>{heroDeal?.badgeTop || "SIÊU BÃO THỨ 3 D'AVENOR"}</span>
               </div>
 
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
-                THỨ 3 VUI VẺ — <span className="text-amber-400">ĐỒNG GIÁ VÉ 45K</span>
+                THỨ 3 VUI VẺ — <span className="bg-gradient-to-r from-[#F4A5FF] via-[#C56BFF] via-[#83F5FF] to-[#F4A5FF] bg-clip-text text-transparent">ĐỒNG GIÁ VÉ 45K</span>
               </h2>
 
-              <p className="text-sm text-slate-300 leading-relaxed max-w-2xl">
+              <p className="text-sm text-[#BEC5E5] leading-relaxed max-w-2xl">
                 {heroDeal?.description ||
                   "Thưởng thức mọi bom tấn màn ảnh rộng Laser hiện đại nhất D'AVENOR Thanh Khê Plaza với giá vé chỉ 45.000đ. Tặng kèm 01 bắp ngọt Caramel thơm lừng khi áp dụng mua vé đôi online hôm nay."}
               </p>
 
               {/* Bộ đếm ngược thời gian (Countdown Timer) */}
               <div className="space-y-2 pt-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#BEC5E5] flex items-center space-x-1.5">
                   <span>⏱️</span>
                   <span>Ưu đãi kết thúc sau:</span>
                 </span>
                 <div className="flex items-center space-x-2 text-center">
-                  <div className="bg-[#172033] border border-slate-700/80 rounded-xl px-3 py-2 min-w-[58px]">
+                  <div className="bg-[#20204B] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
                     <span className="text-lg sm:text-xl font-black text-white block">
                       {String(timeLeft.days).padStart(2, '0')}
                     </span>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase">Ngày</span>
+                    <span className="text-[9px] text-[#BEC5E5] font-bold uppercase">Ngày</span>
                   </div>
-                  <span className="text-slate-600 font-black">:</span>
-                  <div className="bg-[#172033] border border-slate-700/80 rounded-xl px-3 py-2 min-w-[58px]">
+                  <span className="text-[#AA9BFF]/40 font-black">:</span>
+                  <div className="bg-[#20204B] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
                     <span className="text-lg sm:text-xl font-black text-white block">
                       {String(timeLeft.hours).padStart(2, '0')}
                     </span>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase">Giờ</span>
+                    <span className="text-[9px] text-[#BEC5E5] font-bold uppercase">Giờ</span>
                   </div>
-                  <span className="text-slate-600 font-black">:</span>
-                  <div className="bg-[#172033] border border-slate-700/80 rounded-xl px-3 py-2 min-w-[58px]">
+                  <span className="text-[#AA9BFF]/40 font-black">:</span>
+                  <div className="bg-[#20204B] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
                     <span className="text-lg sm:text-xl font-black text-white block">
                       {String(timeLeft.minutes).padStart(2, '0')}
                     </span>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase">Phút</span>
+                    <span className="text-[9px] text-[#BEC5E5] font-bold uppercase">Phút</span>
                   </div>
-                  <span className="text-slate-600 font-black">:</span>
-                  <div className="bg-[#172033] border border-slate-700/80 rounded-xl px-3 py-2 min-w-[58px]">
-                    <span className="text-lg sm:text-xl font-black text-amber-400 block">
+                  <span className="text-[#AA9BFF]/40 font-black">:</span>
+                  <div className="bg-[#20204B] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
+                    <span className="text-lg sm:text-xl font-black text-[#42DFFF] block">
                       {String(timeLeft.seconds).padStart(2, '0')}
                     </span>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase">Giây</span>
+                    <span className="text-[9px] text-[#BEC5E5] font-bold uppercase">Giây</span>
                   </div>
                 </div>
               </div>
@@ -240,7 +240,7 @@ const PromotionsPage = () => {
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   onClick={() => navigate('/theaters')}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm px-6 py-3 rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center space-x-2 cursor-pointer"
+                  className="bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] hover:brightness-110 text-[#0B1026] font-black text-xs sm:text-sm px-6 py-3 rounded-xl transition-all shadow-[0_0_16px_rgba(168,85,247,0.35)] flex items-center space-x-2 cursor-pointer"
                 >
                   <span>Săn ưu đãi ngay</span>
                   <span>➔</span>
@@ -258,7 +258,7 @@ const PromotionsPage = () => {
                       metadataRight: '🕒 Cả ngày Thứ 3',
                     })
                   }
-                  className="bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-semibold text-xs sm:text-sm px-5 py-3 rounded-xl transition-colors border border-slate-700 flex items-center space-x-1.5 cursor-pointer"
+                  className="bg-[#20204B] hover:bg-[#25234D] text-[#F8F7FF] font-semibold text-xs sm:text-sm px-5 py-3 rounded-xl transition-colors border border-[#AA9BFF]/30 flex items-center space-x-1.5 cursor-pointer"
                 >
                   <span>ℹ️</span>
                   <span>Xem thể lệ chi tiết</span>
@@ -266,28 +266,28 @@ const PromotionsPage = () => {
               </div>
             </div>
 
-            {/* Cột phải: Thẻ quà tặng kèm ảnh (Bắp lớn + Nước ngọt) */}
+            {/* Cột phải: Thẻ quà tặng kèm ảnh */}
             <div className="lg:col-span-5 flex justify-center">
-              <div className="relative w-full max-w-sm bg-[#141b2c] border border-slate-700/80 rounded-3xl p-4 shadow-2xl overflow-hidden group hover:border-slate-600 transition-all">
+              <div className="relative w-full max-w-sm bg-[#11152F] border border-[#AA9BFF]/30 rounded-3xl p-4 shadow-2xl overflow-hidden group hover:border-[#42DFFF]/50 transition-all">
                 {/* Badge giảm 50% góc phải */}
-                <div className="absolute top-6 right-6 z-10 bg-amber-500 text-slate-950 text-xs font-black px-3 py-1 rounded-full shadow-lg">
+                <div className="absolute top-6 right-6 z-10 bg-gradient-to-r from-[#F4A5FF] to-[#A855F7] text-[#0B1026] text-xs font-black px-3 py-1 rounded-full shadow-lg">
                   -50%
                 </div>
 
-                <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-slate-900 mb-3 relative">
+                <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-[#0B1026] mb-3 relative">
                   <img
                     src={heroDeal?.image || '/images/combos/combo-couple.png'}
                     alt="Combo Bắp Nước"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute bottom-2.5 left-2.5 bg-slate-950/85 backdrop-blur-md text-[10px] text-amber-300 font-bold px-2.5 py-1 rounded-md border border-amber-500/30">
+                  <div className="absolute bottom-2.5 left-2.5 bg-[#0B1026]/85 backdrop-blur-md text-[10px] text-[#42DFFF] font-bold px-2.5 py-1 rounded-md border border-[#42DFFF]/30">
                     🍿 Combo Đôi Cinema VIP
                   </div>
                 </div>
 
                 <div className="text-center py-1">
                   <h3 className="text-base font-black text-white">Bắp Lớn 2 Ngăn + 02 Nước Ngọt</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Ưu đãi đặc biệt khi đặt kèm vé đôi trực tuyến</p>
+                  <p className="text-xs text-[#BEC5E5] mt-0.5">Ưu đãi đặc biệt khi đặt kèm vé đôi trực tuyến</p>
                 </div>
               </div>
             </div>
@@ -306,8 +306,8 @@ const PromotionsPage = () => {
                 onClick={() => setActiveCategory(cat.key)}
                 className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   activeCategory === cat.key
-                    ? 'bg-[#2563eb] text-white shadow-md shadow-blue-600/30 font-bold'
-                    : 'bg-[#121929] text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+                    ? 'bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] font-black shadow-[0_0_12px_rgba(168,85,247,0.35)]'
+                    : 'bg-[#11152F] text-[#BEC5E5] hover:text-white hover:bg-[#20204B] border border-[#AA9BFF]/20'
                 }`}
               >
                 {cat.label}
@@ -318,7 +318,7 @@ const PromotionsPage = () => {
           {/* Ô tìm kiếm & Nhãn Rạp duy nhất */}
           <div className="flex items-center space-x-3">
             <div className="relative flex-1 sm:w-64">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 text-xs">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#BEC5E5]/60 text-xs">
                 🔍
               </span>
               <input
@@ -326,12 +326,12 @@ const PromotionsPage = () => {
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
                 placeholder="Tìm tên ưu đãi, mã code..."
-                className="w-full bg-[#111624] border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-[#11152F] border border-[#AA9BFF]/25 rounded-xl pl-9 pr-3 py-2 text-xs text-[#F8F7FF] placeholder-[#BEC5E5]/50 focus:outline-none focus:border-[#42DFFF] transition-colors"
               />
             </div>
 
-            <div className="bg-[#111624] border border-slate-800 text-xs text-slate-200 font-semibold rounded-xl px-3.5 py-2 flex items-center gap-1.5 shrink-0">
-              <span className="text-red-400">📍</span>
+            <div className="bg-[#11152F] border border-[#AA9BFF]/25 text-xs text-[#BEC5E5] font-semibold rounded-xl px-3.5 py-2 flex items-center gap-1.5 shrink-0">
+              <span className="text-[#42DFFF]">📍</span>
               <span>[Q. Thanh Khê] D'AVENOR Thanh Khê Plaza</span>
             </div>
           </div>
@@ -340,7 +340,7 @@ const PromotionsPage = () => {
 
       {/* 4. KHO VOUCHER ĐỔI THƯỞNG & NHẬP MÃ NHANH */}
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 py-5">
-        <div className="bg-[#0f1422] border border-slate-800/90 rounded-3xl p-6 sm:p-7 space-y-5">
+        <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-3xl p-6 sm:p-7 space-y-5">
           {/* Header Kho Voucher */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -348,7 +348,7 @@ const PromotionsPage = () => {
                 <span>🎟️</span>
                 <span>Kho Voucher Đổi Thưởng & Nhập Mã Nhanh</span>
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-[#BEC5E5] mt-0.5">
                 Lưu mã ngay để áp dụng tự động ở bước thanh toán & hoàn tiền đơn hàng.
               </p>
             </div>
@@ -360,11 +360,11 @@ const PromotionsPage = () => {
                 value={voucherInput}
                 onChange={(e) => setVoucherInput(e.target.value)}
                 placeholder="NHẬP MÃ VOUCHER CỦA BẠN"
-                className="bg-[#141b2c] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 uppercase tracking-wider focus:outline-none focus:border-blue-500 w-48 sm:w-56"
+                className="bg-[#0B1026] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 text-xs text-white placeholder-[#BEC5E5]/50 uppercase tracking-wider focus:outline-none focus:border-[#42DFFF] w-48 sm:w-56"
               />
               <button
                 type="submit"
-                className="bg-[#2563eb] hover:bg-blue-600 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors shadow-sm cursor-pointer"
+                className="bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] hover:brightness-110 text-[#0B1026] font-black text-xs px-4 py-2 rounded-xl transition-colors shadow-sm cursor-pointer"
               >
                 Áp dụng
               </button>
@@ -390,28 +390,28 @@ const PromotionsPage = () => {
               return (
                 <div
                   key={v.id}
-                  className="relative bg-[#141b2c] border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-slate-600 transition-all group"
+                  className="relative bg-[#20204B] border border-[#AA9BFF]/25 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-[#42DFFF]/60 transition-all group"
                 >
                   {/* Top Badge & HSD */}
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-wider">
+                    <span className="font-bold text-[#42DFFF] bg-cyan-500/10 px-2 py-0.5 rounded border border-[#42DFFF]/25 uppercase tracking-wider">
                       {v.badgeTop}
                     </span>
-                    <span className="text-slate-400 font-medium">{v.expiryDate}</span>
+                    <span className="text-[#BEC5E5] font-medium">{v.expiryDate}</span>
                   </div>
 
                   {/* Giá trị giảm & Điều kiện */}
                   <div>
-                    <h3 className="text-base font-black text-white group-hover:text-amber-400 transition-colors">
+                    <h3 className="text-base font-black text-white group-hover:text-[#42DFFF] transition-colors">
                       {v.discountValue}
                     </h3>
-                    <p className="text-[11px] text-slate-400 line-clamp-2 mt-1 leading-relaxed">
+                    <p className="text-[11px] text-[#BEC5E5] line-clamp-2 mt-1 leading-relaxed">
                       {v.conditions}
                     </p>
                   </div>
 
-                  {/* Dòng gạch đứt vé (Perforated ticket effect) */}
-                  <div className="border-t border-dashed border-slate-700/80 pt-2.5 flex items-center justify-between gap-1">
+                  {/* Dòng gạch đứt vé */}
+                  <div className="border-t border-dashed border-[#AA9BFF]/20 pt-2.5 flex items-center justify-between gap-1">
                     <span className="font-mono text-xs font-black text-slate-200 tracking-wider">
                       {v.code}
                     </span>
@@ -420,7 +420,7 @@ const PromotionsPage = () => {
                       className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                         isCopied
                           ? 'bg-emerald-500 text-white shadow-sm'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
+                          : 'bg-[#11152F] hover:bg-[#25234D] text-[#BEC5E5] hover:text-white border border-[#AA9BFF]/30'
                       }`}
                     >
                       {isCopied ? '✔ Đã lưu' : '📋 Sao chép'}
@@ -476,7 +476,7 @@ const PromotionsPage = () => {
               return (
                 <div
                   key={prog.id}
-                  className="bg-[#111726] border border-slate-800/90 rounded-2xl overflow-hidden shadow-xl flex flex-col justify-between hover:border-slate-700 transition-all duration-300 group"
+                  className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-2xl overflow-hidden shadow-xl flex flex-col justify-between hover:border-[#42DFFF]/60 transition-all duration-300 group"
                 >
                   <div>
                     {/* Ảnh bìa 16:9 + Badges chuẩn vị trí */}
@@ -486,7 +486,7 @@ const PromotionsPage = () => {
                         alt={prog.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#111726] via-transparent to-black/20 opacity-90" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#11152F] via-transparent to-black/20 opacity-90" />
 
                       {/* Badge top-left */}
                       {prog.badgeTop && (
@@ -513,10 +513,10 @@ const PromotionsPage = () => {
 
                     {/* Nội dung text */}
                     <div className="p-5 pb-4 space-y-2.5">
-                      <h3 className="text-[15px] font-black text-white group-hover:text-blue-400 transition-colors line-clamp-1">
+                      <h3 className="text-[15px] font-black text-white group-hover:text-[#42DFFF] transition-colors line-clamp-1">
                         {prog.title}
                       </h3>
-                      <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-[#BEC5E5] line-clamp-2 leading-relaxed">
                         {prog.description}
                       </p>
 
@@ -532,9 +532,9 @@ const PromotionsPage = () => {
                             className={`font-semibold ${
                               isRightHighlight
                                 ? (prog.metadataRight || '').includes('Tặng')
-                                  ? 'text-amber-400'
+                                  ? 'text-[#F4A5FF]'
                                   : 'text-emerald-400'
-                                : 'text-slate-400'
+                                : 'text-[#BEC5E5]'
                             }`}
                           >
                             • {prog.metadataRight.replace(/^•\s*/, '')}
@@ -549,7 +549,7 @@ const PromotionsPage = () => {
                     <button
                       type="button"
                       onClick={() => setSelectedProgramModal(prog)}
-                      className="py-2.5 px-3 rounded-xl bg-[#182032] hover:bg-slate-800 border border-slate-700/80 text-xs font-bold text-slate-200 hover:text-white transition-colors cursor-pointer"
+                      className="py-2.5 px-3 rounded-xl bg-[#20204B] hover:bg-[#25234D] border border-[#AA9BFF]/30 text-xs font-bold text-[#F8F7FF] transition-colors cursor-pointer"
                     >
                       Xem thể lệ
                     </button>
@@ -557,11 +557,7 @@ const PromotionsPage = () => {
                     <button
                       type="button"
                       onClick={() => navigate(prog.buttonAction || '/theaters')}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-black transition-all shadow-md cursor-pointer ${
-                        prog.buttonText === 'Nâng cấp VIP'
-                          ? 'bg-[#f5b041] hover:bg-amber-400 text-slate-950'
-                          : 'bg-[#93b4f8] hover:bg-[#7da4f5] text-slate-950'
-                      }`}
+                      className="py-2.5 px-3 rounded-xl text-xs font-black transition-all shadow-md cursor-pointer bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] hover:brightness-110 text-[#0B1026]"
                     >
                       {prog.buttonText || 'Đặt vé ngay'}
                     </button>

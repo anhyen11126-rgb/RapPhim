@@ -1367,7 +1367,11 @@ class StatisticsService {
       if (b.seats) {
         b.seats
           .split(',')
-          .map((s) => s.trim().toUpperCase())
+          .map((s) => {
+            const raw = s.trim().toUpperCase();
+            const match = raw.match(/^([A-Z])0*(\d+)$/);
+            return match ? `${match[1]}${parseInt(match[2], 10)}` : raw;
+          })
           .filter(Boolean)
           .forEach((seat) => bookedSeatNumbers.add(seat));
       }
@@ -1375,22 +1379,31 @@ class StatisticsService {
 
     const dbSeats = await ShowtimeSeat.find({ showtimeId: showtime._id }).lean();
     const seatMap = new Map();
-    dbSeats.forEach((s) => seatMap.set(s.seatNumber, s));
+    dbSeats.forEach((s) => {
+      const raw = s.seatNumber ? s.seatNumber.trim().toUpperCase() : '';
+      const match = raw.match(/^([A-Z])0*(\d+)$/);
+      const norm = match ? `${match[1]}${parseInt(match[2], 10)}` : raw;
+      seatMap.set(norm, s);
+    });
 
+    // Cấu trúc chuẩn 88 ghế của D'AVENOR CINEMA:
+    // Hàng A - D: 12 ghế/hàng (48 ghế Standard)
+    // Hàng E - G: 12 ghế/hàng (36 ghế VIP)
+    // Hàng H: 4 ghế (4 ghế Sweetbox / VIP Recliner)
+    // Tổng cộng: 48 + 36 + 4 = 88 ghế
     const rows = [
       { row: 'A', type: 'STANDARD', count: 12 },
       { row: 'B', type: 'STANDARD', count: 12 },
       { row: 'C', type: 'STANDARD', count: 12 },
       { row: 'D', type: 'STANDARD', count: 12 },
-      { row: 'E', type: 'VIP', count: 10 },
-      { row: 'F', type: 'VIP', count: 10 },
-      { row: 'G', type: 'VIP', count: 10 },
-      { row: 'H', type: 'SWEETBOX', count: 10 },
+      { row: 'E', type: 'VIP', count: 12 },
+      { row: 'F', type: 'VIP', count: 12 },
+      { row: 'G', type: 'VIP', count: 12 },
+      { row: 'H', type: 'SWEETBOX', count: 4 },
     ];
 
     let bookedCount = 0;
     let availableCount = 0;
-    let holdingCount = 0;
 
     const seatMatrix = rows.map((r) => {
       const seats = [];
@@ -1399,14 +1412,11 @@ class StatisticsService {
         const dbSeat = seatMap.get(code);
 
         let status = 'AVAILABLE';
-        if (dbSeat) {
-          status = dbSeat.status || 'AVAILABLE';
-        } else if (bookedSeatNumbers.has(code)) {
+        if (bookedSeatNumbers.has(code) || dbSeat?.status === 'BOOKED') {
           status = 'BOOKED';
         }
 
         if (status === 'BOOKED') bookedCount++;
-        else if (status === 'HOLDING') holdingCount++;
         else availableCount++;
 
         seats.push({
@@ -1434,7 +1444,7 @@ class StatisticsService {
     const totalRoomSeats = roomDoc?.totalSeats || (dbSeats.length > 0 ? dbSeats.length : 88);
 
     bookedCount = Math.max(bookedCount, bookedSeatNumbers.size);
-    availableCount = Math.max(0, totalRoomSeats - bookedCount - holdingCount);
+    availableCount = Math.max(0, totalRoomSeats - bookedCount);
     const occupancyRate = totalRoomSeats > 0 ? Number(((bookedCount / totalRoomSeats) * 100).toFixed(1)) : 0;
 
     return {
@@ -1452,7 +1462,7 @@ class StatisticsService {
         totalSeats: totalRoomSeats,
         bookedCount,
         availableCount,
-        holdingCount,
+        holdingCount: 0,
         occupancyRate,
         totalRevenue,
         revenueFormatted: formatCurrency(totalRevenue),

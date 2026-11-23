@@ -2,12 +2,33 @@
 
 :root {
   color-scheme: dark;
+  --bg-main: #0B1026;
+  --bg-surface: #171936;
+  --bg-secondary: #11152F;
+  --bg-card: #20204B;
+  --bg-elevated: #25234D;
+  --primary-white: #FFFFFF;
+  --lavender: #E9B5FF;
+  --violet: #B47AFF;
+  --pink: #F4A5FF;
+  --cyan: #72E8FF;
+  --ice-blue: #B4F7FF;
+  --neon-purple: #7C3AED;
+  --neon-violet: #A855F7;
+  --neon-pink: #F4A5FF;
+  --neon-cyan: #72E8FF;
+  --neon-ice-blue: #B4F7FF;
+  --text-primary: #FFFFFF;
+  --text-secondary: #E9B5FF;
+  --text-muted: #BEC5E5;
+  --border-default: rgba(170, 155, 255, 0.30);
+  --border-active: rgba(114, 232, 255, 0.85);
 }
 
 body {
   margin: 0;
-  background-color: #030712;
-  color: #f3f4f6;
+  background-color: #0B1026;
+  color: #F8F7FF;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   min-height: 100vh;
 }
@@ -19,8 +40,7 @@ body {
 }
 
 /* ============================================================================
-   CUSTOM DARK-CINEMA SCROLLBAR SYSTEM (TOÀN BỘ WEBSITE)
-   Thay thế hoàn toàn thanh cuộn trắng mặc định và các nút mũi tên ▲ ▼ ◀ ▶
+   CUSTOM HOLOGRAPHIC NEON SCROLLBAR SYSTEM (TOÀN BỘ WEBSITE)
    ============================================================================ */
 
 *::-webkit-scrollbar {
@@ -41,49 +61,50 @@ body::-webkit-scrollbar {
 }
 
 *::-webkit-scrollbar-track {
-  background: rgba(10, 15, 28, 0.55);
+  background: rgba(11, 16, 38, 0.7);
   border-radius: 9999px;
 }
 
 html::-webkit-scrollbar-track,
 body::-webkit-scrollbar-track {
-  background: #060a14;
+  background: #0B1026;
 }
 
 *::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(71, 85, 105, 0.72), rgba(51, 65, 85, 0.9));
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.5), rgba(66, 223, 255, 0.6));
   border-radius: 9999px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
+  border: 1px solid rgba(170, 155, 255, 0.3);
 }
 
 *::-webkit-scrollbar-thumb:horizontal {
-  background: linear-gradient(90deg, rgba(71, 85, 105, 0.72), rgba(51, 65, 85, 0.9));
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.5), rgba(66, 223, 255, 0.6));
 }
 
 *::-webkit-scrollbar-thumb:hover,
 *::-webkit-scrollbar-thumb:active {
-  background: linear-gradient(180deg, #3b82f6, #2563eb);
-  border-color: rgba(96, 165, 250, 0.45);
+  background: linear-gradient(180deg, #F4A5FF, #A855F7, #42DFFF, #83F5FF);
+  border-color: rgba(131, 245, 255, 0.8);
+  box-shadow: 0 0 10px rgba(66, 223, 255, 0.4);
 }
 
 *::-webkit-scrollbar-thumb:horizontal:hover,
 *::-webkit-scrollbar-thumb:horizontal:active {
-  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  background: linear-gradient(90deg, #F4A5FF, #A855F7, #42DFFF, #83F5FF);
 }
 
 *::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-/* Fallback cho Firefox (chỉ kích hoạt nếu trình duyệt không hỗ trợ ::-webkit-scrollbar) */
+/* Fallback cho Firefox */
 @supports not selector(::-webkit-scrollbar) {
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(71, 85, 105, 0.8) rgba(10, 15, 28, 0.55);
+    scrollbar-color: rgba(168, 85, 247, 0.6) #0B1026;
   }
 }
 
-/* Thanh cuộn ngang siêu mảnh cho hàng chip gợi ý / bộ lọc ngang */
+/* Utility classes cho Holographic Neon & Iridescent Glow */
 @layer utilities {
   .scrollbar-sleek-x::-webkit-scrollbar {
     height: 4px;
@@ -94,13 +115,13 @@ body::-webkit-scrollbar-track {
   }
 
   .scrollbar-sleek-x::-webkit-scrollbar-thumb {
-    background: rgba(59, 130, 246, 0.38);
+    background: rgba(170, 155, 255, 0.35);
     border-radius: 9999px;
     border: none;
   }
 
   .scrollbar-sleek-x:hover::-webkit-scrollbar-thumb {
-    background: rgba(59, 130, 246, 0.78);
+    background: rgba(131, 245, 255, 0.75);
   }
 
   .no-scrollbar::-webkit-scrollbar,
@@ -114,5 +135,48 @@ body::-webkit-scrollbar-track {
   .scrollbar-none {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /* Holographic Gradients & Glows */
+  .btn-holographic {
+    background: linear-gradient(110deg, #F9B8FF 0%, #D99BFF 30%, #86DEFF 70%, #B4F7FF 100%);
+    color: #0B1026;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.25), 0 0 20px rgba(204, 130, 255, 0.35), 0 0 30px rgba(80, 220, 255, 0.22);
+  }
+
+  .title-hero-gradient {
+    background: linear-gradient(105deg, #FFFFFF 0%, #F8F3FF 22%, #E9C7FF 48%, #CE91FF 75%, #B47AFF 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.25)) drop-shadow(0 0 14px rgba(196, 125, 255, 0.35));
+  }
+
+  .text-holographic {
+    background: linear-gradient(100deg, #F4A5FF 0%, #C56BFF 30%, #83F5FF 65%, #F4A5FF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .border-holographic {
+    border-color: rgba(170, 155, 255, 0.30);
+  }
+
+  .border-holographic-active {
+    border-color: rgba(114, 232, 255, 0.85);
+  }
+
+  /* Hiệu ứng hiện ra dần dần (Smooth Fade-in) */
+  .animate-smooth-fade {
+    animation: smoothFadeIn 0.5s ease-out forwards;
+  }
+}
+
+@keyframes smoothFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }

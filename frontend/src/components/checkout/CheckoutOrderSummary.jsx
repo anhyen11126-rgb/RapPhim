@@ -36,12 +36,12 @@ const CheckoutOrderSummary = ({
   return (
     <div className="space-y-6">
       {/* Thẻ 1: Tóm Tắt Đơn Vé */}
-      <div className="bg-[#0e1424] border border-slate-800 rounded-2xl p-5 shadow-2xl">
+      <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-2xl p-5 shadow-2xl">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+          <span className="text-[11px] font-black uppercase tracking-wider text-[#BEC5E5]">
             TÓM TẮT ĐƠN ĐẶT VÉ
           </span>
-          <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-black px-2 py-0.5 rounded uppercase">
+          <span className="bg-[#20204B] text-[#42DFFF] border border-[#42DFFF]/40 text-[10px] font-black px-2 py-0.5 rounded uppercase">
             {showtime?.format || '2D Tiêu Chuẩn'}
           </span>
         </div>
@@ -49,11 +49,11 @@ const CheckoutOrderSummary = ({
         <h2 className="text-lg font-black text-white">
           {showtime?.movie?.title || 'Dune: Hành Tinh Cát 2'}
         </h2>
-        <p className="text-xs text-slate-400 mt-0.5">
+        <p className="text-xs text-[#BEC5E5] mt-0.5">
           {showtime?.format || '2D Phụ đề'} • {showtime?.movie?.ageRating || 'T16'}
         </p>
 
-        <div className="flex items-center gap-2 text-xs text-slate-300 mt-2.5 pb-4 border-b border-slate-800 flex-wrap">
+        <div className="flex items-center gap-2 text-xs text-[#BEC5E5] mt-2.5 pb-4 border-b border-[#AA9BFF]/15 flex-wrap">
           {(showtime?.cinemaName || showtime?.cinema?.name) && (
             <>
               <span className="flex items-center gap-1 font-medium">
@@ -64,21 +64,21 @@ const CheckoutOrderSummary = ({
             </>
           )}
           <span className="flex items-center gap-1 font-medium">
-            <span className="text-blue-400">📽️</span>
+            <span className="text-[#42DFFF]">📽️</span>
             <span>{showtime?.roomName || "Phòng Chiếu 01"}</span>
           </span>
           <span className="text-slate-600">•</span>
           <span className="flex items-center gap-1 font-medium">
-            <span className="text-amber-400">🕒</span>
+            <span className="text-[#83F5FF]">🕒</span>
             <span>{showtime?.time || '19:15'}</span>
           </span>
         </div>
 
         {/* Chi tiết từng mục */}
-        <div className="py-4 space-y-2.5 border-b border-slate-800 text-xs">
+        <div className="py-4 space-y-2.5 border-b border-[#AA9BFF]/15 text-xs">
           {/* Vé ghế */}
           <div className="flex items-center justify-between">
-            <span className="text-slate-300 flex items-center gap-1.5">
+            <span className="text-[#BEC5E5] flex items-center gap-1.5">
               <span>💺</span>
               <span>
                 Ghế: <strong>{selectedSeats.join(', ')}</strong>
@@ -91,7 +91,7 @@ const CheckoutOrderSummary = ({
 
           {/* Các combo đã chọn */}
           {selectedCombosList.map((c) => (
-            <div key={c.id} className="flex items-center justify-between text-slate-300">
+            <div key={c.id} className="flex items-center justify-between text-[#BEC5E5]">
               <span className="flex items-center gap-1.5">
                 <span>🍿</span>
                 <span>
@@ -110,7 +110,7 @@ const CheckoutOrderSummary = ({
           ))}
 
           {/* Tạm tính */}
-          <div className="flex items-center justify-between pt-2 text-slate-400 font-semibold border-t border-slate-800/60">
+          <div className="flex items-center justify-between pt-2 text-[#BEC5E5] font-semibold border-t border-[#AA9BFF]/15">
             <span>
               Tạm tính ({selectedSeats.length + Object.values(comboQuantities).reduce((a, b) => a + b, 0)} món)
             </span>
@@ -132,24 +132,24 @@ const CheckoutOrderSummary = ({
         {/* TỔNG THANH TOÁN */}
         <div className="pt-4 flex items-end justify-between">
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#BEC5E5] block">
               TỔNG THANH TOÁN
             </span>
-            <span className="text-[10px] text-slate-500 block">
+            <span className="text-[10px] text-[#BEC5E5]/60 block">
               Đã bao gồm thuế GTGT
             </span>
           </div>
           <div className="text-right">
-            <p className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <p className="text-2xl sm:text-3xl font-black text-[#42DFFF] tracking-tight">
               {grandTotal.toLocaleString('vi-VN')}{' '}
-              <span className="text-sm font-bold text-slate-400">đ</span>
+              <span className="text-sm font-bold text-[#83F5FF]">đ</span>
             </p>
           </div>
         </div>
       </div>
 
       {/* Thẻ 2: THÔNG TIN KHÁCH HÀNG & NÚT THANH TOÁN */}
-      <div className="bg-[#0e1424] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+      <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-2xl p-5 shadow-2xl space-y-4">
         <h3 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
           <span>📋</span>
           <span>Thông tin người nhận vé</span>
@@ -157,47 +157,47 @@ const CheckoutOrderSummary = ({
 
         <div className="space-y-3 text-xs">
           <div>
-            <label className="text-slate-400 font-medium block mb-1">Họ và tên *</label>
+            <label className="text-[#BEC5E5] font-medium block mb-1">Họ và tên *</label>
             <input
               type="text"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="Nguyễn Văn A"
-              className="w-full bg-[#131928] border border-slate-700/80 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              className="w-full bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#42DFFF]"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
             <div>
-              <label className="text-slate-400 font-medium block mb-1">Số điện thoại *</label>
+              <label className="text-[#BEC5E5] font-medium block mb-1">Số điện thoại *</label>
               <input
                 type="tel"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 placeholder="0912 345 678"
-                className="w-full bg-[#131928] border border-slate-700/80 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#42DFFF]"
               />
             </div>
             <div>
-              <label className="text-slate-400 font-medium block mb-1">Email nhận vé *</label>
+              <label className="text-[#BEC5E5] font-medium block mb-1">Email nhận vé *</label>
               <input
                 type="email"
                 value={customerEmail}
                 onChange={(e) => setCustomerEmail(e.target.value)}
                 placeholder="email@example.com"
-                className="w-full bg-[#131928] border border-slate-700/80 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#42DFFF]"
               />
             </div>
           </div>
         </div>
 
         {/* Checkbox điều khoản */}
-        <label className="flex items-start space-x-2 pt-1 text-[11px] text-slate-400 cursor-pointer select-none">
+        <label className="flex items-start space-x-2 pt-1 text-[11px] text-[#BEC5E5] cursor-pointer select-none">
           <input
             type="checkbox"
             checked={agreedTerms}
             onChange={(e) => setAgreedTerms(e.target.checked)}
-            className="mt-0.5 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-0"
+            className="mt-0.5 rounded border-[#AA9BFF]/30 bg-[#0B1026] text-[#42DFFF] focus:ring-0"
           />
           <span>
             Tôi đồng ý với điều khoản dịch vụ và chính sách vé của D'AVENOR CINEMA.
@@ -209,10 +209,10 @@ const CheckoutOrderSummary = ({
           type="button"
           onClick={onInitiatePayment}
           disabled={isSubmitting || !agreedTerms}
-          className={`w-full py-3 rounded-xl font-black text-sm tracking-wide transition-all shadow-xl flex items-center justify-center space-x-2 cursor-pointer ${
+          className={`w-full py-3.5 rounded-xl font-black text-sm tracking-wide transition-all shadow-xl flex items-center justify-center space-x-2 cursor-pointer ${
             !agreedTerms || isSubmitting
-              ? 'bg-blue-600/40 text-blue-200/50 cursor-not-allowed'
-              : 'bg-[#2563eb] hover:bg-blue-500 text-white shadow-blue-600/30 hover:scale-[1.01]'
+              ? 'bg-[#20204B] text-[#BEC5E5]/40 border border-[#AA9BFF]/15 cursor-not-allowed'
+              : 'bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] hover:brightness-108 shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:scale-[1.01]'
           }`}
         >
           {isSubmitting ? (

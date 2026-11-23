@@ -107,43 +107,45 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
 
               {/* Các hàng ghế A -> H */}
               <div className="space-y-2 max-w-xl mx-auto select-none">
-                {data.seatMatrix.map((r) => (
-                  <div key={r.row} className="flex items-center justify-center space-x-2">
-                    <span className="w-5 text-right font-mono font-bold text-xs text-slate-400">{r.row}</span>
-                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                      {r.seats.map((s) => {
-                        const isBooked = s.status === 'BOOKED';
-                        const isHolding = s.status === 'HOLDING';
-                        const isLocked = s.status === 'LOCKED';
+                {data.seatMatrix.map((r) => {
+                  const isRowH = r.row === 'H';
+                  return (
+                    <div key={r.row} className="flex items-center justify-center space-x-2">
+                      <span className="w-5 text-right font-mono font-bold text-xs text-slate-400">{r.row}</span>
+                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                        {r.seats.map((s, idx) => {
+                          const isBooked = s.status === 'BOOKED';
+                          const isAisleBreak = isRowH && idx === 2;
 
-                        return (
-                          <div
-                            key={s.code}
-                            title={`${s.code} (${s.type}) - ${
-                              isBooked ? 'Đã đặt' : isHolding ? 'Đang giữ chỗ' : isLocked ? 'Khóa/Bảo trì' : 'Còn trống'
-                            }`}
-                            className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md text-[9px] font-bold flex items-center justify-center pointer-events-none transition-all ${
-                              isBooked
-                                ? 'bg-red-600 text-white border border-red-500 shadow-sm shadow-red-600/30'
-                                : isHolding
-                                ? 'bg-amber-600/30 text-amber-300 border border-dashed border-amber-400 animate-pulse'
-                                : isLocked
-                                ? 'bg-slate-900 text-slate-600 border border-slate-800 line-through'
-                                : s.type === 'VIP'
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                : s.type === 'SWEETBOX'
-                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                                : 'bg-slate-800 text-slate-300 border border-slate-700'
-                            }`}
-                          >
-                            {s.code}
-                          </div>
-                        );
-                      })}
+                          return (
+                            <React.Fragment key={s.code}>
+                              {isAisleBreak && (
+                                <div className="w-6 flex items-center justify-center select-none text-[8px] font-black text-slate-500 tracking-wider">
+                                  AISLE
+                                </div>
+                              )}
+                              <div
+                                title={`${s.code} (${s.type}) - ${isBooked ? 'Đã đặt' : 'Còn trống'}`}
+                                className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md text-[9px] font-bold flex items-center justify-center pointer-events-none transition-all ${
+                                  isBooked
+                                    ? 'bg-red-600 text-white border border-red-500 shadow-sm shadow-red-600/30'
+                                    : s.type === 'VIP'
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                    : s.type === 'SWEETBOX'
+                                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                                    : 'bg-slate-800 text-slate-300 border border-slate-700'
+                                }`}
+                              >
+                                {s.code}
+                              </div>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                      <span className="w-5 text-left font-mono font-bold text-xs text-slate-400">{r.row}</span>
                     </div>
-                    <span className="w-5 text-left font-mono font-bold text-xs text-slate-400">{r.row}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Chú giải trạng thái ghế */}
@@ -152,12 +154,6 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
                   <span className="w-3 h-3 rounded bg-red-600 border border-red-500"></span>
                   <span>Đã đặt ({data.stats.bookedCount})</span>
                 </span>
-                {data.stats.holdingCount > 0 && (
-                  <span className="flex items-center space-x-1.5">
-                    <span className="w-3 h-3 rounded bg-amber-600/30 border border-dashed border-amber-400"></span>
-                    <span>Đang giữ chỗ ({data.stats.holdingCount})</span>
-                  </span>
-                )}
                 <span className="flex items-center space-x-1.5">
                   <span className="w-3 h-3 rounded bg-slate-800 border border-slate-700 text-slate-300"></span>
                   <span>Ghế Thường trống (A-D)</span>
