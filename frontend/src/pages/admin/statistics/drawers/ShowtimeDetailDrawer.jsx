@@ -8,9 +8,9 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
 
   useEffect(() => {
     if (!showtimeId) return;
-    const fetchDetail = async () => {
+    const fetchDetail = async (isSilent = false) => {
       try {
-        setLoading(true);
+        if (!isSilent) setLoading(true);
         const res = await statisticsApi.getShowtimeDetail(showtimeId);
         if (res.data?.data) {
           setData(res.data.data);
@@ -18,10 +18,18 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
       } catch (err) {
         console.error('Lỗi nạp chi tiết suất chiếu:', err);
       } finally {
-        setLoading(false);
+        if (!isSilent) setLoading(false);
       }
     };
-    fetchDetail();
+
+    fetchDetail(false);
+
+    // Tự động đồng bộ liên tục thời gian thực mỗi 4 giây cho Admin
+    const syncInterval = setInterval(() => {
+      fetchDetail(true);
+    }, 4000);
+
+    return () => clearInterval(syncInterval);
   }, [showtimeId]);
 
   if (!showtimeId) return null;
@@ -115,7 +123,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
                       <div className="flex items-center justify-center gap-1.5 flex-wrap">
                         {r.seats.map((s, idx) => {
                           const isBooked = s.status === 'BOOKED';
-                          const isAisleBreak = isRowH && idx === 2;
+                          const isAisleBreak = (isRowH && idx === 2) || (!isRowH && idx === 6);
 
                           return (
                             <React.Fragment key={s.code}>

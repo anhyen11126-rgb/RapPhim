@@ -17,15 +17,21 @@ const ShowtimesTab = ({
   const totalPages = showtimesData?.totalPages || 1;
 
   const ROOM_OPTIONS = [
-    { value: 'ALL', label: 'Tất cả phòng chiếu' },
-    { value: '01', label: 'Rạp 01 (IMAX Laser Grand)' },
-    { value: '02', label: 'Rạp 02 (2D Tiêu chuẩn)' },
-    { value: '03', label: 'Rạp 03 (2D Dolby Atmos)' },
-    { value: '04', label: 'Rạp 04 (4DX Sound)' },
-    { value: '05', label: 'Rạp 05 (RealD 3D)' },
-    { value: '06', label: 'Rạp 06 (Gold Class VIP)' },
-    { value: '07', label: 'Rạp 07 (L\'Amour Giường Nằm)' },
-    { value: '08', label: 'Rạp 08 (Cine & Suite)' },
+    { value: 'ALL', label: 'Tất cả 9 phòng chiếu' },
+    // 3 Nhóm loại phòng
+    { value: 'IMAX Laser', label: '★ Nhóm IMAX Laser (3 phòng)' },
+    { value: 'Dolby Atmos', label: '★ Nhóm Dolby Atmos (3 phòng)' },
+    { value: 'Gold Class', label: '★ Nhóm Gold Class (3 phòng)' },
+    // 9 Phòng chiếu vật lý
+    { value: 'Phòng 1', label: 'Phòng 01 - IMAX Laser 01' },
+    { value: 'Phòng 2', label: 'Phòng 02 - IMAX Laser 02' },
+    { value: 'Phòng 3', label: 'Phòng 03 - IMAX Laser 03' },
+    { value: 'Phòng 4', label: 'Phòng 04 - Dolby Atmos 01' },
+    { value: 'Phòng 5', label: 'Phòng 05 - Dolby Atmos 02' },
+    { value: 'Phòng 6', label: 'Phòng 06 - Dolby Atmos 03' },
+    { value: 'Phòng 7', label: 'Phòng 07 - Gold Class 01' },
+    { value: 'Phòng 8', label: 'Phòng 08 - Gold Class 02' },
+    { value: 'Phòng 9', label: 'Phòng 09 - Gold Class 03' },
   ];
 
   const handleSearchSubmit = (e) => {

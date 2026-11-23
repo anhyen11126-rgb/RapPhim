@@ -113,18 +113,9 @@ const MovieInfoSidebar = ({
 
       {/* 1. KHU VỰC POSTER & TIÊU ĐỀ PHIM */}
       <div className="flex items-start space-x-3.5 pb-4 border-b border-white/10 relative z-10">
-        <img
-          src={movie?.poster || movie?.posterUrl || '/banner-dune.jpg'}
-          alt={movie?.title || 'Poster phim'}
-          className="w-16 h-24 sm:w-20 sm:h-28 object-cover rounded-xl shadow-[0_8px_20px_rgba(0,0,0,0.8)] border border-white/15 shrink-0"
-          onError={(e) => {
-            e.target.src = '/banner-dune.jpg';
-          }}
-        />
-
         <div className="flex-1 min-w-0">
           <h2 className="text-base sm:text-lg font-black text-white leading-snug line-clamp-2 tracking-wide">
-            {movie?.title || 'Dune: Hành Tinh Cát – Phần 2'}
+            {movie?.title || '?'}
           </h2>
 
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">

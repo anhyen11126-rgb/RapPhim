@@ -114,6 +114,15 @@ const MovieStatsReviewsSection = ({ movie }) => {
     Array.isArray(movie.reviews) && movie.reviews.length > 0 ? movie.reviews : defaultReviews
   );
 
+  // Trạng thái thu gọn / mở rộng danh sách bình luận (mặc định chỉ hiện 3 bình luận tinh tế nhất)
+  const [isExpanded, setIsExpanded] = useState(false);
+  const INITIAL_VISIBLE_COUNT = 3;
+
+  const visibleReviews = isExpanded
+    ? reviewsList
+    : reviewsList.slice(0, INITIAL_VISIBLE_COUNT);
+  const hasMoreReviews = reviewsList.length > INITIAL_VISIBLE_COUNT;
+
   const starRows = [
     { star: 5, label: '5 sao', count: breakdown.fiveStar || 90 },
     { star: 4, label: '4 sao', count: breakdown.fourStar || 20 },
@@ -298,41 +307,58 @@ const MovieStatsReviewsSection = ({ movie }) => {
 
       <div className="border-t border-slate-800/80"></div>
 
-      {/* 4. DANH SÁCH BÌNH LUẬN CỦA KHÁCH HÀNG */}
-      <div className="space-y-3.5">
+      {/* 4. DANH SÁCH BÌNH LUẬN CỦA KHÁCH HÀNG (THIẾT KẾ RÚT GỌN TINH TẾ) */}
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h4 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+          <h4 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
             <span>💬</span>
-            <span>Bình luận khách hàng ({reviewsList.length})</span>
+            <span>Bình luận khách hàng</span>
+            <span className="px-2 py-0.5 rounded-full bg-slate-800/90 border border-slate-700/80 text-[11px] font-bold text-blue-400">
+              {reviewsList.length}
+            </span>
           </h4>
+
+          {hasMoreReviews && (
+            <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+              {isExpanded ? `Đang hiển thị tất cả ${reviewsList.length} bình luận` : `Hiển thị 3/${reviewsList.length} bình luận mới nhất`}
+            </span>
+          )}
         </div>
 
-        {/* Danh sách bình luận */}
-        <div className="space-y-2.5">
-          {reviewsList.slice(0, 6).map((rev, idx) => {
+        {/* Danh sách bình luận rút gọn & tinh tế */}
+        <div
+          className={`space-y-2 transition-all duration-300 ${
+            isExpanded
+              ? 'max-h-[320px] sm:max-h-[350px] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-slate-700/80 scrollbar-track-transparent'
+              : ''
+          }`}
+        >
+          {visibleReviews.map((rev, idx) => {
             const canDelete = isMyReview(rev);
             return (
               <div
                 key={rev._id || rev.id || idx}
-                className="bg-slate-900/50 hover:bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800/60 transition-all space-y-1.5 group/rev"
+                className="bg-slate-900/40 hover:bg-slate-900/70 py-2.5 px-3 sm:px-3.5 rounded-xl border border-slate-800/70 hover:border-slate-700/60 transition-all duration-200 space-y-1 group/rev"
               >
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-[11px] flex items-center justify-center shrink-0">
+                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-[10px] sm:text-[11px] flex items-center justify-center shrink-0 shadow-sm">
                       {(rev.userName || 'K').charAt(0).toUpperCase()}
                     </div>
-                    <span className="font-bold text-white text-sm">{rev.userName || 'Khán giả'}</span>
-                    <span className="text-slate-500">•</span>
-                    <span className="text-amber-400 tracking-wider">
+                    <span className="font-bold text-white text-xs sm:text-sm">
+                      {rev.userName || 'Khán giả'}
+                    </span>
+                    <span className="text-slate-600 hidden sm:inline">•</span>
+                    <span className="text-amber-400 tracking-wider flex items-center text-xs">
                       {renderStars(rev.rating || 5)}
                     </span>
                     {canDelete && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30">
                         Của bạn
                       </span>
                     )}
                     {rev.createdAt && (
-                      <span className="text-[10px] text-slate-500 hidden sm:inline ml-1">
+                      <span className="text-[10px] text-slate-400 hidden sm:inline ml-1 font-medium">
                         {formatReviewDate(rev.createdAt)}
                       </span>
                     )}
@@ -344,20 +370,49 @@ const MovieStatsReviewsSection = ({ movie }) => {
                       type="button"
                       onClick={() => handleDeleteReview(rev, idx)}
                       className="text-[11px] text-slate-500 hover:text-rose-400 transition-colors flex items-center space-x-1 px-2 py-0.5 rounded-lg hover:bg-rose-500/10 cursor-pointer"
-                      title="Xóa bình luận này của bạn nếu bạn viết nhầm"
+                      title="Xóa bình luận này của bạn"
                     >
                       <span>🗑️</span>
                       <span>Xóa</span>
                     </button>
                   )}
                 </div>
-                <p className="text-xs sm:text-sm text-slate-300 font-normal leading-relaxed pl-8">
+                <p className="text-xs sm:text-[13px] text-slate-300 font-normal leading-relaxed pl-7 sm:pl-8">
                   {rev.comment}
                 </p>
               </div>
             );
           })}
         </div>
+
+        {/* Nút Xem thêm / Thu gọn bình luận dạng Pill tinh tế */}
+        {hasMoreReviews && (
+          <div className="pt-0.5 flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="px-4 py-1.5 rounded-full bg-slate-900/70 hover:bg-slate-800/90 border border-slate-700/60 hover:border-blue-500/50 text-slate-300 hover:text-white text-xs font-semibold transition-all duration-200 flex items-center space-x-1.5 shadow-sm hover:shadow-[0_0_12px_rgba(59,130,246,0.2)] group cursor-pointer active:scale-95"
+            >
+              {isExpanded ? (
+                <>
+                  <span>Thu gọn bình luận</span>
+                  <span className="text-slate-400 group-hover:text-blue-400 transition-transform group-hover:-translate-y-0.5 text-[11px]">
+                    ▲
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>
+                    Xem thêm {reviewsList.length - INITIAL_VISIBLE_COUNT} bình luận khác
+                  </span>
+                  <span className="text-blue-400 group-hover:translate-y-0.5 transition-transform text-[11px]">
+                    ▼
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 5. FOOTER: THANH VIẾT BÌNH LUẬN Ở PHÍA DƯỚI CÙNG & NÚT NHỎ ĐỂ ĐĂNG (ĐÃ BỎ DẤU MŨI TÊN) */}

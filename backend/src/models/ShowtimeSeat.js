@@ -8,6 +8,11 @@ const showtimeSeatSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    roomId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Room',
+      index: true,
+    },
     seatNumber: {
       type: String,
       required: true,

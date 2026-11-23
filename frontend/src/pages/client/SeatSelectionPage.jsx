@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, useLocation, Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
+import { createSeatLayout } from '../../components/seat-booking/seatLayout';
 import SeatGrid from '../../components/seat-booking/SeatGrid';
 import MovieInfoSidebar from '../../components/seat-booking/MovieInfoSidebar';
 import SeatLegendBar from '../../components/seat-booking/SeatLegendBar';
+import SmartSeatRecommender from '../../components/seat-booking/SmartSeatRecommender';
+import Theater3DExperience from '../../components/seat-booking/Theater3DExperience';
 import { calculateDynamicPrices, loadPricingConfig, DEFAULT_PRICING_CONFIG } from '../../utils/pricing';
 
 const SeatSelectionPage = () => {
@@ -14,11 +17,22 @@ const SeatSelectionPage = () => {
 
   const [showtime, setShowtime] = useState(slotInfo || null);
   const [selectedSeats, setSelectedSeats] = useState([]);
+  const [inventory, setInventory] = useState('[]');
   const [bookedSeats, setBookedSeats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
-  const [holdingLoading, setHoldingLoading] = useState(false);
   const [pricingConfig, setPricingConfig] = useState(DEFAULT_PRICING_CONFIG);
+  const [conflictToast, setConflictToast] = useState(null);
+  const [initialSeatId, setInitialSeatId] = useState();
+  const [is3DMode, setIs3DMode] = useState(false);
+  const [saleStatus, setSaleStatus] = useState('OPEN_FOR_SALE');
+  const [saleMessage, setSaleMessage] = useState('');
+
+  // Ref giữ danh sách ghế đang chọn mới nhất phục vụ kiểm tra xung đột trong interval
+  const selectedSeatsRef = useRef(selectedSeats);
+  useEffect(() => {
+    selectedSeatsRef.current = selectedSeats;
+  }, [selectedSeats]);
 
   useEffect(() => {
     loadPricingConfig().then((cfg) => {
@@ -26,22 +40,45 @@ const SeatSelectionPage = () => {
     });
   }, []);
 
+  // Lần đầu tải và tự động đồng bộ thời gian thực liên tục (Auto-polling mỗi 3 giây)
   useEffect(() => {
-    fetchSeats();
-  }, [showtimeId]);
+    const request = new AbortController();
+    setSelectedSeats([]);
+    setInventory('[]');
+    setBookedSeats([]);
+    setIs3DMode(false);
+    fetchSeats(false, request.signal);
 
-  const fetchSeats = async () => {
+    const syncInterval = setInterval(() => fetchSeats(true, request.signal), 3000);
+    return () => {
+      request.abort();
+      clearInterval(syncInterval);
+    };
+  }, [showtimeId, slotInfo?.date]);
+
+  const fetchSeats = async (isSilent, signal) => {
     try {
-      setLoading(true);
-      setErrorMsg('');
+      if (!isSilent) {
+        setLoading(true);
+        setErrorMsg('');
+      }
       const dateParam = slotInfo?.date ? `?date=${encodeURIComponent(slotInfo.date)}` : '';
-      const res = await api.get(`/showtimes/${showtimeId}/seats${dateParam}`);
+      const res = await api.get(`/showtimes/${showtimeId}/seats${dateParam}`, { signal });
+      if (signal.aborted) return;
+
+      if (res.data?.saleStatus) {
+        setSaleStatus(res.data.saleStatus);
+        setSaleMessage(res.data.saleMessage || '');
+      }
 
       if (res.data?.showtime) {
         // Hợp nhất dữ liệu suất chiếu thực tế từ DB và slot được người dùng chọn
         setShowtime({
           ...res.data.showtime,
           ...(slotInfo || {}),
+          room: res.data.showtime.room,
+          roomId: res.data.showtime.roomId,
+          seatRoomId: res.data.roomId,
           id: res.data.showtime.id || res.data.showtime._id,
           _id: res.data.showtime._id || res.data.showtime.id,
           movie: slotInfo?.movie || res.data.showtime.movie,
@@ -59,30 +96,54 @@ const SeatSelectionPage = () => {
           price: slotInfo?.price || res.data.showtime.price,
           cinemaName: slotInfo?.cinemaName || res.data.showtime.cinema?.name || "D'AVENOR Thanh Khê Plaza",
         });
-      } else if (slotInfo) {
+      } else if (slotInfo && !isSilent) {
         setShowtime(slotInfo);
       }
 
-      if (res.data?.seats && Array.isArray(res.data.seats)) {
+      if (Array.isArray(res.data?.seats)) {
+        const layoutSeats = res.data.seats
+          .map(({ id, seatNumber, row, col, type }) => ({ id, seatNumber, row, col, type }))
+          .sort((a, b) => a.row.localeCompare(b.row) || a.col - b.col || a.id.localeCompare(b.id));
+        setInventory(JSON.stringify(layoutSeats));
         // Chỉ lấy những ghế thực tế đã được thanh toán (BOOKED) trong Database
-        const booked = res.data.seats
+        const latestBooked = res.data.seats
           .filter((s) => s.status === 'BOOKED')
           .map((s) => s.seatNumber);
-        setBookedSeats(booked);
-      } else {
+
+        // PHÁT HIỆN XUNG ĐỘT THỜI GIAN THỰC:
+        // Nếu ghế mà khách này đang chọn vừa có khách khác mua thành công
+        const currentSelected = selectedSeatsRef.current || [];
+        const conflictedSeats = currentSelected.filter((s) => latestBooked.includes(s));
+
+        if (conflictedSeats.length > 0) {
+          // Gỡ bỏ ghế bị người khác mua khỏi lựa chọn hiện tại
+          setSelectedSeats((prev) => prev.filter((s) => !latestBooked.includes(s)));
+          setConflictToast(
+            `Ghế [${conflictedSeats.join(', ')}] vừa được khách khác thanh toán thành công! Sơ đồ ghế đã được tự động cập nhật.`
+          );
+          setTimeout(() => setConflictToast(null), 6000);
+        }
+
+        setBookedSeats(latestBooked);
+      } else if (!isSilent) {
         setBookedSeats([]);
       }
     } catch (err) {
+      if (signal.aborted) return;
       console.warn('Lỗi tải dữ liệu suất chiếu từ DB:', err);
-      if (slotInfo) {
-        setShowtime(slotInfo);
-        setBookedSeats([]);
-      } else {
-        setErrorMsg('Không thể tải sơ đồ ghế cho suất chiếu này. Vui lòng thử lại!');
-        setBookedSeats([]);
+      if (!isSilent) {
+        if (slotInfo) {
+          setShowtime(slotInfo);
+          setBookedSeats([]);
+        } else {
+          setErrorMsg('Không thể tải sơ đồ ghế cho suất chiếu này. Vui lòng thử lại!');
+          setBookedSeats([]);
+        }
       }
     } finally {
-      setLoading(false);
+      if (!isSilent && !signal.aborted) {
+        setLoading(false);
+      }
     }
   };
 
@@ -126,13 +187,13 @@ const SeatSelectionPage = () => {
   };
 
   // Nhận diện chuẩn loại phòng chiếu: 'IMAX' | 'ATMOS' | 'GOLD'
-  const currentRoomType =
-    showtime?.roomType ||
-    ((showtime?.roomName || '').toLowerCase().includes('atmos')
-      ? 'ATMOS'
-      : (showtime?.roomName || '').toLowerCase().includes('gold')
-      ? 'GOLD'
-      : 'IMAX');
+  const roomTechnology = (showtime?.room?.roomType || showtime?.roomType || showtime?.roomName || '').toLowerCase();
+  const currentRoomType = roomTechnology.includes('atmos') ? 'ATMOS' : roomTechnology.includes('gold') ? 'GOLD' : 'IMAX';
+  const seats = useMemo(() => JSON.parse(inventory), [inventory]);
+  const rows = useMemo(() => createSeatLayout(seats, currentRoomType), [seats, currentRoomType]);
+  const seatsByCode = useMemo(() => new Map(seats.map((seat) => [seat.seatNumber, seat])), [seats]);
+  const activeShowtimeId = showtime?._id || showtime?.id;
+  const activeRoomId = showtime?.room?.id || showtime?.roomId || showtime?.seatRoomId;
 
   // Tính giá vé động theo ngày trong tuần, khung giờ và quy định cụ thể của từng loại ghế
   const {
@@ -143,28 +204,16 @@ const SeatSelectionPage = () => {
     roomTypeLabel,
   } = calculateDynamicPrices(showtime, pricingConfig);
 
-  const handleSeatClick = (seatId) => {
-    if (bookedSeats.includes(seatId)) return;
-
-    if (selectedSeats.includes(seatId)) {
-      setSelectedSeats(selectedSeats.filter((s) => s !== seatId));
-    } else {
-      setSelectedSeats([...selectedSeats, seatId]);
-    }
+  const handleSeatClick = (code) => {
+    if (!seatsByCode.has(code) || bookedSeats.includes(code)) return;
+    setSelectedSeats((current) => current.includes(code)
+      ? current.filter((seat) => seat !== code)
+      : [...current, code]);
   };
 
   const calculateTotal = () => {
-    let sum = 0;
-    selectedSeats.forEach((seatId) => {
-      if (seatId.startsWith('H')) {
-        sum += PRICE_SWEETBOX;
-      } else if (['E', 'F', 'G'].some((r) => seatId.startsWith(r))) {
-        sum += PRICE_VIP;
-      } else {
-        sum += PRICE_STANDARD;
-      }
-    });
-    return sum;
+    const priceByType = { STANDARD: PRICE_STANDARD, VIP: PRICE_VIP, SWEETBOX: PRICE_SWEETBOX };
+    return selectedSeats.reduce((total, code) => total + (priceByType[seatsByCode.get(code)?.type] ?? 0), 0);
   };
 
   const handleProceed = () => {
@@ -287,8 +336,25 @@ const SeatSelectionPage = () => {
         style={{ background: roomTheme.ambientAura }}
       ></div>
 
+      {/* THÔNG BÁO XUNG ĐỘT KHI GHẾ VỪA ĐƯỢC KHÁCH KHÁC MUA THÀNH CÔNG */}
+      {conflictToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] max-w-lg w-[90%] px-5 py-3.5 rounded-2xl bg-[#1A0B2E]/95 border border-amber-400/80 text-amber-200 text-xs sm:text-sm font-bold shadow-[0_10px_40px_rgba(0,0,0,0.8),0_0_30px_rgba(245,158,11,0.35)] backdrop-blur-2xl flex items-center space-x-3 animate-bounce">
+          <span className="text-xl shrink-0">⚠️</span>
+          <div className="flex-1">
+            <p className="leading-snug">{conflictToast}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setConflictToast(null)}
+            className="text-amber-300 hover:text-white p-1 text-sm font-black cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 1. THANH TIÊU ĐỀ TRÊN CÙNG: QUAY LẠI + TIẾN TRÌNH 3 BƯỚC */}
-      <div
+      {!is3DMode && <div
         className={`w-full ${roomTheme.subBarBg} ${roomTheme.subBarBorder} backdrop-blur-xl py-3 mb-4 shadow-xl animate-smooth-fade relative z-20`}
       >
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
@@ -314,7 +380,7 @@ const SeatSelectionPage = () => {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-base sm:text-lg font-black text-white tracking-wide">
-                  {showtime?.movie?.title || 'Dune: Hành Tinh Cát 2'}
+                  {showtime?.movie?.title || 'Chọn ghế'}
                 </h1>
                 <span className="bg-[#f59e0b] text-[#0a1120] font-black text-[10px] px-2 py-0.5 rounded-full shadow-sm">
                   {showtime?.movie?.ageRating || '13+'}
@@ -365,64 +431,108 @@ const SeatSelectionPage = () => {
             </div>
           </div>
 
-          {/* Thanh tiến trình 3 bước đồng bộ màu sắc theo phòng */}
-          <div
-            className={`inline-flex items-center ${roomTheme.stepperBg} rounded-full px-4 py-1.5 shadow-lg backdrop-blur-md overflow-x-auto max-w-full`}
-          >
-            <div className={`flex items-center space-x-2 ${roomTheme.step1Box} rounded-full pl-1.5 pr-3 py-0.5 shrink-0`}>
-              <div className={`w-4 h-4 rounded-full ${roomTheme.step1Circle} flex items-center justify-center text-[10px] font-black shrink-0`}>
-                1
-              </div>
-              <span className="text-xs font-black leading-tight">
-                Chọn ghế
+          {/* Thanh trạng thái Real-time Live Sync & Tiến trình 3 bước */}
+          <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+            <div
+              className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold shadow-[0_0_12px_rgba(16,185,129,0.15)] select-none shrink-0"
+              title="Sơ đồ ghế đang được đồng bộ liên tục thời gian thực với hệ thống"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
+              <span>Đồng bộ trực tiếp</span>
             </div>
 
-            <div className={`w-8 sm:w-12 h-[1px] ${roomTheme.stepLine} mx-2 shrink-0`}></div>
-
-            <div className={`flex items-center space-x-1.5 ${roomTheme.stepOtherText} shrink-0`}>
-              <div className="w-4 h-4 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-bold shrink-0">
-                2
+            {/* Thanh tiến trình 3 bước đồng bộ màu sắc theo phòng */}
+            <div
+              className={`inline-flex items-center ${roomTheme.stepperBg} rounded-full px-4 py-1.5 shadow-lg backdrop-blur-md overflow-x-auto max-w-full`}
+            >
+              <div className={`flex items-center space-x-2 ${roomTheme.step1Box} rounded-full pl-1.5 pr-3 py-0.5 shrink-0`}>
+                <div className={`w-4 h-4 rounded-full ${roomTheme.step1Circle} flex items-center justify-center text-[10px] font-black shrink-0`}>
+                  1
+                </div>
+                <span className="text-xs font-black leading-tight">
+                  Chọn ghế
+                </span>
               </div>
-              <span className="text-xs font-medium">
-                Đồ ăn & Thanh toán
-              </span>
-            </div>
 
-            <div className={`w-8 sm:w-12 h-[1px] ${roomTheme.stepLine} mx-2 shrink-0`}></div>
+              <div className={`w-8 sm:w-12 h-[1px] ${roomTheme.stepLine} mx-2 shrink-0`}></div>
 
-            <div className={`flex items-center space-x-1.5 ${roomTheme.stepOtherText} shrink-0`}>
-              <div className="w-4 h-4 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-bold shrink-0">
-                3
+              <div className={`flex items-center space-x-1.5 ${roomTheme.stepOtherText} shrink-0`}>
+                <div className="w-4 h-4 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-bold shrink-0">
+                  2
+                </div>
+                <span className="text-xs font-medium">
+                  Đồ ăn & Thanh toán
+                </span>
               </div>
-              <span className="text-xs font-medium">
-                Vé điện tử
-              </span>
+
+              <div className={`w-8 sm:w-12 h-[1px] ${roomTheme.stepLine} mx-2 shrink-0`}></div>
+
+              <div className={`flex items-center space-x-1.5 ${roomTheme.stepOtherText} shrink-0`}>
+                <div className="w-4 h-4 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-bold shrink-0">
+                  3
+                </div>
+                <span className="text-xs font-medium">
+                  Vé điện tử
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* 2. KHU VỰC CHÍNH (SIDEBAR TRÁI + SƠ ĐỒ 88 GHẾ PHẢI) */}
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-2 relative z-10">
-        <div className="flex flex-col lg:flex-row items-start gap-6 lg:gap-8 justify-center">
-          {/* CỘT TRÁI: SIDEBAR THÔNG TIN PHIM & CÔNG NGHỆ PHÒNG (GIỐNG ẢNH THAM KHẢO) */}
-          <MovieInfoSidebar
-            movie={showtime?.movie}
-            showtime={showtime}
+        {is3DMode && rows.length ? (
+          <Theater3DExperience
+            key={activeShowtimeId}
             roomType={currentRoomType}
+            roomId={activeRoomId}
+            showtimeId={activeShowtimeId}
+            rows={rows}
+            initialSeatId={initialSeatId}
+            bookedSeats={bookedSeats}
+            selectedSeats={selectedSeats}
+            total={calculateTotal()}
+            onSeatClick={handleSeatClick}
+            onConfirm={handleProceed}
+            onClose={() => setIs3DMode(false)}
           />
-
-          {/* CỘT PHẢI: KHÔNG GIAN PHÒNG CHIẾU & MA TRẬN 88 GHẾ */}
-          <div className={`flex-1 w-full min-w-0 backdrop-blur-2xl border rounded-2xl p-4 sm:p-6 relative overflow-hidden flex flex-col items-center transition-all ${roomTheme.gridCardBg}`}>
-            <SeatGrid
-              roomType={currentRoomType}
-              bookedSeats={bookedSeats}
-              selectedSeats={selectedSeats}
-              onSeatClick={handleSeatClick}
-            />
+        ) : (
+          <div className="flex flex-col lg:flex-row items-start gap-6 lg:gap-8 justify-center">
+            <MovieInfoSidebar movie={showtime?.movie} showtime={showtime} roomType={currentRoomType} />
+            <div className="flex-1 w-full min-w-0">
+              {rows.length > 0 && (
+                <SmartSeatRecommender
+                  showtimeId={activeShowtimeId || showtimeId}
+                  roomType={currentRoomType}
+                  selectedSeats={selectedSeats}
+                  bookedSeats={bookedSeats}
+                  onSelectSeats={(codes) => setSelectedSeats(codes.filter((code) =>
+                    seatsByCode.has(code) && !bookedSeats.includes(code)
+                  ))}
+                />
+              )}
+              <div className="mb-3 flex justify-end">
+                <button type="button" disabled={!rows.length}
+                  onClick={() => {
+                    setInitialSeatId(seatsByCode.get(selectedSeats.at(-1))?.id);
+                    setIs3DMode(true);
+                  }}
+                  className="rounded-xl border border-cyan-400/40 bg-cyan-500/15 px-4 py-2 text-sm font-bold text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-40">
+                  Xem góc nhìn 3D
+                </button>
+              </div>
+              <div className={`w-full backdrop-blur-2xl border rounded-2xl p-4 sm:p-6 ${roomTheme.gridCardBg}`}>
+                {errorMsg && <p role="alert" className="mb-3 text-center text-sm text-amber-200">{errorMsg}</p>}
+                <SeatGrid roomType={currentRoomType} rows={rows} bookedSeats={bookedSeats}
+                  selectedSeats={selectedSeats} onSeatClick={handleSeatClick} />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </main>
 
       {/* 3. DẢI CHUYỂN TIẾP MƯỢT XUỐNG CHÂN TRANG (FOOTER) - KHÔNG BỊ CẮT MÀU ĐỘT NGỘT */}
@@ -432,13 +542,14 @@ const SeatSelectionPage = () => {
       </div>
 
       {/* 4. THANH ĐIỀU KHIỂN & CHÚ THÍCH CỐ ĐỊNH Ở ĐÁY TRANG (GIỐNG ẢNH THAM KHẢO) */}
-      <SeatLegendBar
+      {!is3DMode && <SeatLegendBar
+        seats={seats}
         roomType={currentRoomType}
         bookedSeats={bookedSeats}
         selectedSeats={selectedSeats}
         totalAmount={calculateTotal()}
         onProceed={handleProceed}
-      />
+      />}
     </div>
   );
 };

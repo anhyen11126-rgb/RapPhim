@@ -42,13 +42,34 @@ const bookingSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['PENDING', 'PAID', 'CANCELLED'],
+      enum: ['PENDING', 'PAID', 'CANCELLED', 'EXCHANGED'],
       default: 'PAID',
     },
     paymentMethod: {
       type: String,
       enum: ['MOMO', 'VNPAY', 'CASH'],
       default: 'MOMO',
+    },
+    qrToken: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    isCheckedIn: {
+      type: Boolean,
+      default: false,
+    },
+    checkedInAt: {
+      type: Date,
+      default: null,
+    },
+    refundAmount: {
+      type: Number,
+      default: 0,
+    },
+    exchangeHistory: {
+      type: Array,
+      default: [],
     },
   },
   {

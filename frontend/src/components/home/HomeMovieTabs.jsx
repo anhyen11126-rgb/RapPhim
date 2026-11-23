@@ -74,8 +74,17 @@ const HomeMovieTabs = ({ moviesList }) => {
   // Carousel State cho Phim Đang Chiếu (0: Dune 2, 1: Mai, 2: Deadpool)
   const [activeNowShowingIndex, setActiveNowShowingIndex] = useState(1);
 
-  // Vòng lặp vô tận (Infinite Seamless Loop): Bắt đầu ở Set 1 (chính giữa, index 15)
-  const [comingSoonVirtualIndex, setComingSoonVirtualIndex] = useState(15);
+  // Vòng lặp vô tận (Infinite Seamless Loop): Bắt đầu ở Set 1 (vị trí Joker: Folie à Deux, index 22) ở chính giữa
+  const [comingSoonVirtualIndex, setComingSoonVirtualIndex] = useState(22);
+  const comingSoonVirtualIndexRef = useRef(22);
+  comingSoonVirtualIndexRef.current = comingSoonVirtualIndex;
+
+  // Ref section và cờ khóa lăn chuột (throttle) để lăn chuột êm ái từng phim
+  const comingSoonSectionRef = useRef(null);
+  const isWheelLockedRef = useRef(false);
+  const wheelLockTimerRef = useRef(null);
+  const scrollAnimIdRef = useRef(null);
+  const scrollMidTimerRef = useRef(null);
 
   // Ref container cuộn ngang và ref từng thẻ phim
   const reelScrollRef = useRef(null);
@@ -111,74 +120,122 @@ const HomeMovieTabs = ({ moviesList }) => {
     ];
   }, [all15ComingSoonMovies]);
 
-  // Đưa bộ phim mục tiêu về CHÍNH GIỮA màn hình chuẩn xác theo toạ độ thực tế trên mọi độ phân giải và khi phóng to
+  // Animation cuộn mượt mà 60-120fps bằng RequestAnimationFrame (mượt mà, lướt êm, không gián đoạn)
+  const animateScrollTo = (targetX, duration = 380, onMidpoint = null) => {
+    const container = reelScrollRef.current;
+    if (!container) return;
+    if (scrollAnimIdRef.current) cancelAnimationFrame(scrollAnimIdRef.current);
+    if (scrollMidTimerRef.current) clearTimeout(scrollMidTimerRef.current);
+
+    const startX = container.scrollLeft;
+    const distance = targetX - startX;
+    if (Math.abs(distance) < 1) {
+      container.scrollLeft = targetX;
+      isAutoScrollingRef.current = false;
+      if (onMidpoint) onMidpoint();
+      return;
+    }
+
+    const startTime = performance.now();
+    isAutoScrollingRef.current = true;
+
+    // Kích hoạt đổi tâm phim đồng bộ khi thẻ trượt được 75% quãng đường vào giữa
+    if (onMidpoint) {
+      scrollMidTimerRef.current = setTimeout(() => {
+        onMidpoint();
+      }, 130);
+    }
+
+    // Easing cubic: Lướt nhanh ban đầu và hãm phanh êm ái khi về đích
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+    const step = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = easeOutCubic(progress);
+
+      container.scrollLeft = startX + distance * ease;
+
+      if (progress < 1) {
+        scrollAnimIdRef.current = requestAnimationFrame(step);
+      } else {
+        container.scrollLeft = targetX;
+        isAutoScrollingRef.current = false;
+        checkBoundaryReset();
+      }
+    };
+
+    scrollAnimIdRef.current = requestAnimationFrame(step);
+  };
+
+  // Đưa bộ phim mục tiêu về CHÍNH GIỮA màn hình chuẩn xác theo toạ độ tuyệt đối
   const scrollToMovie = (virtualIdx, smooth = true) => {
     if (virtualIdx < 0 || virtualIdx >= loopedMovies.length) return;
-    setComingSoonVirtualIndex(virtualIdx);
+    comingSoonVirtualIndexRef.current = virtualIdx;
+
     const container = reelScrollRef.current;
     const card = cardRefs.current[virtualIdx];
     if (container && card) {
-      const containerRect = container.getBoundingClientRect();
-      const cardRect = card.getBoundingClientRect();
-      const containerCenter = containerRect.left + containerRect.width / 2;
-      const cardCenter = cardRect.left + cardRect.width / 2;
-      const diff = cardCenter - containerCenter;
+      const containerWidth = container.clientWidth;
+      const cardOffsetLeft = card.offsetLeft;
+      const cardWidth = card.offsetWidth;
+      const targetScrollLeft = cardOffsetLeft - (containerWidth / 2) + (cardWidth / 2);
 
-      if (Math.abs(diff) > 1) {
-        isAutoScrollingRef.current = true;
-        if (autoScrollTimerRef.current) clearTimeout(autoScrollTimerRef.current);
-
-        container.scrollBy({
-          left: diff,
-          behavior: smooth ? 'smooth' : 'auto',
+      if (smooth) {
+        animateScrollTo(Math.max(0, targetScrollLeft), 380, () => {
+          setComingSoonVirtualIndex(virtualIdx);
         });
-
-        autoScrollTimerRef.current = setTimeout(() => {
-          isAutoScrollingRef.current = false;
-          checkBoundaryReset();
-        }, smooth ? 450 : 20);
+      } else {
+        if (scrollAnimIdRef.current) cancelAnimationFrame(scrollAnimIdRef.current);
+        if (scrollMidTimerRef.current) clearTimeout(scrollMidTimerRef.current);
+        setComingSoonVirtualIndex(virtualIdx);
+        container.scrollLeft = Math.max(0, targetScrollLeft);
+        isAutoScrollingRef.current = false;
       }
     }
   };
 
-  // Căn giữa tĩnh bộ phim ban đầu khi mở tab hoặc tải dữ liệu
+  // Căn giữa tĩnh bộ phim Joker ban đầu khi mở tab hoặc tải dữ liệu
   useEffect(() => {
     if (activeTab === 'COMING_SOON' && reelScrollRef.current) {
       const timer = setTimeout(() => {
         const container = reelScrollRef.current;
-        const targetIdx = comingSoonVirtualIndex || 15;
+        const targetIdx = comingSoonVirtualIndexRef.current ?? 22;
         const card = cardRefs.current[targetIdx];
         if (container && card) {
-          const containerRect = container.getBoundingClientRect();
-          const cardRect = card.getBoundingClientRect();
-          const diff = (cardRect.left + cardRect.width / 2) - (containerRect.left + containerRect.width / 2);
-          if (Math.abs(diff) > 2) {
-            container.scrollLeft += diff;
-          }
+          const containerWidth = container.clientWidth;
+          const cardOffsetLeft = card.offsetLeft;
+          const cardWidth = card.offsetWidth;
+          const targetScrollLeft = cardOffsetLeft - (containerWidth / 2) + (cardWidth / 2);
+          container.scrollLeft = Math.max(0, targetScrollLeft);
         }
       }, 60);
       return () => clearTimeout(timer);
     }
   }, [activeTab, all15ComingSoonMovies.length]);
 
-  // Tự động căn đối chính giữa khi người dùng phóng to/thu nhỏ màn hình hoặc đổi kích thước cửa sổ
+  // Tự động căn đối chính giữa khi người dùng đổi kích thước cửa sổ
   useEffect(() => {
     const handleResize = () => {
       const container = reelScrollRef.current;
-      const card = cardRefs.current[comingSoonVirtualIndex];
+      const targetIdx = comingSoonVirtualIndexRef.current;
+      const card = cardRefs.current[targetIdx];
       if (container && card) {
-        const containerRect = container.getBoundingClientRect();
-        const cardRect = card.getBoundingClientRect();
-        const diff = (cardRect.left + cardRect.width / 2) - (containerRect.left + containerRect.width / 2);
-        if (Math.abs(diff) > 2) {
-          container.scrollLeft += diff;
-        }
+        const containerWidth = container.clientWidth;
+        const cardOffsetLeft = card.offsetLeft;
+        const cardWidth = card.offsetWidth;
+        const targetScrollLeft = cardOffsetLeft - (containerWidth / 2) + (cardWidth / 2);
+        container.scrollLeft = Math.max(0, targetScrollLeft);
       }
     };
 
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [comingSoonVirtualIndex]);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (scrollAnimIdRef.current) cancelAnimationFrame(scrollAnimIdRef.current);
+      if (scrollMidTimerRef.current) clearTimeout(scrollMidTimerRef.current);
+    };
+  }, []);
 
   // Khử hoàn toàn lỗi lướt nhanh: Chỉ reset biên cực xa và thực hiện tức thời 0ms, không animation
   const checkBoundaryReset = () => {
@@ -186,73 +243,56 @@ const HomeMovieTabs = ({ moviesList }) => {
     const container = reelScrollRef.current;
     if (!container || all15ComingSoonMovies.length === 0) return;
 
-    const card0 = cardRefs.current[0];
-    const card15 = cardRefs.current[15];
-    const card30 = cardRefs.current[30];
-    if (!card0 || !card15 || !card30) return;
-
-    const cycleWidth = card15.offsetLeft - card0.offsetLeft;
-    if (cycleWidth <= 0) return;
-
-    // Khi người dùng lướt qua Set 2 (từ card 30 trở đi)
-    if (container.scrollLeft >= card30.offsetLeft) {
-      container.scrollLeft -= cycleWidth;
-      setComingSoonVirtualIndex((prev) => Math.max(0, prev - 15));
+    const currentIdx = comingSoonVirtualIndexRef.current;
+    // Khi người dùng lướt qua cực biên xa Set 2 (từ card 36 trở đi)
+    if (currentIdx >= 36) {
+      const resetIdx = currentIdx - 15;
+      scrollToMovie(resetIdx, false);
     }
-    // Khi người dùng lướt lùi qua Set 0 (trước card 15)
-    else if (container.scrollLeft <= card15.offsetLeft - container.clientWidth) {
-      container.scrollLeft += cycleWidth;
-      setComingSoonVirtualIndex((prev) => prev + 15);
+    // Khi người dùng lướt lùi qua cực biên xa Set 0 (trước card 9)
+    else if (currentIdx < 9) {
+      const resetIdx = currentIdx + 15;
+      scrollToMovie(resetIdx, false);
     }
   };
 
-  // Hỗ trợ cuộn chuột lăn 1:1 tự nhiên, êm ái, tự động cân đối khi dừng lăn
+  // Hỗ trợ cuộn chuột lăn: Lăn chuột sẽ chuyển mượt qua bộ phim khác và căn bộ phim đó ở CHÍNH GIỮA
   useEffect(() => {
-    const el = reelScrollRef.current;
-    if (!el || activeTab !== 'COMING_SOON') return;
-
-    let wheelDebounceTimer = null;
+    const sectionEl = comingSoonSectionRef.current;
+    const reelEl = reelScrollRef.current;
+    const targetEl = sectionEl || reelEl;
+    if (!targetEl || activeTab !== 'COMING_SOON') return;
 
     const onWheel = (e) => {
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        return;
-      }
+      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      // Bỏ qua các rung lắc chuột quá nhỏ
+      if (Math.abs(delta) < 8) return;
 
+      // Chặn cuộn trang ngoài khi đang lăn chuột xem phim
       e.preventDefault();
-      // Cuộn 1:1 mượt mà theo đúng bước lăn chuột của người dùng
-      el.scrollLeft += e.deltaY;
 
-      // Sau khi người dùng dừng lăn chuột 250ms, nhẹ nhàng đưa phim gần tâm nhất về chính giữa cho cân đối
-      if (wheelDebounceTimer) clearTimeout(wheelDebounceTimer);
-      wheelDebounceTimer = setTimeout(() => {
-        const container = reelScrollRef.current;
-        if (!container || isDragging) return;
-        const containerRect = container.getBoundingClientRect();
-        const containerCenter = containerRect.left + containerRect.width / 2;
-        let closestIdx = comingSoonVirtualIndex;
-        let minDistance = Infinity;
+      if (isWheelLockedRef.current) return;
+      isWheelLockedRef.current = true;
+      if (wheelLockTimerRef.current) clearTimeout(wheelLockTimerRef.current);
+      wheelLockTimerRef.current = setTimeout(() => {
+        isWheelLockedRef.current = false;
+      }, 230);
 
-        cardRefs.current.forEach((card, idx) => {
-          if (!card) return;
-          const cardRect = card.getBoundingClientRect();
-          const cardCenter = cardRect.left + cardRect.width / 2;
-          const dist = Math.abs(containerCenter - cardCenter);
-          if (dist < minDistance) {
-            minDistance = dist;
-            closestIdx = idx;
-          }
-        });
+      const direction = delta > 0 ? 1 : -1;
+      let nextIdx = comingSoonVirtualIndexRef.current + direction;
 
-        scrollToMovie(closestIdx, true);
-      }, 250);
+      if (nextIdx < 0) nextIdx = 0;
+      if (nextIdx >= loopedMovies.length) nextIdx = loopedMovies.length - 1;
+
+      scrollToMovie(nextIdx, true);
     };
 
-    el.addEventListener('wheel', onWheel, { passive: false });
+    targetEl.addEventListener('wheel', onWheel, { passive: false });
     return () => {
-      el.removeEventListener('wheel', onWheel);
-      if (wheelDebounceTimer) clearTimeout(wheelDebounceTimer);
+      targetEl.removeEventListener('wheel', onWheel);
+      if (wheelLockTimerRef.current) clearTimeout(wheelLockTimerRef.current);
     };
-  }, [activeTab, comingSoonVirtualIndex, isDragging]);
+  }, [activeTab, loopedMovies.length]);
 
   // Xử lý kéo thả chuột chuẩn 1:1 bám sát bàn tay người dùng, thả ra là dừng ngay
   const handleMouseDown = (e) => {
@@ -308,6 +348,9 @@ const HomeMovieTabs = ({ moviesList }) => {
   // Cập nhật thông tin phim ở giữa khi người dùng tự do lướt theo toạ độ thực tế màn hình
   const handleReelScroll = () => {
     if (!reelScrollRef.current || loopedMovies.length === 0) return;
+    // Nếu đang trong quá trình animation cuộn mượt tự động thì không can thiệp để tránh xung đột gây nháy
+    if (isAutoScrollingRef.current) return;
+
     const container = reelScrollRef.current;
     const containerRect = container.getBoundingClientRect();
     const containerCenter = containerRect.left + containerRect.width / 2;
@@ -640,7 +683,10 @@ const HomeMovieTabs = ({ moviesList }) => {
 
       {/* 2. NỘI DUNG TAB PHIM SẮP CHIẾU (TỐI ƯU CHIỀU CAO & CÂN ĐỐI 10/10) */}
       {activeTab === 'COMING_SOON' && all15ComingSoonMovies.length > 0 && (
-        <div className="mt-6 relative w-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#20204B]/95 via-[#11152F] to-[#0B1026] border border-[#AA9BFF]/30 p-3.5 sm:p-5 lg:p-6 shadow-[0_12px_45px_rgba(11,16,38,0.95)]">
+        <div
+          ref={comingSoonSectionRef}
+          className="mt-6 relative w-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#20204B]/95 via-[#11152F] to-[#0B1026] border border-[#AA9BFF]/30 p-3.5 sm:p-5 lg:p-6 shadow-[0_12px_45px_rgba(11,16,38,0.95)]"
+        >
           {/* Ánh sáng sân khấu neon */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[320px] bg-gradient-to-b from-[#A855F7]/20 via-[#42DFFF]/15 to-transparent blur-3xl pointer-events-none rounded-full" />
 
@@ -681,23 +727,23 @@ const HomeMovieTabs = ({ moviesList }) => {
                   onClick={() => handleCardClick(idx)}
                   className={`relative w-[265px] sm:w-[295px] md:w-[315px] shrink-0 aspect-[1/1.45] rounded-3xl overflow-hidden transition-[transform,opacity,box-shadow,border-color] duration-300 ease-out select-none ${
                     isActive
-                      ? 'scale-100 md:scale-105 -translate-y-1.5 md:-translate-y-3 z-30 shadow-[0_12px_45px_rgba(168,85,247,0.4),inset_0_0_20px_rgba(66,223,255,0.2)] ring-4 ring-[#42DFFF]/50 border-2 border-[#83F5FF] opacity-100 cursor-default'
+                      ? 'scale-105 z-30 shadow-[0_12px_45px_rgba(168,85,247,0.4),inset_0_0_20px_rgba(66,223,255,0.2)] ring-4 ring-[#42DFFF]/50 border-2 border-[#83F5FF] opacity-100 cursor-default'
                       : distance === 1
-                      ? 'scale-95 translate-y-0 z-20 border border-[#AA9BFF]/30 hover:border-[#42DFFF]/60 opacity-75 hover:opacity-100 shadow-xl cursor-pointer'
-                      : 'scale-90 translate-y-1 z-10 border border-[#AA9BFF]/15 hover:border-[#AA9BFF]/30 opacity-40 hover:opacity-75 shadow-lg cursor-pointer'
+                      ? 'scale-95 z-20 border-2 border-[#AA9BFF]/30 hover:border-[#42DFFF]/60 opacity-75 hover:opacity-100 shadow-xl cursor-pointer'
+                      : 'scale-90 z-10 border-2 border-[#AA9BFF]/15 hover:border-[#AA9BFF]/30 opacity-40 hover:opacity-75 shadow-lg cursor-pointer'
                   }`}
                 >
                   <img
                     src={movie.poster || movie.posterUrl || '/banner-dune.jpg'}
                     alt={movie.title}
                     draggable={false}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 pointer-events-none"
+                    className="w-full h-full object-cover pointer-events-none"
                   />
 
                   <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-[#0B1026]/90 via-[#0B1026]/40 to-transparent pointer-events-none z-10" />
 
                   <div
-                    className={`absolute inset-0 bg-gradient-to-t transition-opacity duration-500 pointer-events-none ${
+                    className={`absolute inset-0 bg-gradient-to-t transition-opacity duration-300 pointer-events-none ${
                       isActive
                         ? 'from-[#0B1026] via-[#0B1026]/75 to-transparent opacity-100'
                         : 'from-[#0B1026]/95 via-[#0B1026]/65 to-transparent opacity-90'
@@ -705,9 +751,11 @@ const HomeMovieTabs = ({ moviesList }) => {
                   />
 
                   {/* Ánh sáng sàn cyan */}
-                  {isActive && (
-                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-4/5 h-16 bg-gradient-to-r from-transparent via-[#42DFFF]/35 to-transparent blur-xl pointer-events-none rounded-full" />
-                  )}
+                  <div
+                    className={`absolute -bottom-8 left-1/2 -translate-x-1/2 w-4/5 h-16 bg-gradient-to-r from-transparent via-[#42DFFF]/35 to-transparent blur-xl pointer-events-none rounded-full transition-opacity duration-300 ${
+                      isActive ? 'opacity-100' : 'opacity-0'
+                    }`}
+                  />
 
                   {/* Huy hiệu độ tuổi */}
                   <div className="absolute top-3.5 left-3.5 z-20">
@@ -739,17 +787,17 @@ const HomeMovieTabs = ({ moviesList }) => {
                     </div>
 
                     <h3
-                      className={`font-black drop-shadow-md mb-1 transition-all tracking-tight leading-snug px-1 flex items-center justify-center text-center min-h-[38px] sm:min-h-[44px] ${
+                      className={`font-black drop-shadow-md mb-1 tracking-tight leading-snug px-1 flex items-center justify-center text-center min-h-[38px] sm:min-h-[44px] text-sm sm:text-base ${
                         isActive
-                          ? 'text-base sm:text-xl text-[#F8F7FF]'
-                          : 'text-sm sm:text-lg text-[#BEC5E5]'
+                          ? 'text-[#F8F7FF]'
+                          : 'text-[#BEC5E5]'
                       }`}
                     >
                       {movie.title}
                     </h3>
 
                     <p
-                      className={`text-[11px] sm:text-xs leading-relaxed mb-2.5 sm:mb-3 px-1 line-clamp-2 transition-colors ${
+                      className={`text-[11px] sm:text-xs leading-relaxed mb-2.5 sm:mb-3 px-1 line-clamp-2 ${
                         isActive ? 'text-[#BEC5E5]' : 'text-[#BEC5E5]/70'
                       }`}
                     >
@@ -757,28 +805,30 @@ const HomeMovieTabs = ({ moviesList }) => {
                     </p>
 
                     {/* Nút Đặt Vé */}
-                    {isActive ? (
-                      <Link
-                        to={`/movie/${movie.slug || movie.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full inline-flex items-center justify-center space-x-2 font-black py-2 sm:py-2.5 px-5 rounded-full text-xs transition-all cursor-pointer shadow-lg bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] hover:brightness-108 text-[#0B1026] shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:scale-[1.03] active:scale-95"
-                      >
-                        <span className="text-xs">▶</span>
-                        <span>Đặt trước vé</span>
-                      </Link>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          scrollToMovie(idx, true);
-                        }}
-                        className="w-full inline-flex items-center justify-center space-x-2 font-black py-2 sm:py-2.5 px-5 rounded-full text-xs transition-all cursor-pointer shadow-lg bg-[#171936]/90 hover:bg-[#20204B] text-[#E9B5FF] hover:text-white border border-[#AA9BFF]/35 hover:border-[#72E8FF]"
-                      >
-                        <span className="text-xs">▶</span>
-                        <span>Đặt trước vé</span>
-                      </button>
-                    )}
+                    <div className="w-full h-[36px] flex items-center justify-center">
+                      {isActive ? (
+                        <Link
+                          to={`/movie/${movie.slug || movie.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full inline-flex items-center justify-center space-x-2 font-black py-2 px-5 rounded-full text-xs transition-all cursor-pointer shadow-lg bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] hover:brightness-108 text-[#0B1026] shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:scale-[1.03] active:scale-95"
+                        >
+                          <span className="text-xs">▶</span>
+                          <span>Đặt trước vé</span>
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            scrollToMovie(idx, true);
+                          }}
+                          className="w-full inline-flex items-center justify-center space-x-2 font-black py-2 px-5 rounded-full text-xs transition-all cursor-pointer shadow-lg bg-[#171936]/90 hover:bg-[#20204B] text-[#E9B5FF] hover:text-white border border-[#AA9BFF]/35 hover:border-[#72E8FF]"
+                        >
+                          <span className="text-xs">▶</span>
+                          <span>Đặt trước vé</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

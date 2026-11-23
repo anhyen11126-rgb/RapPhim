@@ -253,7 +253,7 @@ const getCleanShowtimesForMovie = (movie) => {
   const lateTimeStr = `${String(lateHour).padStart(2, '0')}:${String(lateMinute).padStart(2, '0')}`;
 
   return [
-    // Suất chiếu buổi sáng (09:30 & 10:30)
+    // 1. Phòng IMAX Laser: 09:30, 12:30, 15:30, 18:30, 21:30
     {
       id: `${movieId}-0930-imax`,
       time: '09:30',
@@ -262,6 +262,36 @@ const getCleanShowtimesForMovie = (movie) => {
       price: 130000,
     },
     {
+      id: `${movieId}-1230-imax`,
+      time: '12:30',
+      roomName: 'Phòng IMAX Laser',
+      format: 'IMAX Laser 2D',
+      price: 140000,
+    },
+    {
+      id: `${movieId}-1530-imax`,
+      time: '15:30',
+      roomName: 'Phòng IMAX Laser',
+      format: 'IMAX Laser 2D',
+      price: 140000,
+    },
+    {
+      id: `${movieId}-1830-imax`,
+      time: '18:30',
+      roomName: 'Phòng IMAX Laser',
+      format: 'IMAX Laser 2D',
+      price: 150000,
+    },
+    {
+      id: `${movieId}-2130-imax`,
+      time: '21:30',
+      roomName: 'Phòng IMAX Laser',
+      format: 'IMAX Laser 2D',
+      price: 150000,
+    },
+
+    // 2. Phòng Dolby Atmos: 09:30, 12:30, 15:30, 18:30, 21:30
+    {
       id: `${movieId}-0930-atmos`,
       time: '09:30',
       roomName: 'Phòng Dolby Atmos',
@@ -269,116 +299,66 @@ const getCleanShowtimesForMovie = (movie) => {
       price: 100000,
     },
     {
-      id: `${movieId}-0930-gold`,
-      time: '09:30',
-      roomName: 'Phòng Gold Class',
-      format: 'Gold Class Luxury',
-      price: 170000,
-    },
-    {
-      id: `${movieId}-1030-imax`,
-      time: '10:30',
-      roomName: 'Phòng IMAX Laser',
-      format: 'IMAX Laser 2D',
-      price: 130000,
-    },
-    {
-      id: `${movieId}-1030-atmos`,
-      time: '10:30',
-      roomName: 'Phòng Dolby Atmos',
-      format: '2D Dolby Atmos',
-      price: 100000,
-    },
-    {
-      id: `${movieId}-1030-gold`,
-      time: '10:30',
-      roomName: 'Phòng Gold Class',
-      format: 'Gold Class Luxury',
-      price: 170000,
-    },
-    // Suất chiếu buổi chiều (14:00 & 16:30)
-    {
-      id: `${movieId}-1400-imax`,
-      time: '14:00',
-      roomName: 'Phòng IMAX Laser',
-      format: 'IMAX Laser 2D',
-      price: 140000,
-    },
-    {
-      id: `${movieId}-1400-atmos`,
-      time: '14:00',
+      id: `${movieId}-1230-atmos`,
+      time: '12:30',
       roomName: 'Phòng Dolby Atmos',
       format: '2D Dolby Atmos',
       price: 110000,
     },
     {
-      id: `${movieId}-1400-gold`,
-      time: '14:00',
-      roomName: 'Phòng Gold Class',
-      format: 'Gold Class Luxury',
-      price: 180000,
-    },
-    {
-      id: `${movieId}-1630-imax`,
-      time: '16:30',
-      roomName: 'Phòng IMAX Laser',
-      format: 'IMAX Laser 2D',
-      price: 140000,
-    },
-    {
-      id: `${movieId}-1630-atmos`,
-      time: '16:30',
+      id: `${movieId}-1530-atmos`,
+      time: '15:30',
       roomName: 'Phòng Dolby Atmos',
       format: '2D Dolby Atmos',
       price: 110000,
     },
     {
-      id: `${movieId}-1630-gold`,
-      time: '16:30',
-      roomName: 'Phòng Gold Class',
-      format: 'Gold Class Luxury',
-      price: 180000,
-    },
-    // Suất chiếu giờ vàng tối 19:30
-    {
-      id: `${movieId}-1930-imax`,
-      time: '19:30',
-      roomName: 'Phòng IMAX Laser',
-      format: 'IMAX Laser 2D',
-      price: 150000,
-    },
-    {
-      id: `${movieId}-1930-atmos`,
-      time: '19:30',
+      id: `${movieId}-1830-atmos`,
+      time: '18:30',
       roomName: 'Phòng Dolby Atmos',
       format: '2D Dolby Atmos',
       price: 120000,
     },
     {
-      id: `${movieId}-1930-gold`,
-      time: '19:30',
+      id: `${movieId}-2130-atmos`,
+      time: '21:30',
+      roomName: 'Phòng Dolby Atmos',
+      format: '2D Dolby Atmos',
+      price: 120000,
+    },
+
+    // 3. Phòng Gold Class: 10:00, 13:00, 16:00, 19:00, 22:00
+    {
+      id: `${movieId}-1000-gold`,
+      time: '10:00',
+      roomName: 'Phòng Gold Class',
+      format: 'Gold Class Luxury',
+      price: 170000,
+    },
+    {
+      id: `${movieId}-1300-gold`,
+      time: '13:00',
+      roomName: 'Phòng Gold Class',
+      format: 'Gold Class Luxury',
+      price: 180000,
+    },
+    {
+      id: `${movieId}-1600-gold`,
+      time: '16:00',
+      roomName: 'Phòng Gold Class',
+      format: 'Gold Class Luxury',
+      price: 180000,
+    },
+    {
+      id: `${movieId}-1900-gold`,
+      time: '19:00',
       roomName: 'Phòng Gold Class',
       format: 'Gold Class Luxury',
       price: 190000,
     },
-    // Suất chiếu ca khuya
     {
-      id: `${movieId}-${lateTimeStr}-imax`,
-      time: lateTimeStr,
-      roomName: 'Phòng IMAX Laser',
-      format: 'IMAX Laser 2D',
-      price: 150000,
-    },
-    {
-      id: `${movieId}-${lateTimeStr}-atmos`,
-      time: lateTimeStr,
-      roomName: 'Phòng Dolby Atmos',
-      format: '2D Dolby Atmos',
-      price: 120000,
-    },
-    {
-      id: `${movieId}-${lateTimeStr}-gold`,
-      time: lateTimeStr,
+      id: `${movieId}-2200-gold`,
+      time: '22:00',
       roomName: 'Phòng Gold Class',
       format: 'Gold Class Luxury',
       price: 190000,
@@ -401,13 +381,23 @@ const HomeQuickBooking = ({
   const navigate = useNavigate();
   const [isMovieDropdownOpen, setIsMovieDropdownOpen] = useState(false);
   const movieDropdownRef = useRef(null);
+
+  // Popover chọn suất chiếu tinh tế (Hàng ngang / Hàng dọc)
+  const [isShowtimeDropdownOpen, setIsShowtimeDropdownOpen] = useState(false);
+  const [showtimeFilter, setShowtimeFilter] = useState('ALL'); // 'ALL' | 'IMAX' | 'ATMOS' | 'GOLD'
+  const [showtimeLayout, setShowtimeLayout] = useState('HORIZONTAL'); // 'HORIZONTAL' | 'VERTICAL'
+  const showtimeDropdownRef = useRef(null);
+
   const dateInputRef = useRef(null);
 
-  // Đóng dropdown phim khi click ra ngoài
+  // Đóng dropdown phim và suất chiếu khi click ra ngoài
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (movieDropdownRef.current && !movieDropdownRef.current.contains(event.target)) {
         setIsMovieDropdownOpen(false);
+      }
+      if (showtimeDropdownRef.current && !showtimeDropdownRef.current.contains(event.target)) {
+        setIsShowtimeDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -482,12 +472,9 @@ const HomeQuickBooking = ({
       const isCurrentInList = quickBookingMovies.some((m) => String(m.id) === String(selectedMovieId));
       if (!isCurrentInList) {
         setSelectedMovieId(String(quickBookingMovies[0].id));
-        if (quickBookingMovies[0].showtimes && quickBookingMovies[0].showtimes.length > 0) {
-          setSelectedShowtimeId(String(quickBookingMovies[0].showtimes[0].id));
-        }
       }
     }
-  }, [quickBookingMovies, selectedMovieId, setSelectedMovieId, setSelectedShowtimeId]);
+  }, [quickBookingMovies, selectedMovieId, setSelectedMovieId]);
 
   const activeMovie =
     quickBookingMovies.find((m) => String(m.id) === String(selectedMovieId)) ||
@@ -597,21 +584,106 @@ const HomeQuickBooking = ({
     return getCleanShowtimesForMovie(activeMovie);
   }, [isPastDate, currentSchedule.status, activeMovie, dateStr]);
 
-  // Đồng bộ suất chiếu khi danh sách thay đổi
+  // Đồng bộ suất chiếu: Nếu suất đã chọn không còn trong danh sách thì trả về trống để hiển thị "Chọn suất chiếu"
   useEffect(() => {
-    if (availableShowtimes.length > 0) {
+    if (availableShowtimes.length > 0 && selectedShowtimeId) {
       const isCurrentInList = availableShowtimes.some((st) => String(st.id) === String(selectedShowtimeId));
       if (!isCurrentInList) {
-        setSelectedShowtimeId(String(availableShowtimes[0].id));
+        setSelectedShowtimeId('');
       }
     }
   }, [availableShowtimes, selectedShowtimeId, setSelectedShowtimeId]);
+
+  // Suất chiếu đang được chọn hiện tại (null nếu chưa chọn)
+  const selectedShowtimeObj = useMemo(() => {
+    if (!selectedShowtimeId) return null;
+    return availableShowtimes.find((st) => String(st.id) === String(selectedShowtimeId)) || null;
+  }, [availableShowtimes, selectedShowtimeId]);
+
+  // Nhóm các suất chiếu theo 3 phòng vật lý (IMAX Laser, Dolby Atmos, Gold Class)
+  const showtimesByRoom = useMemo(() => {
+    const movieId = activeMovie?.id || activeMovie?._id || 'dune-2';
+    const defaultSlots = {
+      IMAX: [
+        { id: `${movieId}-0930-imax`, time: '09:30', roomName: 'Phòng IMAX Laser' },
+        { id: `${movieId}-1230-imax`, time: '12:30', roomName: 'Phòng IMAX Laser' },
+        { id: `${movieId}-1530-imax`, time: '15:30', roomName: 'Phòng IMAX Laser' },
+        { id: `${movieId}-1830-imax`, time: '18:30', roomName: 'Phòng IMAX Laser' },
+        { id: `${movieId}-2130-imax`, time: '21:30', roomName: 'Phòng IMAX Laser' },
+      ],
+      ATMOS: [
+        { id: `${movieId}-0930-atmos`, time: '09:30', roomName: 'Phòng Dolby Atmos' },
+        { id: `${movieId}-1230-atmos`, time: '12:30', roomName: 'Phòng Dolby Atmos' },
+        { id: `${movieId}-1530-atmos`, time: '15:30', roomName: 'Phòng Dolby Atmos' },
+        { id: `${movieId}-1830-atmos`, time: '18:30', roomName: 'Phòng Dolby Atmos' },
+        { id: `${movieId}-2130-atmos`, time: '21:30', roomName: 'Phòng Dolby Atmos' },
+      ],
+      GOLD: [
+        { id: `${movieId}-1000-gold`, time: '10:00', roomName: 'Phòng Gold Class' },
+        { id: `${movieId}-1300-gold`, time: '13:00', roomName: 'Phòng Gold Class' },
+        { id: `${movieId}-1600-gold`, time: '16:00', roomName: 'Phòng Gold Class' },
+        { id: `${movieId}-1900-gold`, time: '19:00', roomName: 'Phòng Gold Class' },
+        { id: `${movieId}-2200-gold`, time: '22:00', roomName: 'Phòng Gold Class' },
+      ],
+    };
+
+    const groups = {
+      IMAX: {
+        key: 'IMAX',
+        badge: 'IMAX® Laser',
+        roomName: 'Phòng IMAX Laser',
+        badgeStyle: 'bg-gradient-to-r from-[#00d9ff]/25 to-[#00d9ff]/10 border-[#00d9ff]/60 text-[#42DFFF] shadow-[0_0_15px_rgba(0,217,255,0.25)]',
+        activeBtnStyle: 'bg-[#00d9ff] text-slate-950 font-black shadow-[0_0_15px_rgba(0,217,255,0.7)] border-[#00d9ff] scale-105',
+        idleBtnStyle: 'bg-[#0b162c] hover:bg-[#122448] text-slate-200 border-[#00d9ff]/30 hover:border-[#00d9ff]/70',
+        slots: [],
+      },
+      ATMOS: {
+        key: 'ATMOS',
+        badge: 'DO Dolby Atmos',
+        roomName: 'Phòng Dolby Atmos',
+        badgeStyle: 'bg-gradient-to-r from-[#9333ea]/25 to-[#9333ea]/10 border-[#a855f7]/60 text-[#c084fc] shadow-[0_0_15px_rgba(168,85,247,0.25)]',
+        activeBtnStyle: 'bg-[#a855f7] text-white font-black shadow-[0_0_15px_rgba(168,85,247,0.7)] border-[#a855f7] scale-105',
+        idleBtnStyle: 'bg-[#1b0d30] hover:bg-[#2b164c] text-slate-200 border-[#a855f7]/30 hover:border-[#a855f7]/70',
+        slots: [],
+      },
+      GOLD: {
+        key: 'GOLD',
+        badge: '👑 Gold Class',
+        roomName: 'Phòng Gold Class',
+        badgeStyle: 'bg-gradient-to-r from-[#ffd18a]/25 to-[#ffd18a]/10 border-[#ffd18a]/60 text-[#ffd18a] shadow-[0_0_15px_rgba(255,209,138,0.25)]',
+        activeBtnStyle: 'bg-[#ffd18a] text-slate-950 font-black shadow-[0_0_15px_rgba(255,209,138,0.7)] border-[#ffd18a] scale-105',
+        idleBtnStyle: 'bg-[#22170b] hover:bg-[#382613] text-slate-200 border-[#ffd18a]/30 hover:border-[#ffd18a]/70',
+        slots: [],
+      },
+    };
+
+    availableShowtimes.forEach((st) => {
+      const room = (st.roomName || '').toLowerCase();
+      if (room.includes('gold')) {
+        groups.GOLD.slots.push(st);
+      } else if (room.includes('atmos')) {
+        groups.ATMOS.slots.push(st);
+      } else {
+        groups.IMAX.slots.push(st);
+      }
+    });
+
+    ['IMAX', 'ATMOS', 'GOLD'].forEach((k) => {
+      if (groups[k].slots.length === 0) {
+        groups[k].slots = defaultSlots[k];
+      }
+    });
+
+    return groups;
+  }, [availableShowtimes, activeMovie]);
 
   // Xử lý khi chọn ngày từ Date Picker:
   // - Nếu ngày cũ trong quá khứ so với hôm nay thì chặn và cảnh báo
   // - Cho phép chọn từ ngày hôm nay trở đi linh hoạt
   const handleDateChangeFromPicker = (val) => {
     if (!val) return;
+    // Đổi ngày thì reset suất chiếu về trống để hiển thị "Chọn suất chiếu"
+    setSelectedShowtimeId('');
     const todayIso = dynamicDays.today.dateStr;
     if (val < todayIso) {
       alert(`Không thể chọn ngày chiếu trong quá khứ! Vui lòng chọn từ ngày hôm nay (${dynamicDays.today.label}) trở đi.`);
@@ -658,11 +730,12 @@ const HomeQuickBooking = ({
       return;
     }
 
-    const targetShowtimeId =
-      selectedShowtimeId ||
-      availableShowtimes[0]?.id ||
-      activeMovie?.firstShowtimeId ||
-      '6aecb21dd70710fc53a15c06';
+    if (!selectedShowtimeId) {
+      setIsShowtimeDropdownOpen(true);
+      return;
+    }
+
+    const targetShowtimeId = selectedShowtimeId;
 
     const chosenSlot =
       availableShowtimes.find((st) => String(st.id) === String(targetShowtimeId)) ||
@@ -809,9 +882,7 @@ const HomeQuickBooking = ({
                         key={m.id || m._id || m.slug}
                         onClick={() => {
                           setSelectedMovieId(String(m.id));
-                          if (m.showtimes && m.showtimes.length > 0) {
-                            setSelectedShowtimeId(String(m.showtimes[0].id));
-                          }
+                          setSelectedShowtimeId('');
                           setIsMovieDropdownOpen(false);
                         }}
                         className={`flex items-center space-x-3 p-2 rounded-xl cursor-pointer transition-all border ${isSelected
@@ -943,7 +1014,10 @@ const HomeQuickBooking = ({
 
               <select
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setSelectedShowtimeId('');
+                }}
                 className="w-full h-[38px] bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-2.5 text-xs font-bold text-[#F8F7FF] focus:outline-none focus:border-[#42DFFF] appearance-none cursor-pointer pr-12 truncate"
               >
                 <optgroup label="── NGÀY GẦN NHẤT ──">
@@ -979,7 +1053,7 @@ const HomeQuickBooking = ({
           </div>
 
           {/* 4. Chọn Suất Chiếu */}
-          <div className="sm:col-span-1 lg:col-span-2 space-y-1">
+          <div className="sm:col-span-1 lg:col-span-2 space-y-1 relative" ref={showtimeDropdownRef}>
             <div className="flex items-center h-5">
               <label className="text-[11px] font-medium text-[#BEC5E5] flex items-center space-x-1.5">
                 <span className="text-[#42DFFF]">🕒</span>
@@ -987,25 +1061,88 @@ const HomeQuickBooking = ({
               </label>
             </div>
             <div className="relative">
-              <select
-                value={selectedShowtimeId}
-                onChange={(e) => setSelectedShowtimeId(e.target.value)}
+              {/* Nút Trigger Suất Chiếu: Hiển thị chữ "Chọn suất chiếu" (thế vô chỗ 09:30) */}
+              <button
+                type="button"
+                onClick={() =>
+                  !isPastDate &&
+                  currentSchedule.status !== 'ENDED' &&
+                  setIsShowtimeDropdownOpen(!isShowtimeDropdownOpen)
+                }
                 disabled={isPastDate || currentSchedule.status === 'ENDED'}
-                className="w-full h-[38px] bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-2.5 text-xs font-bold text-[#F8F7FF] focus:outline-none focus:border-[#42DFFF] appearance-none cursor-pointer pr-7 disabled:opacity-60 disabled:cursor-not-allowed truncate"
+                className={`w-full h-[38px] bg-[#0B1026] border rounded-xl px-3 text-xs font-bold flex items-center justify-between transition-all cursor-pointer truncate ${
+                  isShowtimeDropdownOpen
+                    ? 'border-[#42DFFF] shadow-[0_0_12px_rgba(66,223,255,0.3)] text-white'
+                    : 'border-[#AA9BFF]/25 hover:border-[#42DFFF]/60 text-[#F8F7FF]'
+                } disabled:opacity-60 disabled:cursor-not-allowed`}
               >
-                {isPastDate ? (
-                  <option value="ended">Đã kết thúc suất chiếu</option>
-                ) : (
-                  availableShowtimes.map((st) => (
-                    <option key={st.id} value={st.id}>
-                      {st.time ? `${st.time} - ` : ''}{st.roomName || 'IMAX Laser'}
-                    </option>
-                  ))
-                )}
-              </select>
-              <span className="absolute right-3 top-2.5 text-[#BEC5E5] text-[10px] pointer-events-none">
-                ⌵
-              </span>
+                <span className="truncate">
+                  {isPastDate ? (
+                    <span className="text-slate-400">Đã kết thúc suất chiếu</span>
+                  ) : selectedShowtimeId && selectedShowtimeObj ? (
+                    <span className="flex items-center space-x-1 truncate">
+                      <strong className="text-[#42DFFF] font-black">{selectedShowtimeObj.time}</strong>
+                      <span className="text-slate-200 font-semibold">- {selectedShowtimeObj.roomName}</span>
+                    </span>
+                  ) : selectedShowtimeId ? (
+                    <span className="flex items-center space-x-1 truncate">
+                      <strong className="text-[#42DFFF] font-black">{selectedShowtimeId}</strong>
+                    </span>
+                  ) : (
+                    <span className="text-[#CBD5E1] font-semibold tracking-wide">Chọn suất chiếu</span>
+                  )}
+                </span>
+                <span
+                  className={`text-[#BEC5E5] text-[10px] transform transition-transform ml-1.5 ${
+                    isShowtimeDropdownOpen ? 'rotate-180 text-[#42DFFF]' : ''
+                  }`}
+                >
+                  ▼
+                </span>
+              </button>
+
+              {/* FLOATING POPOVER: GIỮ NGUYÊN DUY NHẤT 3 HÀNG PHÒNG VÀ GIỜ CHIẾU PHÍA DƯỚI (XÓA BỎ TOÀN BỘ HEADER RƯỜM RÀ) */}
+              {isShowtimeDropdownOpen && (
+                <div className="absolute right-0 bottom-full sm:bottom-auto sm:top-full mb-2 sm:mb-0 sm:mt-2 w-[340px] sm:w-[580px] md:w-[680px] max-w-[95vw] bg-[#090D22]/98 backdrop-blur-2xl border border-[#42DFFF]/40 rounded-2xl p-3 sm:p-3.5 shadow-[0_20px_60px_rgba(5,8,20,0.98),0_0_35px_rgba(66,223,255,0.25)] z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="space-y-2.5">
+                    {Object.values(showtimesByRoom).map((grp) => (
+                      <div
+                        key={grp.key}
+                        className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-2 rounded-2xl bg-[#0e142e]/60 border border-white/5 hover:border-white/15 transition-all"
+                      >
+                        {/* Cột trái: Badge Phòng chiếu */}
+                        <div
+                          className={`px-3 py-2 rounded-xl text-xs font-black flex items-center justify-center shrink-0 w-full sm:w-[130px] border shadow-sm ${grp.badgeStyle}`}
+                        >
+                          <span>{grp.badge}</span>
+                        </div>
+
+                        {/* Cột phải: Dãy nút giờ chiếu nằm ngang */}
+                        <div className="flex items-center gap-2 flex-wrap flex-1">
+                          {grp.slots.map((st) => {
+                            const isSelected = String(st.id) === String(selectedShowtimeId);
+                            return (
+                              <button
+                                key={st.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedShowtimeId(String(st.id));
+                                  setIsShowtimeDropdownOpen(false);
+                                }}
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                                  isSelected ? grp.activeBtnStyle : grp.idleBtnStyle
+                                }`}
+                              >
+                                {st.time}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

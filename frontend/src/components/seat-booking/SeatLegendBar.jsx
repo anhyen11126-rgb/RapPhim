@@ -11,6 +11,7 @@ import React from 'react';
  */
 const SeatLegendBar = ({
   roomType = 'IMAX', // 'IMAX' | 'ATMOS' | 'GOLD'
+  seats = [],
   bookedSeats = [],
   selectedSeats = [],
   totalAmount = 0,
@@ -21,17 +22,15 @@ const SeatLegendBar = ({
   const isGold = roomType === 'GOLD';
 
   // Tính toán số lượng ghế thực tế thời gian thực
-  const totalSeats = 88;
+  const totalSeats = seats.length;
   const bookedCount = bookedSeats.length;
   const selectedCount = selectedSeats.length;
   const availableCount = Math.max(0, totalSeats - bookedCount - selectedCount);
   const occupancyRate = totalSeats > 0 ? ((bookedCount / totalSeats) * 100).toFixed(1) : '0.0';
 
-  // Phân loại ghế VIP (E, F, G, H: 40 ghế)
-  const vipRows = ['E', 'F', 'G', 'H'];
-  const bookedVipCount = bookedSeats.filter((s) => vipRows.some((r) => s.startsWith(r))).length;
-  const selectedVipCount = selectedSeats.filter((s) => vipRows.some((r) => s.startsWith(r))).length;
-  const availableVipCount = Math.max(0, 40 - bookedVipCount - selectedVipCount);
+  const isAvailable = ({ seatNumber }) => !bookedSeats.includes(seatNumber) && !selectedSeats.includes(seatNumber);
+  const availableVipCount = seats.filter((seat) => seat.type !== 'STANDARD' && isAvailable(seat)).length;
+  const availableStandardCount = availableCount - availableVipCount;
 
   // Cấu hình viền, nền và màu nút bấm Tiếp tục theo từng phòng
   const barConfig = isGold
@@ -68,7 +67,7 @@ const SeatLegendBar = ({
       >
         {/* 1. KHU VỰC CHÚ THÍCH CÁC LOẠI GHẾ (HÌNH THU NHỎ CHUẨN XÁC KÈM SỐ LƯỢNG THỰC TẾ) */}
         <div className="flex items-center gap-3 sm:gap-5 flex-wrap justify-center text-[11px] sm:text-xs">
-          {/* A. GHẾ TRỐNG (AVAILABLE) */}
+          {/* A. GHẾ TIÊU CHUẨN (STANDARD - HÀNG A-D: 48 GHẾ) */}
           <div className="flex items-center space-x-1.5">
             {isGold ? (
               <svg viewBox="0 0 44 40" className="w-[22px] h-[20px] shrink-0">
@@ -89,9 +88,9 @@ const SeatLegendBar = ({
                 <rect x="6" y="16" width="26" height="15" rx="3" fill="#060E22" stroke="rgba(0,217,255,0.4)" strokeWidth="0.8" />
               </svg>
             )}
-            <span className="text-slate-300 font-semibold">Ghế trống</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 font-black text-[10px] leading-tight shadow-[0_0_8px_rgba(16,185,129,0.25)]">
-              {availableCount}
+            <span className="text-slate-300 font-semibold">Ghế tiêu chuẩn</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-700/60 border border-slate-500/50 text-slate-200 font-black text-[10px] leading-tight">
+              {availableStandardCount}
             </span>
           </div>
 
@@ -204,7 +203,7 @@ const SeatLegendBar = ({
           <div className="flex items-center space-x-2 text-xs sm:text-sm font-semibold text-slate-300">
             <span>
               Tổng:{' '}
-              <strong className="text-white font-black">88</strong>
+              <strong className="text-white font-black">{totalSeats}</strong>
             </span>
             <span className="text-white/20">|</span>
             <span>

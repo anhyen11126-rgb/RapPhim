@@ -13,6 +13,11 @@ const showtimeSchema = new mongoose.Schema(
       ref: 'Cinema',
       index: true,
     },
+    roomId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Room',
+      index: true,
+    },
     roomName: {
       type: String,
       required: true,

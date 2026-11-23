@@ -208,7 +208,7 @@ class StatisticsService {
 
     // 1.4 Thống kê Ghế & Tỷ lệ bán vé / Tỷ lệ lấp đầy
     const allRooms = await Room.find().lean();
-    const totalTheaterSeats = allRooms.reduce((sum, r) => sum + (r.totalSeats || 88), 0) || 704;
+    const totalTheaterSeats = allRooms.reduce((sum, r) => sum + (r.totalSeats || 88), 0) || 792;
 
     // Tổng số ghế có thể bán trong kỳ = tổng suất chiếu * 88 ghế
     const totalSellablePeriod = totalShowtimesCount > 0 ? totalShowtimesCount * 88 : totalTheaterSeats;
@@ -217,7 +217,7 @@ class StatisticsService {
       ? Number(Math.min(100, (validTicketsSold / totalSellablePeriod) * 100).toFixed(1))
       : 0;
 
-    // Thống kê snapshot thời gian thực của 8 phòng chiếu (chuẩn 704 ghế)
+    // Thống kê snapshot thời gian thực của toàn bộ 9 phòng chiếu (chuẩn 792 ghế)
     let liveBookedSeats = 0;
     let liveAvailableSeats = 0;
     const now = new Date();
@@ -472,14 +472,14 @@ class StatisticsService {
           formatted: `${liveBookedSeats.toLocaleString('vi-VN')} ghế`,
           growth: ticketsGrowth,
           title: 'Ghế đã đặt',
-          tooltip: `Số ghế đã có khách đặt hiện tại trong tổng 704 ghế của rạp`,
+          tooltip: `Số ghế đã có khách đặt hiện tại trong tổng ${totalTheaterSeats} ghế của 9 phòng chiếu rạp`,
         },
         availableSeats: {
           value: liveAvailableSeats,
           formatted: `${liveAvailableSeats.toLocaleString('vi-VN')} ghế`,
           growth: null,
           title: 'Ghế chưa đặt',
-          tooltip: `Số ghế trống sẵn sàng phục vụ trong tổng 704 ghế của rạp`,
+          tooltip: `Số ghế trống sẵn sàng phục vụ trong tổng ${totalTheaterSeats} ghế của 9 phòng chiếu rạp`,
         },
         bookedCustomers: {
           value: bookingCustomersCount,
@@ -506,7 +506,7 @@ class StatisticsService {
         booked: validTicketsSold,
         available: availableSeatsPeriod,
         rate: avgTicketSalesRate,
-        roomCount: allRooms.length || 8,
+        roomCount: allRooms.length || 9,
         liveBooked: liveBookedSeats,
         liveAvailable: liveAvailableSeats,
       },

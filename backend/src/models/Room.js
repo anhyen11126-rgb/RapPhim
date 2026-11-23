@@ -25,7 +25,7 @@ const roomSchema = new mongoose.Schema(
     },
     roomType: {
       type: String,
-      enum: ['IMAX Laser', 'Dolby Atmos', 'RealD 3D', '2D Tiêu chuẩn', '4DX Sound'],
+      enum: ['IMAX Laser', 'Dolby Atmos', 'Gold Class', 'RealD 3D', '2D Tiêu chuẩn', '4DX Sound'],
       default: 'IMAX Laser',
     },
     formatFeature: {

@@ -92,11 +92,8 @@ const HomePage = () => {
         setMoviesList(sortedMovies);
         if (sortedMovies.length > 0) {
           setSelectedMovieId(String(sortedMovies[0].id));
-          if (sortedMovies[0].showtimes && sortedMovies[0].showtimes.length > 0) {
-            setSelectedShowtimeId(String(sortedMovies[0].showtimes[0].id));
-          } else if (sortedMovies[0].firstShowtimeId) {
-            setSelectedShowtimeId(String(sortedMovies[0].firstShowtimeId));
-          }
+          // Mặc định không tự chọn trước suất chiếu để người dùng thấy nút "Chọn suất chiếu"
+          setSelectedShowtimeId('');
         }
       }
 
