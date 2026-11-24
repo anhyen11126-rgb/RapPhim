@@ -1,3 +1,4 @@
+import { opensMoreThanSevenDaysAhead } from '../bookingPolicy.js';
 import mongoose from 'mongoose';
 import Movie from '../../models/Movie.js';
 import Showtime from '../../models/Showtime.js';
@@ -133,20 +134,20 @@ export const isValidShowtimeForBooking = (showtime, movieId = null, nowDate = ne
 
   // Kiểm tra trạng thái mở bán
   const stStatus = String(showtime.status || 'OPEN').toUpperCase();
-  if (stStatus === 'CLOSED' || stStatus === 'CANCELLED' || stStatus === 'INACTIVE') {
+  if (showtime.isLocked || stStatus === 'CLOSED' || stStatus === 'CANCELLED' || stStatus === 'INACTIVE') {
     return false;
   }
 
   // Kiểm tra thời gian chiếu chưa qua
   if (showtime.startTime) {
     const start = new Date(showtime.startTime);
-    if (Number.isNaN(start.getTime()) || start.getTime() <= nowDate.getTime()) {
+    if (Number.isNaN(start.getTime()) || start.getTime() <= nowDate.getTime() || opensMoreThanSevenDaysAhead(start, nowDate)) {
       return false;
     }
   }
 
   // Kiểm tra số ghế trống > 0
-  const avail = Number(showtime.availableSeats);
+  const avail = showtime.availableSeats;
   if (!Number.isFinite(avail) || avail <= 0) {
     return false;
   }
@@ -236,7 +237,7 @@ export const buildNormalizedCinemaContext = ({
 
     // Kiểm tra trạng thái mở bán của suất chiếu
     const stStatus = String(st.status || 'OPEN').toUpperCase();
-    if (stStatus === 'CLOSED' || stStatus === 'CANCELLED') continue;
+    if (showtime.isLocked || stStatus === 'CLOSED' || stStatus === 'CANCELLED') continue;
 
     const stId = String(st._id || st.showtimeId || '');
     const movieIdStr = String(st.movieId?._id || st.movieId);
@@ -244,7 +245,7 @@ export const buildNormalizedCinemaContext = ({
     // 2.2. Tính số ghế trống thực tế từ dữ liệu ShowtimeSeat
     const seatInfo = seatsByShowtimeId.get(stId);
     let availableSeats = 0;
-    let totalSeats = 88;
+    let totalSeats = null;
     let seatsInitialized = false;
     let rawSeats = [];
     let availableByTier = { STANDARD: 0, VIP: 0, SWEETBOX: 0 };
@@ -254,7 +255,7 @@ export const buildNormalizedCinemaContext = ({
         // Trường hợp truyền mảng ghế chi tiết
         rawSeats = seatInfo;
         seatsInitialized = rawSeats.length > 0;
-        totalSeats = rawSeats.length || 88;
+        totalSeats = rawSeats.length || null;
         if (seatsInitialized) {
           availableSeats = 0;
           for (const s of rawSeats) {
@@ -267,14 +268,14 @@ export const buildNormalizedCinemaContext = ({
             }
           }
         } else {
-          // Chưa khởi tạo bản ghi ShowtimeSeat nào trong DB -> mặc định 86/88 ghế trống theo showtimeController
-          availableSeats = 86;
-          availableByTier = { STANDARD: 47, VIP: 35, SWEETBOX: 4 };
+
+          availableSeats = null;
+          availableByTier = null;
         }
       } else if (typeof seatInfo === 'object') {
         // Trường hợp truyền kết quả aggregation { totalInitialized, availableCount, seats }
         seatsInitialized = Number(seatInfo.totalInitialized) > 0;
-        totalSeats = seatsInitialized ? Number(seatInfo.totalInitialized) : 88;
+        totalSeats = seatsInitialized ? Number(seatInfo.totalInitialized) : null;
         if (seatsInitialized) {
           // Giữ nguyên 0 nếu availableCount === 0! Không bao giờ fallback || 42
           availableSeats = Math.max(0, Number(seatInfo.availableCount) || 0);
@@ -284,8 +285,8 @@ export const buildNormalizedCinemaContext = ({
             SWEETBOX: Number(seatInfo.availableSweetbox) || 0,
           };
         } else {
-          availableSeats = 86;
-          availableByTier = { STANDARD: 47, VIP: 35, SWEETBOX: 4 };
+          availableSeats = null;
+          availableByTier = null;
         }
         if (Array.isArray(seatInfo.seats)) {
           rawSeats = seatInfo.seats;
@@ -298,8 +299,8 @@ export const buildNormalizedCinemaContext = ({
     } else {
       // Chưa có bản ghi ghế nào trong ShowtimeSeat cho suất chiếu mới tạo
       seatsInitialized = false;
-      availableSeats = 86;
-      availableByTier = { STANDARD: 47, VIP: 35, SWEETBOX: 4 };
+      availableSeats = null;
+      availableByTier = null;
     }
 
     // 2.3. Tính giá vé chuẩn từ Database & cấu hình giá Admin
@@ -344,9 +345,9 @@ export const buildNormalizedCinemaContext = ({
       seatsInitialized,
       availableByTier,
       rawSeats,
-      isSoldOut: availableSeats <= 0,
+      isSoldOut: availableSeats === 0,
       bookingLink: buildValidBookingLink(
-        { showtimeId: stId, startTime, availableSeats, status: st.status },
+        { showtimeId: stId, startTime, availableSeats, isLocked: st.isLocked, status: st.status },
         movieIdStr,
         nowDate
       ),

@@ -67,7 +67,7 @@ export const buildSelectivePromptContext = (contextData, intent, entities = {}) 
               .slice(0, 8)
               .map((s) => {
                 const seatStatus =
-                  s.availableSeats > 0 ? `Còn ${s.availableSeats} ghế trống` : 'HẾT GHẾ (0 ghế trống)';
+                  s.availableSeats == null ? 'Chưa xác nhận số ghế' : s.availableSeats > 0 ? `Còn ${s.availableSeats} ghế trống` : 'HẾT GHẾ (0 ghế trống)';
                 const linkPart = s.bookingLink ? ` | Link đặt vé: ${s.bookingLink}` : ' | Không mở link đặt vé';
                 return `  + Suất ${s.time} (${s.relativeDayLabel} - ${s.date}) | Định dạng: ${s.format} | Phòng: ${s.roomName} (${s.cinemaName}) | Giá ghế thường: ${s.priceFormatted}, VIP: ${s.priceVipFormatted}, Sweetbox: ${s.priceSweetboxFormatted} | ${seatStatus}${linkPart}`;
               })

@@ -108,11 +108,11 @@ const SeatSelectionPage = () => {
         setInventory(JSON.stringify(layoutSeats));
         // Chỉ lấy những ghế thực tế đã được thanh toán (BOOKED) trong Database
         const latestBooked = res.data.seats
-          .filter((s) => s.status === 'BOOKED')
+          .filter((s) => s.status !== 'AVAILABLE')
           .map((s) => s.seatNumber);
 
         if (!isSilent && Array.isArray(draftSeats)) {
-          const available = new Set(res.data.seats.filter(seat => seat.status !== 'BOOKED').map(seat => seat.seatNumber));
+          const available = new Set(res.data.seats.filter(seat => seat.status === 'AVAILABLE').map(seat => seat.seatNumber));
           const restored = draftSeats.filter(code => available.has(code));
           setSelectedSeats(restored);
           selectedSeatsRef.current = restored;
@@ -127,7 +127,7 @@ const SeatSelectionPage = () => {
           // Gỡ bỏ ghế bị người khác mua khỏi lựa chọn hiện tại
           setSelectedSeats((prev) => prev.filter((s) => !latestBooked.includes(s)));
           setConflictToast(
-            `Ghế [${conflictedSeats.join(', ')}] vừa được khách khác thanh toán thành công! Sơ đồ ghế đã được tự động cập nhật.`
+            `Ghế [${conflictedSeats.join(', ')}] không còn khả dụng. Sơ đồ ghế đã được tự động cập nhật.`
           );
           setTimeout(() => setConflictToast(null), 6000);
         }
@@ -230,6 +230,11 @@ const SeatSelectionPage = () => {
       return;
     }
 
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    if (!token) {
+      navigate('/login', { state: { from: location.pathname + location.search } });
+      return;
+    }
     const targetShowtimeId = showtime?._id?.toString() || showtime?.id || showtimeId;
 
     navigate(location.pathname + location.search + location.hash, {

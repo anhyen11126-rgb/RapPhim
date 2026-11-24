@@ -1,4 +1,5 @@
 import express from 'express';
+import { authenticateAdmin, authenticateCustomer } from '../middleware/authMiddleware.js';
 import {
   holdSeats,
   checkoutBooking,
@@ -12,12 +13,12 @@ import {
 const router = express.Router();
 
 router.post('/hold', holdSeats);
-router.post('/checkout', checkoutBooking);
-router.get('/my-bookings', getMyBookings);
-router.post('/check-in', checkInBooking);
-router.post('/:id/cancel', cancelBooking);
-router.post('/:id/exchange', exchangeBooking);
-router.get('/:code', getBookingByCode);
+router.post('/checkout', authenticateCustomer, checkoutBooking);
+router.get('/my-bookings', authenticateCustomer, getMyBookings);
+router.post('/check-in', authenticateAdmin, checkInBooking);
+router.post('/:id/cancel', authenticateCustomer, cancelBooking);
+router.post('/:id/exchange', authenticateCustomer, exchangeBooking);
+router.get('/:code', authenticateCustomer, getBookingByCode);
 
 export default router;
 

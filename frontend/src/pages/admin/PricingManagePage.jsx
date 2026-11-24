@@ -1,3 +1,4 @@
+import AdminSectionTabs from '../../components/admin/AdminSectionTabs';
 import React, { useState, useEffect } from 'react';
 import SidebarAdmin from '../../components/admin/SidebarAdmin';
 import TopbarAdmin from '../../components/admin/TopbarAdmin';
@@ -157,6 +158,7 @@ const PricingManagePage = () => {
       <div className="flex-1 flex flex-col min-w-0">
         <TopbarAdmin />
         <main className="p-6 flex-1 space-y-6 overflow-y-auto">
+          <AdminSectionTabs />
           {/* Header */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>

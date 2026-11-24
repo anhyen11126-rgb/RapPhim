@@ -22,11 +22,11 @@ const dateMs = (date) => Date.parse(date + 'T00:00:00Z');
 export function scheduleStatus(slot, now) {
   const starts = Date.parse(slot.startTime);
   if (!Number.isFinite(starts) || starts <= now) return { label: 'Đã bắt đầu', disabled: true };
-  if (starts - now > 7 * dayMs) return { label: 'Sắp mở bán', disabled: true };
+  if (dateMs(vietnamDate.format(starts)) - dateMs(vietnamDate.format(now)) > 7 * dayMs) return { label: 'Sắp mở bán', disabled: true };
   if (slot.isLocked) return { label: 'Tạm ngừng bán', disabled: true };
   if (slot.availableSeats === 0) return { label: 'Hết vé', disabled: true };
   if (!slot.roomId) return { label: 'Phòng chưa xác định', disabled: true };
-  if (slot.availableSeats == null) return { label: 'Xem sơ đồ ghế' };
+  if (slot.availableSeats == null) return { label: 'Chưa có sơ đồ ghế', disabled: true };
   return {
     label: 'Còn ' + slot.availableSeats + ' ghế',
     low: slot.totalSeats > 0 && slot.availableSeats / slot.totalSeats <= 0.15,
@@ -158,7 +158,7 @@ export default function MovieShowtimesSection({ movie }) {
     async function findNextDay() {
       for (let step = 1; step <= 7; step++) {
         const candidate = dateKey(dateMs(date) + step * dayMs);
-        if (Date.parse(candidate + 'T00:00:00+07:00') > Date.now() + 7 * dayMs) break;
+        if (dateMs(candidate) > dateMs(vietnamDate.format(Date.now())) + 7 * dayMs) break;
         if (movieMonth && candidate.slice(0, 7) !== movieMonth) break;
         const { data } = await api.get('/movies/' + encodeURIComponent(id) + '/schedule', {
           params: { date: candidate }, signal: request.signal,

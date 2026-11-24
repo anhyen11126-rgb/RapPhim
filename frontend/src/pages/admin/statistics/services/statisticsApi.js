@@ -5,17 +5,17 @@ import api from '../../../../services/api';
  */
 export const statisticsApi = {
   // 1. Tổng quan (KPIs, Biểu đồ doanh thu, Tỷ lệ lấp đầy, Top phim, Khung giờ vàng)
-  getOverview: (params = {}) => api.get('/admin/statistics/overview', { params }),
+  getOverview: (params = {}, signal) => api.get('/admin/statistics/overview', { params, signal }),
 
   // 2. Phân tích Doanh thu & Chi phí - Lợi nhuận
-  getRevenue: (params = {}) => api.get('/admin/statistics/revenue', { params }),
+  getRevenue: (params = {}, signal) => api.get('/admin/statistics/revenue', { params, signal }),
 
   // 3. Thống kê Phim (Tỷ lệ bán vé, Doanh thu, Chi phí, Lợi nhuận từng phim)
-  getMovies: (params = {}) => api.get('/admin/statistics/movies', { params }),
+  getMovies: (params = {}, signal) => api.get('/admin/statistics/movies', { params, signal }),
   getMovieDetail: (id) => api.get(`/admin/statistics/movies/${id}`),
 
   // 4. Thống kê Suất chiếu
-  getShowtimes: (params = {}) => api.get('/admin/statistics/showtimes', { params }),
+  getShowtimes: (params = {}, signal) => api.get('/admin/statistics/showtimes', { params, signal }),
   getShowtimeDetail: (id) => api.get(`/admin/statistics/showtimes/${id}`),
 
   // 5. Thống kê Khách hàng

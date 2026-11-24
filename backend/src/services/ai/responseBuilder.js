@@ -343,6 +343,7 @@ export const buildVerifiedDatabaseResponse = ({
       const pair = candidatePairs[0];
       const { movie, showtime } = pair;
 
+      if (showtime.availableSeats == null) return `• **${movie.title}** — ${showtime.time}: Chưa xác nhận số ghế.`;
       if (showtime.availableSeats <= 0) {
         return {
           reply: `⚠️ Suất chiếu phim **${movie.title}** lúc **${showtime.time}** (${showtime.relativeDayLabel}) tại **${showtime.roomName}** hiện đã **HẾT GHẾ (còn 0 ghế trống)**, vì vậy không còn ${reqCount} ghế liền nhau.`,
@@ -389,19 +390,12 @@ export const buildVerifiedDatabaseResponse = ({
         };
       }
 
-      // Trường hợp suất chiếu mới chưa khởi tạo ghế chi tiết (còn 86/88 ghế trống)
-      const linkPart = showtime.bookingLink
-        ? `\n\n👉 [Chọn ghế ngay cho suất ${showtime.time} ➔](${showtime.bookingLink})`
-        : '';
-      return {
-        reply: `✅ Suất chiếu phim **${movie.title}** lúc **${showtime.time}** (${showtime.relativeDayLabel}) tại **${showtime.roomName}** hiện còn **${showtime.availableSeats} ghế trống** và vẫn còn nhiều dãy **${reqCount} ghế liền nhau** (khu vực hàng E, F, G trung tâm).${linkPart}`,
-        movieCard: buildSafeMovieCard(showtime, movie, nowDate),
-        recommendedMovie: movie.title,
-      };
+      return { reply: 'Mình chưa xác nhận được cụm ghế liền nhau cho suất này.', suggestions: [] };
     }
 
     // Báo cáo số ghế trống thực tế của các suất khớp điều kiện
     const seatLines = candidatePairs.slice(0, 5).map(({ movie, showtime }) => {
+      if (showtime.availableSeats == null) return `• **${movie.title}** — ${showtime.time}: Chưa xác nhận số ghế.`;
       if (showtime.availableSeats <= 0) {
         return `• **${movie.title}** — Suất **${showtime.time}** (${showtime.relativeDayLabel}, ${showtime.roomName}): **HẾT GHẾ (0 ghế trống)**`;
       }
@@ -668,7 +662,7 @@ export const buildVerifiedDatabaseResponse = ({
         const slotSummary = slots
           .slice(0, 4)
           .map((s) => {
-            const seatNote = s.availableSeats > 0 ? `còn ${s.availableSeats} ghế` : 'HẾT GHẾ';
+            const seatNote = s.availableSeats == null ? 'chưa xác nhận số ghế' : s.availableSeats > 0 ? `còn ${s.availableSeats} ghế` : 'HẾT GHẾ';
             const quickLink =
               s.bookingLink && s.availableSeats > 0 ? ` [Đặt ${s.time}](${s.bookingLink})` : '';
             return `**${s.time}** (${s.format} - ${s.priceFormatted} - ${seatNote})${quickLink}`;

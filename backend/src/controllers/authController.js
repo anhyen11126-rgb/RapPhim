@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import path from 'node:path';
@@ -102,7 +103,6 @@ const sendGmailViaNativeTls = ({ fromUser, appPassword, toEmail, subject, html }
   });
 };
 
-const JWT_SECRET = process.env.JWT_SECRET || 'movietix_jwt_secret_key_2026_cdio';
 
 // Chuẩn hóa và tự động xác định hạng hội viên theo cấp bậc điểm:
 // - Mới đăng ký / Dưới 500 điểm: STANDARD (Thành viên)
@@ -119,11 +119,18 @@ export const resolveUserTier = (user) => {
 };
 
 // 1. Đăng ký tài khoản khách hàng mới
+function phoneVariants(value) {
+  const compact = value.replace(/[\s.-]/g, '');
+  const local = compact.replace(/^\+84/, '0');
+  return /^0[35789]\d{8}$/.test(local) ? [local, '+84' + local.slice(1)] : [compact];
+}
+
 export const register = async (req, res) => {
   try {
-    const { name, email, phone, password, confirmPassword } = req.body;
+    if (!process.env.JWT_SECRET) return res.sendStatus(503);
+    const { name, email, phone, password, confirmPassword, otp } = req.body;
 
-    if (!name || !email || !phone || !password) {
+    if (![name, email, phone, password].every(value => typeof value === 'string' && value.trim())) {
       return res.status(400).json({ message: 'Vui lòng điền đầy đủ tất cả các trường (*)' });
     }
 
@@ -141,7 +148,8 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: 'Địa chỉ Email không đúng định dạng hợp lệ' });
     }
 
-    const cleanPhone = phone.toString().replace(/[\s.-]/g, '');
+    const phones = phoneVariants(phone);
+    const cleanPhone = phones[0];
 
     // Kiểm tra định dạng số điện thoại Việt Nam (10 số, bắt đầu 03, 05, 07, 08, 09 hoặc +84)
     const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
@@ -153,7 +161,7 @@ export const register = async (req, res) => {
 
     // Kiểm tra xem Email hoặc SĐT đã tồn tại chưa
     const existingUser = await User.findOne({
-      $or: [{ email: cleanEmail }, { phone: cleanPhone }],
+      $or: [{ email: cleanEmail }, { phone: { $in: phones } }],
     });
 
     if (existingUser) {
@@ -164,6 +172,10 @@ export const register = async (req, res) => {
     }
 
     // Băm mật khẩu an toàn với bcrypt
+    if (!await consumeDeliveredOtp(cleanEmail, otp, 'register')) {
+      return res.status(400).json({ message: 'Mã xác thực không hợp lệ hoặc đã hết hạn.' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await User.create({
@@ -185,7 +197,7 @@ export const register = async (req, res) => {
         phone: newUser.phone,
         role: newUser.role,
       },
-      JWT_SECRET,
+      process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
 
@@ -205,6 +217,7 @@ export const register = async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ message: 'Email hoặc số điện thoại đã được sử dụng.' });
     res.status(500).json({ message: 'Lỗi trong quá trình đăng ký tài khoản', error: error.message });
   }
 };
@@ -212,9 +225,10 @@ export const register = async (req, res) => {
 // 2. Đăng nhập tài khoản (Email hoặc Số điện thoại)
 export const login = async (req, res) => {
   try {
+    if (!process.env.JWT_SECRET) return res.sendStatus(503);
     const { identifier, password } = req.body;
 
-    if (!identifier || !password) {
+    if (typeof identifier !== 'string' || !identifier.trim() || typeof password !== 'string' || !password) {
       return res.status(400).json({ message: 'Vui lòng nhập Email/Số điện thoại và mật khẩu' });
     }
 
@@ -224,7 +238,7 @@ export const login = async (req, res) => {
     let user = await User.findOne({
       $or: [
         { email: cleanIdentifier.toLowerCase() },
-        { phone: cleanIdentifier },
+        { phone: { $in: phoneVariants(cleanIdentifier) } },
       ],
     });
 
@@ -263,7 +277,7 @@ export const login = async (req, res) => {
         phone: user.phone || '',
         role: user.role || (isAdminUser ? 'ADMIN' : 'CUSTOMER'),
       },
-      JWT_SECRET,
+      process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
 
@@ -304,7 +318,7 @@ export const getMe = async (req, res) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
 
     const user = await User.findById(decoded.id).select('-password');
     if (!user) {
@@ -337,73 +351,27 @@ export const getMe = async (req, res) => {
 // 4. Cập nhật ảnh đại diện (Avatar) cho người dùng hoặc Ban Quản Trị
 export const updateAvatar = async (req, res) => {
   try {
-    const { avatar, email, userId } = req.body;
-
-    if (avatar === undefined || avatar === null) {
-      return res.status(400).json({ message: 'Vui lòng cung cấp thông tin ảnh đại diện' });
+    const { avatar } = req.body;
+    if (typeof avatar !== 'string') {
+      return res.status(400).json({ message: 'Vui lòng cung cấp ảnh đại diện hợp lệ.' });
     }
+    const token = req.get('authorization')?.match(/^Bearer ([^\s]+)$/i)?.[1];
+    if (!token) return res.sendStatus(401);
 
-    let targetUserId = userId;
+    let identity;
+    try {
+      identity = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    } catch {
+      return res.sendStatus(401);
+    }
+    if (!mongoose.isObjectIdOrHexString(identity?.id)) return res.sendStatus(401);
 
-    // Lấy ID từ Token nếu có
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET);
-        if (decoded?.id) {
-          targetUserId = decoded.id;
-        }
-      } catch {
-        // Tiếp tục thử fallback theo email/userId
-      }
-    }
-
-    let user = null;
-    let isAdminAccount = false;
-    const cleanAvatar = typeof avatar === 'string' ? avatar.trim() : '';
-
-    // 1. Thử tìm và cập nhật trong collection User
-    if (targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
-      user = await User.findByIdAndUpdate(targetUserId, { avatar: cleanAvatar }, { new: true });
-    }
-    if (!user && email) {
-      const cleanEmail = email.toLowerCase().trim();
-      user = await User.findOneAndUpdate(
-        {
-          $or: [
-            { email: cleanEmail },
-            { email: cleanEmail.replace('@davenor.vn', '@movietix.vn') },
-            { email: cleanEmail.replace('@movietix.vn', '@davenor.vn') },
-          ],
-        },
-        { avatar: cleanAvatar },
-        { new: true }
-      );
-    }
-
-    // 2. Nếu không có trong User, thử tìm và cập nhật trong collection AdminUser
-    if (!user) {
-      if (targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
-        user = await AdminUser.findByIdAndUpdate(targetUserId, { avatar: cleanAvatar }, { new: true });
-        if (user) isAdminAccount = true;
-      }
-    }
-    if (!user && email) {
-      const cleanEmail = email.toLowerCase().trim();
-      user = await AdminUser.findOneAndUpdate(
-        {
-          $or: [
-            { email: cleanEmail },
-            { email: cleanEmail.replace('@davenor.vn', '@movietix.vn') },
-            { email: cleanEmail.replace('@movietix.vn', '@davenor.vn') },
-          ],
-        },
-        { avatar: cleanAvatar },
-        { new: true }
-      );
-      if (user) isAdminAccount = true;
-    }
+    const cleanAvatar = avatar.trim();
+    const update = { $set: { avatar: cleanAvatar } };
+    const options = { returnDocument: 'after' };
+    let user = await User.findByIdAndUpdate(identity.id, update, options);
+    const isAdminAccount = !user;
+    if (!user) user = await AdminUser.findByIdAndUpdate(identity.id, update, options);
 
     if (!user) {
       return res.status(404).json({ message: 'Không tìm thấy tài khoản người dùng để đổi avatar' });
@@ -429,23 +397,16 @@ export const updateAvatar = async (req, res) => {
   }
 };
 
-// In-memory cache lưu trữ OTP gửi qua Email (thời hạn 5 phút) kết hợp Database MongoDB
-const otpCache = new Map();
+
 
 // Hàm dùng chung để tạo mã OTP 6 chữ số, lưu vào MongoDB và gửi Email thật tới khách hàng (hoặc từ trang Admin)
 export const generateAndSendEmailOtp = async ({ email, type = 'register' }) => {
   const cleanEmail = email.toLowerCase().trim();
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpCode = String(randomInt(100000, 1000000));
   const expiresAtDate = new Date(Date.now() + 5 * 60 * 1000);
 
-  // Lưu vào bộ nhớ đệm (hết hạn sau 5 phút)
-  otpCache.set(cleanEmail, {
-    code: otpCode,
-    expiresAt: expiresAtDate.getTime(),
-    type,
-  });
 
-  console.log(`[D'AVENOR CINEMA OTP]: Mã cho ${cleanEmail} là -> ${otpCode}`);
+
 
   // Tự động đọc lại file backend/.env mới nhất
   dotenv.config({ path: BACKEND_ENV_PATH, override: true });
@@ -582,9 +543,9 @@ export const generateAndSendEmailOtp = async ({ email, type = 'register' }) => {
 // 5. Gửi mã OTP xác thực qua Email
 export const sendEmailOtp = async (req, res) => {
   try {
-    const { email, type } = req.body; // 'reset_password' | 'register'
+    const { email, type = 'register' } = req.body; // 'reset_password' | 'register'
 
-    if (!email) {
+    if (typeof email !== 'string' || !['register', 'reset_password'].includes(type)) {
       return res.status(400).json({ message: 'Vui lòng cung cấp địa chỉ email hợp lệ' });
     }
 
@@ -610,20 +571,15 @@ export const sendEmailOtp = async (req, res) => {
       }
     }
 
-    const { emailSent, emailErrorMsg } = await generateAndSendEmailOtp({
+    const { emailSent } = await generateAndSendEmailOtp({
       email: cleanEmail,
       type: type || 'register',
     });
 
     if (!emailSent) {
-      const isGoogleAuthBlock = String(emailErrorMsg || '').includes('534') || String(emailErrorMsg || '').includes('535');
       return res.status(502).json({
-        success: false,
-        emailSent: false,
-        message: isGoogleAuthBlock
-          ? 'Gmail gửi OTP hiện bị Google từ chối đăng nhập (lỗi 534/535: Mật khẩu ứng dụng đã hết hiệu lực hoặc cần xác minh lại). Vui lòng tạo lại App Password 16 ký tự trong Google Account và cập nhật backend/.env.'
-          : `Không thể gửi email OTP đến ${cleanEmail}: ${emailErrorMsg || 'Lỗi kết nối SMTP Gmail'}`,
-        emailErrorMsg,
+        success: false, emailSent: false,
+        message: 'Chưa thể gửi mã xác thực qua email. Vui lòng thử lại sau.',
       });
     }
 
@@ -638,65 +594,31 @@ export const sendEmailOtp = async (req, res) => {
 };
 
 // 6. Xác thực mã OTP Email
+function deliveredOtpQuery(email, code, type) {
+  return {
+    email, code: String(code ?? '').trim(), type, emailSent: true,
+    status: { $in: ['PENDING', 'VERIFIED'] }, expiresAt: { $gt: new Date() },
+  };
+}
+
+async function consumeDeliveredOtp(email, code, type) {
+  if (!/^\d{6}$/.test(String(code ?? '').trim())) return null;
+  return OtpVerification.findOneAndDelete(deliveredOtpQuery(email, code, type));
+}
+
 export const verifyEmailOtp = async (req, res) => {
   try {
-    const { email, otp } = req.body;
-
-    if (!email || !otp) {
-      return res.status(400).json({ message: 'Vui lòng cung cấp email và mã OTP 6 chữ số' });
+    const { email, otp, type = 'register' } = req.body;
+    if (typeof email !== 'string' || !/^\d{6}$/.test(String(otp ?? '').trim())
+      || !['register', 'reset_password'].includes(type)) {
+      return res.status(400).json({ message: 'Vui lòng nhập email và mã OTP gồm 6 chữ số.' });
     }
-
-    const cleanEmail = email.toLowerCase().trim();
-    const cleanOtp = otp.toString().trim();
-
-    // Hỗ trợ mã test dự phòng 123456
-    if (cleanOtp === '123456') {
-      await OtpVerification.findOneAndUpdate(
-        { email: cleanEmail, status: 'PENDING' },
-        { $set: { status: 'VERIFIED', verifiedAt: new Date() } },
-        { sort: { createdAt: -1 } }
-      ).catch(() => {});
-      return res.json({ success: true, message: 'Xác thực mã OTP email thành công!' });
-    }
-
-    // Ưu tiên kiểm tra trong MongoDB trước để đồng bộ với trang Quản lý Admin
-    const dbRecord = await OtpVerification.findOne({ email: cleanEmail })
-      .sort({ createdAt: -1 })
-      .lean();
-    const memRecord = otpCache.get(cleanEmail);
-
-    const activeCode = dbRecord?.code || memRecord?.code;
-    const activeExpiresAt = dbRecord?.expiresAt
-      ? new Date(dbRecord.expiresAt).getTime()
-      : memRecord?.expiresAt;
-
-    if (!activeCode) {
-      return res.status(400).json({ message: 'Mã OTP không tồn tại hoặc đã hết hạn. Vui lòng bấm Gửi lại mã.' });
-    }
-
-    if (Date.now() > activeExpiresAt || dbRecord?.status === 'EXPIRED') {
-      otpCache.delete(cleanEmail);
-      if (dbRecord?._id) {
-        await OtpVerification.findByIdAndDelete(dbRecord._id).catch(() => {});
-      }
-      return res.status(400).json({ message: 'Mã OTP đã hết hạn (5 phút) và đã được xóa khỏi hệ thống. Vui lòng bấm Gửi lại mã mới.' });
-    }
-
-    if (activeCode !== cleanOtp) {
-      return res.status(400).json({ message: 'Mã OTP không chính xác. Vui lòng kiểm tra lại email của bạn.' });
-    }
-
-    if (dbRecord?._id) {
-      await OtpVerification.findByIdAndUpdate(dbRecord._id, {
-        status: 'VERIFIED',
-        verifiedAt: new Date(),
-      }).catch(() => {});
-    }
-
-    res.json({
-      success: true,
-      message: 'Xác thực mã OTP email thành công!',
-    });
+    const match = await OtpVerification.findOneAndUpdate(
+      deliveredOtpQuery(email.toLowerCase().trim(), otp, type),
+      { $set: { status: 'VERIFIED', verifiedAt: new Date() } },
+    );
+    if (!match) return res.status(400).json({ message: 'Mã OTP không đúng hoặc đã hết hạn.' });
+    return res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi xác thực mã OTP', error: error.message });
   }
@@ -706,9 +628,10 @@ export const verifyEmailOtp = async (req, res) => {
 export const resetPassword = async (req, res) => {
   try {
     const { identifier, email, newPassword, otp } = req.body;
-    const targetEmail = (email || identifier || '').toLowerCase().trim();
+    const address = email || identifier;
+    const targetEmail = typeof address === 'string' ? address.toLowerCase().trim() : '';
 
-    if (!targetEmail || !newPassword) {
+    if (!targetEmail || typeof newPassword !== 'string' || !newPassword) {
       return res.status(400).json({ message: 'Vui lòng cung cấp Email và mật khẩu mới' });
     }
 
@@ -728,37 +651,14 @@ export const resetPassword = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy tài khoản với Email này' });
     }
 
-    // Kiểm tra OTP nếu có
-    if (otp) {
-      const cleanOtp = otp.toString().trim();
-      const dbRecord = await OtpVerification.findOne({ email: user.email })
-        .sort({ createdAt: -1 })
-        .lean();
-      const memRecord = otpCache.get(user.email);
-      const expectedCode = dbRecord?.code || memRecord?.code;
-
-      if (expectedCode && cleanOtp !== '123456' && expectedCode !== cleanOtp) {
-        return res.status(400).json({ message: 'Mã OTP không hợp lệ hoặc đã hết hạn' });
-      }
-
-      if (dbRecord?._id) {
-        await OtpVerification.findByIdAndUpdate(dbRecord._id, {
-          status: 'VERIFIED',
-          verifiedAt: new Date(),
-        }).catch(() => {});
-      }
+    if (!await consumeDeliveredOtp(user.email, otp, 'reset_password')) {
+      return res.status(400).json({ message: 'Mã OTP không đúng hoặc đã hết hạn.' });
     }
 
     // Băm mật khẩu mới với bcrypt
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedPassword;
     await user.save();
-
-    // Xóa OTP sau khi đổi mật khẩu thành công khỏi cache và Database để nhẹ hệ thống
-    otpCache.delete(user.email);
-    if (dbRecord?._id) {
-      await OtpVerification.findByIdAndDelete(dbRecord._id).catch(() => {});
-    }
 
     res.json({
       success: true,

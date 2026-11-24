@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import SidebarAdmin from '../../../components/admin/SidebarAdmin';
 import TopbarAdmin from '../../../components/admin/TopbarAdmin';
 import StatisticsHeader from './components/StatisticsHeader';
@@ -12,24 +12,28 @@ import ShowtimeDetailDrawer from './drawers/ShowtimeDetailDrawer';
 import statisticsApi from './services/statisticsApi';
 
 const TABS = [
-  { id: 'overview', label: 'Tổng quan', icon: '📊' },
+  { id: 'overview', label: 'Tổng hợp', icon: '📊' },
   { id: 'revenue', label: 'Doanh thu & Chi phí', icon: '💳' },
-  { id: 'movies', label: 'Phim & Lợi nhuận', icon: '🎬' },
-  { id: 'showtimes', label: 'Suất chiếu', icon: '⏱️' },
+  { id: 'efficiency', label: 'Hiệu suất', icon: '🎬' },
 ];
 
 const StatisticsPage = () => {
   // Tab hiện tại
   const [activeTab, setActiveTab] = useState('overview');
+  const [efficiency, setEfficiency] = useState('movies');
+  const activeReport = activeTab === 'efficiency' ? efficiency : activeTab;
 
-  // Bộ lọc dùng chung (Mặc định chọn Báo cáo Tháng 11/2026 có dữ liệu đầy đủ)
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState(() => {
+    const parts = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: 'numeric' })
+      .formatToParts(new Date());
+    return {
     timeRange: 'by_month',
-    month: 11,
-    year: 2026,
+    month: Number(parts.find(part => part.type === 'month').value),
+    year: Number(parts.find(part => part.type === 'year').value),
     customStart: '',
     customEnd: '',
     movieId: 'ALL',
+    };
   });
 
   // Dữ liệu cho 4 Tabs chính
@@ -42,6 +46,8 @@ const StatisticsPage = () => {
   const [moviesList, setMoviesList] = useState([]);
 
   // Trạng thái tải dữ liệu
+  const request = useRef(null);
+  const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -68,40 +74,48 @@ const StatisticsPage = () => {
   // 2. Nạp dữ liệu theo Tab và Bộ lọc đang kích hoạt
   const fetchTabData = useCallback(
     async (isManualRefresh = false) => {
+      request.current?.abort();
+      const controller = new AbortController();
+      request.current = controller;
+      setLoadError('');
       try {
         if (isManualRefresh) setIsRefreshing(true);
         else setLoading(true);
 
         const currentFilters = { ...filters };
 
-        if (activeTab === 'overview') {
-          const res = await statisticsApi.getOverview(currentFilters);
-          if (res.data?.data) setOverviewData(res.data.data);
-        } else if (activeTab === 'revenue') {
-          const res = await statisticsApi.getRevenue(currentFilters);
-          if (res.data?.data) setRevenueData(res.data.data);
-        } else if (activeTab === 'movies') {
-          const res = await statisticsApi.getMovies(currentFilters);
-          if (res.data?.data) setMoviesData(res.data.data);
-        } else if (activeTab === 'showtimes') {
-          const res = await statisticsApi.getShowtimes(currentFilters);
-          if (res.data?.data) setShowtimesData(res.data.data);
+        if (activeReport === 'overview') {
+          const res = await statisticsApi.getOverview(currentFilters, controller.signal);
+          if (!controller.signal.aborted && res.data?.data) setOverviewData(res.data.data);
+        } else if (activeReport === 'revenue') {
+          const res = await statisticsApi.getRevenue(currentFilters, controller.signal);
+          if (!controller.signal.aborted && res.data?.data) setRevenueData(res.data.data);
+        } else if (activeReport === 'movies') {
+          const res = await statisticsApi.getMovies(currentFilters, controller.signal);
+          if (!controller.signal.aborted && res.data?.data) setMoviesData(res.data.data);
+        } else if (activeReport === 'showtimes') {
+          const res = await statisticsApi.getShowtimes(currentFilters, controller.signal);
+          if (!controller.signal.aborted && res.data?.data) setShowtimesData(res.data.data);
         }
 
+        if (controller.signal.aborted) return;
         const now = new Date();
         setLastUpdated(now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       } catch (err) {
-        console.error('Lỗi khi tải dữ liệu thống kê:', err);
+        if (!controller.signal.aborted) setLoadError('Không tải được báo cáo.');
       } finally {
-        setLoading(false);
-        setIsRefreshing(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+          setIsRefreshing(false);
+        }
       }
     },
-    [activeTab, filters]
+    [activeReport, filters]
   );
 
   useEffect(() => {
     fetchTabData();
+    return () => request.current?.abort();
   }, [fetchTabData]);
 
   // Xử lý xuất báo cáo CSV / Excel
@@ -191,6 +205,9 @@ const StatisticsPage = () => {
 
           {/* 4. Nội dung chi tiết của Tab đang chọn */}
           <div className="transition-all duration-300">
+            {loadError && <p className="text-rose-300" role="alert">{loadError}{' '}
+              <button onClick={() => fetchTabData(true)} className="text-cyan-300">Thử lại</button>
+            </p>}
             {activeTab === 'overview' && (
               <OverviewTab
                 data={overviewData}
@@ -204,7 +221,15 @@ const StatisticsPage = () => {
               <RevenueTab data={revenueData} loading={loading} />
             )}
 
-            {activeTab === 'movies' && (
+            {activeTab === 'efficiency' && <div className="mb-4 flex flex-wrap gap-2">
+              {[['movies', 'Phim'], ['showtimes', 'Suất chiếu']].map(([key, label]) => (
+                <button type="button" key={key} aria-pressed={efficiency === key}
+                  onClick={() => { setEfficiency(key); setFilters(current => ({ ...current, page: 1, search: '', room: 'ALL' })); }}
+                  className="rounded-lg border border-slate-700 px-3 py-2 text-sm aria-pressed:border-cyan-400 aria-pressed:text-cyan-300">{label}</button>
+              ))}
+            </div>}
+
+            {activeReport === 'movies' && (
               <MoviesTab
                 moviesData={moviesData}
                 loading={loading}
@@ -214,7 +239,7 @@ const StatisticsPage = () => {
               />
             )}
 
-            {activeTab === 'showtimes' && (
+            {activeReport === 'showtimes' && (
               <ShowtimesTab
                 showtimesData={showtimesData}
                 loading={loading}

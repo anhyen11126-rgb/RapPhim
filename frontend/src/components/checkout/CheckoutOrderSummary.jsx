@@ -22,7 +22,6 @@ const CheckoutOrderSummary = ({
   setCustomerPhone,
   customerEmail,
   setCustomerEmail,
-  paymentMethod,
   isSubmitting,
   onInitiatePayment,
   showQRModal,
@@ -95,16 +94,13 @@ const CheckoutOrderSummary = ({
               <span className="flex items-center gap-1.5">
                 <span>🍿</span>
                 <span>
-                  {comboQuantities[c.id]}x {c.title} (bắp{' '}
-                  {popcornFlavors
-                    .find((f) => f.id === selectedFlavor)
-                    ?.name.toLowerCase()
-                    .replace('★ ', '')}
-                  )
+                  {comboQuantities[c.id]}x {c.title}
+                  {['COMBO', 'POPCORN'].includes(c.category) && ` (${popcornFlavors.find(flavor => flavor.id === selectedFlavor)?.name})`}
                 </span>
               </span>
               <span className="font-bold text-white">
-                {(comboQuantities[c.id] * c.price).toLocaleString('vi-VN')} đ
+                {(comboQuantities[c.id] * (c.price + (['COMBO', 'POPCORN'].includes(c.category)
+                  ? popcornFlavors.find(flavor => flavor.id === selectedFlavor)?.extra ?? 0 : 0))).toLocaleString('vi-VN')} đ
               </span>
             </div>
           ))}
@@ -222,7 +218,7 @@ const CheckoutOrderSummary = ({
             </>
           ) : (
             <>
-              <span>Tiến hành thanh toán</span>
+              <span>Thanh toán mô phỏng</span>
               <span>→</span>
             </>
           )}
@@ -235,7 +231,7 @@ const CheckoutOrderSummary = ({
           <div className="w-full max-w-sm bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 shadow-2xl text-center space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-[var(--border-default)]">
               <span className="text-xs font-black text-white uppercase tracking-wider">
-                Quét mã QR để thanh toán
+                Xác nhận thanh toán mô phỏng
               </span>
               <button
                 type="button"
@@ -246,16 +242,8 @@ const CheckoutOrderSummary = ({
               </button>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl inline-block shadow-inner mx-auto">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=D_AVENOR_CINEMA_${grandTotal}_VND`}
-                alt="QR Thanh Toán"
-                className="w-48 h-48 block mx-auto"
-              />
-            </div>
-
-            <p className="text-xs text-slate-300">
-              Sử dụng app <strong>{paymentMethod}</strong> hoặc ngân hàng để quét mã thanh toán <strong>{grandTotal.toLocaleString('vi-VN')} đ</strong>.
+            <p className="text-sm text-slate-300">
+              Giao dịch mô phỏng phục vụ đồ án. Hệ thống không chuyển tiền qua ngân hàng.
             </p>
 
             <button
@@ -263,7 +251,7 @@ const CheckoutOrderSummary = ({
               onClick={onExecuteCheckout}
               className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition-colors shadow-lg shadow-emerald-600/30 cursor-pointer"
             >
-              ✓ Tôi đã hoàn tất chuyển tiền
+              Xác nhận mô phỏng
             </button>
           </div>
         </div>

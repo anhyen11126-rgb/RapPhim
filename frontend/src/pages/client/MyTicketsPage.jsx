@@ -1,3 +1,5 @@
+import TicketChanges from '../../components/checkout/TicketChanges';
+import TicketQr from '../../components/checkout/TicketQr';
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -16,7 +18,7 @@ const MyTicketsPage = () => {
       if (stored) {
         const u = JSON.parse(stored);
         setCurrentUser(u);
-        fetchMyBookings(u);
+        fetchMyBookings();
       } else {
         setLoading(false);
       }
@@ -25,19 +27,14 @@ const MyTicketsPage = () => {
     }
   }, []);
 
-  const fetchMyBookings = async (user) => {
+  const fetchMyBookings = async (refreshInBackground = false) => {
     try {
-      setLoading(true);
-      const res = await api.get('/bookings/my-bookings', {
-        params: {
-          email: user.email,
-          phone: user.phone,
-        },
-      });
+      if (!refreshInBackground) setLoading(true);
+      const res = await api.get('/bookings/my-bookings');
       const data = Array.isArray(res.data) ? res.data : [];
       setBookings(data);
       if (data.length > 0) {
-        setSelectedBooking(data[0]);
+        setSelectedBooking(current => data.find(booking => booking.id === current?.id) || data[0]);
       }
     } catch (err) {
       console.warn('Lỗi tải danh sách vé:', err);
@@ -232,7 +229,7 @@ const MyTicketsPage = () => {
                               #{b.bookingCode}
                             </span>
                             <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
-                              {b.status === 'PAID' ? '✓ ĐÃ THANH TOÁN' : b.status}
+                              {b.status === 'PAID' ? (b.paymentStatus === 'SIMULATED' ? 'MÔ PHỎNG' : 'ĐÃ XÁC MINH') : b.status}
                             </span>
                           </div>
                           <h3 className="text-sm font-black text-white line-clamp-1">
@@ -299,7 +296,7 @@ const MyTicketsPage = () => {
 
                   <div className="flex-1 min-w-0 space-y-1">
                     <span className="bg-[#20204B] text-[#42DFFF] font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border border-[#AA9BFF]/30 uppercase tracking-wider">
-                      {selectedBooking.showtime?.movie?.ageRating || 'T16'} • IMAX LASER
+                      {selectedBooking.showtime?.movie?.ageRating || '—'} · {selectedBooking.showtime?.roomId?.roomType || selectedBooking.showtime?.formatFeature || '—'}
                     </span>
                     <h3 className="text-xl font-black text-white">
                       {selectedBooking.showtime?.movie?.title || 'Vé Xem Phim D\'AVENOR'}
@@ -317,7 +314,7 @@ const MyTicketsPage = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-[#AA9BFF]/20 text-xs">
                   <div>
                     <span className="text-[10px] text-[var(--text-muted)] block font-medium">📽️ Phòng chiếu</span>
-                    <span className="font-bold text-white text-xs block mt-0.5">{selectedBooking.showtime?.roomName || 'Phòng 03'}</span>
+                    <span className="font-bold text-white text-xs block mt-0.5">{selectedBooking.showtime?.roomName || 'Chưa xác định'}</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-[var(--text-muted)] block font-medium">🕒 Giờ chiếu</span>
@@ -357,14 +354,12 @@ const MyTicketsPage = () => {
                   </div>
                 )}
 
+                <TicketChanges key={selectedBooking.id} booking={selectedBooking} onChanged={() => fetchMyBookings(true)} />
+
                 {/* Mã QR Check-in */}
                 <div className="text-center pt-2 space-y-3">
                   <div className="inline-block p-4 bg-white rounded-2xl shadow-xl border-4 border-[#AA9BFF]/30">
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${selectedBooking.bookingCode}`}
-                      alt="Check-in QR"
-                      className="w-36 h-36 object-contain rounded-lg mx-auto"
-                    />
+                    <TicketQr token={selectedBooking.qrToken} size={160} />
                   </div>
                   <p className="text-[11px] text-[var(--text-muted)] max-w-sm mx-auto">
                     Xuất trình mã QR tại cửa phòng chiếu hoặc quầy D'AVENOR Express để vào xem phim.

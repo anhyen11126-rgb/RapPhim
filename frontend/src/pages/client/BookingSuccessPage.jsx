@@ -1,3 +1,4 @@
+import TicketQr from '../../components/checkout/TicketQr';
 import React, { useState, useEffect } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 
@@ -119,11 +120,11 @@ const BookingSuccessPage = () => {
           </div>
 
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black bg-gradient-to-r from-[#F4A5FF] via-[#C56BFF] via-[#83F5FF] to-[#F4A5FF] bg-clip-text text-transparent tracking-tight">
-            Đặt Vé & Thanh Toán Thành Công!
+            Đặt vé mô phỏng thành công
           </h1>
 
           <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-2.5 leading-relaxed">
-            Mã vé điện tử đã gửi tới <strong className="text-white font-semibold">{ticketData.customerEmail}</strong> và SĐT <strong className="text-white font-semibold">{ticketData.customerPhone}</strong>. Xuất trình mã QR tại cửa kiểm soát hoặc quầy D'AVENOR Express.
+            Vé mô phỏng đã có trong mục Vé của tôi. Mã QR áp dụng cho toàn bộ ghế trong đơn.
           </p>
         </div>
 
@@ -301,11 +302,7 @@ const BookingSuccessPage = () => {
 
               {/* Khối Mã QR Trắng trung tâm với biểu tượng phim ở giữa */}
               <div className="inline-block p-5 sm:p-6 bg-white rounded-3xl shadow-2xl relative border-4 border-[#AA9BFF]/30 my-2">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${ticketData.bookingCode}`}
-                  alt="D'AVENOR Fast Check-in QR"
-                  className="w-48 h-48 sm:w-56 sm:h-56 object-contain rounded-xl mx-auto"
-                />
+                <TicketQr token={booking?.qrToken} size={220} />
                 {/* Logo icon cuộn phim ở tâm mã QR */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-[#7C3AED] text-white flex items-center justify-center shadow-lg border-2 border-white">
                   <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">

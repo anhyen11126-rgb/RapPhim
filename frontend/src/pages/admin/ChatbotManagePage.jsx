@@ -27,7 +27,7 @@ const INTENT_LABELS = {
 };
 
 const ChatbotManagePage = () => {
-  const [activeTab, setActiveTab] = useState('LOGS'); // 'LOGS' | 'FAQS' | 'CONFIG'
+  const [activeTab, setActiveTab] = useState('CONFIG');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -321,6 +321,41 @@ const ChatbotManagePage = () => {
             </div>
           </div>
 
+          {/* 3 Tabs điều hướng Quản trị Chatbot */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: 'CONFIG', label: 'Cấu hình & FAQ' },
+                { key: 'TEST', label: 'Kiểm thử phản hồi' },
+                { key: 'LOGS', label: 'Lịch sử & Thống kê' },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    activeTab === tab.key
+                      ? 'bg-red-600 text-white shadow-lg shadow-red-600/25'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === 'LOGS' && logs.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAllLogs}
+                className="text-xs bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white px-3.5 py-2 rounded-xl font-bold border border-rose-500/30 transition-all cursor-pointer"
+              >
+                🧹 Xóa toàn bộ lịch sử chat
+              </button>
+            )}
+          </div>
+
+          {activeTab === 'TEST' && <>
           {/* Khung Test nhanh phản hồi AI ngay trong Admin */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
             <div className="flex items-center justify-between">
@@ -384,39 +419,7 @@ const ChatbotManagePage = () => {
             )}
           </div>
 
-          {/* 3 Tabs điều hướng Quản trị Chatbot */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
-            <div className="flex flex-wrap gap-2">
-              {[
-                { key: 'LOGS', label: `💬 Lịch sử hội thoại khách hàng (${logs.length})` },
-                { key: 'FAQS', label: `📚 Kho tri thức & Kịch bản câu trả lời (${config.faqs?.length || 0})` },
-                { key: 'CONFIG', label: '⚙️ Cấu hình lời chào & Nút gợi ý nhanh' },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                    activeTab === tab.key
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-600/25'
-                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {activeTab === 'LOGS' && logs.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearAllLogs}
-                className="text-xs bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white px-3.5 py-2 rounded-xl font-bold border border-rose-500/30 transition-all cursor-pointer"
-              >
-                🧹 Xóa toàn bộ lịch sử chat
-              </button>
-            )}
-          </div>
+          </>}
 
           {/* ==================== TAB 1: LỊCH SỬ HỘI THOẠI KHÁCH HÀNG ==================== */}
           {activeTab === 'LOGS' && (
@@ -515,7 +518,7 @@ const ChatbotManagePage = () => {
           )}
 
           {/* ==================== TAB 2: KHO TRI THỨC & KỊCH BẢN HỎI ĐÁP (FAQS) ==================== */}
-          {activeTab === 'FAQS' && (
+          {activeTab === 'CONFIG' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Cột trái: Form thêm kịch bản trả lời mới */}
               <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 h-fit space-y-4">

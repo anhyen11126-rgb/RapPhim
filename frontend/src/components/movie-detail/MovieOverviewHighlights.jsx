@@ -34,7 +34,7 @@ const MovieOverviewHighlights = ({ movie, ageBadge, isFavorite, onToggleFavorite
           <div className="flex flex-wrap items-center gap-6">
             {/* Rating MovieTix */}
             <div className="flex items-center space-x-2">
-              <span className="text-2xl font-black text-[#fbbf24]">★ {movie.rating || 4.9}</span>
+              <span className="text-2xl font-black text-[#fbbf24]">★ {movie.rating ?? '—'}</span>
               <span className="text-xs text-slate-400 font-medium">
                 / 5.0
                 <br />

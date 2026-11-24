@@ -1,3 +1,4 @@
+import { businessDate } from '../services/bookingPolicy.js';
 import Promotion from '../models/Promotion.js';
 
 export const resolvePromotionVisuals = (p = {}) => {
@@ -152,6 +153,28 @@ export const getPromotions = async (req, res) => {
 };
 
 // Kiểm tra và áp dụng mã voucher
+export const resolveVoucher = async (code, subtotal, now = new Date()) => {
+  if (typeof code !== 'string' || !code.trim() || !Number.isFinite(subtotal) || subtotal < 0) return null;
+  const voucher = await Promotion.findOne({
+    code: code.trim().toUpperCase(), type: 'VOUCHER', isActive: true,
+  }).lean();
+  if (!voucher) return null;
+
+  if (voucher.expiryDate?.trim()) {
+    const date = voucher.expiryDate.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!date || businessDate(now) > date[3] + '-' + date[2] + '-' + date[1]) return null;
+  }
+  const value = (voucher.discountValue || '').toUpperCase();
+  const percentage = value.match(/(\d+)\s*%/);
+  const thousands = value.match(/(\d+)\s*K\b/);
+  const currency = value.match(/\d{1,3}(?:[.,]\d{3})+/);
+  const amount = percentage ? Math.round(subtotal * Number(percentage[1]) / 100)
+    : thousands ? Number(thousands[1]) * 1000
+    : currency ? Number(currency[0].replace(/[.,]/g, '')) : 0;
+  if (amount <= 0) return null;
+  return { voucher, discountAmount: Math.min(subtotal, amount) };
+};
+
 export const applyVoucher = async (req, res) => {
   try {
     const { code, totalAmount } = req.body;
@@ -160,29 +183,11 @@ export const applyVoucher = async (req, res) => {
       return res.status(400).json({ message: 'Vui lòng nhập mã voucher' });
     }
 
-    const voucher = await Promotion.findOne({
-      code: code.toUpperCase().trim(),
-      type: 'VOUCHER',
-      isActive: true,
-    });
-
-    if (!voucher) {
-      return res.status(404).json({ message: 'Mã voucher không tồn tại hoặc đã hết hạn' });
+    const applied = await resolveVoucher(code, totalAmount);
+    if (!applied) {
+      return res.status(404).json({ message: 'Mã voucher không hợp lệ hoặc đã hết hạn.' });
     }
-
-    let discountAmount = 20000;
-    const dv = voucher.discountValue || '';
-    if (dv.includes('30K') || dv.includes('30.000')) {
-      discountAmount = 30000;
-    } else if (dv.includes('20K') || dv.includes('20.000')) {
-      discountAmount = 20000;
-    } else if (dv.includes('45.000')) {
-      discountAmount = 45000;
-    } else if (dv.includes('%')) {
-      const match = dv.match(/(\d+)%/);
-      const percent = match ? parseInt(match[1], 10) : 10;
-      discountAmount = Math.round(((totalAmount || 100000) * percent) / 100);
-    }
+    const { voucher, discountAmount } = applied;
 
     res.json({
       success: true,

@@ -40,6 +40,7 @@ const roomSchema = new mongoose.Schema(
       type: String,
       default: '18:00 • 19:45 • 21:15 • 22:30',
     },
+    scheduleRevision: { type: Number, default: 0, select: false },
     totalSeats: {
       type: Number,
       default: 88,

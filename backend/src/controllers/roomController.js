@@ -7,138 +7,16 @@ import {
   formatRoomPriceRangeFromConfig,
 } from '../services/pricingConfigService.js';
 
-// Danh sách 8 phòng chuẩn ban đầu của cụm rạp D'AVENOR Thanh Khê Plaza (88 ghế/phòng = 704 ghế)
-const DEFAULT_ROOMS = [
-  {
-    roomNumber: 1,
-    name: 'Phòng IMAX 01 (Grand Hall)',
-    shortName: 'Phòng 1 (IMAX)',
-    roomType: 'IMAX Laser',
-    formatFeature: 'IMAX Laser 2D • Âm thanh 12 kênh độc quyền',
-    defaultSlots: '17:30 • 19:15 • 20:45 • 22:30',
-    totalSeats: 88,
-    status: 'ACTIVE',
-  },
-  {
-    roomNumber: 2,
-    name: 'Rạp 02 (Tầng 2 - 2D Tiêu chuẩn)',
-    shortName: 'Phòng 2 (2D)',
-    roomType: '2D Tiêu chuẩn',
-    formatFeature: '2D Digital Phụ đề • Màn chiếu phẳng 4K sắc nét',
-    defaultSlots: '10:00 • 13:00 • 15:45 • 18:30 • 21:15',
-    totalSeats: 88,
-    status: 'ACTIVE',
-  },
-  {
-    roomNumber: 3,
-    name: 'Rạp 03 (Tầng 2 - 2D Dolby Atmos)',
-    shortName: 'Phòng 3 (Dolby Atmos)',
-    roomType: 'Dolby Atmos',
-    formatFeature: '2D Dolby Atmos 64 kênh • Âm thanh vòm đa chiều 360°',
-    defaultSlots: '11:15 • 14:30 • 17:45 • 20:30 • 23:00',
-    totalSeats: 88,
-    status: 'ACTIVE',
-  },
-  {
-    roomNumber: 4,
-    name: 'Rạp 04 (Tầng 3 - 4DX Sound)',
-    shortName: 'Phòng 4 (4DX Sound)',
-    roomType: '4DX Sound',
-    formatFeature: '4DX Dynamic Motion • Hiệu ứng âm thanh và rung chuyển ghế',
-    defaultSlots: '10:30 • 13:30 • 16:30 • 19:30 • 22:15',
-    totalSeats: 88,
-    status: 'ACTIVE',
-  },
-  {
-    roomNumber: 5,
-    name: 'Rạp 05 (Tầng 3 - RealD 3D)',
-    shortName: 'Phòng 5 (RealD 3D)',
-    roomType: 'RealD 3D',
-    formatFeature: '3D Phụ Đề • RealD 3D High Frame Rate • Kính 3D siêu nhẹ',
-    defaultSlots: '12:00 • 15:00 • 18:00 • 21:00',
-    totalSeats: 88,
-    status: 'ACTIVE',
-  },
-  {
-    roomNumber: 6,
-    name: 'Phòng VIP Recliner 06 (Tầng 3)',
-    shortName: 'Phòng 6 (VIP Recliner)',
-    roomType: '2D Tiêu chuẩn',
-    formatFeature: 'Ghế bọc da chỉnh điện ngả 180° • Phục vụ bắp nước tận nơi',
-    defaultSlots: '11:00 • 14:00 • 17:00 • 20:00 • 22:45',
-    totalSeats: 88,
-    status: 'ACTIVE',
-  },
-  {
-    roomNumber: 7,
-    name: 'Rạp 07 (Tầng 4 - Studio 2D)',
-    shortName: 'Phòng 7 (Studio 2D)',
-    roomType: '2D Tiêu chuẩn',
-    formatFeature: 'Màn chiếu cong điện ảnh • Máy chiếu Laser 4K Christie',
-    defaultSlots: '09:45 • 12:45 • 15:45 • 18:45 • 21:45',
-    totalSeats: 88,
-    status: 'ACTIVE',
-  },
-  {
-    roomNumber: 8,
-    name: 'Phòng Grand Luxe 08 (Tầng 4)',
-    shortName: 'Phòng 8 (Grand Luxe)',
-    roomType: 'Dolby Atmos',
-    formatFeature: 'Phòng chiếu sang trọng bậc nhất • Âm thanh Dolby Atmos siêu thực',
-    defaultSlots: '10:15 • 13:15 • 16:15 • 19:15 • 22:15',
-    totalSeats: 88,
-    status: 'ACTIVE',
-  },
-];
-
-// Lấy danh sách tất cả các phòng chiếu
 export const getRooms = async (req, res) => {
   try {
     const { cinemaId } = req.query;
-    const filter = {};
-    const pricingConfig = await ensurePricingConfig();
-
-    let cinema = null;
-    if (cinemaId && cinemaId !== 'ALL' && mongoose.Types.ObjectId.isValid(cinemaId)) {
-      filter.cinemaId = new mongoose.Types.ObjectId(cinemaId);
-      cinema = await Cinema.findById(cinemaId).lean();
-    } else {
-      // Mặc định tìm cụm rạp D'AVENOR Thanh Khê Plaza nếu cần seed
-      cinema = await Cinema.findOne({ city: 'Đà Nẵng' }).lean() || await Cinema.findOne().lean();
-      // Không gán filter.cinemaId để hiển thị đầy đủ tất cả phòng trong Database
-    }
-
-    let rooms = await Room.find(filter).sort({ roomNumber: 1, createdAt: 1 }).lean();
-
-    // Tự động khởi tạo 8 phòng chuẩn nếu DB chưa có
-    if (rooms.length === 0 && cinema) {
-      const toInsert = DEFAULT_ROOMS.map((r) => ({
-        ...r,
-        priceRange: formatRoomPriceRangeFromConfig(r.roomType || r.name, pricingConfig),
-        cinemaId: cinema._id,
-      }));
-      await Room.insertMany(toInsert);
-      rooms = await Room.find(filter).sort({ roomNumber: 1, createdAt: 1 }).lean();
-    } else {
-      // Đồng bộ khung giờ & khoảng giá vé động từ TicketPricingConfig
-      for (const r of rooms) {
-        const def = DEFAULT_ROOMS.find((d) => d.roomNumber === r.roomNumber || d.roomType === r.roomType);
-        const computedRange = formatRoomPriceRangeFromConfig(r.roomType || r.name, pricingConfig);
-        const nextSlots = !r.defaultSlots && def ? def.defaultSlots : r.defaultSlots;
-        if (r.priceRange !== computedRange || nextSlots !== r.defaultSlots) {
-          await Room.findByIdAndUpdate(r._id, {
-            priceRange: computedRange,
-            defaultSlots: nextSlots,
-          });
-          r.priceRange = computedRange;
-          r.defaultSlots = nextSlots;
-        }
-      }
-    }
-
-    res.json(rooms.map((r) => ({ ...r, id: r._id.toString() })));
+    if (cinemaId && cinemaId !== 'ALL' && !mongoose.isObjectIdOrHexString(cinemaId)) return res.sendStatus(400);
+    const filter = cinemaId && cinemaId !== 'ALL' ? { cinemaId } : {};
+    const rooms = await Room.find(filter).sort({ roomNumber: 1, createdAt: 1 }).lean();
+    return res.json(rooms.map(room => ({ ...room, id: String(room._id) })));
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi lấy danh sách phòng chiếu', error: error.message });
+    console.error('Rooms query failed:', error.name);
+    return res.status(500).json({ message: 'Không thể tải danh sách phòng.' });
   }
 };
 
@@ -188,9 +66,12 @@ export const createRoom = async (req, res) => {
 export const updateRoom = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    if (!mongoose.isObjectIdOrHexString(id)) return res.sendStatus(400);
+    const allowed = ['name', 'shortName', 'roomType', 'formatFeature', 'priceRange', 'defaultSlots', 'totalSeats', 'status'];
+    const updateData = Object.fromEntries(allowed.filter(field => Object.hasOwn(req.body, field)).map(field => [field, req.body[field]]));
+    if (!Object.keys(updateData).length) return res.sendStatus(400);
 
-    const room = await Room.findByIdAndUpdate(id, updateData, { new: true }).lean();
+    const room = await Room.findByIdAndUpdate(id, { $set: updateData }, { returnDocument: 'after', runValidators: true }).lean();
     if (!room) {
       return res.status(404).json({ message: 'Không tìm thấy phòng chiếu yêu cầu' });
     }
@@ -213,13 +94,12 @@ export const deleteRoom = async (req, res) => {
 
     // Kiểm tra xem phòng có suất chiếu trong tương lai không
     const hasShowtimes = await Showtime.exists({
-      roomName: room.name,
-      startTime: { $gte: new Date() },
+      $or: [{ roomId: room._id }, { cinemaId: room.cinemaId, roomName: room.name }],
     });
 
     if (hasShowtimes) {
       return res.status(400).json({
-        message: 'Không thể xóa phòng chiếu đang có lịch chiếu trong tương lai. Hãy chuyển sang trạng thái Bảo trì!',
+        message: 'Không thể xóa phòng chiếu đã có lịch chiếu. Hãy chuyển sang trạng thái Bảo trì!',
       });
     }
 

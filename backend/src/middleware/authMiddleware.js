@@ -1,18 +1,39 @@
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
+import AdminUser from '../models/AdminUser.js';
+import User from '../models/User.js';
 
-export const authenticateAdmin = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Không tìm thấy Token xác thực (Unauthorized)' });
-  }
+function authenticate(models, allowedRoles, property) {
+  return async (req, res, next) => {
+    const token = req.get('authorization')?.match(/^Bearer ([^\s]+)$/i)?.[1];
+    if (!token) return res.status(401).json({ message: 'Vui lòng đăng nhập.' });
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return res.status(503).json({ message: 'Dịch vụ xác thực chưa được cấu hình.' });
 
-  const token = authHeader.split(' ')[1];
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'movietix_jwt_secret_key_2026_cdio');
-    req.admin = decoded;
-    next();
-  } catch (error) {
-    return res.status(403).json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
-  }
-};
+    let identity;
+    try {
+      identity = jwt.verify(token, secret, { algorithms: ['HS256'] });
+    } catch {
+      return res.status(401).json({ message: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
+    }
+    if (!mongoose.isObjectIdOrHexString(identity?.id)) {
+      return res.status(401).json({ message: 'Phiên đăng nhập không hợp lệ.' });
+    }
 
+    try {
+      for (const model of models) {
+        const account = await model.findById(identity.id).select('name email phone role').lean();
+        if (account && allowedRoles.includes(account.role)) {
+          req[property] = { ...account, id: String(account._id) };
+          return next();
+        }
+      }
+      return res.status(403).json({ message: 'Bạn không có quyền thực hiện thao tác này.' });
+    } catch (error) {
+      return next(error);
+    }
+  };
+}
+
+export const authenticateAdmin = authenticate([AdminUser, User], ['ADMIN'], 'admin');
+export const authenticateCustomer = authenticate([User], ['CUSTOMER', 'VIP'], 'user');

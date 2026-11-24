@@ -8,6 +8,10 @@ const bookingSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
+    requestSignature: { type: String, select: false },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    movieId: { type: mongoose.Schema.Types.ObjectId, ref: 'Movie' },
+    roomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Room' },
     showtimeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Showtime',
@@ -45,9 +49,20 @@ const bookingSchema = new mongoose.Schema(
       enum: ['PENDING', 'PAID', 'CANCELLED', 'EXCHANGED'],
       default: 'PAID',
     },
+    paymentStatus: {
+      type: String,
+      enum: ['PENDING', 'SIMULATED', 'VERIFIED', 'FAILED', 'LEGACY_UNVERIFIED'],
+      default: 'LEGACY_UNVERIFIED',
+    },
+    priceSnapshot: {
+      tickets: [{ _id: false, seatNumber: String, price: Number }],
+      combos: [{ _id: false, concessionId: mongoose.Schema.Types.ObjectId, name: String, flavor: String, quantity: Number, price: Number }],
+      voucherCode: String,
+      discount: Number,
+    },
     paymentMethod: {
       type: String,
-      enum: ['MOMO', 'VNPAY', 'CASH'],
+      enum: ['MOMO', 'VNPAY', 'CASH', 'ATM', 'VISA'],
       default: 'MOMO',
     },
     qrToken: {
@@ -62,6 +77,11 @@ const bookingSchema = new mongoose.Schema(
     checkedInAt: {
       type: Date,
       default: null,
+    },
+    refundStatus: {
+      type: String,
+      enum: ['NONE', 'SIMULATED', 'PENDING', 'REFUNDED', 'FAILED'],
+      default: 'NONE',
     },
     refundAmount: {
       type: Number,

@@ -32,6 +32,10 @@ const showtimeSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    endTime: Date,
+    cancelledAt: Date,
+    bookingRevision: { type: Number, default: 0, select: false },
+    cleaningMinutes: { type: Number, min: 0 },
     price: {
       type: Number,
       required: true,

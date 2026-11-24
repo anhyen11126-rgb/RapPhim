@@ -1,4 +1,5 @@
 import express from 'express';
+import { authenticateAdmin } from '../middleware/authMiddleware.js';
 import {
   getRooms,
   createRoom,
@@ -9,9 +10,9 @@ import {
 const router = express.Router();
 
 router.get('/', getRooms);
-router.post('/', createRoom);
-router.put('/:id', updateRoom);
-router.delete('/:id', deleteRoom);
+router.post('/', authenticateAdmin, createRoom);
+router.put('/:id', authenticateAdmin, updateRoom);
+router.delete('/:id', authenticateAdmin, deleteRoom);
 
 export default router;
 

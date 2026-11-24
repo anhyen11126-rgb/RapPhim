@@ -1,3 +1,4 @@
+import AdminSectionTabs from '../../components/admin/AdminSectionTabs';
 import React, { useState, useEffect } from 'react';
 import SidebarAdmin from '../../components/admin/SidebarAdmin';
 import TopbarAdmin from '../../components/admin/TopbarAdmin';
@@ -33,7 +34,8 @@ const ShowtimeManagePage = () => {
   const [formData, setFormData] = useState({
     movieId: '',
     cinemaId: '',
-    roomName: 'Rạp 05 (Tầng 3 - RealD 3D)',
+    roomName: '',
+    roomId: '',
     startTime: '',
     price: 80000,
   });
@@ -45,7 +47,7 @@ const ShowtimeManagePage = () => {
     endDate: '',
     selectedMovieIds: [],
     timeSlots: ['09:30', '13:45', '17:15', '19:45', '22:15'],
-    overwriteExisting: true,
+    roomIds: [],
   });
 
   const now = new Date();
@@ -159,13 +161,13 @@ const ShowtimeManagePage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa suất chiếu này? Các ghế liên kết cũng sẽ bị hủy!')) {
+    if (window.confirm('Hủy suất chiếu này? Các vé mô phỏng liên quan sẽ được vô hiệu hóa.')) {
       try {
-        await api.delete(`/admin/showtimes/${id}`);
+        const { data } = await api.delete(`/admin/showtimes/${id}`);
+        alert(data.message);
         loadData();
-        alert('Đã xóa suất chiếu thành công!');
       } catch (err) {
-        alert('Lỗi xóa suất chiếu: ' + (err.response?.data?.message || err.message));
+        alert('Lỗi hủy suất chiếu: ' + (err.response?.data?.message || err.message));
       }
     }
   };
@@ -237,7 +239,7 @@ const ShowtimeManagePage = () => {
         endDate: batchData.endDate,
         movieIds: batchData.selectedMovieIds,
         timeSlots: batchData.timeSlots,
-        overwriteExisting: batchData.overwriteExisting,
+        roomIds: batchData.roomIds,
       });
 
       alert(`🎉 ${res.data?.message || 'Đã xếp lịch chiếu hàng loạt thành công!'}`);
@@ -297,6 +299,7 @@ const ShowtimeManagePage = () => {
       <div className="flex-1 flex flex-col min-w-0">
         <TopbarAdmin />
         <main className="p-6 flex-1 space-y-6 overflow-y-auto">
+          <AdminSectionTabs />
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
             <div>
@@ -746,17 +749,19 @@ const ShowtimeManagePage = () => {
 
                   {/* Bước 5: Tùy chọn thay thế phim cũ */}
                   <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-1">
-                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={batchData.overwriteExisting}
-                        onChange={(e) =>
-                          setBatchData({ ...batchData, overwriteExisting: e.target.checked })
-                        }
-                        className="accent-blue-500 w-4 h-4 rounded cursor-pointer"
-                      />
-                      <span>Xóa/Thay thế các suất cũ chưa có vé đặt trong khoảng thời gian này</span>
-                    </label>
+                    <fieldset className="space-y-2">
+                      <legend className="text-sm font-semibold">Phòng vật lý</legend>
+                      {rooms.filter(room => room.status === 'ACTIVE').map(room => {
+                        const id = room.id || room._id;
+                        const checked = batchData.roomIds.includes(id);
+                        return <label key={id} className="mr-4 inline-flex items-center gap-2">
+                          <input type="checkbox" checked={checked} onChange={() => setBatchData(previous => ({
+                            ...previous, roomIds: checked ? previous.roomIds.filter(r => r !== id) : [...previous.roomIds, id],
+                          }))} />
+                          {room.name}
+                        </label>;
+                      })}
+                    </fieldset>
                     <p className="text-[10px] text-slate-400 pl-6">
                       (Đảm bảo chuyển hẳn sang các bộ phim mới cho tuần sau / tháng sau mà không bị trùng lặp phim cũ)
                     </p>
@@ -831,30 +836,21 @@ const ShowtimeManagePage = () => {
                     <div>
                       <label className="block text-slate-300 font-semibold mb-1">Phòng chiếu & Định dạng</label>
                       <select
-                        value={formData.roomName}
+                        value={formData.roomId}
                         onChange={(e) => {
-                          const selectedRoom = e.target.value;
+                          const room = rooms.find(item => String(item.id || item._id) === e.target.value);
                           setFormData({
-                            ...formData,
-                            roomName: selectedRoom,
-                            price: resolveSuggestedPrice(selectedRoom, formData.startTime),
+                            ...formData, roomId: e.target.value, roomName: room?.name || '',
+                            price: resolveSuggestedPrice(room?.name, formData.startTime),
                           });
                         }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-red-500"
+                        required
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs"
                       >
-                        {rooms.length > 0 ? (
-                          rooms.map((r) => (
-                            <option key={r.id || r._id} value={r.name}>
-                              {r.name} ({r.roomType})
-                            </option>
-                          ))
-                        ) : (
-                          <>
-                            <option value="Phòng IMAX 01 (Grand Hall)">Phòng IMAX 01 (Grand Hall)</option>
-                            <option value="Rạp 03 (Tầng 2 - 2D Dolby)">Rạp 03 (Tầng 2 - 2D Dolby)</option>
-                            <option value="Rạp 05 (Tầng 3 - RealD 3D)">Rạp 05 (Tầng 3 - RealD 3D)</option>
-                          </>
-                        )}
+                        <option value="">Chọn phòng vật lý</option>
+                        {rooms.filter(room => room.status === 'ACTIVE').map(room => (
+                          <option key={room.id || room._id} value={room.id || room._id}>{room.name}</option>
+                        ))}
                       </select>
                     </div>
 

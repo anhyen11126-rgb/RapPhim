@@ -24,7 +24,14 @@ import AuthPage from './pages/client/AuthPage';
 import StatisticsPage from './pages/admin/statistics/StatisticsPage';
 import MovieManagePage from './pages/admin/MovieManagePage';
 import RoomManagePage from './pages/admin/RoomManagePage';
+import ShowtimeManagePage from './pages/admin/ShowtimeManagePage';
+import PricingManagePage from './pages/admin/PricingManagePage';
+import BookingManagePage from './pages/admin/BookingManagePage';
+import CheckInManagePage from './pages/admin/CheckInManagePage';
 import SeatManagePage from './pages/admin/SeatManagePage';
+import UserManagePage from './pages/admin/UserManagePage';
+import ConcessionManagePage from './pages/admin/ConcessionManagePage';
+import PromotionManagePage from './pages/admin/PromotionManagePage';
 import ChatbotManagePage from './pages/admin/ChatbotManagePage';
 
 // Client Layout bọc Navbar, Footer và Chatbot AI (Màn hình 6)
@@ -73,7 +80,7 @@ function App() {
 
         {/* Cụm màn hình Quản trị viên (Được bảo vệ bằng AdminProtectedRoute) */}
         <Route element={<AdminProtectedRoute />}>
-          {/* 4 Mục Quản Trị Chủ Chốt */}
+          {/* Các nhóm quản trị */}
           <Route path="/admin" element={<Navigate to="/admin/statistics" replace />} />
           <Route path="/admin/statistics" element={<StatisticsPage />} />
           <Route path="/admin/movies" element={<MovieManagePage />} />
@@ -81,19 +88,20 @@ function App() {
           <Route path="/admin/seats" element={<SeatManagePage />} />
           <Route path="/admin/chatbot" element={<ChatbotManagePage />} />
 
-          {/* Điều hướng thông minh & khóa các URL cũ ngoài 4 mục */}
+          {/* Các đường dẫn quản trị và chuyển hướng cũ */}
           <Route path="/admin/cinemas" element={<Navigate to="/admin/rooms" replace />} />
-          <Route path="/admin/showtimes" element={<Navigate to="/admin/seats" replace />} />
+          <Route path="/admin/showtimes" element={<ShowtimeManagePage />} />
           <Route path="/admin/movie-analytics" element={<Navigate to="/admin/statistics" replace />} />
           <Route path="/admin/dashboard" element={<Navigate to="/admin/statistics" replace />} />
           <Route path="/admin/showtimes-occupancy" element={<Navigate to="/admin/statistics" replace />} />
           <Route path="/admin/occupancy" element={<Navigate to="/admin/statistics" replace />} />
-          <Route path="/admin/pricing" element={<Navigate to="/admin/statistics" replace />} />
-          <Route path="/admin/bookings" element={<Navigate to="/admin/statistics" replace />} />
-          <Route path="/admin/users" element={<Navigate to="/admin/statistics" replace />} />
+          <Route path="/admin/pricing" element={<PricingManagePage />} />
+          <Route path="/admin/bookings" element={<BookingManagePage />} />
+          <Route path="/admin/check-in" element={<CheckInManagePage />} />
+          <Route path="/admin/users" element={<UserManagePage />} />
           <Route path="/admin/otps" element={<Navigate to="/admin/statistics" replace />} />
-          <Route path="/admin/concessions" element={<Navigate to="/admin/statistics" replace />} />
-          <Route path="/admin/promotions" element={<Navigate to="/admin/statistics" replace />} />
+          <Route path="/admin/concessions" element={<ConcessionManagePage />} />
+          <Route path="/admin/promotions" element={<PromotionManagePage />} />
           <Route path="/admin/*" element={<Navigate to="/admin/statistics" replace />} />
         </Route>
       </Routes>

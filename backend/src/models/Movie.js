@@ -103,6 +103,7 @@ const movieSchema = new mongoose.Schema(
       {
         userName: { type: String, default: '' },
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        verifiedAttendance: { type: Boolean, default: false },
         userEmail: { type: String, default: '' },
         rating: { type: Number, default: 5 },
         comment: { type: String, default: '' },
