@@ -2,12 +2,14 @@ import mongoose from 'mongoose';
 import Movie from '../../models/Movie.js';
 import Showtime from '../../models/Showtime.js';
 import ShowtimeSeat from '../../models/ShowtimeSeat.js';
+import Booking from '../../models/Booking.js';
 import Cinema from '../../models/Cinema.js';
 import Concession from '../../models/Concession.js';
 import Promotion from '../../models/Promotion.js';
 import { ensurePricingConfig } from '../pricingConfigService.js';
 import { getVNDateParts, getRelativeDayLabel } from './timezoneUtils.js';
 import { calculateShowtimePrices, formatVND } from './pricingService.js';
+import { getDailyDealForDate } from './dailyPromotionService.js';
 
 /**
  * Kiểm tra một ghế trong ShowtimeSeat có thực sự đang trống tại thời điểm `nowDate` hay không.
@@ -185,14 +187,28 @@ export const isPromotionValid = (promo, nowDate = new Date()) => {
     if (!Number.isNaN(startMs) && startMs > nowMs) return false;
   }
 
-  // Kiểm tra ngày kết thúc (hỗ trợ cả endDate, expiryDate, validUntil)
+  // Kiểm tra ngày kết thúc (hỗ trợ cả endDate, expiryDate, validUntil; bỏ qua nếu là chuỗi hiển thị như "HSD: 15/12")
   const endRaw = promo.endDate || promo.expiryDate || promo.validUntil;
   if (endRaw) {
-    const endMs = new Date(endRaw).getTime();
+    const endDateObj = endRaw instanceof Date ? endRaw : new Date(endRaw);
+    const endMs = endDateObj.getTime();
     if (!Number.isNaN(endMs) && endMs < nowMs) return false;
   }
 
   return true;
+};
+
+export const FALLBACK_PRIMARY_CINEMA = {
+  _id: '6aecb03919dd0ede75638b6e',
+  name: "D'AVENOR Thanh Khê Plaza",
+  address: 'Tầng 4 TTTM Thanh Khê Plaza, 295 Điện Biên Phủ, P. Chính Gián, Q. Thanh Khê, Đà Nẵng',
+  city: 'Đà Nẵng',
+  district: 'Thanh Khê',
+  openingHours: '08:00 - 02:00 sáng',
+  hotline: '1900 8899',
+  parking: 'Hầm B1 & B2 TTTM Thanh Khê Plaza 24/7',
+  tags: ['IMAX Laser', 'Dolby Atmos', 'RealD 3D', '4DX Sound'],
+  isFlagship: true,
 };
 
 /**
@@ -209,6 +225,7 @@ export const buildNormalizedCinemaContext = ({
   movies = [],
   showtimes = [],
   seatsByShowtimeId = new Map(),
+  bookedCountByShowtimeId = new Map(),
   cinemas = [],
   concessions = [],
   promotions = [],
@@ -241,10 +258,18 @@ export const buildNormalizedCinemaContext = ({
     const stId = String(st._id || st.showtimeId || '');
     const movieIdStr = String(st.movieId?._id || st.movieId);
 
-    // 2.2. Tính số ghế trống thực tế từ dữ liệu ShowtimeSeat
+    // 2.2. Tính số ghế trống thực tế đồng bộ 100% với hiển thị hệ thống (movieController.js)
     const seatInfo = seatsByShowtimeId.get(stId);
+    const roomTotalSeats =
+      Number(st.roomId?.totalSeats) > 0
+        ? Number(st.roomId.totalSeats)
+        : Number(st.totalSeats) > 0
+          ? Number(st.totalSeats)
+          : 88;
+    const bookedFallbackCount = Number(bookedCountByShowtimeId.get(stId)) || 0;
+
     let availableSeats = 0;
-    let totalSeats = 88;
+    let totalSeats = roomTotalSeats;
     let seatsInitialized = false;
     let rawSeats = [];
     let availableByTier = { STANDARD: 0, VIP: 0, SWEETBOX: 0 };
@@ -254,7 +279,7 @@ export const buildNormalizedCinemaContext = ({
         // Trường hợp truyền mảng ghế chi tiết
         rawSeats = seatInfo;
         seatsInitialized = rawSeats.length > 0;
-        totalSeats = rawSeats.length || 88;
+        totalSeats = seatsInitialized ? rawSeats.length : roomTotalSeats;
         if (seatsInitialized) {
           availableSeats = 0;
           for (const s of rawSeats) {
@@ -267,14 +292,14 @@ export const buildNormalizedCinemaContext = ({
             }
           }
         } else {
-          // Chưa khởi tạo bản ghi ShowtimeSeat nào trong DB -> mặc định 86/88 ghế trống theo showtimeController
-          availableSeats = 86;
-          availableByTier = { STANDARD: 47, VIP: 35, SWEETBOX: 4 };
+          // Chưa khởi tạo bản ghi ShowtimeSeat -> tính đúng bằng totalSeats - số ghế đã đặt trong Booking (đồng bộ 88/88)
+          availableSeats = Math.max(0, totalSeats - bookedFallbackCount);
+          availableByTier = { STANDARD: 48, VIP: 36, SWEETBOX: 4 };
         }
       } else if (typeof seatInfo === 'object') {
         // Trường hợp truyền kết quả aggregation { totalInitialized, availableCount, seats }
         seatsInitialized = Number(seatInfo.totalInitialized) > 0;
-        totalSeats = seatsInitialized ? Number(seatInfo.totalInitialized) : 88;
+        totalSeats = seatsInitialized ? Number(seatInfo.totalInitialized) : roomTotalSeats;
         if (seatsInitialized) {
           // Giữ nguyên 0 nếu availableCount === 0! Không bao giờ fallback || 42
           availableSeats = Math.max(0, Number(seatInfo.availableCount) || 0);
@@ -284,8 +309,8 @@ export const buildNormalizedCinemaContext = ({
             SWEETBOX: Number(seatInfo.availableSweetbox) || 0,
           };
         } else {
-          availableSeats = 86;
-          availableByTier = { STANDARD: 47, VIP: 35, SWEETBOX: 4 };
+          availableSeats = Math.max(0, totalSeats - bookedFallbackCount);
+          availableByTier = { STANDARD: 48, VIP: 36, SWEETBOX: 4 };
         }
         if (Array.isArray(seatInfo.seats)) {
           rawSeats = seatInfo.seats;
@@ -296,10 +321,10 @@ export const buildNormalizedCinemaContext = ({
       seatsInitialized = true;
       availableSeats = Math.max(0, st.availableSeats);
     } else {
-      // Chưa có bản ghi ghế nào trong ShowtimeSeat cho suất chiếu mới tạo
+      // Chưa có bản ghi ghế nào trong ShowtimeSeat -> đồng bộ đúng công thức roomTotalSeats - bookedCount (88/88)
       seatsInitialized = false;
-      availableSeats = 86;
-      availableByTier = { STANDARD: 47, VIP: 35, SWEETBOX: 4 };
+      availableSeats = Math.max(0, totalSeats - bookedFallbackCount);
+      availableByTier = { STANDARD: 48, VIP: 36, SWEETBOX: 4 };
     }
 
     // 2.3. Tính giá vé chuẩn từ Database & cấu hình giá Admin
@@ -367,6 +392,8 @@ export const buildNormalizedCinemaContext = ({
 
     const supportedFormats = [...new Set(movieShowtimes.map((s) => s.format))];
 
+    const releaseParts = m.releaseDate ? getVNDateParts(m.releaseDate) : null;
+
     return {
       _id: movieIdStr,
       title: m.title,
@@ -375,6 +402,9 @@ export const buildNormalizedCinemaContext = ({
       rating: m.rating || 4.5,
       ageRating: m.ageRating || 'P',
       status: m.status || 'NOW_SHOWING',
+      releaseDate: releaseParts ? releaseParts.displayDate : '',
+      releaseMonth: releaseParts ? releaseParts.month : null,
+      releaseYear: releaseParts ? releaseParts.year : null,
       posterUrl: m.posterUrl || '',
       description: m.description || '',
       director: m.director || '',
@@ -394,15 +424,17 @@ export const buildNormalizedCinemaContext = ({
       const endParts = endRaw ? getVNDateParts(endRaw) : null;
       return {
         _id: String(p._id || ''),
-        title: p.title,
+        title: String(p.title || p.discountValue || 'Ưu đãi rạp phim').replace(/MovieTix/gi, "D'AVENOR"),
         code: p.code || '',
-        badgeText: p.badgeText || '',
+        type: p.type || '',
+        badgeText: p.badgeText || p.badgeTop || p.discountValue || '',
+        discountValue: p.discountValue || '',
         discountPercent: p.discountPercent || 0,
         discountAmount: p.discountAmount || 0,
         minOrderValue: p.minOrderValue || 0,
-        description: p.description || '',
+        description: String(p.description || p.conditions || '').replace(/MovieTix/gi, "D'AVENOR"),
         category: p.category || 'GENERAL',
-        endDate: endParts ? endParts.displayDate : null,
+        endDate: endParts ? endParts.displayDate : typeof endRaw === 'string' ? endRaw : null,
       };
     });
 
@@ -419,36 +451,31 @@ export const buildNormalizedCinemaContext = ({
       badge: c.badge || '',
     }));
 
-  // Chuẩn hóa danh sách rạp chiếu
+  // Chuẩn hóa danh sách rạp chiếu (ưu tiên 100% từ DB, chỉ fallback nếu DB rỗng)
   const normalizedCinemas =
     cinemas.length > 0
       ? cinemas.map((c) => ({
           _id: String(c._id || ''),
-          name: c.name,
-          address: c.address,
-          city: c.city || 'Đà Nẵng',
+          name: c.name || FALLBACK_PRIMARY_CINEMA.name,
+          address: c.address || FALLBACK_PRIMARY_CINEMA.address,
+          city: c.city || FALLBACK_PRIMARY_CINEMA.city,
+          district: c.district || '',
+          openingHours: c.openingHours || FALLBACK_PRIMARY_CINEMA.openingHours,
+          hotline: c.hotline || FALLBACK_PRIMARY_CINEMA.hotline,
+          parking: c.parking || FALLBACK_PRIMARY_CINEMA.parking,
+          tags: Array.isArray(c.tags) ? c.tags : [],
+          isFlagship: Boolean(c.isFlagship),
         }))
-      : [
-          {
-            name: "D'AVENOR Thanh Khê Plaza",
-            address: 'Tầng 4–5 TTTM Thanh Khê Plaza, 279 Điện Biên Phủ, Q. Thanh Khê, Đà Nẵng',
-            city: 'Đà Nẵng',
-          },
-          {
-            name: "D'AVENOR Vincom Ngô Quyền",
-            address: 'Tầng 4 Vincom Plaza, 910A Ngô Quyền, Q. Sơn Trà, Đà Nẵng',
-            city: 'Đà Nẵng',
-          },
-          {
-            name: "D'AVENOR Hải Châu Center",
-            address: 'Tầng 5 Indochina Riverside, 74 Bạch Đằng, Q. Hải Châu, Đà Nẵng',
-            city: 'Đà Nẵng',
-          },
-        ];
+      : [FALLBACK_PRIMARY_CINEMA];
+
+  const primaryCinema =
+    normalizedCinemas.find((c) => c.isFlagship) || normalizedCinemas[0] || FALLBACK_PRIMARY_CINEMA;
 
   return {
     nowIso: nowDate.toISOString(),
     nowVN: getVNDateParts(nowDate),
+    primaryCinema,
+    todayDailyDeal: getDailyDealForDate(nowDate),
     cinemas: normalizedCinemas,
     movies: moviesWithDetails,
     concessions: normalizedConcessions,
@@ -456,18 +483,62 @@ export const buildNormalizedCinemaContext = ({
   };
 };
 
+const STATIC_METADATA_TTL_MS = 45 * 1000;
+let staticMetadataCache = {
+  expiresAt: 0,
+  data: null,
+};
+
+export const invalidateCinemaMetadataCache = () => {
+  staticMetadataCache = { expiresAt: 0, data: null };
+};
+
+const fetchStaticMetadataCached = async (bypassCache = false) => {
+  const nowMs = Date.now();
+  if (!bypassCache && staticMetadataCache.data && nowMs < staticMetadataCache.expiresAt) {
+    return staticMetadataCache.data;
+  }
+
+  const [cinemas, concessions, promotions, pricingConfig] = await Promise.all([
+    Cinema.find({})
+      .select('name address city district openingHours hotline parking tags isFlagship')
+      .lean()
+      .catch(() => []),
+    Concession.find({})
+      .select('name price description category badge isActive')
+      .sort({ price: 1 })
+      .lean()
+      .catch(() => []),
+    Promotion.find({ $or: [{ isActive: true }, { status: 'ACTIVE' }] })
+      .select(
+        'title code type badgeText badgeTop discountValue discountPercent discountAmount minOrderValue description conditions category startDate endDate expiryDate status isActive'
+      )
+      .sort({ order: 1, createdAt: -1 })
+      .lean()
+      .catch(() => []),
+    ensurePricingConfig().catch(() => null),
+  ]);
+
+  const payload = { cinemas, concessions, promotions, pricingConfig };
+  staticMetadataCache = {
+    expiresAt: nowMs + STATIC_METADATA_TTL_MS,
+    data: payload,
+  };
+  return payload;
+};
+
 /**
  * Truy vấn ngữ cảnh rạp chiếu từ MongoDB đã được tối ưu hóa:
+ * - Cache ngắn 45 giây cho dữ liệu ít đổi (Cinema, Concession, Promotion, TicketPricingConfig)
+ * - Đọc realtime 100% cho Movie, Showtime, ShowtimeSeat và Booking (đảm bảo số ghế luôn chính xác tức thì)
  * - Batch query cho Showtime và ShowtimeSeat (triệt tiêu hoàn toàn lỗi N+1 queries)
- * - Chỉ lấy các trường cần thiết bằng `.select()` và `.lean()`
- * - Không thực hiện thao tác ghi/xóa DB trên luồng đọc chat
- * - Cho phép lấy chi tiết danh sách ghế khi người dùng hỏi về ghế liền nhau / sơ đồ ghế
  */
 export const fetchCinemaContextOptimized = async (options = {}) => {
   const {
     nowDate = new Date(),
     includeSeatDetails = false,
     targetMovieId = null,
+    bypassCache = false,
   } = options;
 
   if (mongoose.connection.readyState !== 1) {
@@ -488,46 +559,34 @@ export const fetchCinemaContextOptimized = async (options = {}) => {
       movieQuery._id = targetMovieId;
     }
 
-    // 1. Truy vấn song song Movies, Cinemas, Concessions, Promotions & TicketPricingConfig
-    const [movies, cinemas, concessions, promotions, pricingConfig] = await Promise.all([
+    // 1. Đọc song song Movies (realtime) + Metadata ít đổi (cached 45s)
+    const [movies, { cinemas, concessions, promotions, pricingConfig }] = await Promise.all([
       Movie.find(movieQuery)
         .select('title genre duration rating releaseDate status ageRating posterUrl description director cast')
         .sort({ rating: -1 })
-        .limit(20)
+        .limit(40)
         .lean(),
-      Cinema.find({})
-        .select('name address city')
-        .lean()
-        .catch(() => []),
-      Concession.find({})
-        .select('name price description category badge')
-        .sort({ price: 1 })
-        .lean()
-        .catch(() => []),
-      Promotion.find({ status: 'ACTIVE' })
-        .select('title code badgeText discountPercent discountAmount minOrderValue description category startDate endDate status')
-        .sort({ createdAt: -1 })
-        .lean()
-        .catch(() => []),
-      ensurePricingConfig().catch(() => null),
+      fetchStaticMetadataCached(bypassCache),
     ]);
 
     const movieIds = movies.map((m) => m._id);
 
-    // 2. Batch query TẤT CẢ suất chiếu chưa qua của các bộ phim trên trong 1 câu lệnh duy nhất
+    // 2. Batch query TẤT CẢ suất chiếu chưa qua của các bộ phim trên trong 1 câu lệnh duy nhất (kèm roomId.totalSeats)
     const showtimes =
       movieIds.length > 0
         ? await Showtime.find({
             movieId: { $in: movieIds },
             startTime: { $gt: nowDate },
           })
-            .select('movieId cinemaId roomName formatFeature startTime price')
+            .select('movieId cinemaId roomId roomName formatFeature startTime price')
+            .populate('roomId', 'name roomType formatFeature totalSeats')
             .sort({ startTime: 1 })
             .lean()
         : [];
 
     const showtimeIds = showtimes.map((st) => st._id);
     const seatsByShowtimeId = new Map();
+    const bookedCountByShowtimeId = new Map();
 
     // 3. Batch query / Aggregation đếm số ghế trống chính xác cho toàn bộ showtimeIds trong 1 lần gọi
     if (showtimeIds.length > 0) {
@@ -603,12 +662,52 @@ export const fetchCinemaContextOptimized = async (options = {}) => {
           seatsByShowtimeId.set(String(stat._id), stat);
         }
       }
+
+      // Với các suất chưa khởi tạo ShowtimeSeat, tra cứu số ghế đã đặt trong Booking để đồng bộ 100% với trang lịch chiếu
+      const uninitializedShowtimeIds = showtimeIds.filter((id) => {
+        const info = seatsByShowtimeId.get(String(id));
+        if (!info) return true;
+        if (Array.isArray(info)) return info.length === 0;
+        return Number(info.totalInitialized) <= 0;
+      });
+
+      if (uninitializedShowtimeIds.length > 0) {
+        const bookings = await Booking.find({
+          showtimeId: { $in: uninitializedShowtimeIds },
+          status: { $in: ['CONFIRMED', 'PAID', 'PENDING'] },
+        })
+          .select('showtimeId seats')
+          .lean()
+          .catch(() => []);
+
+        const seatSetsByShowtime = new Map();
+        for (const b of bookings) {
+          const stKey = String(b.showtimeId);
+          if (!seatSetsByShowtime.has(stKey)) {
+            seatSetsByShowtime.set(stKey, new Set());
+          }
+          const seatSet = seatSetsByShowtime.get(stKey);
+          const seatTokens = Array.isArray(b.seats)
+            ? b.seats
+            : String(b.seats || '')
+                .split(',')
+                .map((x) => x.trim())
+                .filter(Boolean);
+          for (const s of seatTokens) {
+            seatSet.add(String(s).trim().toUpperCase());
+          }
+        }
+        for (const [stKey, seatSet] of seatSetsByShowtime.entries()) {
+          bookedCountByShowtimeId.set(stKey, seatSet.size);
+        }
+      }
     }
 
     return buildNormalizedCinemaContext({
       movies,
       showtimes,
       seatsByShowtimeId,
+      bookedCountByShowtimeId,
       cinemas,
       concessions,
       promotions,

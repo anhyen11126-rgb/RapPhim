@@ -1,8 +1,35 @@
 import { generateChatResponse, getCinemaCurrentContext, ensureAiConfig } from '../services/aiService.js';
 
+// Giới hạn tần suất gửi tin nhắn nhẹ chống spam API (tối đa 25 lượt / 60 giây mỗi IP)
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 25;
+const chatRateLimitMap = new Map();
+
+const isRateLimited = (clientKey) => {
+  const now = Date.now();
+  const timestamps = (chatRateLimitMap.get(clientKey) || []).filter(
+    (ts) => now - ts < RATE_LIMIT_WINDOW_MS
+  );
+  if (timestamps.length >= RATE_LIMIT_MAX_REQUESTS) {
+    chatRateLimitMap.set(clientKey, timestamps);
+    return true;
+  }
+  timestamps.push(now);
+  chatRateLimitMap.set(clientKey, timestamps);
+  return false;
+};
+
 export const chatWithAI = async (req, res) => {
   try {
-    const { message, history, userName, userEmail } = req.body || {};
+    const clientIp = String(req.headers['x-forwarded-for'] || req.ip || 'unknown').split(',')[0].trim();
+    if (isRateLimited(clientIp)) {
+      return res.status(429).json({
+        success: false,
+        message: 'Bạn đang gửi tin nhắn hơi nhanh, vui lòng đợi vài giây rồi thử lại nhé!',
+      });
+    }
+
+    const { message, history, userName, userEmail, sessionContext } = req.body || {};
 
     if (typeof message !== 'string' || message.trim() === '') {
       return res.status(400).json({
@@ -17,6 +44,10 @@ export const chatWithAI = async (req, res) => {
       {
         userName: userName || 'Khách vãng lai',
         userEmail: userEmail || '',
+      },
+      {
+        sessionContext: sessionContext && typeof sessionContext === 'object' ? sessionContext : null,
+        authHeader: req.headers.authorization || '',
       }
     );
     res.json(aiResult);

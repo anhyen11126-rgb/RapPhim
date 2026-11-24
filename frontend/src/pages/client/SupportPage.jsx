@@ -1,8 +1,70 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import { FALLBACK_CINEMAS } from '../../constants/cinemas';
+
+const CINEMA_INFO = FALLBACK_CINEMAS[0];
+
+const normalizeSystemText = (text = '') =>
+  String(text)
+    .replace(/MovieTix/gi, "D'AVENOR CINEMA")
+    .replace(/1900\s*8866/g, CINEMA_INFO.hotline)
+    .replace(/support@movietix\.vn/gi, 'support@davenor.vn');
+
+const QUICK_CATEGORIES = [
+  {
+    id: 'payment',
+    icon: '💳',
+    title: 'Đặt vé & Thanh toán',
+    desc: 'Xử lý trừ tiền chưa nhận vé, thanh toán VNPAY-QR/MoMo và áp dụng mã ưu đãi.',
+    faqCategory: 'PAYMENT',
+    keyword: '',
+  },
+  {
+    id: 'ticket',
+    icon: '🎟️',
+    title: 'Vé điện tử & Check-in',
+    desc: 'Quét mã QR tại cổng soát vé, xem lại mã đặt vé trong mục "Vé của tôi" và đổi suất chiếu.',
+    faqCategory: 'TICKET_CINEMA',
+    keyword: '',
+  },
+  {
+    id: 'rules',
+    icon: '🛡️',
+    title: 'Quy định Rạp & Độ tuổi',
+    desc: 'Phân loại phim P, K, T13, T16, T18; giấy tờ xác minh độ tuổi và quy định mang đồ ăn vào rạp.',
+    faqCategory: 'TICKET_CINEMA',
+    keyword: 'độ tuổi',
+  },
+  {
+    id: 'member',
+    icon: '🍿',
+    title: 'Hội viên & Bắp nước',
+    desc: 'Tài khoản thành viên, tích điểm đổi quà, mã voucher và nhận combo nhanh tại làn F&B FastTrack.',
+    faqCategory: 'MEMBERSHIP',
+    keyword: '',
+  },
+];
+
+const HOT_QUERIES = [
+  { label: 'Hoàn hủy vé', keyword: 'hủy' },
+  { label: 'Mã QR vé', keyword: 'QR' },
+  { label: 'Độ tuổi T18', keyword: 'T18' },
+  { label: 'Thanh toán', keyword: 'thanh toán' },
+  { label: 'Bắp nước', keyword: 'bắp' },
+];
+
+const FAQ_CATEGORIES = [
+  { key: 'ALL', label: 'Tất cả' },
+  { key: 'TICKET_CINEMA', label: 'Vé & Rạp' },
+  { key: 'PAYMENT', label: 'Thanh toán' },
+  { key: 'MEMBERSHIP', label: 'Hội viên' },
+];
 
 const SupportPage = () => {
+  const faqSectionRef = useRef(null);
+  const ticketFormRef = useRef(null);
+
   // State dữ liệu FAQ từ Database
   const [faqs, setFaqs] = useState([]);
   const [loadingFaqs, setLoadingFaqs] = useState(true);
@@ -22,7 +84,7 @@ const SupportPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ticketResult, setTicketResult] = useState(null);
 
-  // 1. Tải danh sách FAQ từ API Backend MongoDB
+  // Tải danh sách FAQ từ API Backend MongoDB
   useEffect(() => {
     const fetchFaqs = async () => {
       try {
@@ -33,12 +95,16 @@ const SupportPage = () => {
 
         const res = await api.get('/support/faqs', { params });
         if (res.data) {
-          setFaqs(res.data);
-          // Mở mặc định FAQ đầu tiên nếu có
-          const defaultOpen = res.data.find((f) => f.isDefaultOpen) || res.data[0];
-          if (defaultOpen && !expandedFaqId) {
-            setExpandedFaqId(defaultOpen.id);
-          }
+          const normalized = res.data.map((item) => ({
+            ...item,
+            question: normalizeSystemText(item.question),
+            answer: normalizeSystemText(item.answer),
+          }));
+          setFaqs(normalized);
+          const defaultOpen = normalized.find((f) => f.isDefaultOpen) || normalized[0];
+          setExpandedFaqId((prev) =>
+            prev && normalized.some((f) => f.id === prev) ? prev : defaultOpen?.id || null
+          );
         }
       } catch (err) {
         console.error('Lỗi khi tải FAQ từ Database:', err);
@@ -50,6 +116,21 @@ const SupportPage = () => {
     fetchFaqs();
   }, [activeCategory, searchKeyword]);
 
+  const scrollToFaq = () => {
+    faqSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleQuickCategoryClick = (item) => {
+    setActiveCategory(item.faqCategory);
+    setSearchKeyword(item.keyword);
+    scrollToFaq();
+  };
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    scrollToFaq();
+  };
+
   // Xử lý vote Hữu ích / Không hữu ích
   const handleVote = async (faqId, type) => {
     if (votedMap[faqId]) return;
@@ -57,13 +138,9 @@ const SupportPage = () => {
     try {
       const res = await api.post(`/support/faqs/${faqId}/vote`, { type });
       setVotedMap((prev) => ({ ...prev, [faqId]: type }));
-
-      // Cập nhật số like/dislike trực tiếp trên UI
       setFaqs((prev) =>
         prev.map((f) =>
-          f.id === faqId
-            ? { ...f, likes: res.data.likes, dislikes: res.data.dislikes }
-            : f
+          f.id === faqId ? { ...f, likes: res.data.likes, dislikes: res.data.dislikes } : f
         )
       );
     } catch (err) {
@@ -74,13 +151,17 @@ const SupportPage = () => {
   // Xử lý nộp đơn hỗ trợ sự cố
   const handleSubmitTicket = async (e) => {
     e.preventDefault();
-    if (!ticketForm.fullName || !ticketForm.contact || !ticketForm.content) {
-      alert('Vui lòng điền đầy đủ các thông tin bắt buộc (*)');
+    if (!ticketForm.fullName.trim() || !ticketForm.contact.trim() || !ticketForm.content.trim()) {
+      setTicketResult({
+        success: false,
+        message: 'Vui lòng điền đầy đủ Họ tên, SĐT/Email liên hệ và Nội dung chi tiết.',
+      });
       return;
     }
 
     try {
       setIsSubmitting(true);
+      setTicketResult(null);
       const res = await api.post('/support/tickets', ticketForm);
       setTicketResult({
         success: true,
@@ -110,232 +191,178 @@ const SupportPage = () => {
     if (chatTrigger) chatTrigger.click();
   };
 
-  const faqCategories = [
-    { key: 'ALL', label: 'Tất cả' },
-    { key: 'TICKET_CINEMA', label: 'Vé & Rạp' },
-    { key: 'PAYMENT', label: 'Thanh toán' },
-    { key: 'MEMBERSHIP', label: 'Hội viên' },
-  ];
-
-  const hotQueries = [
-    '#HủyVé',
-    '#QuênMãQR',
-    '#ĐộTuổiT18',
-    '#LỗiThanhToánVNPay',
-    '#ComboBắpAvatar',
-  ];
+  // Chọn nhanh mục thuê rạp / vé đoàn
+  const handleSelectB2B = () => {
+    setTicketForm((prev) => ({
+      ...prev,
+      category: 'Thuê rạp sự kiện & Vé đoàn',
+    }));
+    ticketFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   return (
-    <div className="bg-[var(--bg-main)] min-h-screen text-[var(--text-main)] pb-20">
-      {/* 1. BREADCRUMBS & HERO SEARCH HEADER */}
-      <div className="max-w-[1560px] mx-auto px-4 sm:px-8 pt-5 pb-8 text-center sm:text-left">
-        {/* Breadcrumb */}
-        <div className="flex items-center space-x-2 text-xs text-[var(--text-muted)] mb-3 font-medium justify-center sm:justify-start">
+    <div className="bg-[var(--bg-main)] min-h-screen text-[var(--text-main)] pb-14">
+      {/* 1. HEADER & TÌM KIẾM NHANH GỌN GÀNG */}
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-8 pt-5 pb-4">
+        <div className="flex items-center space-x-2 text-xs text-[var(--text-muted)] mb-3 font-medium">
           <Link to="/" className="hover:text-[var(--text-main)] transition-colors">
             Trang chủ
           </Link>
           <span>/</span>
-          <span className="text-[var(--text-muted)]/70">Chăm sóc khách hàng</span>
-          <span>/</span>
-          <span className="text-[#42DFFF]">Trung tâm Hỗ trợ & FAQ</span>
+          <span className="text-[#42DFFF]">Trung tâm Hỗ trợ</span>
         </div>
 
-        {/* Tiêu đề trung tâm */}
-        <div className="max-w-3xl mx-auto text-center space-y-3 pt-2">
-          <div className="inline-flex items-center space-x-2 bg-[#20204B] border border-[#AA9BFF]/30 text-[#83F5FF] text-[11px] font-bold px-3 py-1 rounded-full">
+        <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/20 rounded-2xl p-5 sm:p-7 text-center space-y-3.5 shadow-lg">
+          <div className="inline-flex items-center gap-1.5 bg-[#20204B] border border-[#AA9BFF]/25 text-[#83F5FF] text-[11px] font-bold px-3 py-1 rounded-full">
             <span>🎧</span>
-            <span>TRUNG TÂM TRỢ GIÚP 24/7 • GIẢI ĐÁP TỨC THÌ</span>
+            <span>TRUNG TÂM HỖ TRỢ • {CINEMA_INFO.name.toUpperCase()}</span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black bg-gradient-to-r from-[#F4A5FF] via-[#C56BFF] via-[#83F5FF] to-[#F4A5FF] bg-clip-text text-transparent drop-shadow-[0_2px_16px_rgba(168,85,247,0.35)] tracking-tight leading-tight">
-            D'AVENOR CINEMA có thể giúp gì cho bạn hôm nay?
+          <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#F4A5FF] via-[#C56BFF] to-[#83F5FF] bg-clip-text text-transparent tracking-tight">
+            D'AVENOR CINEMA có thể giúp gì cho bạn?
           </h1>
 
-          <p className="text-xs sm:text-sm text-[var(--text-muted)] leading-relaxed max-w-xl mx-auto">
-            Tìm kiếm câu trả lời nhanh chóng hoặc kết nối trực tiếp với đội ngũ Chăm sóc Khách hàng & Trợ lý ảo AI của D'AVENOR CINEMA.
+          <p className="text-xs sm:text-sm text-[var(--text-muted)] max-w-xl mx-auto">
+            Tra cứu nhanh câu hỏi thường gặp, hỏi Trợ lý AI hoặc gửi yêu cầu trực tiếp đến đội ngũ hỗ trợ rạp.
           </p>
 
-          {/* Ô Tìm Kiếm Lớn */}
-          <div className="pt-3 max-w-2xl mx-auto">
-            <div className="relative flex items-center shadow-2xl">
-              <span className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-[var(--text-muted)]/60 text-sm">
+          {/* Thanh tìm kiếm */}
+          <form onSubmit={handleSearchSubmit} className="max-w-2xl mx-auto pt-1">
+            <div className="relative flex items-center">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[var(--text-muted)]/60 text-sm">
                 🔍
               </span>
               <input
                 type="text"
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
-                placeholder="Nhập vấn đề bạn cần hỗ trợ: hoàn hủy vé, quên mã QR, quy định độ tuổi T18, lỗi ví..."
-                className="w-full bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl pl-11 pr-28 py-3.5 text-xs sm:text-sm text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF] transition-all shadow-inner"
+                placeholder="Tìm nhanh: hoàn hủy vé, mã QR, độ tuổi T18, thanh toán..."
+                className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl pl-10 pr-28 py-2.5 text-xs sm:text-sm text-[var(--text-main)] placeholder-[#BEC5E5]/45 focus:outline-none focus:border-[#42DFFF] transition-colors"
               />
+              {searchKeyword && (
+                <button
+                  type="button"
+                  onClick={() => setSearchKeyword('')}
+                  className="absolute right-24 text-[var(--text-muted)] hover:text-white text-xs px-1.5 cursor-pointer"
+                  aria-label="Xóa từ khóa"
+                >
+                  ✕
+                </button>
+              )}
               <button
-                type="button"
-                className="absolute right-2 bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-[0_0_12px_rgba(168,85,247,0.35)] hover:brightness-110 cursor-pointer"
+                type="submit"
+                className="absolute right-1.5 bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] to-[#42DFFF] text-[#0B1026] font-black text-xs px-4 py-1.5 rounded-lg hover:brightness-110 transition-all cursor-pointer"
               >
-                Tìm kiếm ➔
+                Tìm kiếm
               </button>
             </div>
 
-            {/* Các thẻ tìm kiếm phổ biến */}
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-3 text-xs">
-              <span className="text-[var(--text-muted)] font-medium flex items-center space-x-1">
-                <span>🔥</span>
-                <span>Tìm kiếm phổ biến:</span>
-              </span>
-              {hotQueries.map((tag) => (
+            <div className="flex flex-wrap items-center justify-center gap-1.5 pt-2.5 text-xs">
+              <span className="text-[11px] text-[var(--text-muted)]">Gợi ý:</span>
+              {HOT_QUERIES.map((item) => (
                 <button
-                  key={tag}
-                  onClick={() => setSearchKeyword(tag.replace('#', ''))}
-                  className="text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[#20204B] bg-[var(--bg-secondary)] border border-[#AA9BFF]/20 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    setActiveCategory('ALL');
+                    setSearchKeyword(item.keyword);
+                    scrollToFaq();
+                  }}
+                  className="text-[var(--text-muted)] hover:text-white hover:bg-[#20204B] bg-[var(--bg-main)] border border-[#AA9BFF]/20 px-2.5 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer"
                 >
-                  {tag}
+                  {item.label}
                 </button>
               ))}
             </div>
-          </div>
+          </form>
         </div>
       </div>
 
-      {/* 2. AI ASSISTANT BANNER CARD */}
-      <div className="max-w-[1560px] mx-auto px-4 sm:px-8 py-3">
-        <div className="relative rounded-3xl overflow-hidden border border-[#AA9BFF]/25 bg-gradient-to-r from-[#20204B] via-[#11152F] to-[#20204B] p-5 sm:p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-5">
-          <div className="flex items-start space-x-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] to-[#42DFFF] text-[#0B1026] flex items-center justify-center text-xl shrink-0 shadow-lg shadow-purple-500/25">
+      {/* 2. THANH TRỢ LÝ AI NHANH GỌN */}
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-8 pb-4">
+        <div className="rounded-2xl border border-[#AA9BFF]/25 bg-gradient-to-r from-[#20204B]/90 via-[#11152F] to-[#20204B]/90 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] to-[#42DFFF] text-[#0B1026] flex items-center justify-center text-lg shrink-0">
               🤖
             </div>
-            <div className="space-y-1">
+            <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="bg-[#20204B] text-[#42DFFF] border border-[#42DFFF]/30 text-[10px] font-black px-2 py-0.5 rounded">
-                  CÔNG NGHỆ RAG NEURAL
-                </span>
-                <span className="text-[11px] font-bold text-emerald-400 flex items-center space-x-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>Trực tuyến 24/7 • Phản hồi 0.5s</span>
+                <h2 className="text-sm font-black text-white">Trợ lý AI D'AVENOR CINEMA</h2>
+                <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Trực tuyến 24/7</span>
                 </span>
               </div>
-              <h3 className="text-sm sm:text-base font-black text-[var(--text-main)]">
-                Cần tra cứu lịch chiếu, giá vé hoặc giải đáp tức thì trong 3 giây? Hãy hỏi Trợ lý AI D'AVENOR CINEMA!
-              </h3>
-              <p className="text-xs text-[var(--text-muted)] max-w-2xl leading-relaxed">
-                Hệ thống RAG AI thông minh được huấn luyện trên dữ liệu cụm rạp D'AVENOR Thanh Khê Plaza, cập nhật giá vé, suất chiếu IMAX Laser và chính sách khuyến mãi theo thời gian thực.
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                Hỏi nhanh lịch chiếu, số ghế trống, giá vé, ưu đãi và hướng dẫn đặt vé theo dữ liệu thực tế của rạp.
               </p>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={handleOpenAiChat}
-            className="shrink-0 bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] font-black text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-[0_0_16px_rgba(168,85,247,0.35)] hover:brightness-110 flex items-center space-x-2 cursor-pointer"
+            className="shrink-0 bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] to-[#42DFFF] text-[#0B1026] font-black text-xs px-4 py-2.5 rounded-xl hover:brightness-110 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <span>✨</span>
-            <span>Mở khung Chat AI ngay</span>
+            <span>Mở Chat AI</span>
           </button>
         </div>
       </div>
 
-      {/* 3. CHUYÊN MỤC PHỔ BIẾN (4 THẺ NHANH) */}
-      <div className="max-w-[1560px] mx-auto px-4 sm:px-8 pt-8 pb-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#42DFFF] block">
-              CHUYÊN MỤC PHỔ BIẾN
-            </span>
-            <h2 className="text-base sm:text-lg font-black text-[var(--text-main)]">Danh mục Hỗ trợ Nhanh</h2>
-          </div>
-          <span className="text-xs text-[var(--text-muted)] font-medium hidden sm:inline">
-            Chọn danh mục bạn cần giải đáp tức thì
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Card 1 */}
-          <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl p-5 space-y-3 hover:border-[#42DFFF]/60 transition-all group shadow-lg">
-            <div className="w-10 h-10 rounded-xl bg-[#20204B] border border-[#AA9BFF]/30 flex items-center justify-center text-lg text-[#83F5FF]">
-              💳
-            </div>
-            <h3 className="text-sm font-black text-[var(--text-main)] group-hover:text-[#42DFFF] transition-colors">
-              Đặt vé & Thanh toán
-            </h3>
-            <p className="text-xs text-[var(--text-muted)] leading-relaxed line-clamp-3">
-              Xử lý tài khoản bị trừ tiền nhưng chưa nhận mã vé, thanh toán ví MoMo/VNPay và xuất hóa đơn VAT điện tử.
-            </p>
-            <span className="inline-block text-xs font-bold text-[#42DFFF] group-hover:text-[#83F5FF] transition-colors pt-1">
-              Xem 14 hướng dẫn ➔
-            </span>
-          </div>
-
-          {/* Card 2 */}
-          <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl p-5 space-y-3 hover:border-[#42DFFF]/60 transition-all group shadow-lg">
-            <div className="w-10 h-10 rounded-xl bg-[#20204B] border border-[#AA9BFF]/30 flex items-center justify-center text-lg text-[#83F5FF]">
-              🎟️
-            </div>
-            <h3 className="text-sm font-black text-[var(--text-main)] group-hover:text-[#42DFFF] transition-colors">
-              Vé điện tử & Check-in
-            </h3>
-            <p className="text-xs text-[var(--text-muted)] leading-relaxed line-clamp-3">
-              Cách quét mã QR tại cổng kiểm soát, đồng bộ thẻ vé Apple/Google Wallet và lấy lại mã vé qua tin nhắn SMS.
-            </p>
-            <span className="inline-block text-xs font-bold text-[#42DFFF] group-hover:text-[#83F5FF] transition-colors pt-1">
-              Xem 9 hướng dẫn ➔
-            </span>
-          </div>
-
-          {/* Card 3 */}
-          <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl p-5 space-y-3 hover:border-[#42DFFF]/60 transition-all group shadow-lg">
-            <div className="w-10 h-10 rounded-xl bg-[#20204B] border border-[#AA9BFF]/30 flex items-center justify-center text-lg text-[#83F5FF]">
-              🛡️
-            </div>
-            <h3 className="text-sm font-black text-[var(--text-main)] group-hover:text-[#42DFFF] transition-colors">
-              Quy định Rạp & Độ tuổi
-            </h3>
-            <p className="text-xs text-[var(--text-muted)] leading-relaxed line-clamp-3">
-              Chi tiết phân loại phim P, K, T13, T16, T18; giấy tờ xác minh tùy thân Căn cước/VNeID và quy định F&B ngoài rạp.
-            </p>
-            <span className="inline-block text-xs font-bold text-[#42DFFF] group-hover:text-[#83F5FF] transition-colors pt-1">
-              Xem 11 quy chuẩn ➔
-            </span>
-          </div>
-
-          {/* Card 4 */}
-          <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl p-5 space-y-3 hover:border-[#42DFFF]/60 transition-all group shadow-lg">
-            <div className="w-10 h-10 rounded-xl bg-[#20204B] border border-[#AA9BFF]/30 flex items-center justify-center text-lg text-[#83F5FF]">
-              🏅
-            </div>
-            <h3 className="text-sm font-black text-[#FFF3DE] group-hover:text-[#FFCC45] transition-colors">
-              Thẻ thành viên & Bắp nước
-            </h3>
-            <p className="text-xs text-[#D6BFA3] leading-relaxed line-clamp-3">
-              Chính sách tích lũy điểm Star X3, nâng hạng Diamond Pass, quà sinh nhật và làn ưu tiên FastTrack bắp nước.
-            </p>
-            <span className="inline-block text-xs font-bold text-[#FFCC45] group-hover:text-[#FFE17B] transition-colors pt-1">
-              Xem 8 quyền lợi ➔
-            </span>
-          </div>
+      {/* 3. DANH MỤC HỖ TRỢ NHANH (4 THẺ CLICK LỌC FAQ) */}
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-8 pb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {QUICK_CATEGORIES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleQuickCategoryClick(item)}
+              className="text-left bg-[var(--bg-secondary)] border border-[#AA9BFF]/20 rounded-2xl p-4 space-y-2 hover:border-[#42DFFF]/50 transition-all group cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#20204B] border border-[#AA9BFF]/25 flex items-center justify-center text-base shrink-0">
+                  {item.icon}
+                </div>
+                <h3 className="text-sm font-black text-white group-hover:text-[#42DFFF] transition-colors">
+                  {item.title}
+                </h3>
+              </div>
+              <p className="text-xs text-[var(--text-muted)] leading-relaxed line-clamp-2">
+                {item.desc}
+              </p>
+              <span className="inline-block text-[11px] font-bold text-[#42DFFF] group-hover:text-[#83F5FF]">
+                Xem giải đáp ➔
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* 4. HỎI ĐÁP TRỰC TIẾP (FAQ) & FORM GỬI YÊU CẦU HỖ TRỢ */}
-      <div className="max-w-[1560px] mx-auto px-4 sm:px-8 py-5">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* CỘT TRÁI (7 cols): CÂU HỎI THƯỜNG GẶP (FAQ ACCORDION) */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+      {/* 4. FAQ & FORM GỬI YÊU CẦU HỖ TRỢ */}
+      <div ref={faqSectionRef} className="max-w-[1440px] mx-auto px-4 sm:px-8 pt-2">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* CỘT TRÁI (7 cols): FAQ */}
+          <div className="lg:col-span-7 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#FFCC45] block">
-                  HỎI ĐÁP TRỰC TIẾP
-                </span>
-                <h2 className="text-base sm:text-lg font-black text-[#FFF3DE]">Câu hỏi thường gặp (FAQ)</h2>
+                <h2 className="text-base sm:text-lg font-black text-white">Câu hỏi thường gặp (FAQ)</h2>
+                <p className="text-xs text-[var(--text-muted)]">
+                  {faqs.length} câu hỏi phù hợp
+                  {searchKeyword.trim() ? ` với từ khóa "${searchKeyword.trim()}"` : ''}
+                </p>
               </div>
 
-              {/* Tabs lọc category FAQ */}
-              <div className="flex items-center space-x-1 bg-[var(--bg-main)] border border-[#AA9BFF]/25 p-1 rounded-xl">
-                {faqCategories.map((c) => (
+              <div className="flex items-center gap-1 bg-[var(--bg-secondary)] border border-[#AA9BFF]/20 p-1 rounded-xl self-start sm:self-auto">
+                {FAQ_CATEGORIES.map((c) => (
                   <button
                     key={c.key}
+                    type="button"
                     onClick={() => setActiveCategory(c.key)}
                     className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                       activeCategory === c.key
-                        ? 'bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] font-black shadow-sm'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                        ? 'bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] to-[#42DFFF] text-[#0B1026] font-black'
+                        : 'text-[var(--text-muted)] hover:text-white'
                     }`}
                   >
                     {c.label}
@@ -345,56 +372,68 @@ const SupportPage = () => {
             </div>
 
             {loadingFaqs ? (
-              <div className="p-12 text-center text-[var(--text-muted)] text-xs">
-                <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-[#42DFFF] border-t-transparent mb-2"></div>
-                <p>Đang tải câu hỏi thường gặp từ Database...</p>
+              <div className="p-10 text-center text-[var(--text-muted)] text-xs">
+                <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-[#42DFFF] border-t-transparent mb-2" />
+                <p>Đang tải câu hỏi thường gặp...</p>
               </div>
             ) : faqs.length === 0 ? (
-              <div className="p-8 text-center bg-[var(--bg-secondary)] rounded-2xl border border-[#AA9BFF]/25 text-[var(--text-muted)] text-xs">
-                Không tìm thấy câu hỏi phù hợp.
+              <div className="p-8 text-center bg-[var(--bg-secondary)] rounded-2xl border border-[#AA9BFF]/20 space-y-2">
+                <p className="text-xs text-[var(--text-muted)]">
+                  Không tìm thấy câu hỏi phù hợp với từ khóa hiện tại.
+                </p>
+                {(searchKeyword || activeCategory !== 'ALL') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchKeyword('');
+                      setActiveCategory('ALL');
+                    }}
+                    className="text-xs font-bold text-[#42DFFF] hover:underline cursor-pointer"
+                  >
+                    Xem tất cả câu hỏi
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {faqs.map((faq) => {
                   const isOpen = expandedFaqId === faq.id;
                   const userVote = votedMap[faq.id];
                   return (
                     <div
                       key={faq.id}
-                      className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl overflow-hidden transition-colors"
+                      className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/20 rounded-2xl overflow-hidden transition-colors"
                     >
-                      {/* Tiêu đề câu hỏi */}
                       <button
                         type="button"
                         onClick={() => setExpandedFaqId(isOpen ? null : faq.id)}
-                        className="w-full text-left p-4 sm:p-5 flex items-start justify-between gap-3 hover:bg-[#20204B] transition-colors cursor-pointer"
+                        className="w-full text-left px-4 py-3.5 flex items-start justify-between gap-3 hover:bg-[#20204B]/70 transition-colors cursor-pointer"
                       >
-                        <span className="text-xs sm:text-sm font-bold text-[var(--text-main)] flex items-start space-x-2.5">
-                          <span className="text-[#42DFFF] shrink-0">❓</span>
+                        <span className="text-xs sm:text-sm font-bold text-[var(--text-main)] flex items-start gap-2">
+                          <span className="text-[#42DFFF] shrink-0">?</span>
                           <span>{faq.question}</span>
                         </span>
-                        <span className="text-[var(--text-muted)] text-xs shrink-0 mt-0.5">
+                        <span className="text-[var(--text-muted)] text-[11px] shrink-0 mt-0.5">
                           {isOpen ? '▲' : '▼'}
                         </span>
                       </button>
 
-                      {/* Nội dung câu trả lời */}
                       {isOpen && (
-                        <div className="px-5 pb-5 pt-1 space-y-4 border-t border-[#AA9BFF]/20 bg-[var(--bg-main)]/80">
+                        <div className="px-4 pb-4 pt-2.5 space-y-3 border-t border-[#AA9BFF]/15 bg-[var(--bg-main)]/65">
                           <p className="text-xs text-[var(--text-muted)] leading-relaxed whitespace-pre-line">
                             {faq.answer}
                           </p>
 
-                          {/* Đánh giá câu trả lời */}
-                          <div className="flex items-center justify-between pt-2 border-t border-[#AA9BFF]/15 text-[11px] text-[var(--text-muted)]/70">
+                          <div className="flex items-center justify-between pt-2 border-t border-[#AA9BFF]/15 text-[11px] text-[var(--text-muted)]/75">
                             <span>Câu trả lời có hữu ích không?</span>
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center gap-2">
                               <button
+                                type="button"
                                 onClick={() => handleVote(faq.id, 'like')}
-                                className={`px-2.5 py-1 rounded-lg border text-xs font-semibold flex items-center space-x-1 transition-all cursor-pointer ${
+                                className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer ${
                                   userVote === 'like'
                                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                    : 'bg-[var(--bg-main)] border-[#AA9BFF]/20 text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                                    : 'bg-[var(--bg-main)] border-[#AA9BFF]/20 text-[var(--text-muted)] hover:text-white'
                                 }`}
                               >
                                 <span>👍</span>
@@ -402,11 +441,12 @@ const SupportPage = () => {
                               </button>
 
                               <button
+                                type="button"
                                 onClick={() => handleVote(faq.id, 'dislike')}
-                                className={`px-2.5 py-1 rounded-lg border text-xs font-semibold flex items-center space-x-1 transition-all cursor-pointer ${
+                                className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer ${
                                   userVote === 'dislike'
                                     ? 'bg-red-500/20 text-red-300 border-red-500/40'
-                                    : 'bg-[var(--bg-main)] border-[#AA9BFF]/20 text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                                    : 'bg-[var(--bg-main)] border-[#AA9BFF]/20 text-[var(--text-muted)] hover:text-white'
                                 }`}
                               >
                                 <span>👎</span>
@@ -423,12 +463,12 @@ const SupportPage = () => {
             )}
           </div>
 
-          {/* CỘT PHẢI (5 cols): FORM GỬI YÊU CẦU HỖ TRỢ & LIÊN HỆ */}
-          <div className="lg:col-span-5 space-y-4">
-            {/* Form Hộp Ticket */}
-            <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-3xl p-6 sm:p-7 space-y-4 shadow-xl">
+          {/* CỘT PHẢI (5 cols): FORM GỬI YÊU CẦU & THÔNG TIN RẠP */}
+          <div ref={ticketFormRef} className="lg:col-span-5 space-y-4">
+            {/* Form gửi yêu cầu */}
+            <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/20 rounded-2xl p-5 space-y-3.5 shadow-lg">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-black text-[var(--text-main)] flex items-center space-x-2">
+                <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
                   <span>📩</span>
                   <span>Gửi yêu cầu hỗ trợ</span>
                 </h3>
@@ -437,16 +477,16 @@ const SupportPage = () => {
                 </span>
               </div>
 
-              <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-                Điền thông tin sự cố để chuyên viên kỹ thuật xử lý và gửi phản hồi ngay về số điện thoại của bạn.
+              <p className="text-xs text-[var(--text-muted)]">
+                Điền thông tin sự cố để nhân viên hỗ trợ xử lý và phản hồi qua SĐT/Email của bạn.
               </p>
 
               {ticketResult && (
                 <div
-                  className={`p-3.5 rounded-xl text-xs font-semibold leading-relaxed ${
+                  className={`p-3 rounded-xl text-xs font-semibold leading-relaxed ${
                     ticketResult.success
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                      : 'bg-red-500/15 text-red-300 border border-red-500/30'
                   }`}
                 >
                   {ticketResult.message}
@@ -458,64 +498,70 @@ const SupportPage = () => {
                 </div>
               )}
 
-              <form onSubmit={handleSubmitTicket} className="space-y-3.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
-                    Họ và tên *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={ticketForm.fullName}
-                    onChange={(e) => setTicketForm({ ...ticketForm, fullName: e.target.value })}
-                    placeholder="Nguyễn Văn A"
-                    className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3.5 py-2.5 text-xs text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF]"
-                  />
+              <form onSubmit={handleSubmitTicket} className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
+                      Họ và tên *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={ticketForm.fullName}
+                      onChange={(e) => setTicketForm({ ...ticketForm, fullName: e.target.value })}
+                      placeholder="Nguyễn Văn A"
+                      className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-xs text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
+                      SĐT / Email liên hệ *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={ticketForm.contact}
+                      onChange={(e) => setTicketForm({ ...ticketForm, contact: e.target.value })}
+                      placeholder="0912 345 678"
+                      className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-xs text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF]"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
-                    Số điện thoại / Email liên hệ *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={ticketForm.contact}
-                    onChange={(e) => setTicketForm({ ...ticketForm, contact: e.target.value })}
-                    placeholder="0912 345 678 hoặc email@..."
-                    className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3.5 py-2.5 text-xs text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF]"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
+                      Mã đặt vé (nếu có)
+                    </label>
+                    <input
+                      type="text"
+                      value={ticketForm.bookingCode}
+                      onChange={(e) => setTicketForm({ ...ticketForm, bookingCode: e.target.value })}
+                      placeholder="DAV-982134-VN"
+                      className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-xs text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF] uppercase"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
-                    Mã đặt vé / Giao dịch (Nếu có)
-                  </label>
-                  <input
-                    type="text"
-                    value={ticketForm.bookingCode}
-                    onChange={(e) => setTicketForm({ ...ticketForm, bookingCode: e.target.value })}
-                    placeholder="MTX-982134-VN"
-                    className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3.5 py-2.5 text-xs text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF] uppercase"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
-                    Chọn phân loại vấn đề *
-                  </label>
-                  <select
-                    value={ticketForm.category}
-                    onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}
-                    className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3.5 py-2.5 text-xs text-[var(--text-muted)] focus:outline-none focus:border-[#42DFFF] cursor-pointer"
-                  >
-                    <option value="">Vui lòng chọn phân loại...</option>
-                    <option value="Lỗi trừ tiền chưa nhận vé">Lỗi trừ tiền chưa nhận vé</option>
-                    <option value="Đổi suất chiếu khẩn cấp">Đổi suất chiếu khẩn cấp</option>
-                    <option value="Thắc mắc quy định độ tuổi">Thắc mắc quy định độ tuổi</option>
-                    <option value="Vấn đề bắp nước & quà tặng">Vấn đề bắp nước & quà tặng</option>
-                    <option value="Khác">Vấn đề khác</option>
-                  </select>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
+                      Phân loại vấn đề *
+                    </label>
+                    <select
+                      required
+                      value={ticketForm.category}
+                      onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}
+                      className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-xs text-[var(--text-main)] focus:outline-none focus:border-[#42DFFF] cursor-pointer"
+                    >
+                      <option value="">Chọn phân loại...</option>
+                      <option value="Lỗi trừ tiền chưa nhận vé">Lỗi trừ tiền chưa nhận vé</option>
+                      <option value="Đổi suất chiếu khẩn cấp">Đổi suất chiếu</option>
+                      <option value="Thắc mắc quy định độ tuổi">Quy định độ tuổi</option>
+                      <option value="Vấn đề bắp nước & quà tặng">Bắp nước & ưu đãi</option>
+                      <option value="Thuê rạp sự kiện & Vé đoàn">Thuê rạp & Vé đoàn</option>
+                      <option value="Khác">Vấn đề khác</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
@@ -527,61 +573,64 @@ const SupportPage = () => {
                     required
                     value={ticketForm.content}
                     onChange={(e) => setTicketForm({ ...ticketForm, content: e.target.value })}
-                    placeholder="Mô tả chi tiết vấn đề bạn đang gặp phải, đính kèm tên cụm rạp, suất chiếu..."
-                    className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3.5 py-2 text-xs text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF] resize-none"
-                  ></textarea>
+                    placeholder="Mô tả vấn đề bạn gặp phải, suất chiếu hoặc mã giao dịch..."
+                    className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-xs text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF] resize-none"
+                  />
                 </div>
 
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] font-black text-xs py-3 rounded-xl transition-all shadow-[0_0_16px_rgba(168,85,247,0.35)] hover:brightness-110 cursor-pointer disabled:opacity-50"
+                  className="w-full bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] to-[#42DFFF] text-[#0B1026] font-black text-xs py-2.5 rounded-xl hover:brightness-110 transition-all cursor-pointer disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Đang gửi yêu cầu...' : 'Gửi yêu cầu hỗ trợ ngay ➔'}
+                  {isSubmitting ? 'Đang gửi yêu cầu...' : 'Gửi yêu cầu hỗ trợ ➔'}
                 </button>
               </form>
             </div>
 
-            {/* Các thẻ Liên Hệ Trực Tiếp */}
-            <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl p-4 sm:p-5 space-y-3 text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-[#AA9BFF]/20">
-                <div className="flex items-center space-x-2.5">
-                  <span className="text-xl">📞</span>
+            {/* Thông tin liên hệ đồng bộ với hệ thống rạp */}
+            <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/20 rounded-2xl p-4 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between pb-2.5 border-b border-[#AA9BFF]/15">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-lg">📞</span>
                   <div>
-                    <span className="text-[10px] text-[var(--text-muted)]/70 block font-semibold">
-                      Hotline Chăm sóc (1.000đ/phút)
-                    </span>
-                    <strong className="text-sm font-black text-[var(--text-main)]">1900 8866</strong>
+                    <span className="text-[10px] text-[var(--text-muted)] block">Hotline hỗ trợ</span>
+                    <a href={`tel:${CINEMA_INFO.hotline.replace(/\s+/g, '')}`} className="text-sm font-black text-white hover:text-[#42DFFF]">
+                      {CINEMA_INFO.hotline}
+                    </a>
                   </div>
                 </div>
-                <span className="text-[10px] text-[var(--text-muted)] font-medium">08:00 - 23:00 hàng ngày</span>
+                <span className="text-[11px] text-[#42DFFF] font-semibold">
+                  {CINEMA_INFO.openingHours}
+                </span>
               </div>
 
-              <div className="flex items-center space-x-2.5 pb-2 border-b border-[#AA9BFF]/20">
-                <span className="text-xl">✉️</span>
+              <div className="flex items-start gap-2.5 pb-2.5 border-b border-[#AA9BFF]/15">
+                <span className="text-lg">📍</span>
                 <div>
-                  <span className="text-[10px] text-[var(--text-muted)]/70 block font-semibold">
-                    Email giải quyết khiếu nại:
+                  <strong className="text-xs font-bold text-white block">{CINEMA_INFO.name}</strong>
+                  <span className="text-[11px] text-[var(--text-muted)] leading-snug block">
+                    {CINEMA_INFO.address}
                   </span>
-                  <a href="mailto:support@davenor.vn" className="text-xs font-bold text-[#42DFFF] hover:underline">
-                    support@davenor.vn
-                  </a>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <div className="flex items-center space-x-2.5">
-                  <span className="text-xl">🏢</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-lg">✉️</span>
                   <div>
-                    <strong className="text-xs font-bold text-white block">Thuê rạp sự kiện & Vé đoàn</strong>
-                    <span className="text-[10px] text-slate-400">Dành cho nhóm từ 20 người trở lên</span>
+                    <span className="text-[10px] text-[var(--text-muted)] block">Email hỗ trợ & khiếu nại</span>
+                    <a href="mailto:support@davenor.vn" className="text-xs font-bold text-[#42DFFF] hover:underline">
+                      support@davenor.vn
+                    </a>
                   </div>
                 </div>
                 <button
                   type="button"
-                  className="bg-[#20204B] text-[#83F5FF] border border-[#42DFFF]/40 text-[10px] font-bold px-2.5 py-1 rounded-lg hover:bg-[#25234D] transition-colors"
+                  onClick={handleSelectB2B}
+                  className="bg-[#20204B] text-[#83F5FF] border border-[#42DFFF]/35 text-[11px] font-bold px-2.5 py-1 rounded-lg hover:bg-[#25234D] transition-colors cursor-pointer"
                 >
-                  Liên hệ B2B
+                  Đặt vé đoàn
                 </button>
               </div>
             </div>
@@ -593,4 +642,3 @@ const SupportPage = () => {
 };
 
 export default SupportPage;
-

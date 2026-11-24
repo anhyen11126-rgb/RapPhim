@@ -46,6 +46,11 @@ import {
   buildVerifiedDatabaseResponse,
 } from './ai/responseBuilder.js';
 import {
+  extractAuthenticatedUserFromHeader,
+  lookupUserBookings,
+  buildBookingLookupReply,
+} from './ai/bookingLookupService.js';
+import {
   buildSelectivePromptContext,
   buildSystemInstruction,
   validateAndSanitizeAiReply,
@@ -184,7 +189,7 @@ export const generateChatResponse = async (
 
   if (botConfig && botConfig.isEnabled === false) {
     const maintenanceReply =
-      "Hiện tại Trợ lý AI D'AVENOR đang tạm bảo trì để nâng cấp dữ liệu lịch chiếu. Bạn vui lòng đặt vé trực tiếp tại trang chủ hoặc liên hệ Hotline **1900 6868** nhé!";
+      "Hiện tại Trợ lý AI D'AVENOR đang tạm bảo trì để nâng cấp dữ liệu lịch chiếu. Bạn vui lòng đặt vé trực tiếp tại trang chủ hoặc liên hệ Hotline **1900 8899** nhé!";
     return {
       success: true,
       reply: maintenanceReply,
@@ -192,6 +197,8 @@ export const generateChatResponse = async (
       source: 'SYSTEM_CONFIG',
       movieCard: null,
       movieCards: [],
+      quickReplies: [],
+      sessionContext: options.sessionContext || null,
     };
   }
 
@@ -213,7 +220,7 @@ export const generateChatResponse = async (
     });
   }
 
-  // 5. Nhận diện Intent + Trích xuất Entities + Giải quyết ngữ cảnh nhiều lượt (Multi-turn)
+  // 5. Nhận diện Intent + Trích xuất Entities + Giải quyết ngữ cảnh nhiều lượt (Multi-turn + sessionContext)
   const rawEntities = extractEntities(
     cleanMessage,
     contextData.movies,
@@ -227,8 +234,53 @@ export const generateChatResponse = async (
     rawEntities,
     safeHistory,
     contextData.movies,
-    nowDate
+    nowDate,
+    options.sessionContext || null
   );
+
+  // 5b. Xử lý tra cứu đơn đặt vé cá nhân (Bắt buộc xác thực JWT, không bao giờ gửi sang LLM)
+  if (intent === INTENTS.BOOKING_LOOKUP) {
+    const authUser =
+      options.mockAuthUser !== undefined
+        ? options.mockAuthUser
+        : await extractAuthenticatedUserFromHeader(options.authHeader || '');
+
+    const lookupResult = await lookupUserBookings({
+      authUser,
+      bookingCode: entities.bookingCode,
+      nowDate,
+      mockBookings: options.mockBookings || null,
+    });
+
+    const bookingResponse = buildBookingLookupReply({
+      lookupResult,
+      bookingCode: entities.bookingCode,
+      authUser,
+      primaryCinema: contextData.primaryCinema,
+    });
+
+    await saveChatLogSafe({
+      userName: safeUserInfo.userName,
+      userEmail: safeUserInfo.userEmail,
+      userMessage: cleanMessage,
+      botReply: bookingResponse.reply,
+      intent: INTENTS.BOOKING_LOOKUP,
+      source: 'BOOKING_AUTH_LOOKUP',
+      recommendedMovie: '',
+      skipLog,
+    });
+
+    return {
+      success: true,
+      reply: bookingResponse.reply,
+      intent: INTENTS.BOOKING_LOOKUP,
+      source: 'BOOKING_AUTH_LOOKUP',
+      movieCard: null,
+      movieCards: [],
+      quickReplies: bookingResponse.quickReplies || [],
+      sessionContext: options.sessionContext || null,
+    };
+  }
 
   // 6. Kiểm tra FAQ do Admin huấn luyện (chỉ khớp khi độ tin cậy cao và không đè lên truy vấn giao dịch động)
   const matchedFaq = matchFaqRule(cleanMessage, botConfig?.faqs || [], intent, entities);
@@ -271,6 +323,32 @@ export const generateChatResponse = async (
         ? [dbVerified.movieCard]
         : [];
 
+  const resolvedQuickReplies = Array.isArray(dbVerified.quickReplies)
+    ? dbVerified.quickReplies.slice(0, 3)
+    : [];
+
+  // Cập nhật sessionContext mới nhất để Frontend gửi lại ở lượt tiếp theo (nhớ ngữ cảnh đa lượt)
+  const prevSession = options.sessionContext && typeof options.sessionContext === 'object' ? options.sessionContext : {};
+  const nextMovieIds =
+    resolvedMovieCards.length > 0
+      ? resolvedMovieCards.map((c) => c.movieId).filter(Boolean)
+      : Array.isArray(prevSession.lastMovieIds)
+        ? prevSession.lastMovieIds
+        : [];
+
+  const nextSessionContext = {
+    activeMovieId:
+      entities.matchedMovie?._id ||
+      dbVerified.movieCard?.movieId ||
+      (intent === INTENTS.MOVIE_SEARCH ? null : prevSession.activeMovieId || null),
+    activeCinema: entities.cinemaLocation || prevSession.activeCinema || null,
+    activeDateFilter: entities.dateFilter || (intent === INTENTS.MOVIE_SEARCH ? null : prevSession.activeDateFilter || null),
+    activeTimeFilter: entities.timeFilter || null,
+    activeFormat: entities.format || null,
+    activeShowtimeId: dbVerified.movieCard?.showtimeId || entities.contextShowtimeId || prevSession.activeShowtimeId || null,
+    lastMovieIds: nextMovieIds,
+  };
+
   // 8. Kết hợp Gemini AI khi câu hỏi mở (UNKNOWN) hoặc khi có customGeminiCaller cần diễn đạt tự nhiên
   const shouldInvokeGemini =
     typeof options.customGeminiCaller === 'function' ||
@@ -311,6 +389,8 @@ export const generateChatResponse = async (
           source: 'GEMINI_RAG',
           movieCard: dbVerified.movieCard,
           movieCards: resolvedMovieCards,
+          quickReplies: resolvedQuickReplies,
+          sessionContext: nextSessionContext,
         };
       }
     } catch (geminiErr) {
@@ -336,6 +416,8 @@ export const generateChatResponse = async (
       source: 'DATABASE_FALLBACK',
       movieCard: dbVerified.movieCard,
       movieCards: resolvedMovieCards,
+      quickReplies: resolvedQuickReplies,
+      sessionContext: nextSessionContext,
     };
   }
 
@@ -363,6 +445,8 @@ export const generateChatResponse = async (
     source: 'DATABASE_RAG',
     movieCard: dbVerified.movieCard,
     movieCards: resolvedMovieCards,
+    quickReplies: resolvedQuickReplies,
+    sessionContext: nextSessionContext,
   };
 };
 
