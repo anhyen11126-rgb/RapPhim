@@ -11,6 +11,8 @@ import {
   getAvailableShowtimeSlots,
   batchScheduleShowtimes,
   deleteShowtime,
+  previewRecurringShowtimes,
+  commitRecurringShowtimes,
   getAdminPricingConfig,
   updateAdminPricingConfig,
   getAdminBookings,
@@ -78,6 +80,8 @@ router.delete('/cinemas/:id', authenticateAdmin, deleteCinema);
 router.get('/showtimes', authenticateAdmin, getAdminShowtimes);
 router.get('/showtimes/available-slots', authenticateAdmin, getAvailableShowtimeSlots);
 router.post('/showtimes/schedule-batch', authenticateAdmin, batchScheduleShowtimes);
+router.post('/showtimes/recurring/preview', authenticateAdmin, previewRecurringShowtimes);
+router.post('/showtimes/recurring/commit', authenticateAdmin, commitRecurringShowtimes);
 router.get('/showtimes-occupancy', authenticateAdmin, getShowtimeOccupancyAnalytics);
 router.put('/showtimes/:id/toggle-lock', authenticateAdmin, toggleShowtimeLock);
 router.get('/showtimes/:id/bookings', authenticateAdmin, getShowtimeBookings);

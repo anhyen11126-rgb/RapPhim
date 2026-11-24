@@ -217,7 +217,7 @@ export const getMovieSchedule = async (req, res) => {
     if (!movie) return res.sendStatus(404);
 
     const localRelease = movie.releaseDate?.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
-    const showtimes = localRelease && (date < localRelease || date.slice(0, 7) !== localRelease.slice(0, 7))
+    const showtimes = localRelease && date < localRelease
       ? [] : await Showtime.find({
       movieId: movie._id,
       startTime: { $gte: start, $lt: new Date(start.getTime() + dayMs) },

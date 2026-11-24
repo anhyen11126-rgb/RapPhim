@@ -19,8 +19,8 @@ import {
 } from '../utils/statisticsUtils.js';
 
 const validPayments = { $in: ['VERIFIED', 'SIMULATED'] };
-const verifiedRevenue = booking => booking.paymentStatus === 'VERIFIED' ? booking.totalAmount || 0 : 0;
-const verifiedRefund = booking => booking.refundStatus === 'REFUNDED' && booking.paymentStatus === 'VERIFIED'
+const verifiedRevenue = booking => ['VERIFIED', 'SIMULATED'].includes(booking.paymentStatus) ? booking.totalAmount || 0 : 0;
+const verifiedRefund = booking => booking.refundStatus === 'REFUNDED' && ['VERIFIED', 'SIMULATED'].includes(booking.paymentStatus)
   ? booking.refundAmount || 0 : 0;
 
 class StatisticsService {
@@ -30,7 +30,7 @@ class StatisticsService {
    */
   resolveBookingSplit(booking, showtimePrice = 95000) {
     const seatCount = countSeatsFromString(booking.seats);
-    if (booking.paymentStatus !== 'VERIFIED') return { ticketRev: 0, concessionRev: 0 };
+    if (!['VERIFIED', 'SIMULATED'].includes(booking.paymentStatus)) return { ticketRev: 0, concessionRev: 0 };
     if (booking.priceSnapshot?.tickets?.length) {
       const concessionRev = Math.min(verifiedRevenue(booking), booking.priceSnapshot.combos.reduce(
         (sum, combo) => sum + combo.price * combo.quantity, 0
@@ -419,7 +419,7 @@ class StatisticsService {
       { $group: { _id: { $ifNull: ['$paymentStatus', 'LEGACY_UNVERIFIED'] }, count: { $sum: 1 } } },
     ]);
     const paymentCounts = Object.fromEntries(summaryRows.map(entry => [entry._id, entry.count]));
-    const profitKnown = currentBookings.some(order => order.paymentStatus === 'VERIFIED') && currentExpenses.length > 0;
+    const profitKnown = currentBookings.some(order => ['VERIFIED', 'SIMULATED'].includes(order.paymentStatus)) && currentExpenses.length > 0;
 
     return {
       timeRangeLabel: label,
@@ -839,7 +839,7 @@ class StatisticsService {
         tickets: d.tickets,
       }));
 
-    const profitKnown = bookings.some(order => order.paymentStatus === 'VERIFIED') && expenses.length > 0;
+    const profitKnown = bookings.some(order => ['VERIFIED', 'SIMULATED'].includes(order.paymentStatus)) && expenses.length > 0;
 
     return {
       timeRangeLabel: label,
