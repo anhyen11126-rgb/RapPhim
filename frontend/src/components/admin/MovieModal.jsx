@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
 const TECH_FORMAT_PRESETS = [
-  { label: 'IMAX', formats: '2D, 3D, IMAX' },
-  { label: 'Dolby 7.1', formats: '2D, Dolby 7.1' },
-  { label: '4DX', formats: '2D, 3D, 4DX' },
-  { label: 'RealD 3D', formats: '2D, 3D, RealD 3D' },
-  { label: '70mm IMAX', formats: '2D, 70mm IMAX' },
+  { label: 'IMAX Laser', formats: '2D, 3D, IMAX Laser' },
+  { label: 'Dolby Atmos', formats: '2D, Dolby Atmos' },
+  { label: 'Gold Class', formats: '2D, Gold Class' },
+  { label: '2D Tiêu chuẩn', formats: '2D Phụ đề, 2D Lồng tiếng' },
 ];
 
 const MovieModal = ({ isOpen, onClose, onSave, initialData }) => {
@@ -14,9 +13,9 @@ const MovieModal = ({ isOpen, onClose, onSave, initialData }) => {
     genre: '',
     duration: 120,
     ageRating: 'T16',
-    techFormat: 'IMAX',
-    formats: '2D, 3D, IMAX',
-    rating: '4.8',
+    techFormat: 'IMAX Laser',
+    formats: '2D, 3D, IMAX Laser',
+    rating: '',
     status: 'NOW_SHOWING',
     releaseDate: '',
     poster: '',
@@ -30,16 +29,16 @@ const MovieModal = ({ isOpen, onClose, onSave, initialData }) => {
         : '';
       const formattedFormats = Array.isArray(initialData.formats)
         ? initialData.formats.join(', ')
-        : initialData.formats || '2D, 3D, IMAX';
+        : initialData.formats || '2D, 3D, IMAX Laser';
 
       setFormData({
         title: initialData.title || '',
         genre: initialData.genre || '',
         duration: initialData.duration || 120,
         ageRating: initialData.ageRating || 'T16',
-        techFormat: initialData.techFormat || 'IMAX',
+        techFormat: initialData.techFormat || 'IMAX Laser',
         formats: formattedFormats,
-        rating: initialData.rating || '4.8',
+        rating: initialData.rating ? String(initialData.rating) : '',
         status: initialData.status || 'NOW_SHOWING',
         releaseDate: formattedReleaseDate,
         poster: initialData.posterUrl || initialData.poster || '',
@@ -51,9 +50,9 @@ const MovieModal = ({ isOpen, onClose, onSave, initialData }) => {
         genre: 'Hành Động, Khoa Học Viễn Tưởng',
         duration: 120,
         ageRating: 'T16',
-        techFormat: 'IMAX',
-        formats: '2D, 3D, IMAX',
-        rating: '4.8',
+        techFormat: 'IMAX Laser',
+        formats: '2D, 3D, IMAX Laser',
+        rating: '',
         status: 'NOW_SHOWING',
         releaseDate: new Date().toISOString().split('T')[0],
         poster: '',

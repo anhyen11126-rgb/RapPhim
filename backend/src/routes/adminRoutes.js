@@ -8,6 +8,7 @@ import {
   createShowtime,
   updateShowtime,
   getAdminShowtimes,
+  getAvailableShowtimeSlots,
   batchScheduleShowtimes,
   deleteShowtime,
   getAdminPricingConfig,
@@ -75,6 +76,7 @@ router.delete('/cinemas/:id', authenticateAdmin, deleteCinema);
 
 // Quản lý Suất chiếu & Thống kê Tỷ lệ lấp đầy
 router.get('/showtimes', authenticateAdmin, getAdminShowtimes);
+router.get('/showtimes/available-slots', authenticateAdmin, getAvailableShowtimeSlots);
 router.post('/showtimes/schedule-batch', authenticateAdmin, batchScheduleShowtimes);
 router.get('/showtimes-occupancy', authenticateAdmin, getShowtimeOccupancyAnalytics);
 router.put('/showtimes/:id/toggle-lock', authenticateAdmin, toggleShowtimeLock);

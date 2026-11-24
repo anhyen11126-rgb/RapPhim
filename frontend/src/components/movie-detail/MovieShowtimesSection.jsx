@@ -272,7 +272,7 @@ export default function MovieShowtimesSection({ movie }) {
 
       {noBookableSlots && (
         <div className="sc-notice" role="status">
-          <span>{date === today ? 'Hôm nay không còn suất có thể đặt.' : 'Ngày này chưa có suất mở bán.'}</span>
+          <span>Hiện chưa có lịch chiếu. Vui lòng quay lại sau.</span>
           {lookAhead?.from === date && lookAhead.date && (
             <button type="button" onClick={() => chooseDate(lookAhead.date)}>
               {'Xem suất ngày '}{lookAhead.date.slice(8)}/{lookAhead.date.slice(5, 7)}

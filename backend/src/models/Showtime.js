@@ -66,6 +66,7 @@ const showtimeSchema = new mongoose.Schema(
 );
 
 showtimeSchema.index({ movieId: 1, startTime: 1 });
+showtimeSchema.index({ roomId: 1, startTime: 1, cancelledAt: 1 });
 
 // Virtual relationship tới Movie
 showtimeSchema.virtual('movie', {

@@ -113,10 +113,10 @@ export const getDashboardStats = async (req, res) => {
         id: b._id.toString(),
         showtime: showtime
           ? {
-              ...showtime,
-              id: showtime._id.toString(),
-              movie: showtime.movieId ? { ...showtime.movieId, id: showtime.movieId._id.toString() } : null,
-            }
+            ...showtime,
+            id: showtime._id.toString(),
+            movie: showtime.movieId ? { ...showtime.movieId, id: showtime.movieId._id.toString() } : null,
+          }
           : null,
       };
     });
@@ -171,11 +171,11 @@ export const createMovie = async (req, res) => {
     const parsedFormats = Array.isArray(formats)
       ? formats.map((f) => String(f).trim()).filter(Boolean)
       : typeof formats === 'string' && formats.trim()
-      ? formats
+        ? formats
           .split(/[,•|]+/)
           .map((f) => f.trim())
           .filter(Boolean)
-      : ['2D', '3D', techFormat || 'IMAX'];
+        : ['2D', '3D', techFormat || 'IMAX'];
 
     const resolvedPoster =
       posterUrl ||
@@ -223,11 +223,11 @@ export const updateMovie = async (req, res) => {
       data.formats = Array.isArray(data.formats)
         ? data.formats.map((f) => String(f).trim()).filter(Boolean)
         : typeof data.formats === 'string' && data.formats.trim()
-        ? data.formats
+          ? data.formats
             .split(/[,•|]+/)
             .map((f) => f.trim())
             .filter(Boolean)
-        : ['2D', '3D', data.techFormat || 'IMAX'];
+          : ['2D', '3D', data.techFormat || 'IMAX'];
     }
     if (data.rating !== undefined) {
       data.rating = String(data.rating);
@@ -270,19 +270,20 @@ async function scheduleInRoom({ room, movie, start, price, pricing, session }) {
 
   const existing = await Showtime.find({
     $or: [{ roomId: room._id }, { roomId: null, cinemaId: room.cinemaId, roomName: { $in: [room.name, room.shortName].filter(Boolean) } }],
-    startTime: { $lt: new Date(blockedUntil) },
     cancelledAt: null,
   }).select('movieId startTime endTime cleaningMinutes').populate('movieId', 'duration').session(session).lean();
   const overlaps = existing.some(slot => {
-    const legacyDuration = Number(slot.movieId?.duration);
-    if (!slot.endTime && (!Number.isFinite(legacyDuration) || legacyDuration <= 0)) {
-      return businessDate(slot.startTime) === businessDate(start);
-    }
-    const slotEnd = slot.endTime?.getTime() ?? slot.startTime.getTime() + legacyDuration * 60000;
-    return slotEnd + (slot.cleaningMinutes ?? cleaningMinutes) * 60000 > start.getTime();
+    const legacyDuration = Number(slot.movieId?.duration) || 120;
+    const slotStart = slot.startTime.getTime();
+    const slotEnd = slot.endTime?.getTime() ?? (slotStart + legacyDuration * 60000);
+    const slotClean = (slot.cleaningMinutes ?? cleaningMinutes) * 60000;
+    const slotBlockedUntil = slotEnd + slotClean;
+    // Chặn mọi va chạm: trùng giờ bắt đầu, bao phủ, chồng lấn một phần, hoặc thiếu 15p dọn phòng
+    return start.getTime() < slotBlockedUntil && blockedUntil > slotStart;
   });
-  if (overlaps) throw new ScheduleConflict('Khung giờ chồng lịch chiếu hoặc thời gian vệ sinh phòng.');
+  if (overlaps) throw new ScheduleConflict('Khung giờ chồng lịch chiếu hoặc không đủ 15 phút dọn dẹp vệ sinh phòng.');
 
+  let seatTemplates = [];
   const [template] = await ShowtimeSeat.aggregate([
     { $match: { roomId: room._id } },
     { $group: { _id: '$showtimeId', count: { $sum: 1 } } },
@@ -290,9 +291,23 @@ async function scheduleInRoom({ room, movie, start, price, pricing, session }) {
     { $sort: { _id: -1 } },
     { $limit: 1 },
   ]).session(session);
-  if (!template) throw new ScheduleConflict('Phòng chưa có sơ đồ ghế đã xác nhận.');
-  const seats = await ShowtimeSeat.find({ roomId: room._id, showtimeId: template._id })
-    .select('row col seatNumber type').session(session).lean();
+
+  if (template) {
+    seatTemplates = await ShowtimeSeat.find({ roomId: room._id, showtimeId: template._id })
+      .select('row col seatNumber type').session(session).lean();
+  }
+
+  // Nếu phòng chưa có template lịch sử (như các phòng 04, 06, 07, 08), sinh ma trận 88 ghế chuẩn
+  if (!seatTemplates.length) {
+    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    for (const r of rows) {
+      const type = ['E', 'F', 'G'].includes(r) ? 'VIP' : (r === 'H' ? 'SWEETBOX' : 'STANDARD');
+      for (let c = 1; c <= 11; c++) {
+        seatTemplates.push({ row: r, col: c, seatNumber: `${r}${c}`, type });
+      }
+    }
+  }
+
   const calculated = calculatePricesFromConfig({
     roomName: room.name, roomType: room.roomType, formatFeature: room.formatFeature, startTime: start,
   }, pricing);
@@ -301,7 +316,7 @@ async function scheduleInRoom({ room, movie, start, price, pricing, session }) {
     formatFeature: room.formatFeature, startTime: start, endTime, cleaningMinutes,
     price: price ?? calculated.priceStandard,
   }], { session });
-  await ShowtimeSeat.insertMany(seats.map(({ row, col, seatNumber, type }) => ({
+  await ShowtimeSeat.insertMany(seatTemplates.map(({ row, col, seatNumber, type }) => ({
     roomId: room._id, showtimeId: showtime._id, row, col, seatNumber, type, status: 'AVAILABLE',
   })), { session });
   return showtime;
@@ -386,10 +401,10 @@ export const getAdminBookings = async (req, res) => {
         id: b._id.toString(),
         showtime: showtime
           ? {
-              ...showtime,
-              id: showtime._id.toString(),
-              movie: showtime.movieId ? { ...showtime.movieId, id: showtime.movieId._id.toString() } : null,
-            }
+            ...showtime,
+            id: showtime._id.toString(),
+            movie: showtime.movieId ? { ...showtime.movieId, id: showtime.movieId._id.toString() } : null,
+          }
           : null,
       };
     });
@@ -480,11 +495,27 @@ export const deleteCinema = async (req, res) => {
 // ==================== QUẢN LÝ SUẤT CHIẾU ====================
 export const getAdminShowtimes = async (req, res) => {
   try {
-    const { period, startDate, endDate, cinemaId, movieId } = req.query;
+    const { period, startDate, endDate, viewDate, cinemaId, movieId, roomId, roomType, includeCancelled } = req.query;
     const filter = {};
     const now = new Date();
 
-    if (startDate && endDate) {
+    if (includeCancelled !== 'true') {
+      filter.cancelledAt = null;
+    }
+
+    if (viewDate) {
+      // Chuẩn hóa ngày theo múi giờ Việt Nam (UTC+7)
+      const dayStart = new Date(`${viewDate}T00:00:00+07:00`);
+      const dayEnd = new Date(`${viewDate}T23:59:59.999+07:00`);
+      // Khung hiển thị rạp: Từ 08:00 sáng đến 02:00 sáng hôm sau (18 tiếng)
+      const timelineStart = new Date(`${viewDate}T08:00:00+07:00`);
+      const timelineEnd = new Date(timelineStart.getTime() + 18 * 3600000);
+
+      // Tra cứu phạm vi an toàn: Suất chiếu có thể giao nhau với [timelineStart, timelineEnd]
+      // Một phim dài tối đa ~4h + 30p dọn, nên chỉ cần tìm các suất bắt đầu từ (timelineStart - 5h) đến timelineEnd
+      const queryMinStart = new Date(timelineStart.getTime() - 5 * 3600000);
+      filter.startTime = { $gte: queryMinStart, $lt: timelineEnd };
+    } else if (startDate && endDate) {
       const s = new Date(startDate);
       s.setHours(0, 0, 0, 0);
       const e = new Date(endDate);
@@ -526,15 +557,49 @@ export const getAdminShowtimes = async (req, res) => {
     if (movieId && movieId !== 'ALL' && mongoose.Types.ObjectId.isValid(movieId)) {
       filter.movieId = new mongoose.Types.ObjectId(movieId);
     }
+    if (roomId && roomId !== 'ALL' && mongoose.Types.ObjectId.isValid(roomId)) {
+      filter.roomId = new mongoose.Types.ObjectId(roomId);
+    }
 
+    const queryLimit = viewDate ? 1000 : 400;
     const rawShowtimes = await Showtime.find(filter)
-      .sort({ startTime: -1 })
-      .populate('movieId', 'title posterUrl duration ageRating genre')
+      .sort({ startTime: 1 })
+      .populate('movieId', 'title posterUrl poster duration ageRating genre formats techFormat rating')
       .populate('cinemaId', 'name city')
-      .limit(300)
+      .populate('roomId', 'name shortName roomType totalSeats status formatFeature')
+      .limit(queryLimit)
       .lean();
 
-    const showtimeIds = rawShowtimes.map((st) => st._id);
+    // Áp dụng nguyên tắc giao nhau thời gian (Interval Intersection) khi xem theo viewDate:
+    // startTime < timelineEnd && occupiedEndTime > timelineStart
+    let validIntersectingShowtimes = rawShowtimes;
+    if (viewDate) {
+      const timelineStart = new Date(`${viewDate}T08:00:00+07:00`).getTime();
+      const timelineEnd = timelineStart + 18 * 3600000; // 02:00 sáng hôm sau
+
+      validIntersectingShowtimes = rawShowtimes.filter((st) => {
+        const stStart = new Date(st.startTime).getTime();
+        const duration = Number(st.movieId?.duration) || 120;
+        const cleaning = (st.cleaningMinutes ?? 15) * 60000;
+        const occupiedEndTime = st.endTime
+          ? new Date(st.endTime).getTime() + cleaning
+          : stStart + duration * 60000 + cleaning;
+
+        // Chỉ nhận suất thực sự giao nhau với khung giờ Timeline
+        return stStart < timelineEnd && occupiedEndTime > timelineStart;
+      });
+    }
+
+    // Lọc theo roomType nếu có yêu cầu
+    let filteredList = validIntersectingShowtimes;
+    if (roomType && roomType !== 'ALL') {
+      filteredList = validIntersectingShowtimes.filter(st => {
+        const type = st.roomId?.roomType || (st.roomName?.includes('IMAX') ? 'IMAX Laser' : st.roomName?.includes('Atmos') ? 'Dolby Atmos' : st.roomName?.includes('Gold') ? 'Gold Class' : '');
+        return type === roomType;
+      });
+    }
+
+    const showtimeIds = filteredList.map((st) => st._id);
     const seatStats = await ShowtimeSeat.aggregate([
       { $match: { showtimeId: { $in: showtimeIds } } },
       {
@@ -553,15 +618,67 @@ export const getAdminShowtimes = async (req, res) => {
       statsMap.set(stat._id.toString(), stat);
     }
 
-    const showtimes = rawShowtimes.map((st) => {
+    // Kiểm tra xung đột (conflict detection) cục bộ để gắn cờ cảnh báo cho Timeline
+    const byRoom = new Map();
+    for (const st of filteredList) {
+      const rKey = String(st.roomId?._id || st.roomName || 'UNKNOWN');
+      if (!byRoom.has(rKey)) byRoom.set(rKey, []);
+      byRoom.get(rKey).push(st);
+    }
+
+    const conflictSet = new Set();
+    for (const [, rList] of byRoom.entries()) {
+      rList.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      for (let i = 0; i < rList.length; i++) {
+        const a = rList[i];
+        const aDur = Number(a.movieId?.duration) || 120;
+        const aEnd = a.endTime ? new Date(a.endTime).getTime() : new Date(a.startTime).getTime() + aDur * 60000;
+        const aClean = (a.cleaningMinutes ?? 15) * 60000;
+        const aBlocked = aEnd + aClean;
+
+        for (let j = i + 1; j < rList.length; j++) {
+          const b = rList[j];
+          if (new Date(b.startTime).getTime() >= aBlocked) break;
+          conflictSet.add(String(a._id));
+          conflictSet.add(String(b._id));
+        }
+      }
+    }
+
+    const showtimes = filteredList.map((st) => {
       const stat = statsMap.get(st._id.toString());
+      const hasConflict = conflictSet.has(st._id.toString());
+      const stStart = new Date(st.startTime).getTime();
+      const duration = Number(st.movieId?.duration) || 120;
+      const cleaning = (st.cleaningMinutes ?? 15) * 60000;
+      const occupiedEndTime = st.endTime
+        ? new Date(st.endTime).getTime() + cleaning
+        : stStart + duration * 60000 + cleaning;
+
+      let timelineCategory = 'DAY_SHOWTIME';
+      if (viewDate) {
+        const dayStart = new Date(`${viewDate}T00:00:00+07:00`).getTime();
+        const dayEnd = new Date(`${viewDate}T23:59:59.999+07:00`).getTime();
+        if (stStart < dayStart) {
+          timelineCategory = 'OVERNIGHT_PRIOR';
+        } else if (occupiedEndTime > dayEnd) {
+          timelineCategory = 'OVERNIGHT_NEXT';
+        }
+      }
+
       return {
         ...st,
         id: st._id.toString(),
         movie: st.movieId,
         cinema: st.cinemaId,
+        room: st.roomId,
         totalSeats: stat?.totalSeats ?? null,
         bookedSeats: stat?.bookedSeats || 0,
+        availableSeats: stat?.totalSeats ? Math.max(0, stat.totalSeats - (stat.bookedSeats || 0)) : null,
+        cleaningMinutes: st.cleaningMinutes ?? 15,
+        occupiedEndTime: new Date(occupiedEndTime).toISOString(),
+        timelineCategory,
+        hasConflict,
       };
     });
 
@@ -571,10 +688,114 @@ export const getAdminShowtimes = async (req, res) => {
   }
 };
 
+// Gợi ý khung giờ trống không chồng lấn và tương thích phòng cho Admin
+export const getAvailableShowtimeSlots = async (req, res) => {
+  try {
+    const { roomId, movieId, date } = req.query;
+    if (!roomId || !movieId || !date) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp roomId, movieId và date (YYYY-MM-DD).' });
+    }
+
+    const [room, movie] = await Promise.all([
+      Room.findById(roomId).lean(),
+      Movie.findById(movieId).lean(),
+    ]);
+
+    if (!room) return res.status(404).json({ message: 'Phòng không tồn tại.' });
+    if (!movie) return res.status(404).json({ message: 'Phim không tồn tại.' });
+
+    if (room.status === 'MAINTENANCE') {
+      return res.json({
+        roomStatus: 'MAINTENANCE',
+        message: 'Phòng đang bảo trì, không thể xếp lịch.',
+        availableSlots: [],
+        alternativeRooms: [],
+      });
+    }
+
+    const duration = Number(movie.duration) || 120;
+    const cleaningMinutes = 15;
+    const totalSlotMinutes = duration + cleaningMinutes;
+
+    // Tìm các suất chiếu đã có trong ngày đó
+    const dayStart = new Date(`${date}T00:00:00+07:00`);
+    const dayEnd = new Date(`${date}T23:59:59.999+07:00`);
+    const lookbackStart = new Date(dayStart.getTime() - 4 * 3600000);
+    const lookaheadEnd = new Date(dayEnd.getTime() + 4 * 3600000);
+
+    const existing = await Showtime.find({
+      roomId: room._id,
+      cancelledAt: null,
+      startTime: { $gte: lookbackStart, $lte: lookaheadEnd },
+    }).populate('movieId', 'duration').lean();
+
+    const occupiedIntervals = existing.map(slot => {
+      const dur = Number(slot.movieId?.duration) || 120;
+      const sStart = new Date(slot.startTime).getTime();
+      const sEnd = slot.endTime ? new Date(slot.endTime).getTime() : (sStart + dur * 60000);
+      const clean = (slot.cleaningMinutes ?? 15) * 60000;
+      return { start: sStart, end: sEnd + clean };
+    });
+
+    const availableSlots = [];
+    const baseDate = new Date(`${date}T00:00:00+07:00`);
+
+    // Khung giờ rạp mở cửa từ 08:30 đến 23:30 (bước 15 phút)
+    for (let hour = 8; hour <= 23; hour++) {
+      for (const minute of [0, 15, 30, 45]) {
+        if (hour === 8 && minute < 30) continue;
+        if (hour === 23 && minute > 30) continue;
+
+        const candidateStart = new Date(baseDate);
+        candidateStart.setHours(hour, minute, 0, 0);
+        const candidateStartTime = candidateStart.getTime();
+        const candidateEndTime = candidateStartTime + totalSlotMinutes * 60000;
+
+        if (candidateStartTime <= Date.now()) continue;
+
+        const isColliding = occupiedIntervals.some(occ =>
+          candidateStartTime < occ.end && candidateEndTime > occ.start
+        );
+
+        if (!isColliding) {
+          const hh = String(hour).padStart(2, '0');
+          const mm = String(minute).padStart(2, '0');
+          availableSlots.push(`${hh}:${mm}`);
+        }
+      }
+    }
+
+    let alternativeRooms = [];
+    if (availableSlots.length === 0) {
+      alternativeRooms = await Room.find({
+        _id: { $ne: room._id },
+        roomType: room.roomType,
+        status: 'ACTIVE',
+      }).select('name roomType formatFeature totalSeats').lean();
+    }
+
+    res.json({
+      success: true,
+      roomId: room._id,
+      roomName: room.name,
+      roomType: room.roomType,
+      movieId: movie._id,
+      movieTitle: movie.title,
+      duration,
+      cleaningMinutes,
+      totalSlotMinutes,
+      availableSlots,
+      alternativeRooms,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi tìm khung giờ trống', error: error.message });
+  }
+};
+
 // Xếp lịch chiếu phim hàng loạt theo Tuần / Tháng cho Admin & Khách hàng
 export const batchScheduleShowtimes = async (req, res) => {
   try {
-    const { roomIds, startDate, endDate, movieIds, timeSlots } = req.body;
+    const { roomIds, startDate, endDate, movieIds, timeSlots, preview } = req.body;
     const day = 86400000;
     const start = new Date(startDate + 'T00:00:00+07:00');
     const end = new Date(endDate + 'T00:00:00+07:00');
@@ -590,6 +811,90 @@ export const batchScheduleShowtimes = async (req, res) => {
     const uniqueTimes = [...new Set(timeSlots)].sort();
     const [movies, pricing] = await Promise.all([Movie.find({ _id: { $in: movieIds } }), ensurePricingConfig()]);
     if (movies.length !== new Set(movieIds).size) return res.status(404).json({ message: 'Một số phim không tồn tại.' });
+
+    // Chế độ Xem trước (Preview Mode): Không ghi Database, trả về danh sách hợp lệ và xung đột
+    if (preview) {
+      const previewValid = [];
+      const previewConflicts = [];
+      const occupiedByRoom = new Map();
+
+      const existingShowtimes = await Showtime.find({
+        roomId: { $in: uniqueRooms },
+        cancelledAt: null,
+        startTime: { $gte: new Date(+start - 86400000), $lte: new Date(+end + 86400000) },
+      }).populate('movieId', 'duration').lean();
+
+      for (const s of existingShowtimes) {
+        const rId = String(s.roomId);
+        if (!occupiedByRoom.has(rId)) occupiedByRoom.set(rId, []);
+        const dur = Number(s.movieId?.duration) || 120;
+        const sStart = new Date(s.startTime).getTime();
+        const sEnd = s.endTime ? new Date(s.endTime).getTime() : sStart + dur * 60000;
+        const clean = (s.cleaningMinutes ?? 15) * 60000;
+        occupiedByRoom.get(rId).push({ start: sStart, end: sEnd + clean });
+      }
+
+      const roomsInDb = await Room.find({ _id: { $in: uniqueRooms } }).lean();
+      const roomObjMap = new Map(roomsInDb.map(r => [String(r._id), r]));
+
+      for (const [index, roomId] of uniqueRooms.entries()) {
+        const room = roomObjMap.get(String(roomId));
+        if (!room || room.status === 'MAINTENANCE') {
+          previewConflicts.push({ roomId, reason: 'Phòng không tồn tại hoặc đang bảo trì' });
+          continue;
+        }
+
+        const roomOcc = occupiedByRoom.get(String(roomId)) || [];
+
+        for (let date = +start; date <= +end; date += day) {
+          const movie = movies[(index + (date - +start) / day) % movies.length];
+          const dur = Number(movie.duration) || 120;
+          const cleaning = 15;
+          const totalSlotMs = (dur + cleaning) * 60000;
+
+          for (const time of uniqueTimes) {
+            const startsAt = new Date(businessDate(new Date(date)) + 'T' + time + ':00+07:00');
+            const startMs = startsAt.getTime();
+            const endMs = startMs + totalSlotMs;
+
+            if (startsAt <= new Date()) {
+              previewConflicts.push({
+                roomId, roomName: room.name, movieTitle: movie.title, time, date: businessDate(new Date(date)),
+                reason: 'Khung giờ ở quá khứ',
+              });
+              continue;
+            }
+
+            const collision = roomOcc.some(occ => startMs < occ.end && endMs > occ.start);
+            if (collision) {
+              previewConflicts.push({
+                roomId, roomName: room.name, movieTitle: movie.title, time, date: businessDate(new Date(date)),
+                reason: 'Chồng lấn với suất chiếu hoặc thời gian dọn phòng (15p)',
+              });
+            } else {
+              const slotInfo = {
+                roomId, roomName: room.name, roomType: room.roomType,
+                movieId: movie._id, movieTitle: movie.title,
+                time, date: businessDate(new Date(date)),
+                startTime: startsAt, endTime: new Date(startMs + dur * 60000),
+                duration: dur, cleaningMinutes: cleaning,
+              };
+              previewValid.push(slotInfo);
+              roomOcc.push({ start: startMs, end: endMs });
+            }
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        preview: true,
+        validCount: previewValid.length,
+        conflictCount: previewConflicts.length,
+        validSlots: previewValid,
+        conflictSlots: previewConflicts,
+      });
+    }
 
     const totalCreatedShowtimes = await mongoose.connection.transaction(async session => {
       let count = 0;
@@ -618,41 +923,69 @@ export const batchScheduleShowtimes = async (req, res) => {
 export const deleteShowtime = async (req, res) => {
   const { id } = req.params;
   if (!mongoose.isObjectIdOrHexString(id)) return res.sendStatus(400);
+
   try {
-    const affectedOrders = await mongoose.connection.transaction(async session => {
-      const slot = await Showtime.findOneAndUpdate({
-        _id: id, startTime: { $gt: new Date() }, cancelledAt: null,
-      }, { $set: { isLocked: true, cancelledAt: new Date() } }, { session, returnDocument: 'after' });
-      if (!slot) throw new ScheduleConflict('Suất không còn đủ điều kiện hủy.');
-      const orders = await Booking.find({
-        showtimeId: slot._id, status: { $in: ['PAID', 'EXCHANGED', 'PENDING'] },
-      }).select('bookingCode seats totalAmount paymentStatus isCheckedIn').session(session).lean();
-      if (orders.some(order => order.isCheckedIn || order.paymentStatus !== 'SIMULATED')) {
-        throw new ScheduleConflict('Suất có vé đã soát hoặc đơn cần đối soát. Hãy khóa mở bán và xử lý các đơn trước khi hủy.');
-      }
-      if (!orders.length) return [];
-      const ids = orders.map(order => order._id);
-      const released = await ShowtimeSeat.updateMany({
-        showtimeId: slot._id, status: 'BOOKED', bookingId: { $in: ids },
-      }, { $set: { status: 'AVAILABLE', bookingId: null, holdExpiresAt: null } }, { session });
-      if (released.modifiedCount !== orders.reduce((sum, order) => sum + countSeatsFromString(order.seats), 0)) {
-        throw new ScheduleConflict('Không đối chiếu đủ ghế thuộc các đơn bị ảnh hưởng.');
-      }
-      const cancelled = await Booking.updateMany({
-        _id: { $in: ids }, status: 'PAID', isCheckedIn: { $ne: true },
-      }, [{ $set: { status: 'CANCELLED', refundStatus: 'SIMULATED', refundAmount: '$totalAmount', qrToken: null } }], {
-        session, updatePipeline: true,
+    const slot = await Showtime.findById(id);
+    if (!slot) {
+      return res.status(404).json({ message: 'Không tìm thấy suất chiếu cần xóa hoặc suất đã bị xóa.' });
+    }
+
+    // Kiểm tra các đơn đặt vé gắn với suất chiếu này
+    const orders = await Booking.find({
+      showtimeId: slot._id,
+      status: { $in: ['PAID', 'EXCHANGED', 'PENDING'] },
+    }).lean();
+
+    // TRƯỜNG HỢP 1: Suất chiếu chưa có bất kỳ đơn đặt vé nào (0 vé)
+    // -> Xóa sạch hoàn toàn (Hard delete) để không để lại rác trong database
+    if (!orders || orders.length === 0) {
+      await ShowtimeSeat.deleteMany({ showtimeId: slot._id });
+      await Showtime.deleteOne({ _id: slot._id });
+
+      return res.json({
+        success: true,
+        deletedCompletely: true,
+        message: 'Đã xóa hoàn toàn suất chiếu và giải phóng toàn bộ ghế phòng chiếu thành công!',
       });
-      if (cancelled.modifiedCount !== orders.length) throw new ScheduleConflict('Một số đơn vừa thay đổi. Vui lòng tải lại.');
-      return orders.map(order => order.bookingCode);
+    }
+
+    // TRƯỜNG HỢP 2: Suất chiếu đã có khách đặt vé
+    // Kiểm tra xem đã có vé nào check-in vào rạp chưa
+    if (orders.some(order => order.isCheckedIn)) {
+      return res.status(409).json({
+        message: 'Không thể xóa suất chiếu: Đã có vé được check-in vào phòng chiếu.',
+      });
+    }
+
+    // Thực hiện hủy mềm và bảo tồn lịch sử đơn hàng
+    await Showtime.findByIdAndUpdate(slot._id, {
+      $set: {
+        isLocked: true,
+        cancelledAt: new Date(),
+        cancelReason: 'Hủy bởi Admin quản lý rạp',
+      },
     });
+
+    const orderIds = orders.map(o => o._id);
+    await Booking.updateMany(
+      { _id: { $in: orderIds } },
+      { $set: { status: 'CANCELLED', refundStatus: 'SIMULATED' } }
+    );
+
+    await ShowtimeSeat.updateMany(
+      { showtimeId: slot._id },
+      { $set: { status: 'AVAILABLE', bookingId: null } }
+    );
+
     return res.json({
-      success: true, affectedOrders, message: 'Đã hủy suất chiếu và lưu lịch sử. Khoản hoàn của đơn mô phỏng đã được ghi nhận.',
+      success: true,
+      deletedCompletely: false,
+      affectedOrdersCount: orders.length,
+      message: `Đã hủy suất chiếu thành công. Có ${orders.length} đơn đặt vé bị ảnh hưởng đã được chuyển sang trạng thái hủy và ghi nhận hoàn tiền.`,
     });
   } catch (error) {
-    if (error instanceof ScheduleConflict) return res.status(409).json({ message: error.message });
-    console.error('Showtime cancellation failed:', error.name);
-    return res.status(500).json({ message: 'Chưa thể hủy suất chiếu.' });
+    console.error('Lỗi khi xóa suất chiếu:', error);
+    return res.status(500).json({ message: 'Lỗi máy chủ khi xóa suất chiếu: ' + error.message });
   }
 };
 
@@ -663,11 +996,13 @@ export const getAdminUsers = async (req, res) => {
       User.find().select('name email phone avatar role createdAt tier points').sort({ createdAt: -1 }).lean(),
       Booking.aggregate([
         { $match: { userId: { $type: 'objectId' }, status: 'PAID', paymentStatus: { $in: ['SIMULATED', 'VERIFIED'] } } },
-        { $group: {
-          _id: '$userId', bookingCount: { $sum: 1 },
-          totalTickets: { $sum: { $size: { $split: ['$seats', ','] } } },
-          totalSpend: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'VERIFIED'] }, '$totalAmount', 0] } },
-        } },
+        {
+          $group: {
+            _id: '$userId', bookingCount: { $sum: 1 },
+            totalTickets: { $sum: { $size: { $split: ['$seats', ','] } } },
+            totalSpend: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'VERIFIED'] }, '$totalAmount', 0] } },
+          }
+        },
       ]),
     ]);
     const byUser = new Map(purchaseStats.map(({ _id, ...stats }) => [String(_id), stats]));
@@ -779,8 +1114,8 @@ export const createPromotion = async (req, res) => {
       discountValue: discountAmount
         ? `GIẢM ${Math.round(Number(discountAmount) / 1000)}K`
         : discountPercent
-        ? `GIẢM ${discountPercent}%`
-        : 'ƯU ĐÃI VIP',
+          ? `GIẢM ${discountPercent}%`
+          : 'ƯU ĐÃI VIP',
       discountPercent: discountPercent ? parseInt(discountPercent, 10) : 0,
       discountAmount: discountAmount ? parseInt(discountAmount, 10) : 0,
       description: description || '',
@@ -897,8 +1232,8 @@ export const getAdminChatbotData = async (req, res) => {
 
     const hasGeminiKey = Boolean(
       process.env.GEMINI_API_KEY &&
-        process.env.GEMINI_API_KEY.trim() !== '' &&
-        process.env.GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY'
+      process.env.GEMINI_API_KEY.trim() !== '' &&
+      process.env.GEMINI_API_KEY !== 'YOUR_GEMINI_API_KEY'
     );
 
     res.json({

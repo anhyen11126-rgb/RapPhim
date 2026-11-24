@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Trash2 } from 'lucide-react';
 import statisticsApi from '../services/statisticsApi';
 import { formatCurrency, formatNumber, formatPercent } from '../utils/statisticsFormatter';
 
-const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
+const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -56,13 +57,42 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
               {data?.showtime?.roomName} • {data?.showtime?.cinemaName} • {data?.showtime?.format}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-[var(--bg-surface)] hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-sm transition-all"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            {data && onRequestDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  onRequestDelete({
+                    id: showtimeId,
+                    _id: showtimeId,
+                    roomName: data.showtime?.roomName,
+                    formatFeature: data.showtime?.format,
+                    startTime: data.showtime?.startTime,
+                    endTime: data.showtime?.endTime,
+                    bookedSeats: data.stats?.bookedCount || 0,
+                    totalSeats: data.stats?.totalSeats || 88,
+                    price: data.showtime?.price || 0,
+                    movieId: {
+                      title: data.showtime?.movieTitle,
+                      posterUrl: data.showtime?.moviePosterUrl,
+                    },
+                  });
+                }}
+                className="px-3 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-500/40 text-red-300 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm hover:shadow-red-900/30"
+                title="Xóa hoặc hủy suất chiếu này"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                <span>Xóa suất</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-[var(--bg-surface)] hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-sm transition-all"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {loading ? (

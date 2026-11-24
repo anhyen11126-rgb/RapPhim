@@ -1,0 +1,30 @@
+[
+  {
+    "_id": "6aec43b634569d8c69dcb8f7",
+    "name": "Dtam",
+    "email": "abc@gmail.com",
+    "tier": "GOLD_TIER",
+    "points": 100
+  },
+  {
+    "_id": "6aef3db50e4bb6389832aef0",
+    "name": "thuhien",
+    "email": "thuhienntth0907@gmail.com",
+    "tier": "STANDARD",
+    "points": 100
+  },
+  {
+    "_id": "6af02919d8a99d22d4d1ed98",
+    "name": "tam",
+    "email": "dtam19032006@gmail.com",
+    "tier": "GOLD_TIER",
+    "points": 100
+  },
+  {
+    "_id": "6af5622d9f7daef8e90c04f3",
+    "name": "Lieu Nhu Yen",
+    "email": "alogehihi777@gmail.com",
+    "tier": "GOLD_TIER",
+    "points": 100
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "title": "Báo Cáo Tổng Hợp Số Liệu Trước Và Sau Migration Dry-Run",
+  "timestamp": "2026-11-24T11:15:16.878Z",
+  "databaseName": "movietix_db",
+  "stats": {
+    "totalShowtimesInDB": 2691,
+    "groupA_ValidNoOverlap": 47,
+    "groupB_OverlapZeroBooking": 2446,
+    "groupC_HasCustomerBooking": 194,
+    "totalBookingDocuments": 29069,
+    "paidBookingsOnExistingShowtimes": 1854,
+    "orphanedBookingDocuments": 27215,
+    "totalRevenueVND": 7946378000
+  },
+  "safetyChecks": {
+    "zeroBookingInGroupB": true,
+    "concurrencyLockVerified": true,
+    "backupRollbackTested": true,
+    "advancedScenariosPassRate": "10/10 (100%)"
+  }
+}
