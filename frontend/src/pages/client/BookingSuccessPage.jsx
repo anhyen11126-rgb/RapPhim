@@ -43,11 +43,11 @@ const BookingSuccessPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1026] text-[#F8F7FF] pb-16 selection:bg-[#7C3AED] selection:text-white">
+    <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] pb-16 selection:bg-[#7C3AED] selection:text-white">
       {/* 1. THANH TIẾN TRÌNH 3 BƯỚC */}
       <div className="pt-8 pb-6 flex items-center justify-center px-4">
         {/* Hộp viên thuốc trung tâm bo tròn */}
-        <div className="inline-flex items-center bg-[#11152F]/90 border border-[#AA9BFF]/25 rounded-full px-4 sm:px-6 py-2 shadow-lg backdrop-blur-md overflow-x-auto max-w-full">
+        <div className="inline-flex items-center bg-[var(--bg-secondary)]/90 border border-[#AA9BFF]/25 rounded-full px-4 sm:px-6 py-2 shadow-lg backdrop-blur-md overflow-x-auto max-w-full">
             {/* BƯỚC 1: Hoàn thành (Chọn ghế) */}
             <div className="flex items-center space-x-2.5 shrink-0">
               <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -56,7 +56,7 @@ const BookingSuccessPage = () => {
                 </svg>
               </div>
               <div className="flex flex-col text-left">
-                <span className="text-[9px] font-bold text-[#BEC5E5] uppercase tracking-wider leading-none">
+                <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider leading-none">
                   BƯỚC 1
                 </span>
                 <span className="text-xs font-extrabold text-white leading-tight mt-0.5">
@@ -76,7 +76,7 @@ const BookingSuccessPage = () => {
                 </svg>
               </div>
               <div className="flex flex-col text-left">
-                <span className="text-[9px] font-bold text-[#BEC5E5] uppercase tracking-wider leading-none">
+                <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider leading-none">
                   BƯỚC 2
                 </span>
                 <span className="text-xs font-extrabold text-white leading-tight mt-0.5">
@@ -122,7 +122,7 @@ const BookingSuccessPage = () => {
             Đặt Vé & Thanh Toán Thành Công!
           </h1>
 
-          <p className="text-xs sm:text-sm text-[#BEC5E5] mt-2.5 leading-relaxed">
+          <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-2.5 leading-relaxed">
             Mã vé điện tử đã gửi tới <strong className="text-white font-semibold">{ticketData.customerEmail}</strong> và SĐT <strong className="text-white font-semibold">{ticketData.customerPhone}</strong>. Xuất trình mã QR tại cửa kiểm soát hoặc quầy D'AVENOR Express.
           </p>
         </div>
@@ -130,13 +130,13 @@ const BookingSuccessPage = () => {
         {/* 3. BỐ CỤC 2 CỘT: VÉ ĐIỆN TỬ (TRÁI) & CÔNG CỤ XUẤT TRÌNH + CHỈ DẪN (PHẢI) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-10">
           {/* CỘT TRÁI (7 CỘT): CUỐNG VÉ ĐIỆN TỬ E-TICKET CINEMA PASS CÓ VẾT CẮT TICKET CHUẨN MẪU */}
-          <div className="lg:col-span-7 bg-[#11152F] border border-[#AA9BFF]/25 rounded-3xl shadow-2xl relative">
+          <div className="lg:col-span-7 bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-3xl shadow-2xl relative">
             {/* PHẦN TRÊN CỦA VÉ */}
             <div className="p-7 sm:p-8 space-y-6">
               {/* Mã vé & Huy hiệu VIP */}
               <div className="flex items-center justify-between pb-3.5 border-b border-[#AA9BFF]/20">
                 <div className="flex items-center space-x-2">
-                  <span className="text-[11px] font-bold text-[#BEC5E5] uppercase tracking-wider">
+                  <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
                     MÃ VÉ ĐIỆN TỬ
                   </span>
                   <span className="text-xs sm:text-sm font-black font-mono text-[#42DFFF] bg-[#7C3AED]/30 px-2 py-0.5 rounded border border-[#A855F7]/30">
@@ -145,7 +145,7 @@ const BookingSuccessPage = () => {
                   <button
                     type="button"
                     onClick={handleCopyCode}
-                    className="text-[10px] text-[#BEC5E5] hover:text-white bg-[#0B1026] px-2 py-0.5 rounded border border-[#AA9BFF]/20 transition-colors cursor-pointer"
+                    className="text-[10px] text-[var(--text-muted)] hover:text-white bg-[var(--bg-main)] px-2 py-0.5 rounded border border-[#AA9BFF]/20 transition-colors cursor-pointer"
                     title="Sao chép mã vé"
                   >
                     {copied ? 'Đã sao chép' : '📋'}
@@ -160,7 +160,7 @@ const BookingSuccessPage = () => {
 
               {/* Thông tin phim & Poster thu nhỏ */}
               <div className="flex items-start space-x-4 sm:space-x-5">
-                <div className="w-20 h-28 sm:w-24 sm:h-34 rounded-xl overflow-hidden bg-[#0B1026] border border-[#AA9BFF]/25 shrink-0 shadow-md relative">
+                <div className="w-20 h-28 sm:w-24 sm:h-34 rounded-xl overflow-hidden bg-[var(--bg-main)] border border-[#AA9BFF]/25 shrink-0 shadow-md relative">
                   <img
                     src="https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500&auto=format&fit=crop"
                     alt={ticketData.movieTitle}
@@ -176,7 +176,7 @@ const BookingSuccessPage = () => {
                     <span className="bg-[#20204B] text-[#83F5FF] font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border border-[#AA9BFF]/30 uppercase tracking-wider">
                       IMAX 3D LASER
                     </span>
-                    <span className="bg-[#0B1026] text-[#BEC5E5] text-[10px] font-semibold px-2.5 py-0.5 rounded-full border border-[#AA9BFF]/20">
+                    <span className="bg-[var(--bg-main)] text-[var(--text-muted)] text-[10px] font-semibold px-2.5 py-0.5 rounded-full border border-[#AA9BFF]/20">
                       Phụ đề tiếng Việt
                     </span>
                   </div>
@@ -184,7 +184,7 @@ const BookingSuccessPage = () => {
                   <h3 className="text-xl sm:text-2xl font-black text-white">
                     {ticketData.movieTitle}
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#BEC5E5] mt-1">
+                  <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-1">
                     Dune: Part Two • Khoa học viễn tưởng • 166 phút
                   </p>
 
@@ -201,34 +201,34 @@ const BookingSuccessPage = () => {
               {/* Lưới 4 thông số: Rạp chiếu, Suất chiếu, Vị trí ghế, Thanh toán */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-[#AA9BFF]/20 text-xs">
                 <div>
-                  <span className="text-[10px] text-[#BEC5E5] block font-medium">📽️ Rạp chiếu</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-medium">📽️ Rạp chiếu</span>
                   <span className="font-bold text-white text-xs sm:text-sm block mt-0.5 truncate">{ticketData.theaterName}</span>
                   <span className="text-[10px] text-[#42DFFF] font-semibold">{ticketData.roomName}</span>
                 </div>
 
                 <div>
-                  <span className="text-[10px] text-[#BEC5E5] block font-medium">🕒 Suất chiếu</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-medium">🕒 Suất chiếu</span>
                   <span className="font-bold text-white text-xs sm:text-sm block mt-0.5">{ticketData.time}</span>
-                  <span className="text-[10px] text-[#BEC5E5]">{ticketData.date}</span>
+                  <span className="text-[10px] text-[var(--text-muted)]">{ticketData.date}</span>
                 </div>
 
                 <div>
-                  <span className="text-[10px] text-[#BEC5E5] block font-medium">💺 Vị trí ghế</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-medium">💺 Vị trí ghế</span>
                   <span className="font-black text-[#42DFFF] text-sm sm:text-base block mt-0.5">{ticketData.seats}</span>
-                  <span className="text-[10px] text-[#BEC5E5] font-medium">VIP Prime Gold</span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-medium">VIP Prime Gold</span>
                 </div>
 
                 <div>
-                  <span className="text-[10px] text-[#BEC5E5] block font-medium">💳 Thanh toán</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-medium">💳 Thanh toán</span>
                   <span className="font-black text-emerald-400 text-sm sm:text-base block mt-0.5">
                     {ticketData.totalAmount.toLocaleString('vi-VN')} đ
                   </span>
-                  <span className="text-[10px] text-[#BEC5E5]">{ticketData.paymentMethod}</span>
+                  <span className="text-[10px] text-[var(--text-muted)]">{ticketData.paymentMethod}</span>
                 </div>
               </div>
 
               {/* Hàng bắp nước kèm theo */}
-              <div className="bg-[#0B1026] border border-[#AA9BFF]/20 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+              <div className="bg-[var(--bg-main)] border border-[#AA9BFF]/20 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                 <div className="flex items-center space-x-2.5">
                   <div className="w-8 h-8 rounded-lg bg-[#7C3AED]/20 border border-[#A855F7]/30 flex items-center justify-center text-sm text-[#42DFFF] shrink-0">
                     🍿
@@ -241,7 +241,7 @@ const BookingSuccessPage = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-1.5 text-[#BEC5E5] text-[11px] shrink-0 font-medium bg-[#11152F] px-3 py-1.5 rounded-lg border border-[#AA9BFF]/20">
+                <div className="flex items-center space-x-1.5 text-[var(--text-muted)] text-[11px] shrink-0 font-medium bg-[var(--bg-secondary)] px-3 py-1.5 rounded-lg border border-[#AA9BFF]/20">
                   <span className="text-[#42DFFF]">👤</span>
                   <span>{ticketData.customerName} • Thẻ Vàng</span>
                 </div>
@@ -294,7 +294,7 @@ const BookingSuccessPage = () => {
                 <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-[#42DFFF] block">
                   MÃ CHECK-IN NHANH
                 </span>
-                <p className="text-[11px] sm:text-xs text-[#BEC5E5] mt-1.5 max-w-sm mx-auto leading-relaxed">
+                <p className="text-[11px] sm:text-xs text-[var(--text-muted)] mt-1.5 max-w-sm mx-auto leading-relaxed">
                   Quét mã bên dưới để vào phòng chiếu và nhận bắp nước tại line ưu tiên D'AVENOR Express.
                 </p>
               </div>
@@ -321,20 +321,20 @@ const BookingSuccessPage = () => {
                     <div key={idx} className="bg-slate-300 h-full rounded-xs" style={{ width: `${w * 1.8}px` }}></div>
                   ))}
                 </div>
-                <span className="font-mono text-xs font-bold text-[#BEC5E5] tracking-[0.45em] block mt-2 select-all">
+                <span className="font-mono text-xs font-bold text-[var(--text-muted)] tracking-[0.45em] block mt-2 select-all">
                   8 9 3 8 5 2 0 &nbsp; 9 8 2 3 4 1
                 </span>
               </div>
 
               {/* Thông báo thời gian có mặt & Đồng hồ đếm ngược */}
-              <div className="bg-[#0B1026] border border-[#AA9BFF]/25 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between text-xs text-left shadow-md mt-4">
+              <div className="bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between text-xs text-left shadow-md mt-4">
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-full bg-[#7C3AED]/20 border border-[#A855F7]/30 flex items-center justify-center text-[#42DFFF] text-sm shrink-0">
                     ⏰
                   </div>
                   <div>
                     <span className="font-bold text-white block text-xs sm:text-sm">Có mặt trước giờ chiếu 15 phút</span>
-                    <span className="text-[11px] text-[#BEC5E5] block mt-0.5">Cửa rạp mở lúc 19:00 để ổn định vị trí</span>
+                    <span className="text-[11px] text-[var(--text-muted)] block mt-0.5">Cửa rạp mở lúc 19:00 để ổn định vị trí</span>
                   </div>
                 </div>
 
@@ -351,7 +351,7 @@ const BookingSuccessPage = () => {
           {/* CỘT PHẢI (5 CỘT): LƯU TRỮ, CHỈ DẪN & HỖ TRỢ KHẨN CẤP */}
           <div className="lg:col-span-5 space-y-5">
             {/* THẺ 1: LƯU TRỮ & XUẤT TRÌNH VÉ */}
-            <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-3">
+            <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-3">
               <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
                 <span>📥</span>
                 <span>Lưu Trữ & Xuất Trình Vé</span>
@@ -371,14 +371,14 @@ const BookingSuccessPage = () => {
               <div className="grid grid-cols-2 gap-2.5 pt-1">
                 <button
                   type="button"
-                  className="bg-[#0B1026] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[#F8F7FF] font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                  className="bg-[var(--bg-main)] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[var(--text-main)] font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
                 >
                   <span></span>
                   <span>Apple Wallet</span>
                 </button>
                 <button
                   type="button"
-                  className="bg-[#0B1026] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[#F8F7FF] font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                  className="bg-[var(--bg-main)] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[var(--text-main)] font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
                 >
                   <span>Ⓖ</span>
                   <span>Google Wallet</span>
@@ -390,14 +390,14 @@ const BookingSuccessPage = () => {
                 <button
                   type="button"
                   onClick={handleCopyCode}
-                  className="bg-[#0B1026] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[#BEC5E5] hover:text-[#F8F7FF] font-semibold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                  className="bg-[var(--bg-main)] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[var(--text-muted)] hover:text-[var(--text-main)] font-semibold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
                 >
                   <span>🔗</span>
                   <span>Chia sẻ bạn bè</span>
                 </button>
                 <Link
                   to="/my-tickets"
-                  className="bg-[#0B1026] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[#BEC5E5] hover:text-[#F8F7FF] font-semibold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors text-center"
+                  className="bg-[var(--bg-main)] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[var(--text-muted)] hover:text-[var(--text-main)] font-semibold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors text-center"
                 >
                   <span>🕒</span>
                   <span>Lịch sử đặt vé</span>
@@ -407,7 +407,7 @@ const BookingSuccessPage = () => {
               {/* Nút Quay về Trang Chủ */}
               <Link
                 to="/"
-                className="w-full bg-[#0B1026] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[#BEC5E5] hover:text-[#F8F7FF] font-bold py-2.5 rounded-xl text-xs flex items-center justify-center space-x-2 transition-colors block text-center mt-2"
+                className="w-full bg-[var(--bg-main)] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[var(--text-muted)] hover:text-[var(--text-main)] font-bold py-2.5 rounded-xl text-xs flex items-center justify-center space-x-2 transition-colors block text-center mt-2"
               >
                 <span>🏠</span>
                 <span>Quay về Trang Chủ</span>
@@ -415,7 +415,7 @@ const BookingSuccessPage = () => {
             </div>
 
             {/* THẺ 2: CHỈ DẪN VÀO RẠP & ĐỖ XE */}
-            <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
+            <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
                   <span>🧭</span>
@@ -427,7 +427,7 @@ const BookingSuccessPage = () => {
               </div>
 
               {/* Bản đồ định vị */}
-              <div className="w-full h-32 rounded-2xl overflow-hidden bg-[#0B1026] border border-[#AA9BFF]/25 relative shadow">
+              <div className="w-full h-32 rounded-2xl overflow-hidden bg-[var(--bg-main)] border border-[#AA9BFF]/25 relative shadow">
                 <img
                   src="https://images.unsplash.com/photo-1524661135-423995f22d0b?w=600&auto=format&fit=crop"
                   alt="Cinema Location Map"
@@ -441,7 +441,7 @@ const BookingSuccessPage = () => {
               </div>
 
               {/* 3 Điều cần lưu ý */}
-              <div className="space-y-2.5 text-xs text-[#BEC5E5]">
+              <div className="space-y-2.5 text-xs text-[var(--text-muted)]">
                 <div className="flex items-start space-x-2.5">
                   <span className="w-5 h-5 rounded-full bg-[#20204B] border border-[#AA9BFF]/30 text-[10px] font-bold text-[#42DFFF] flex items-center justify-center shrink-0 mt-0.5">
                     1
@@ -472,14 +472,14 @@ const BookingSuccessPage = () => {
             </div>
 
             {/* THẺ 3: HỖ TRỢ KHẨN CẤP TẠI RẠP */}
-            <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-2xl p-4 flex items-center justify-between shadow-xl">
+            <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl p-4 flex items-center justify-between shadow-xl">
               <div className="flex items-center space-x-3">
                 <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-lg">
                   📞
                 </div>
                 <div>
                   <h5 className="font-bold text-xs text-white">Hỗ trợ khẩn cấp tại rạp</h5>
-                  <p className="text-[10px] text-[#BEC5E5]">Tổng đài viên giải quyết đổi suất/hoàn huỷ</p>
+                  <p className="text-[10px] text-[var(--text-muted)]">Tổng đài viên giải quyết đổi suất/hoàn huỷ</p>
                 </div>
               </div>
 
@@ -495,12 +495,12 @@ const BookingSuccessPage = () => {
         </div>
 
         {/* 4. BANNER TÍCH LŨY ĐIỂM THƯỞNG CINEMA REWARDS */}
-        <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+        <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
           <div className="flex items-center space-x-3.5">
             <span className="text-2xl shrink-0">🎁</span>
             <div>
               <h4 className="font-black text-sm text-white">Tích lũy 30 Điểm Cinema Rewards</h4>
-              <p className="text-xs text-[#BEC5E5] mt-0.5">
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
                 Vé xem Dune: Part Two đã cộng điểm thành viên vào tài khoản của bạn, đổi bắp nước miễn phí vào lần xem kế tiếp!
               </p>
             </div>
@@ -508,7 +508,7 @@ const BookingSuccessPage = () => {
 
           <button
             type="button"
-            className="px-5 py-2 rounded-xl bg-[#20204B] hover:bg-[#25234D] text-[#F8F7FF] font-bold text-xs transition-colors border border-[#AA9BFF]/25 shrink-0 cursor-pointer shadow"
+            className="px-5 py-2 rounded-xl bg-[#20204B] hover:bg-[#25234D] text-[var(--text-main)] font-bold text-xs transition-colors border border-[#AA9BFF]/25 shrink-0 cursor-pointer shadow"
           >
             Xem ví quà tặng
           </button>

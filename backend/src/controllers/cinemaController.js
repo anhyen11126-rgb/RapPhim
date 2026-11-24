@@ -3,6 +3,7 @@ import Cinema from '../models/Cinema.js';
 import Showtime from '../models/Showtime.js';
 import ShowtimeSeat from '../models/ShowtimeSeat.js';
 import Movie from '../models/Movie.js';
+import TicketPricingConfig from '../models/TicketPricingConfig.js';
 import {
   ensurePricingConfig,
   calculatePricesFromConfig,
@@ -226,8 +227,11 @@ export const ensure3DShowtimesSynced = async () => {
 // Lấy chi tiết 1 rạp kèm toàn bộ lịch chiếu & số ghế trống thực tế
 export const getCinemaShowtimes = async (req, res) => {
   try {
-    await ensureCinemaBannerSynced();
-    await ensure3DShowtimesSynced();
+    const published = req.query.view === 'published';
+    if (!published) {
+      await ensureCinemaBannerSynced();
+      await ensure3DShowtimesSynced();
+    }
     const { id } = req.params;
     const { date } = req.query; // YYYY-MM-DD (tùy chọn)
 
@@ -272,6 +276,13 @@ export const getCinemaShowtimes = async (req, res) => {
       endOfDay.setHours(23, 59, 59, 999);
     }
 
+    if (published && date) {
+      const localStart = new Date(date + 'T00:00:00+07:00');
+      if (!Number.isFinite(localStart.getTime()) || localStart.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }) !== date) return res.sendStatus(400);
+      startOfDay = localStart;
+      endOfDay = new Date(localStart.getTime() + 86400000 - 1);
+    }
+
     // Truy vấn các suất chiếu của rạp này từ Database
     let showtimes = await Showtime.find({
       cinemaId: cinema._id,
@@ -282,7 +293,7 @@ export const getCinemaShowtimes = async (req, res) => {
       .lean();
 
     // Nếu chưa có suất chiếu trong Database cho ngày này, tự động khởi tạo và LƯU TRỰC TIẾP vào MongoDB Atlas
-    if (showtimes.length === 0) {
+    if (!published && showtimes.length === 0) {
       await autoSeedCinemaShowtimes(cinema, startOfDay);
       showtimes = await Showtime.find({
         cinemaId: cinema._id,
@@ -293,7 +304,9 @@ export const getCinemaShowtimes = async (req, res) => {
         .lean();
     }
 
-    const pricingConfig = await ensurePricingConfig();
+    const pricingConfig = published
+      ? await TicketPricingConfig.findOne({ configKey: 'MAIN_PRICING_CONFIG' }).lean()
+      : await ensurePricingConfig();
 
     // Nhóm các suất chiếu theo từng Phim
     const moviesMap = new Map();
@@ -302,6 +315,9 @@ export const getCinemaShowtimes = async (req, res) => {
       if (!st.movieId) continue;
 
       const movie = st.movieId;
+      const release = movie.releaseDate?.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+      const screening = st.startTime.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+      if (published && release && (screening < release || screening.slice(0, 7) !== release.slice(0, 7))) continue;
       const movieIdStr = movie._id.toString();
 
       if (!moviesMap.has(movieIdStr)) {
@@ -333,7 +349,7 @@ export const getCinemaShowtimes = async (req, res) => {
 
       if (!movieEntry.roomsMap.has(roomName)) {
         const fmtKey = detectFormatKey({ roomName, formatFeature: st.formatFeature });
-        const rule = pricingConfig.formats?.[fmtKey];
+        const rule = pricingConfig?.formats?.[fmtKey];
         const dayOfWeek = new Date(st.startTime).getDay();
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
         const dayRates = isWeekend ? rule?.weekend : rule?.weekday;
@@ -383,6 +399,16 @@ export const getCinemaShowtimes = async (req, res) => {
       rooms: Array.from(m.roomsMap.values()),
     }));
 
+    let monthMovies;
+    if (published && date) {
+      const monthStart = new Date(date.slice(0, 7) + '-01T00:00:00+07:00');
+      const nextMonth = new Date(monthStart.getTime() + 32 * 86400000);
+      const nextKey = nextMonth.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 7);
+      monthMovies = await Movie.find({
+        releaseDate: { $gte: monthStart, $lt: new Date(nextKey + '-01T00:00:00+07:00') },
+      }).select('title releaseDate').sort({ releaseDate: 1, title: 1 }).lean();
+    }
+
     res.json({
       cinema: {
         ...cinema,
@@ -390,6 +416,7 @@ export const getCinemaShowtimes = async (req, res) => {
         id: cinema._id.toString(),
       },
       movies: formattedMovies,
+      ...(published && { monthMovies }),
     });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi lấy lịch chiếu của rạp', error: error.message });

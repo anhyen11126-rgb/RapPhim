@@ -24,9 +24,9 @@ const TopbarAdmin = () => {
   };
 
   return (
-    <header className="h-16 bg-slate-900 border-b border-slate-800 px-4 sm:px-6 flex items-center justify-between text-white">
+    <header className="h-16 bg-[var(--bg-secondary)] border-b border-[var(--border-default)] px-4 sm:px-6 flex items-center justify-between text-white">
       <div className="flex items-center space-x-3">
-        <span className="text-xs font-black uppercase tracking-wider text-red-500 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-lg">
+        <span className="text-xs font-black uppercase tracking-wider text-[var(--lavender)] bg-violet-500/10 border border-violet-500/25 px-2.5 py-1 rounded-lg">
           🛡️ Control Panel
         </span>
         <span className="text-xs text-slate-400 hidden sm:inline font-medium">
@@ -38,7 +38,7 @@ const TopbarAdmin = () => {
         {/* Nút chuyển đổi nhanh: Xem trang khách hàng */}
         <Link
           to="/"
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 hover:border-blue-500/50 shadow-sm"
+          className="flex items-center space-x-1.5 px-3 py-1.5 bg-[var(--bg-surface)] hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 hover:border-blue-500/50 shadow-sm"
           title="Mở giao diện khách hàng xem phim & đặt vé"
         >
           <span>🌐</span>
@@ -46,7 +46,7 @@ const TopbarAdmin = () => {
         </Link>
 
         {/* Thông tin Admin */}
-        <div className="flex items-center space-x-2.5 pl-2 border-l border-slate-800">
+        <div className="flex items-center space-x-2.5 pl-2 border-l border-[var(--border-default)]">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-red-600 to-amber-600 flex items-center justify-center text-xs font-black text-white shadow">
             {admin.name ? admin.name[0] : 'A'}
           </div>

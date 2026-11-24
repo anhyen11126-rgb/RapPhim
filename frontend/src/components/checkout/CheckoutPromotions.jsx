@@ -8,7 +8,7 @@ const CheckoutPromotions = ({
   onApplyVoucher,
 }) => {
   return (
-    <div className="py-4 border-b border-slate-800 space-y-2">
+    <div className="py-4 border-b border-[var(--border-default)] space-y-2">
       <label className="block text-[11px] font-bold text-slate-400">
         Mã ưu đãi / Voucher D'AVENOR
       </label>
@@ -18,12 +18,12 @@ const CheckoutPromotions = ({
           value={voucherCode}
           onChange={(e) => setVoucherCode(e.target.value)}
           placeholder="Nhập mã giảm giá..."
-          className="flex-1 bg-[#141b2b] border border-slate-700/80 rounded-xl px-3 py-2 text-xs font-bold text-white uppercase tracking-wider focus:outline-none focus:border-blue-500"
+          className="flex-1 bg-[var(--bg-surface)] border border-slate-700/80 rounded-xl px-3 py-2 text-xs font-bold text-white uppercase tracking-wider focus:outline-none focus:border-[var(--cyan)]"
         />
         <button
           type="button"
           onClick={onApplyVoucher}
-          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer border border-slate-700"
+          className="px-4 py-2 bg-[var(--bg-surface)] hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer border border-slate-700"
         >
           Áp dụng
         </button>

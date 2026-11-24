@@ -19,104 +19,70 @@ export const normalizeSeatCode = (raw) => {
   return trimmed;
 };
 
-/**
- * Sinh cấu trúc mẫu chuẩn 88 ghế theo quy cách của D'AVENOR CINEMA:
- * - Hàng A - D: 12 ghế/hàng (6 trái + LỐI ĐI + 6 phải) -> 48 ghế STANDARD
- * - Hàng E - G: 12 ghế/hàng (6 trái + LỐI ĐI + 6 phải) -> 36 ghế VIP
- * - Hàng H: 4 ghế (2 trái + LỐI ĐI + 2 phải) -> 4 ghế SWEETBOX/VIP RECLINER
- * Tổng cộng: 48 + 36 + 4 = Đúng 88 ghế
- */
-export const generate88SeatsTemplate = (showtimeId) => {
-  const seats = [];
-  const standardRows = ['A', 'B', 'C', 'D'];
-  const vipRows = ['E', 'F', 'G'];
+// The rotated analytics seed has a distinct code and does not issue a QR ticket.
+export const isAnalyticsSeedBooking = (booking) =>
+  !booking.qrToken && /^MTX-\d{6}-\d+$/.test(booking.bookingCode ?? '');
 
-  // Hàng A - D: 48 ghế STANDARD
-  for (const row of standardRows) {
-    for (let col = 1; col <= 12; col++) {
-      seats.push({
-        showtimeId,
-        seatNumber: `${row}${col}`,
-        row,
-        col,
-        type: 'STANDARD',
-        status: 'AVAILABLE',
-      });
+export function paidSeatCodes(bookings) {
+  const codes = new Set();
+  for (const booking of bookings) {
+    if (isAnalyticsSeedBooking(booking)) continue;
+    for (const rawCode of (booking.seats ?? '').split(',')) {
+      const code = normalizeSeatCode(rawCode);
+      if (code) codes.add(code);
     }
   }
+  return codes;
+}
 
-  // Hàng E - G: 36 ghế VIP
-  for (const row of vipRows) {
-    for (let col = 1; col <= 12; col++) {
-      seats.push({
-        showtimeId,
-        seatNumber: `${row}${col}`,
-        row,
-        col,
-        type: 'VIP',
-        status: 'AVAILABLE',
-      });
-    }
-  }
+async function findRoomSeatTemplate(room, showtimeId) {
+  const [template] = await ShowtimeSeat.aggregate([
+    { $match: { roomId: room._id, showtimeId: { $ne: showtimeId } } },
+    { $group: { _id: '$showtimeId', size: { $sum: 1 }, created: { $max: '$createdAt' } } },
+    { $match: { size: room.totalSeats } },
+    { $sort: { created: -1, _id: -1 } },
+    { $limit: 1 },
+  ]);
+  if (!template) return [];
+  return ShowtimeSeat.find({ showtimeId: template._id, roomId: room._id }).select('seatNumber row col type').lean();
+}
 
-  // Hàng H: 4 ghế SWEETBOX / VIP RECLINER
-  for (let col = 1; col <= 4; col++) {
-    seats.push({
-      showtimeId,
-      seatNumber: `H${col}`,
-      row: 'H',
-      col,
-      type: 'SWEETBOX',
-      status: 'AVAILABLE',
-    });
-  }
-
-  return seats;
-};
-
-/**
- * Đảm bảo 88 ghế của suất chiếu tồn tại trong Database và trạng thái được đối soát đồng bộ
- * chính xác 100% với các đơn đặt vé (Booking) hợp lệ trong suất chiếu.
- */
 export const ensureShowtimeSeats = async (showtimeId) => {
   const stId = new mongoose.Types.ObjectId(showtimeId);
-  const existingSeats = await ShowtimeSeat.find({ showtimeId: stId }).lean();
+  const [existingSeats, paidBookings] = await Promise.all([
+    ShowtimeSeat.find({ showtimeId: stId }).lean(),
+    Booking.find({ showtimeId: stId, status: 'PAID' }).select('bookingCode qrToken seats').lean(),
+  ]);
+  const bookedSeatSet = paidSeatCodes(paidBookings);
+  const seedIds = new Set(paidBookings.filter(isAnalyticsSeedBooking).map(booking => String(booking._id)));
 
-  // Truy vấn toàn bộ vé đã thanh toán (PAID) thực tế của suất chiếu này từ người dùng thực
-  const paidBookings = await Booking.find({ showtimeId: stId, status: 'PAID' }).lean();
-  const bookedSeatSet = new Set();
+  const withPaidStatus = (seats) => seats.map(seat => ({
+    ...seat, status: bookedSeatSet.has(normalizeSeatCode(seat.seatNumber)) ? 'BOOKED' : 'AVAILABLE',
+  }));
 
-  paidBookings.forEach((b) => {
-    if (b.seats) {
-      b.seats
-        .split(',')
-        .map((s) => normalizeSeatCode(s))
-        .filter(Boolean)
-        .forEach((code) => bookedSeatSet.add(code));
-    }
-  });
-
-  // Initialize legacy inventory only for showtimes without any existing seats.
+  // Use the stored layout of the same physical room when opening a new showtime.
   if (!existingSeats.length) {
     const showtime = await Showtime.findById(stId).select('roomId roomName cinemaId').populate('roomId').lean();
     const room = showtime?.roomId ?? (showtime && await Room.findOne({
       cinemaId: showtime.cinemaId,
       name: showtime.roomName,
     }).lean());
-    if (room?.totalSeats !== 88) return [];
+    if (!Number.isInteger(room?.totalSeats) || room.totalSeats <= 0) return [];
+    const template = await findRoomSeatTemplate(room, stId);
+    if (template.length !== room.totalSeats) return [];
 
-    await ShowtimeSeat.bulkWrite(generate88SeatsTemplate(stId).map((seat) => ({
+    await ShowtimeSeat.bulkWrite(template.map(({ seatNumber, row, col, type }) => ({
       updateOne: {
-        filter: { showtimeId: stId, seatNumber: seat.seatNumber },
+        filter: { showtimeId: stId, seatNumber },
         update: { $setOnInsert: {
-          ...seat,
+          showtimeId: stId, seatNumber, row, col, type,
           roomId: room._id,
-          status: bookedSeatSet.has(seat.seatNumber) ? 'BOOKED' : 'AVAILABLE',
+          status: bookedSeatSet.has(normalizeSeatCode(seatNumber)) ? 'BOOKED' : 'AVAILABLE',
         } },
         upsert: true,
       },
     })));
-    return ShowtimeSeat.find({ showtimeId: stId }).sort({ row: 1, col: 1 }).lean();
+    return withPaidStatus(await ShowtimeSeat.find({ showtimeId: stId }).sort({ row: 1, col: 1 }).lean());
   }
 
   const updates = [];
@@ -130,11 +96,11 @@ export const ensureShowtimeSeats = async (showtimeId) => {
           { $set: { status: 'BOOKED', holdExpiresAt: null } }
         )
       );
-    } else if (!shouldBeBooked && s.status === 'BOOKED' && !s.bookingId) {
-      // Ghế ảo không có đơn thanh toán thực -> khôi phục trạng thái trống
+    } else if (!shouldBeBooked && s.status === 'BOOKED' && (!s.bookingId || seedIds.has(String(s.bookingId)))) {
+      // Guard against clearing a seat acquired by a concurrent checkout.
       updates.push(
         ShowtimeSeat.updateOne(
-          { _id: s._id },
+          { _id: s._id, status: 'BOOKED', bookingId: s.bookingId ?? null },
           { $set: { status: 'AVAILABLE', bookingId: null, holdExpiresAt: null } }
         )
       );
@@ -142,7 +108,7 @@ export const ensureShowtimeSeats = async (showtimeId) => {
       // Xóa bỏ trạng thái giữ tạm thời theo yêu cầu
       updates.push(
         ShowtimeSeat.updateOne(
-          { _id: s._id },
+          { _id: s._id, status: 'HOLDING', bookingId: s.bookingId ?? null },
           { $set: { status: 'AVAILABLE', holdExpiresAt: null } }
         )
       );
@@ -151,10 +117,10 @@ export const ensureShowtimeSeats = async (showtimeId) => {
 
   if (updates.length > 0) {
     await Promise.all(updates);
-    return await ShowtimeSeat.find({ showtimeId: stId }).sort({ row: 1, col: 1 }).lean();
+    return withPaidStatus(await ShowtimeSeat.find({ showtimeId: stId }).sort({ row: 1, col: 1 }).lean());
   }
 
-  return existingSeats;
+  return withPaidStatus(existingSeats);
 };
 
 /**

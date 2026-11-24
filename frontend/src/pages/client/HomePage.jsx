@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
+import { cinemaDate, releaseMonth } from '../../utils/cinemaCalendar';
 import HomeHeroBanner from '../../components/home/HomeHeroBanner';
 import HomeQuickBooking from '../../components/home/HomeQuickBooking';
 import HomeMovieTabs from '../../components/home/HomeMovieTabs';
@@ -68,26 +69,18 @@ const HomePage = () => {
           status: m.status || 'NOW_SHOWING',
           releaseDate: m.releaseDate,
           firstShowtimeId: m.firstShowtimeId,
-          showtimes:
-            Array.isArray(m.showtimes) && m.showtimes.length > 0
-              ? m.showtimes
-              : (m.firstShowtimeId
-                ? [{ id: m.firstShowtimeId, roomName: 'Phòng 01 - IMAX Laser', time: '19:30' }]
-                : []),
+          showtimes: Array.isArray(m.showtimes) ? m.showtimes : [],
         }));
 
         // Sắp xếp ưu tiên 3 bộ phim Đang Chiếu Tại Rạp (Dune 2, Mai, Deadpool & Wolverine) liền kề nhau ở đầu danh sách slider
-        const prioritySlugs = ['dune-hanh-tinh-cat-phan-2', 'mai', 'deadpool-and-wolverine'];
-        const sortedMovies = [...formattedMovies].sort((a, b) => {
-          const aPriority = prioritySlugs.indexOf(a.slug);
-          const bPriority = prioritySlugs.indexOf(b.slug);
-          if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
-          if (aPriority !== -1) return -1;
-          if (bPriority !== -1) return 1;
-          if (a.status === 'NOW_SHOWING' && b.status !== 'NOW_SHOWING') return -1;
-          if (b.status === 'NOW_SHOWING' && a.status !== 'NOW_SHOWING') return 1;
-          return 0;
-        });
+        const currentMonth = cinemaDate().slice(0, 7);
+        const rank = (movie) => {
+          const month = releaseMonth(movie);
+          if (month === currentMonth) return 0;
+          return month > currentMonth ? 1 : 2;
+        };
+        const sortedMovies = [...formattedMovies].sort((a, b) => rank(a) - rank(b)
+          || cinemaDate(a.releaseDate).localeCompare(cinemaDate(b.releaseDate)));
 
         setMoviesList(sortedMovies);
         if (sortedMovies.length > 0) {
@@ -128,7 +121,7 @@ const HomePage = () => {
   };
 
   return (
-    <div className="bg-[#0B1026] text-[#F8F7FF] min-h-screen">
+    <div className="bg-[var(--bg-main)] text-[var(--text-main)] min-h-screen">
       {/* 1. HERO SECTION: CINEMATIC BILLBOARD BANNER WITH CAROUSEL */}
       <HomeHeroBanner
         moviesList={moviesList}

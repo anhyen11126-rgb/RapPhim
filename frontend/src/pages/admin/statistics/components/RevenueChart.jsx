@@ -4,7 +4,7 @@ import { formatCurrency, formatNumber } from '../utils/statisticsFormatter';
 const RevenueChart = ({ data = [], loading = false }) => {
   if (loading) {
     return (
-      <div className="h-64 flex items-center justify-center bg-slate-900/60 rounded-2xl border border-slate-800">
+      <div className="h-64 flex items-center justify-center bg-[var(--bg-secondary)]/60 rounded-2xl border border-[var(--border-default)]">
         <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
@@ -12,7 +12,7 @@ const RevenueChart = ({ data = [], loading = false }) => {
 
   if (!data || data.length === 0) {
     return (
-      <div className="h-64 flex flex-col items-center justify-center bg-slate-900/60 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+      <div className="h-64 flex flex-col items-center justify-center bg-[var(--bg-secondary)]/60 rounded-2xl border border-[var(--border-default)] text-slate-400 text-xs">
         <svg className="w-8 h-8 text-slate-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
@@ -46,13 +46,13 @@ const RevenueChart = ({ data = [], loading = false }) => {
                 <div className="font-bold text-amber-400">{item.date}</div>
                 <div>Doanh thu vé: <strong>{formatCurrency(item.ticketRevenue)}</strong></div>
                 <div>Doanh thu bắp nước: <strong>{formatCurrency(item.concessionRevenue)}</strong></div>
-                <div className="border-t border-slate-800 pt-0.5 text-emerald-400">
+                <div className="border-t border-[var(--border-default)] pt-0.5 text-emerald-400">
                   Tổng thuần: <strong>{formatCurrency(item.netRevenue)}</strong> ({formatNumber(item.tickets)} vé)
                 </div>
               </div>
 
               {/* Cột Bar phân tầng (Vé ở dưới, bắp nước ở trên) */}
-              <div className="w-full max-w-[36px] flex flex-col justify-end rounded-t-lg overflow-hidden bg-slate-800/40">
+              <div className="w-full max-w-[36px] flex flex-col justify-end rounded-t-lg overflow-hidden bg-[var(--bg-surface)]/40">
                 {/* Phần Bắp nước (Màu cam) */}
                 {concessionHeight > 0 && (
                   <div
@@ -63,7 +63,7 @@ const RevenueChart = ({ data = [], loading = false }) => {
                 {/* Phần Vé xem phim (Màu đỏ D'AVENOR) */}
                 <div
                   style={{ height: `${ticketHeight}%` }}
-                  className="w-full bg-red-600 hover:bg-red-500 transition-all rounded-t-sm"
+                  className="w-full bg-[var(--neon-purple)] hover:bg-violet-500 transition-all rounded-t-sm"
                 ></div>
               </div>
 
@@ -77,10 +77,10 @@ const RevenueChart = ({ data = [], loading = false }) => {
       </div>
 
       {/* Legend Chú giải */}
-      <div className="flex flex-wrap items-center justify-between text-xs text-slate-400 pt-3 border-t border-slate-800/80">
+      <div className="flex flex-wrap items-center justify-between text-xs text-slate-400 pt-3 border-t border-[var(--border-default)]/80">
         <div className="flex items-center space-x-4">
           <span className="flex items-center space-x-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm bg-red-600"></span>
+            <span className="w-2.5 h-2.5 rounded-sm bg-[var(--neon-purple)]"></span>
             <span>Vé xem phim</span>
           </span>
           <span className="flex items-center space-x-1.5">

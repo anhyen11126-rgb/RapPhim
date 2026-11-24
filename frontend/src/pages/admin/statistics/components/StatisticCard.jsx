@@ -14,13 +14,13 @@ const StatisticCard = ({
 }) => {
   if (loading) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 h-full min-h-[128px] flex flex-col justify-between animate-pulse">
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-4 sm:p-5 h-full min-h-[128px] flex flex-col justify-between animate-pulse">
         <div className="flex items-center justify-between">
-          <div className="h-3 bg-slate-800 rounded w-20"></div>
-          <div className="w-7 h-7 bg-slate-800 rounded-lg"></div>
+          <div className="h-3 bg-[var(--bg-surface)] rounded w-20"></div>
+          <div className="w-7 h-7 bg-[var(--bg-surface)] rounded-lg"></div>
         </div>
-        <div className="h-6 bg-slate-800 rounded w-28 my-1"></div>
-        <div className="h-2.5 bg-slate-800 rounded w-16"></div>
+        <div className="h-6 bg-[var(--bg-surface)] rounded w-28 my-1"></div>
+        <div className="h-2.5 bg-[var(--bg-surface)] rounded w-16"></div>
       </div>
     );
   }
@@ -32,7 +32,7 @@ const StatisticCard = ({
   return (
     <div
       title={exactValue ? `Giá trị chính xác: ${exactValue}` : tooltip || undefined}
-      className="bg-slate-900 border border-slate-800 hover:border-slate-700/80 rounded-2xl p-4 sm:p-5 h-full min-h-[128px] flex flex-col justify-between transition-all relative group shadow-md"
+      className="bg-[var(--bg-secondary)] border border-[var(--border-default)] hover:border-slate-700/80 rounded-2xl p-4 sm:p-5 h-full min-h-[128px] flex flex-col justify-between transition-all relative group shadow-md"
     >
       {/* Tooltip khi hover */}
       {hoverTip && (

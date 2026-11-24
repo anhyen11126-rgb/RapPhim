@@ -188,7 +188,7 @@ const RevenueTab = ({ data, loading }) => {
     <div className="space-y-6">
       {/* Thông báo thao tác nếu có */}
       {expenseFeedback && (
-        <div className="p-3 bg-slate-900 border border-slate-700 rounded-2xl text-xs font-semibold text-emerald-300 shadow-lg animate-fadeIn flex items-center justify-between">
+        <div className="p-3 bg-[var(--bg-secondary)] border border-slate-700 rounded-2xl text-xs font-semibold text-emerald-300 shadow-lg animate-fadeIn flex items-center justify-between">
           <span>{expenseFeedback}</span>
           <button onClick={() => setExpenseFeedback('')} className="text-slate-400 hover:text-white">
             ✕
@@ -261,8 +261,8 @@ const RevenueTab = ({ data, loading }) => {
       </div>
 
       {/* 2. BIỂU ĐỒ DOANH THU TOÀN RẠP (VÉ XEM PHIM & BẮP NƯỚC) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
           <div>
             <h3 className="text-base sm:text-lg font-bold text-white">Biểu Đồ Doanh Thu Toàn Rạp</h3>
             <p className="text-xs text-slate-400">
@@ -280,8 +280,8 @@ const RevenueTab = ({ data, loading }) => {
       {/* 3. CƠ CẤU CHI PHÍ THỰC TẾ & CƠ CẤU DOANH THU */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Khối Cơ Cấu Chi Phí Thực Tế Rạp (6 Danh Mục Chuẩn) */}
-        <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+        <div className="lg:col-span-6 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+          <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
               <h3 className="text-base font-bold text-white">Cơ Cấu Chi Phí Hoạt Động Rạp</h3>
               <p className="text-xs text-slate-400">Phân bổ 6 nhóm chi phí thực tế phục vụ tính lãi/lỗ</p>
@@ -298,7 +298,7 @@ const RevenueTab = ({ data, loading }) => {
                   </span>
                   <span className="font-bold text-rose-400">{cat.formattedAmount}</span>
                 </div>
-                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-rose-600 to-amber-600 rounded-full transition-all duration-700"
                     style={{ width: `${Math.min(100, cat.percent)}%` }}
@@ -308,14 +308,14 @@ const RevenueTab = ({ data, loading }) => {
             ))}
           </div>
 
-          <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 leading-relaxed">
+          <div className="pt-2 border-t border-[var(--border-default)]/80 text-[11px] text-slate-400 leading-relaxed">
             💡 Chi phí bản quyền phim chiếm tỷ trọng lớn nhất (~46% doanh thu vé), tiếp theo là chi phí điện nước điều hòa và nhân sự vận hành.
           </div>
         </div>
 
         {/* Khối Cơ Cấu Doanh Thu Sản Phẩm & Thanh Toán */}
-        <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+        <div className="lg:col-span-6 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-5 shadow-xl">
+          <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
               <h3 className="text-base font-bold text-white">Cơ Cấu Doanh Thu & Cổng Thanh Toán</h3>
               <p className="text-xs text-slate-400">Đóng góp giữa Vé xem phim, Bắp nước và Cổng MoMo/VNPAY</p>
@@ -333,7 +333,7 @@ const RevenueTab = ({ data, loading }) => {
                 </span>
                 <span className="font-bold text-emerald-400">{metrics.ticketFormatted || '0 đ'}</span>
               </div>
-              <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-2.5 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-red-600 rounded-full transition-all duration-700"
                   style={{ width: `${metrics.ticketPercent || 0}%` }}
@@ -350,7 +350,7 @@ const RevenueTab = ({ data, loading }) => {
                 </span>
                 <span className="font-bold text-amber-400">{metrics.concessionFormatted || '0 đ'}</span>
               </div>
-              <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-2.5 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-amber-500 rounded-full transition-all duration-700"
                   style={{ width: `${metrics.concessionPercent || 0}%` }}
@@ -360,11 +360,11 @@ const RevenueTab = ({ data, loading }) => {
           </div>
 
           {/* Cổng thanh toán */}
-          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800">
+          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[var(--border-default)]">
             {paymentMethods.map((pm) => (
               <div
                 key={pm.method}
-                className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50 text-center"
+                className="p-2.5 rounded-xl bg-[var(--bg-surface)]/50 border border-slate-700/50 text-center"
               >
                 <span className="text-[10px] text-slate-400 block font-semibold">
                   {pm.method === 'MOMO' ? '🌸 MoMo' : pm.method === 'VNPAY' ? '💳 VNPAY' : '💵 Tiền mặt'}
@@ -378,8 +378,8 @@ const RevenueTab = ({ data, loading }) => {
       </div>
 
       {/* 4. BẢNG BÁO CÁO KINH DOANH CHUYÊN SÂU & QUẢN LÝ CHI PHÍ */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-default)]/80 pb-4">
           <div className="flex items-center space-x-3">
             <div>
               <h3 className="text-base font-bold text-white">Báo Cáo & Quản Lý Tài Chính Rạp</h3>
@@ -387,7 +387,7 @@ const RevenueTab = ({ data, loading }) => {
             </div>
 
             {/* Chuyển đổi 4 chế độ bảng */}
-            <div className="bg-slate-800 p-1 rounded-xl flex items-center space-x-1 border border-slate-700 text-xs">
+            <div className="bg-[var(--bg-surface)] p-1 rounded-xl flex items-center space-x-1 border border-slate-700 text-xs">
               <button
                 type="button"
                 onClick={() => {
@@ -453,7 +453,7 @@ const RevenueTab = ({ data, loading }) => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-44 sm:w-52"
+              className="bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-44 sm:w-52"
             />
             {tableMode === 'expenses' && (
               <button
@@ -471,7 +471,7 @@ const RevenueTab = ({ data, loading }) => {
         {tableMode === 'monthly' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-800/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
+              <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
                 <tr>
                   <th className="py-3 px-4">Tháng</th>
                   <th className="py-3 px-3 text-center">Số vé bán</th>
@@ -486,7 +486,7 @@ const RevenueTab = ({ data, loading }) => {
               <tbody className="divide-y divide-slate-800 font-medium">
                 {paginatedItems.length > 0 ? (
                   paginatedItems.map((m, idx) => (
-                    <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                    <tr key={idx} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-white">{m.monthLabel}</td>
                       <td className="py-3.5 px-3 text-center font-bold text-slate-200">
                         {formatNumber(m.ticketsSold)}
@@ -539,7 +539,7 @@ const RevenueTab = ({ data, loading }) => {
         {tableMode === 'daily' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-800/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
+              <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
                 <tr>
                   <th className="py-3 px-4">Ngày</th>
                   <th className="py-3 px-3 text-center">Đơn thành công</th>
@@ -554,7 +554,7 @@ const RevenueTab = ({ data, loading }) => {
               <tbody className="divide-y divide-slate-800 font-medium">
                 {paginatedItems.length > 0 ? (
                   paginatedItems.map((r, idx) => (
-                    <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                    <tr key={idx} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-white">{r.date}</td>
                       <td className="py-3.5 px-3 text-center">{r.orders}</td>
                       <td className="py-3.5 px-3 text-center font-bold text-slate-200">{formatNumber(r.tickets)}</td>
@@ -587,7 +587,7 @@ const RevenueTab = ({ data, loading }) => {
         {tableMode === 'movies' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-800/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
+              <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
                 <tr>
                   <th className="py-3 px-4 min-w-[200px]">Bộ phim</th>
                   <th className="py-3 px-3 text-center">Số đơn vé</th>
@@ -600,7 +600,7 @@ const RevenueTab = ({ data, loading }) => {
               <tbody className="divide-y divide-slate-800 font-medium">
                 {paginatedItems.length > 0 ? (
                   paginatedItems.map((mv, idx) => (
-                    <tr key={mv.movieId || idx} className="hover:bg-slate-800/40 transition-colors">
+                    <tr key={mv.movieId || idx} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-3">
                           <img
@@ -637,7 +637,7 @@ const RevenueTab = ({ data, loading }) => {
         {tableMode === 'expenses' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-800/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
+              <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
                 <tr>
                   <th className="py-3 px-4">Mã chi phí</th>
                   <th className="py-3 px-4 min-w-[200px]">Tên khoản chi</th>
@@ -657,14 +657,14 @@ const RevenueTab = ({ data, loading }) => {
                   </tr>
                 ) : paginatedItems.length > 0 ? (
                   paginatedItems.map((exp) => (
-                    <tr key={exp._id || exp.id} className="hover:bg-slate-800/40 transition-colors">
+                    <tr key={exp._id || exp.id} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
                       <td className="py-3 px-4 font-mono text-slate-400 font-bold">{exp.costCode}</td>
                       <td className="py-3 px-4">
                         <span className="font-bold text-white block">{exp.title}</span>
                         {exp.notes && <span className="text-[10px] text-slate-500 block">{exp.notes}</span>}
                       </td>
                       <td className="py-3 px-3">
-                        <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] border border-slate-700">
+                        <span className="bg-[var(--bg-surface)] text-slate-300 px-2 py-0.5 rounded text-[10px] border border-slate-700">
                           {EXPENSE_TYPES.find((t) => t.value === exp.type)?.label || exp.type}
                         </span>
                       </td>
@@ -682,7 +682,7 @@ const RevenueTab = ({ data, loading }) => {
                           <button
                             type="button"
                             onClick={() => handleOpenEditExpense(exp)}
-                            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] cursor-pointer"
+                            className="px-2 py-1 bg-[var(--bg-surface)] hover:bg-slate-700 text-slate-300 rounded text-[11px] cursor-pointer"
                           >
                             Sửa
                           </button>
@@ -711,7 +711,7 @@ const RevenueTab = ({ data, loading }) => {
 
         {/* Phân trang */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-3 border-t border-slate-800 text-xs text-slate-400">
+          <div className="flex items-center justify-between pt-3 border-t border-[var(--border-default)] text-xs text-slate-400">
             <span>
               Trang {currentPage} / {totalPages} (Tổng {currentItems.length} bản ghi)
             </span>
@@ -720,7 +720,7 @@ const RevenueTab = ({ data, loading }) => {
                 type="button"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(currentPage - 1)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
+                className="px-2.5 py-1 rounded bg-[var(--bg-surface)] hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
               >
                 ‹
               </button>
@@ -730,7 +730,7 @@ const RevenueTab = ({ data, loading }) => {
                   type="button"
                   onClick={() => setCurrentPage(i + 1)}
                   className={`px-2.5 py-1 rounded font-bold cursor-pointer ${
-                    currentPage === i + 1 ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    currentPage === i + 1 ? 'bg-red-600 text-white' : 'bg-[var(--bg-surface)] text-slate-300 hover:bg-slate-700'
                   }`}
                 >
                   {i + 1}
@@ -740,7 +740,7 @@ const RevenueTab = ({ data, loading }) => {
                 type="button"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(currentPage + 1)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
+                className="px-2.5 py-1 rounded bg-[var(--bg-surface)] hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
               >
                 ›
               </button>
@@ -752,15 +752,15 @@ const RevenueTab = ({ data, loading }) => {
       {/* MODAL THÊM / SỬA KHOẢN CHI THỰC TẾ */}
       {showExpenseModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 max-w-lg w-full space-y-4 shadow-2xl text-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 sm:p-7 max-w-lg w-full space-y-4 shadow-2xl text-slate-200">
+            <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-3">
               <h3 className="text-base font-bold text-white">
                 {editingExpense ? 'Chỉnh Sửa Khoản Chi' : 'Thêm Khoản Chi Mới'}
               </h3>
               <button
                 type="button"
                 onClick={() => setShowExpenseModal(false)}
-                className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white"
+                className="w-7 h-7 rounded-full bg-[var(--bg-surface)] hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white"
               >
                 ✕
               </button>
@@ -775,7 +775,7 @@ const RevenueTab = ({ data, loading }) => {
                   placeholder="Ví dụ: Phí bản quyền phim Captain America..."
                   value={expenseForm.title}
                   onChange={(e) => setExpenseForm({ ...expenseForm, title: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500"
+                  className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500"
                 />
               </div>
 
@@ -785,10 +785,10 @@ const RevenueTab = ({ data, loading }) => {
                   <select
                     value={expenseForm.type}
                     onChange={(e) => setExpenseForm({ ...expenseForm, type: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 cursor-pointer"
+                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 cursor-pointer"
                   >
                     {EXPENSE_TYPES.map((t) => (
-                      <option key={t.value} value={t.value} className="bg-slate-900 text-white">
+                      <option key={t.value} value={t.value} className="bg-[var(--bg-secondary)] text-white">
                         {t.label}
                       </option>
                     ))}
@@ -804,7 +804,7 @@ const RevenueTab = ({ data, loading }) => {
                     placeholder="10000000"
                     value={expenseForm.amount}
                     onChange={(e) => setExpenseForm({ ...expenseForm, amount: Number(e.target.value) })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 font-mono"
+                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 font-mono"
                   />
                 </div>
               </div>
@@ -815,11 +815,11 @@ const RevenueTab = ({ data, loading }) => {
                   <select
                     value={expenseForm.movieId}
                     onChange={(e) => setExpenseForm({ ...expenseForm, movieId: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 cursor-pointer"
+                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 cursor-pointer"
                   >
                     <option value="">-- Dùng chung toàn rạp (Không gắn phim) --</option>
                     {moviesList.map((m) => (
-                      <option key={m._id || m.id} value={m._id || m.id} className="bg-slate-900 text-white">
+                      <option key={m._id || m.id} value={m._id || m.id} className="bg-[var(--bg-secondary)] text-white">
                         {m.title}
                       </option>
                     ))}
@@ -834,7 +834,7 @@ const RevenueTab = ({ data, loading }) => {
                   required
                   value={expenseForm.date}
                   onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 font-mono"
+                  className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 font-mono"
                 />
               </div>
 
@@ -845,15 +845,15 @@ const RevenueTab = ({ data, loading }) => {
                   placeholder="Ghi chú hóa đơn hoặc mã hợp đồng..."
                   value={expenseForm.notes}
                   onChange={(e) => setExpenseForm({ ...expenseForm, notes: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500"
+                  className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500"
                 ></textarea>
               </div>
 
-              <div className="flex items-center justify-end space-x-2.5 pt-3 border-t border-slate-800">
+              <div className="flex items-center justify-end space-x-2.5 pt-3 border-t border-[var(--border-default)]">
                 <button
                   type="button"
                   onClick={() => setShowExpenseModal(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all cursor-pointer"
+                  className="px-4 py-2 bg-[var(--bg-surface)] hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all cursor-pointer"
                 >
                   Hủy bỏ
                 </button>

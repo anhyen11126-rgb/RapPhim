@@ -6,8 +6,8 @@ const MovieSidebarInfo = ({ movie, ageBadge, onScrollToBooking }) => {
   return (
     <div className="lg:col-span-4 space-y-5">
       {/* Poster Card */}
-      <div className="bg-[#101625] border border-slate-800 rounded-3xl p-3 shadow-2xl overflow-hidden group/poster">
-        <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-slate-900 shadow-inner">
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-3 shadow-2xl overflow-hidden group/poster">
+        <div className="relative aspect-[2/3] rounded-2xl overflow-hidden bg-[var(--bg-secondary)] shadow-inner">
           <img
             src={movie.posterUrl || movie.poster}
             alt={movie.title}
@@ -21,7 +21,7 @@ const MovieSidebarInfo = ({ movie, ageBadge, onScrollToBooking }) => {
             >
               {movie.ageRating || 'T18'}
             </span>
-            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-slate-950/80 backdrop-blur-md text-blue-400 border border-blue-500/40 shadow">
+            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-slate-950/80 backdrop-blur-md text-[var(--cyan)] border border-[var(--cyan)]/40 shadow">
               IMAX 4K
             </span>
           </div>
@@ -38,7 +38,7 @@ const MovieSidebarInfo = ({ movie, ageBadge, onScrollToBooking }) => {
           <button
             type="button"
             onClick={onScrollToBooking}
-            className="w-full bg-[#2563eb] hover:bg-blue-500 text-white font-black py-2.5 rounded-xl text-xs flex items-center justify-center space-x-2 transition-all shadow-lg shadow-blue-600/30 active:scale-95 cursor-pointer"
+            className="w-full cinema-action text-white font-black py-2.5 rounded-xl text-xs flex items-center justify-center space-x-2 transition-all shadow-lg shadow-violet-700/30 active:scale-95 cursor-pointer"
           >
             <span>🎟️</span>
             <span>Đặt vé nhanh</span>
@@ -47,10 +47,10 @@ const MovieSidebarInfo = ({ movie, ageBadge, onScrollToBooking }) => {
       </div>
 
       {/* HỘP BẢNG THÔNG SỐ ĐIỆN ẢNH CHUYÊN SÂU */}
-      <div className="bg-[#101625] border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 shadow-2xl space-y-5">
+        <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
           <div className="flex items-center space-x-2">
-            <span className="text-base text-blue-400">ℹ️</span>
+            <span className="text-base text-[var(--cyan)]">ℹ️</span>
             <h3 className="text-sm font-black text-white uppercase tracking-wider">Thông số điện ảnh</h3>
           </div>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
@@ -110,8 +110,8 @@ const MovieSidebarInfo = ({ movie, ageBadge, onScrollToBooking }) => {
         </div>
 
         {/* Callout tiêu chuẩn phòng chiếu */}
-        <div className="bg-[#151d30] border border-blue-500/20 rounded-2xl p-3 flex items-center space-x-3">
-          <span className="text-2xl text-blue-400">🔊</span>
+        <div className="bg-[var(--bg-surface)] border border-[var(--cyan)]/20 rounded-2xl p-3 flex items-center space-x-3">
+          <span className="text-2xl text-[var(--cyan)]">🔊</span>
           <div>
             <h4 className="text-[11px] font-black text-white">Đạt chuẩn Dolby Atmos & Laser</h4>
             <p className="text-[10px] text-slate-400 mt-0.5">Âm trường 64 kênh không gian đa chiều sống động</p>

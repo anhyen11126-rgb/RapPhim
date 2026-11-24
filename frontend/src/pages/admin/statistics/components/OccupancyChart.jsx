@@ -4,7 +4,7 @@ import { formatNumber, formatPercent } from '../utils/statisticsFormatter';
 const OccupancyChart = ({ occupancy = {}, loading = false }) => {
   if (loading) {
     return (
-      <div className="h-64 flex items-center justify-center bg-slate-900/60 rounded-2xl border border-slate-800">
+      <div className="h-64 flex items-center justify-center bg-[var(--bg-secondary)]/60 rounded-2xl border border-[var(--border-default)]">
         <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
@@ -113,7 +113,7 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
           </div>
         </div>
 
-        <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+        <div className="pt-2 border-t border-[var(--border-default)] flex items-center justify-between text-[11px] text-slate-400">
           <span>Tổng ghế toàn rạp:</span>
           <span className="font-bold text-white">{formatNumber(total || 704)} ghế</span>
         </div>

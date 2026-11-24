@@ -1,675 +1,301 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  calculateDynamicPrices,
-  getRoomPriceRange,
-  loadPricingConfig,
-  DEFAULT_PRICING_CONFIG,
-} from '../../utils/pricing';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Armchair, AudioLines, CalendarDays, ChevronLeft, ChevronRight, Clapperboard, Crown, MapPin, Monitor } from 'lucide-react';
+import api from '../../services/api';
+import { cinemaDate, monthLabel, releaseMonth } from '../../utils/cinemaCalendar';
+import './movieSchedule.css';
 
-const MovieShowtimesSection = ({
-  movie,
-  dateTabs,
-  selectedDateIndex,
-  onSelectDateIndex,
-  selectedCity,
-  filteredCinemas,
-  selectedCinemaId,
-  onSelectCinemaId,
-  fallbackImaxTimes,
-  fallbackStandardTimes,
-  fallback3DTimes,
-  currentActiveShowtime,
-  onSelectSlot,
-  getEndTime,
-  selectedDate,
-  displayCinema,
-  onProceedToBooking,
-}) => {
-  const isWeekend = selectedDate?.fullDate
-    ? (selectedDate.fullDate.getDay() === 0 || selectedDate.fullDate.getDay() === 5 || selectedDate.fullDate.getDay() === 6)
-    : false;
+const dayMs = 86400000;
+const vietnamDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' });
+const vietnamTime = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const weekday = new Intl.DateTimeFormat('vi-VN', { timeZone: 'UTC', weekday: 'long' });
+const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
+const formats = [
+  { name: 'IMAX Laser', tone: 'imax', icon: Monitor },
+  { name: 'Dolby Atmos', tone: 'atmos', icon: AudioLines },
+  { name: 'Gold Class', tone: 'gold', icon: Crown },
+];
 
-  // Quản lý bộ lọc theo Quận / Huyện tại Đà Nẵng + Cấu hình giá động từ DB
-  const [selectedDistrict, setSelectedDistrict] = useState('Tất cả');
-  const [pricingConfig, setPricingConfig] = useState(DEFAULT_PRICING_CONFIG);
+const dateKey = (ms) => new Date(ms).toISOString().slice(0, 10);
+const dateMs = (date) => Date.parse(date + 'T00:00:00Z');
 
-  useEffect(() => {
-    loadPricingConfig().then((cfg) => {
-      if (cfg) setPricingConfig(cfg);
-    });
-  }, []);
-
-  // Lấy danh sách các Quận / Huyện có rạp tại Đà Nẵng
-  const availableDistricts = useMemo(() => {
-    const set = new Set();
-    filteredCinemas.forEach((c) => {
-      if (c.district) {
-        set.add(c.district);
-      } else if (c.address) {
-        const match = c.address.match(/Q\.\s*([^,]+)|Quận\s*([^,]+)/i);
-        if (match) set.add((match[1] || match[2]).trim());
-      }
-    });
-    return ['Tất cả', ...Array.from(set)];
-  }, [filteredCinemas]);
-
-  // Lọc danh sách cụm rạp theo Quận đang chọn
-  const displayedCinemas = useMemo(() => {
-    if (!selectedDistrict || selectedDistrict === 'Tất cả') return filteredCinemas;
-    return filteredCinemas.filter((c) => {
-      const dist = (c.district || '').toLowerCase();
-      const addr = (c.address || '').toLowerCase();
-      const target = selectedDistrict.toLowerCase();
-      return dist.includes(target) || addr.includes(target);
-    });
-  }, [filteredCinemas, selectedDistrict]);
-
-  // Tự động chọn rạp đầu tiên khi đổi quận nếu rạp hiện tại không nằm trong quận đó
-  useEffect(() => {
-    if (displayedCinemas.length > 0) {
-      const isCurrentInList = displayedCinemas.some((c) => (c._id || c.id) === selectedCinemaId);
-      if (!isCurrentInList) {
-        onSelectCinemaId(displayedCinemas[0]._id || displayedCinemas[0].id);
-      }
-    }
-  }, [displayedCinemas, selectedCinemaId, onSelectCinemaId]);
-
-  const jumpToPeriod = (type) => {
-    const d = new Date();
-    if (type === 'this_week') {
-      onSelectDateIndex(0);
-    } else if (type === 'next_week') {
-      const dayOfWeek = d.getDay();
-      const diffToNextMon = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
-      const nextMon = new Date(d);
-      nextMon.setDate(d.getDate() + diffToNextMon);
-      const nextMonIso = `${nextMon.getFullYear()}-${String(nextMon.getMonth() + 1).padStart(2, '0')}-${String(nextMon.getDate()).padStart(2, '0')}`;
-      const foundIdx = dateTabs.findIndex((item) => item.isoDate === nextMonIso);
-      if (foundIdx !== -1) onSelectDateIndex(foundIdx);
-      else onSelectDateIndex(Math.min(7, dateTabs.length - 1));
-    } else if (type === 'month_11') {
-      const foundIdx = dateTabs.findIndex((item) => item.isoDate?.includes('-11-'));
-      if (foundIdx !== -1) onSelectDateIndex(foundIdx);
-    } else if (type === 'month_12') {
-      const foundIdx = dateTabs.findIndex((item) => item.isoDate?.includes('-12-'));
-      if (foundIdx !== -1) onSelectDateIndex(foundIdx);
-    }
+export function scheduleStatus(slot, now) {
+  const starts = Date.parse(slot.startTime);
+  if (!Number.isFinite(starts) || starts <= now) return { label: 'Đã bắt đầu', disabled: true };
+  if (starts - now > 7 * dayMs) return { label: 'Sắp mở bán', disabled: true };
+  if (slot.isLocked) return { label: 'Tạm ngừng bán', disabled: true };
+  if (slot.availableSeats === 0) return { label: 'Hết vé', disabled: true };
+  if (!slot.roomId) return { label: 'Phòng chưa xác định', disabled: true };
+  if (slot.availableSeats == null) return { label: 'Xem sơ đồ ghế' };
+  return {
+    label: 'Còn ' + slot.availableSeats + ' ghế',
+    low: slot.totalSeats > 0 && slot.availableSeats / slot.totalSeats <= 0.15,
+    available: true,
   };
+}
 
+function ScheduleGroup({ format, slots, duration, now, onBook }) {
+  const { name, icon: Icon, tone } = format;
+  const prices = slots.map(slot => slot.price).filter(Number.isFinite);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const features = [...new Set(slots.map(slot => slot.roomFeature).filter(Boolean))];
   return (
-    <section id="showtimes-section" className="relative z-20 max-w-[1560px] mx-auto px-4 sm:px-8 lg:px-12 mt-12">
-      <div className="bg-[#101625] border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
-        
-        {/* Header Khu Vực Đặt Vé */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-800/80 pb-6">
-          <div>
-            <span className="text-xs font-bold text-blue-400 uppercase tracking-widest block">
-              LỊCH CHIẾU RẠP TOÀN QUỐC
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-black text-white mt-1">
-              Chọn Ngày & Suất Chiếu
-            </h2>
-          </div>
-          <div className="flex items-center space-x-2 text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>Cập nhật dữ liệu vé theo thời gian thực</span>
-          </div>
+    <section className="sc-group" data-tone={tone} aria-label={name}>
+      <div className="sc-brand"><Icon size={29} aria-hidden="true" /><strong>{name}</strong></div>
+      <div className="sc-group-body">
+        <div className="sc-group-heading">
+          <div><h3>Phòng chiếu {name}</h3>{features.length === 1 && <p>{features[0]}</p>}</div>
+          {!!prices.length && <p className="sc-range">Giá vé <strong>{currency.format(min)}{max !== min && ' – ' + currency.format(max)}</strong></p>}
         </div>
-
-        {/* BỘ LỌC ĐIỀU HƯỚNG NHANH THEO TUẦN / THÁNG */}
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#0c111d] p-3 rounded-2xl border border-slate-800/70">
-          <div className="flex items-center space-x-2 text-xs text-slate-300 font-bold">
-            <span>📅</span>
-            <span>Xem lịch chiếu:</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => jumpToPeriod('this_week')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                selectedDateIndex === 0
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              ⚡ Tuần này
-            </button>
-            <button
-              type="button"
-              onClick={() => jumpToPeriod('next_week')}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 transition-all"
-            >
-              ⏩ Tuần sau
-            </button>
-            <button
-              type="button"
-              onClick={() => jumpToPeriod('month_11')}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-900/40 text-indigo-300 hover:bg-indigo-800/60 transition-all border border-indigo-700/40"
-            >
-              🍂 Tháng 11
-            </button>
-            <button
-              type="button"
-              onClick={() => jumpToPeriod('month_12')}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-900/40 text-purple-300 hover:bg-purple-800/60 transition-all border border-purple-700/40"
-            >
-              ❄️ Tháng 12
-            </button>
-          </div>
-        </div>
-
-        {/* HÀNG CÁC TABS NGÀY CHIẾU (30 NGÀY) */}
-        <div className="flex items-center space-x-3 overflow-x-auto pb-2 scrollbar-none">
-          {dateTabs.map((d) => (
-            <button
-              key={d.index}
-              type="button"
-              onClick={() => onSelectDateIndex(d.index)}
-              className={`shrink-0 px-5 py-3 rounded-2xl flex flex-col items-center justify-center min-w-[110px] transition-all cursor-pointer border ${
-                selectedDateIndex === d.index
-                  ? 'bg-[#2563eb] text-white border-blue-400 shadow-lg shadow-blue-600/30 scale-105'
-                  : 'bg-[#151c2d] hover:bg-[#1a2339] text-slate-400 border-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <span
-                className={`text-[10px] font-black uppercase tracking-wider ${
-                  selectedDateIndex === d.index ? 'text-blue-200' : 'text-slate-500'
-                }`}
-              >
-                {d.tag}
-              </span>
-              <span className="text-base sm:text-lg font-black mt-0.5">{d.dateStr}</span>
-              <span className="text-[11px] font-medium opacity-80">{d.dayName}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* HÀNG CHỌN CỤM RẠP (ĐỒNG BỘ 100% VỚI KHU VỰC TRÊN NAVBAR) */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-800/60 pb-2.5">
-            <div className="flex items-center space-x-2">
-              <span className="text-base text-red-400">📍</span>
-              <label className="text-xs font-black text-slate-300 uppercase tracking-wider">
-                CỤM RẠP TẠI <span className="text-blue-400 font-extrabold">{selectedCity}</span>
-              </label>
-              <span className="text-[11px] font-semibold text-emerald-400 font-bold">
-                • {displayedCinemas[0]?.name || "D'AVENOR Thanh Khê Plaza"} (Q. Thanh Khê)
-              </span>
-            </div>
-
-            {/* Nút bấm xem thông tin chi tiết rạp */}
-            <Link
-              to="/theaters"
-              className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-[#151c2d] hover:bg-[#1f2b45] border border-slate-700/80 hover:border-blue-500/50 transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm active:scale-95"
-              title="Nhấn để xem thông tin chi tiết rạp"
-            >
-              <span>📍</span>
-              <span>Thông tin cụm rạp</span>
-              <span className="text-[10px] text-blue-400">↗</span>
-            </Link>
-          </div>
-
-          {/* BỘ LỌC CHỌN QUẬN NẾU CÓ NHIỀU QUẬN */}
-          {availableDistricts.length > 2 && (
-            <div className="flex items-center space-x-2 overflow-x-auto pb-1.5 scrollbar-none pt-0.5">
-              <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1 flex items-center gap-1">
-                <span>🏘️</span>
-                <span>Quận:</span>
-              </span>
-              {availableDistricts.map((dist) => {
-                const isDistActive = selectedDistrict === dist;
-                const countInDist =
-                  dist === 'Tất cả'
-                    ? filteredCinemas.length
-                    : filteredCinemas.filter((c) =>
-                        (c.district || c.address || '').toLowerCase().includes(dist.toLowerCase())
-                      ).length;
-                return (
-                  <button
-                    key={dist}
-                    type="button"
-                    onClick={() => setSelectedDistrict(dist)}
-                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 border ${
-                      isDistActive
-                        ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30 ring-1 ring-blue-400'
-                        : 'bg-[#151c2d] text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <span>{dist === 'Tất cả' ? 'Tất cả quận' : `Q. ${dist}`}</span>
-                    <span className="ml-1 text-[10px] opacity-75">({countInDist})</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-2.5 pt-1">
-            {displayedCinemas.length > 0 ? (
-              displayedCinemas.map((c) => {
-                const cId = c._id || c.id;
-                const isSelected = selectedCinemaId === cId;
-                return (
-                  <button
-                    key={cId}
-                    type="button"
-                    onClick={() => onSelectCinemaId(cId)}
-                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border flex items-center space-x-2 cursor-pointer ${
-                      isSelected
-                        ? 'bg-blue-600/20 text-white border-blue-500 shadow-md ring-2 ring-blue-500/40'
-                        : 'bg-[#151c2d] hover:bg-[#1b243b] text-slate-400 hover:text-slate-200 border-slate-800'
-                    }`}
-                  >
-                    <span>🏢</span>
-                    <span>{c.name}</span>
-                    {c.district && (
-                      <span className="text-[10px] text-slate-500 font-normal">
-                        ({c.district})
-                      </span>
-                    )}
-                    {c.isFlagship && (
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-500/20 text-blue-400 border border-blue-500/40">
-                        Flagship
-                      </span>
-                    )}
-                  </button>
-                );
-              })
-            ) : (
-              <p className="text-xs text-slate-400 italic py-2">
-                Chưa có cụm rạp nào tại quận này. Vui lòng chọn quận khác!
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* DANH SÁCH SUẤT CHIẾU THEO 3 ĐỊNH DẠNG PHÒNG CHIẾU */}
-        <div className="space-y-6 pt-2">
-          
-          {/* NHÓM 1: PHÒNG CHIẾU IMAX LASER GRAND HALL */}
-          <div className="bg-[#121827] border border-amber-500/20 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3.5">
-              <div className="flex items-center space-x-3">
-                <span className="bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-[11px] px-2.5 py-1 rounded-md shadow-md tracking-wider">
-                  IMAX LASER 2D
+        {slots.length ? <div className="sc-slots" style={{ '--sc-count': Math.min(slots.length, 6) }}>
+          {slots.map(slot => {
+            const status = scheduleStatus(slot, now);
+            const start = Date.parse(slot.startTime);
+            const end = slot.endTime ? Date.parse(slot.endTime) : duration > 0 ? start + duration * 60000 : NaN;
+            return (
+              <button type="button" className="sc-slot" key={slot.id} disabled={status.disabled} data-low={status.low || undefined}
+                onClick={() => onBook(slot)} title={slot.roomName}>
+                <span className="sc-hours"><strong>{vietnamTime.format(start)}</strong>{Number.isFinite(end) && <span>~ {vietnamTime.format(end)}</span>}</span>
+                {Number.isFinite(slot.price) && <span className="sc-price">{currency.format(slot.price)}</span>}
+                <span className="sc-inventory" data-available={slot.availableSeats > 0 && !status.disabled || undefined}>
+                  <Armchair size={15} aria-hidden="true" />
+                  {slot.availableSeats == null ? 'Chưa có số ghế'
+                    : 'Còn ' + slot.availableSeats + (slot.totalSeats == null ? '' : '/' + slot.totalSeats) + ' ghế'}
                 </span>
-                <h4 className="text-xs sm:text-sm font-black text-white">
-                  Phòng chiếu IMAX Laser Grand Hall • Âm thanh 12 kênh độc quyền
-                </h4>
-              </div>
-              <div className="flex items-center space-x-2 text-xs">
-                <span className="text-slate-400">Giá vé dao động:</span>
-                <span className="text-amber-400 font-black text-sm">
-                  {getRoomPriceRange('imax', isWeekend, pricingConfig).label}
-                </span>
-              </div>
-            </div>
-
-            {/* Các thẻ suất chiếu IMAX */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {fallbackImaxTimes.map((st) => {
-                const isChosen = currentActiveShowtime?.id === st.id;
-                const isUrgent = st.availableSeats > 0 && st.availableSeats <= 15;
-                const endTime = getEndTime(st.time, movie.duration);
-                const imaxPricing = calculateDynamicPrices(
-                  {
-                    ...st,
-                    startTime: selectedDate?.fullDate,
-                    roomName: 'Phòng IMAX 01',
-                    format: 'IMAX Laser 2D',
-                  },
-                  pricingConfig
-                );
-                const slotPrice = imaxPricing.priceStandard;
-
-                return (
-                  <div
-                    key={st.id}
-                    onClick={() => onSelectSlot({ ...st, price: slotPrice }, 'IMAX Laser 2D', isChosen)}
-                    onDoubleClick={() => onSelectSlot({ ...st, price: slotPrice }, 'IMAX Laser 2D', true)}
-                    role="button"
-                    tabIndex={0}
-                    title="Nhấn để chọn suất chiếu, nhấn đúp để vào thẳng chọn ghế"
-                    className={`relative p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between space-y-3 select-none group ${
-                      isChosen
-                        ? 'bg-gradient-to-br from-blue-600/25 via-indigo-950/40 to-[#0e1628] border-blue-400 ring-2 ring-blue-500/50 shadow-[0_0_25px_rgba(59,130,246,0.35)] scale-[1.02]'
-                        : 'bg-[#151c2d] hover:bg-[#1a2339] border-slate-700/60 hover:border-blue-400/60 hover:shadow-lg'
-                    }`}
-                  >
-                    {/* Hàng 1: Giờ chiếu + Giờ kết thúc + Huy hiệu */}
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-baseline space-x-1.5">
-                          <span
-                            className={`text-2xl font-black tracking-tight ${
-                              isChosen ? 'text-white' : 'text-slate-100 group-hover:text-blue-300'
-                            } transition-colors`}
-                          >
-                            {st.time}
-                          </span>
-                          {endTime && (
-                            <span className="text-[11px] font-medium text-slate-400">{endTime}</span>
-                          )}
-                        </div>
-                        <div className="text-[11px] font-bold text-amber-400 mt-0.5">
-                          {slotPrice.toLocaleString('vi-VN')} đ
-                        </div>
-                      </div>
-
-                      {/* Huy hiệu góc phải */}
-                      {isChosen ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500 text-white shadow-md flex items-center space-x-1 animate-in fade-in">
-                          <span>✓</span>
-                          <span>ĐANG CHỌN</span>
-                        </span>
-                      ) : st.tag === 'ĐẶT NHIỀU NHẤT' ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1">
-                          <span>🔥</span>
-                          <span>BÁN CHẠY</span>
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {/* Hàng 2: Phòng chiếu & Số ghế trống */}
-                    <div className="pt-1 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                      <span className="text-slate-400 font-medium truncate max-w-[100px]">{st.roomName}</span>
-                      {isUrgent ? (
-                        <span className="text-amber-400 font-bold flex items-center space-x-1 text-[11px]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                          <span>Còn {st.availableSeats} chỗ</span>
-                        </span>
-                      ) : (
-                        <span className="text-emerald-400 font-semibold flex items-center space-x-1 text-[11px]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                          <span>Còn {st.availableSeats} chỗ</span>
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Hover action tip */}
-                    <div className="text-[10px] text-center font-bold text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {isChosen ? 'Bấm để vào chọn ghế →' : 'Chọn suất chiếu này'}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* NHÓM 2: PHÒNG CHIẾU TIÊU CHUẨN DOLBY 7.1 */}
-          <div className="bg-[#121827] border border-slate-800/80 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3.5">
-              <div className="flex items-center space-x-3">
-                <span className="bg-slate-700 text-slate-100 font-black text-[11px] px-2.5 py-1 rounded-md shadow-md tracking-wider">
-                  2D PHỤ ĐỀ
-                </span>
-                <h4 className="text-xs sm:text-sm font-black text-white">
-                  Phòng chiếu tiêu chuẩn Dolby 7.1 • Màn chiếu 4K sắc nét
-                </h4>
-              </div>
-              <div className="flex items-center space-x-2 text-xs">
-                <span className="text-slate-400">Giá vé dao động:</span>
-                <span className="text-blue-400 font-black text-sm">
-                  {getRoomPriceRange('2d', isWeekend, pricingConfig).label}
-                </span>
-              </div>
-            </div>
-
-            {/* Các thẻ suất chiếu 2D */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {fallbackStandardTimes.map((st) => {
-                const isChosen = currentActiveShowtime?.id === st.id;
-                const isSoldOut = st.availableSeats === 0;
-                const isUrgent = st.availableSeats > 0 && st.availableSeats <= 15;
-                const endTime = getEndTime(st.time, movie.duration);
-                const stdPricing = calculateDynamicPrices(
-                  {
-                    ...st,
-                    startTime: selectedDate?.fullDate,
-                    roomName: st.roomName || 'Rạp 03 (Tầng 2)',
-                    format: '2D Tiêu Chuẩn Dolby 7.1',
-                  },
-                  pricingConfig
-                );
-                const slotPrice = stdPricing.priceStandard;
-
-                return (
-                  <div
-                    key={st.id}
-                    onClick={() => !isSoldOut && onSelectSlot({ ...st, price: slotPrice }, '2D Tiêu Chuẩn Dolby 7.1', isChosen)}
-                    onDoubleClick={() => !isSoldOut && onSelectSlot({ ...st, price: slotPrice }, '2D Tiêu Chuẩn Dolby 7.1', true)}
-                    role="button"
-                    tabIndex={0}
-                    className={`relative p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between space-y-3 select-none group ${
-                      isSoldOut
-                        ? 'bg-[#10141f] border-slate-800/50 opacity-40 cursor-not-allowed'
-                        : isChosen
-                        ? 'bg-gradient-to-br from-blue-600/25 via-indigo-950/40 to-[#0e1628] border-blue-400 ring-2 ring-blue-500/50 shadow-[0_0_25px_rgba(59,130,246,0.35)] scale-[1.02] cursor-pointer'
-                        : 'bg-[#151c2d] hover:bg-[#1a2339] border-slate-700/60 hover:border-blue-400/60 hover:shadow-lg cursor-pointer'
-                    }`}
-                  >
-                    {/* Hàng 1: Giờ chiếu + Giờ kết thúc + Huy hiệu */}
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-baseline space-x-1.5">
-                          <span
-                            className={`text-2xl font-black tracking-tight ${
-                              isSoldOut
-                                ? 'text-slate-500 line-through'
-                                : isChosen
-                                ? 'text-white'
-                                : 'text-slate-100 group-hover:text-blue-300'
-                            } transition-colors`}
-                          >
-                            {st.time}
-                          </span>
-                          {!isSoldOut && endTime && (
-                            <span className="text-[11px] font-medium text-slate-400">{endTime}</span>
-                          )}
-                        </div>
-                        {!isSoldOut && (
-                          <div className="text-[11px] font-bold text-blue-400 mt-0.5">
-                            {slotPrice.toLocaleString('vi-VN')} đ
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Huy hiệu góc phải */}
-                      {isSoldOut ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-500/20 text-red-400 border border-red-500/30">
-                          HẾT VÉ
-                        </span>
-                      ) : isChosen ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500 text-white shadow-md flex items-center space-x-1 animate-in fade-in">
-                          <span>✓</span>
-                          <span>ĐANG CHỌN</span>
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {/* Hàng 2: Phòng chiếu & Số ghế trống */}
-                    <div className="pt-1 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                      <span className="text-slate-400 font-medium truncate max-w-[100px]">{st.roomName}</span>
-                      {isSoldOut ? (
-                        <span className="text-slate-500 font-medium text-[11px]">0 chỗ trống</span>
-                      ) : isUrgent ? (
-                        <span className="text-amber-400 font-bold flex items-center space-x-1 text-[11px]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                          <span>Còn {st.availableSeats} chỗ</span>
-                        </span>
-                      ) : (
-                        <span className="text-emerald-400 font-semibold flex items-center space-x-1 text-[11px]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                          <span>Còn {st.availableSeats} chỗ</span>
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Hover action tip */}
-                    {!isSoldOut && (
-                      <div className="text-[10px] text-center font-bold text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {isChosen ? 'Bấm để vào chọn ghế →' : 'Chọn suất chiếu này'}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* NHÓM 3: PHÒNG CHIẾU REALD 3D HIGH FRAME RATE */}
-          <div className="bg-[#121827] border border-emerald-500/20 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3.5">
-              <div className="flex items-center space-x-3">
-                <span className="bg-emerald-600 text-white font-black text-[11px] px-2.5 py-1 rounded-md shadow-md tracking-wider">
-                  3D PHỤ ĐỀ
-                </span>
-                <h4 className="text-xs sm:text-sm font-black text-white">
-                  Phòng chiếu RealD 3D High Frame Rate • Kính 3D siêu nhẹ êm ái
-                </h4>
-              </div>
-              <div className="flex items-center space-x-2 text-xs">
-                <span className="text-slate-400">Giá vé dao động:</span>
-                <span className="text-emerald-400 font-black text-sm">
-                  {getRoomPriceRange('3d', isWeekend, pricingConfig).label}
-                </span>
-              </div>
-            </div>
-
-            {/* Các thẻ suất chiếu 3D */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {fallback3DTimes.map((st) => {
-                const isChosen = currentActiveShowtime?.id === st.id;
-                const isUrgent = st.availableSeats > 0 && st.availableSeats <= 15;
-                const endTime = getEndTime(st.time, movie.duration);
-                const threeDPricing = calculateDynamicPrices(
-                  {
-                    ...st,
-                    startTime: selectedDate?.fullDate,
-                    roomName: st.roomName || 'Rạp 05 (Tầng 3)',
-                    format: 'RealD 3D HFR',
-                  },
-                  pricingConfig
-                );
-                const slotPrice = threeDPricing.priceStandard;
-
-                return (
-                  <div
-                    key={st.id}
-                    onClick={() => onSelectSlot({ ...st, price: slotPrice }, 'RealD 3D HFR', isChosen)}
-                    onDoubleClick={() => onSelectSlot({ ...st, price: slotPrice }, 'RealD 3D HFR', true)}
-                    role="button"
-                    tabIndex={0}
-                    className={`relative p-4 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between space-y-3 select-none group ${
-                      isChosen
-                        ? 'bg-gradient-to-br from-blue-600/25 via-indigo-950/40 to-[#0e1628] border-blue-400 ring-2 ring-blue-500/50 shadow-[0_0_25px_rgba(59,130,246,0.35)] scale-[1.02]'
-                        : 'bg-[#151c2d] hover:bg-[#1a2339] border-slate-700/60 hover:border-blue-400/60 hover:shadow-lg'
-                    }`}
-                  >
-                    {/* Hàng 1: Giờ chiếu + Giờ kết thúc + Huy hiệu */}
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-baseline space-x-1.5">
-                          <span
-                            className={`text-2xl font-black tracking-tight ${
-                              isChosen ? 'text-white' : 'text-slate-100 group-hover:text-blue-300'
-                            } transition-colors`}
-                          >
-                            {st.time}
-                          </span>
-                          {endTime && (
-                            <span className="text-[11px] font-medium text-slate-400">{endTime}</span>
-                          )}
-                        </div>
-                        <div className="text-[11px] font-bold text-emerald-400 mt-0.5">
-                          {slotPrice.toLocaleString('vi-VN')} đ
-                        </div>
-                      </div>
-
-                      {/* Huy hiệu góc phải */}
-                      {isChosen ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500 text-white shadow-md flex items-center space-x-1 animate-in fade-in">
-                          <span>✓</span>
-                          <span>ĐANG CHỌN</span>
-                        </span>
-                      ) : st.tag ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center space-x-1">
-                          <span>⚡</span>
-                          <span>{st.tag}</span>
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {/* Hàng 2: Phòng chiếu & Số ghế trống */}
-                    <div className="pt-1 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                      <span className="text-slate-400 font-medium truncate max-w-[100px]">{st.roomName}</span>
-                      {isUrgent ? (
-                        <span className="text-amber-400 font-bold flex items-center space-x-1 text-[11px]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                          <span>Còn {st.availableSeats} chỗ</span>
-                        </span>
-                      ) : (
-                        <span className="text-emerald-400 font-semibold flex items-center space-x-1 text-[11px]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                          <span>Còn {st.availableSeats} chỗ</span>
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Hover action tip */}
-                    <div className="text-[10px] text-center font-bold text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {isChosen ? 'Bấm để vào chọn ghế →' : 'Chọn suất chiếu này'}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-        </div>
-
-        {/* THANH GỢI Ý & ĐẶT VÉ NHANH BÊN TRONG BẢNG */}
-        <div className="bg-gradient-to-r from-[#20204B] via-[#11152F] to-[#20204B] border-2 border-[#42DFFF]/40 rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row items-center justify-between gap-5 shadow-[0_0_25px_rgba(66,223,255,0.15)]">
-          <div className="flex items-center space-x-4 w-full md:w-auto">
-            <div className="w-12 h-12 rounded-2xl bg-[#20204B] border border-[#AA9BFF]/40 flex items-center justify-center text-2xl text-[#42DFFF] shrink-0">
-              🎟️
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-black uppercase text-[#42DFFF] tracking-wider">Suất chiếu đang chọn</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-              </div>
-              <h4 className="text-sm sm:text-base font-black text-[#F8F7FF] mt-0.5">
-                {currentActiveShowtime?.time || '19:15'} ({selectedDate?.tag} {selectedDate?.dateStr}) • {currentActiveShowtime?.format || 'IMAX Laser 2D'}
-              </h4>
-              <p className="text-xs text-[#BEC5E5] mt-1">
-                {displayCinema?.name} • {currentActiveShowtime?.roomName || 'Phòng IMAX 01'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between md:justify-end space-x-5 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0 border-[#AA9BFF]/20">
-            <div className="text-left md:text-right">
-              <span className="text-[10px] text-[#BEC5E5] block uppercase font-bold tracking-wider">Giá vé dự kiến:</span>
-              <span className="text-xl sm:text-2xl font-black text-[#42DFFF]">
-                {(calculateDynamicPrices({ ...currentActiveShowtime, startTime: selectedDate?.fullDate }, pricingConfig).priceStandard).toLocaleString('vi-VN')} đ
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={onProceedToBooking}
-              className="bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] font-black px-7 py-3.5 rounded-2xl text-sm flex items-center space-x-2.5 transition-all shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:brightness-108 hover:scale-105 active:scale-95 cursor-pointer shrink-0"
-            >
-              <span>Tiếp Tục Chọn Ghế</span>
-              <span className="text-lg">→</span>
-            </button>
-          </div>
-        </div>
-
+                {(status.disabled || status.low || slot.availableSeats == null) && (
+                  <span className={status.low ? 'sc-low' : 'sc-slot-status'}>
+                    {status.low ? 'Sắp hết vé' : status.label}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div> : <p className="sc-empty">Chưa có suất chiếu trong ngày.</p>}
       </div>
     </section>
   );
-};
+}
 
-export default MovieShowtimesSection;
+export default function MovieShowtimesSection({ movie }) {
+  const navigate = useNavigate();
+  const [now, setNow] = useState(Date.now);
+  const today = vietnamDate.format(now);
+  const release = cinemaDate(movie.releaseDate);
+  const movieMonth = releaseMonth(movie);
+  const [searchParams] = useSearchParams();
+  const initialDate = searchParams.get('date');
+  const defaultDate = release > today ? release : today;
+  const monthStart = movieMonth ? dateMs(movieMonth + '-01') : null;
+  const nextMonth = monthStart == null ? null : Date.UTC(
+    new Date(monthStart).getUTCFullYear(), new Date(monthStart).getUTCMonth() + 1, 1,
+  );
+  const lastDate = nextMonth == null ? null : dateKey(nextMonth - dayMs);
+  const endedRun = lastDate != null && today > lastDate;
+  const validInitialDate = /^\d{4}-\d{2}-\d{2}$/.test(initialDate ?? '') && Number.isFinite(dateMs(initialDate));
+  const [selection, setSelection] = useState(() => ({ day: today, date: validInitialDate ? initialDate : defaultDate }));
+  const [result, setResult] = useState(null);
+  const [cinema, setCinema] = useState(null);
+  const [retry, setRetry] = useState(0);
+  const activeDay = useRef(null);
+  const autoAdvance = useRef(!validInitialDate);
+  const [lookAhead, setLookAhead] = useState(null);
+  const requestedDate = selection.day === today && selection.date >= defaultDate ? selection.date : defaultDate;
+  const date = lastDate && !endedRun && requestedDate > lastDate ? lastDate : requestedDate;
+  const offset = Math.max(0, Math.floor((dateMs(date) - dateMs(defaultDate)) / (7 * dayMs)));
+  const weekStart = dateMs(defaultDate) + offset * 7 * dayMs;
+  const weekDays = Array.from({ length: 7 }, (_, i) => dateKey(weekStart + i * dayMs))
+    .filter(key => lastDate == null || key <= lastDate);
+  const lastWeek = nextMonth != null && weekStart + 7 * dayMs >= nextMonth;
+  const active = result?.date === date && result?.day === today && result?.retry === retry ? result : null;
+  const id = movie._id || movie.id || movie.slug;
 
+  const previousToday = useRef(today);
+  useEffect(() => {
+    if (previousToday.current !== today) {
+      previousToday.current = today;
+      autoAdvance.current = true;
+    }
+  }, [today]);
+
+  useEffect(() => {
+    if (endedRun) return;
+    const request = new AbortController();
+    let timer;
+
+    async function refreshSchedule() {
+      try {
+        const { data } = await api.get('/movies/' + encodeURIComponent(id) + '/schedule', {
+          params: { date }, signal: request.signal,
+        });
+        if (request.signal.aborted) return;
+        setResult({ date, day: today, retry, slots: data.showtimes ?? [] });
+        if (data.cinema) setCinema(data.cinema);
+      } catch {
+        if (!request.signal.aborted) {
+          setResult(current => current?.date === date && current.day === today && current.retry === retry && current.slots
+            ? { ...current, stale: true } : { date, day: today, retry, error: true });
+        }
+      } finally {
+        if (!request.signal.aborted) timer = window.setTimeout(refreshSchedule, 5000);
+      }
+    }
+
+    refreshSchedule();
+    return () => {
+      request.abort();
+      window.clearTimeout(timer);
+    };
+  }, [date, endedRun, id, retry, today]);
+
+  const noBookableSlots = Boolean(active?.slots && !endedRun
+    && active.slots.every(slot => scheduleStatus(slot, now).disabled));
+
+  useEffect(() => {
+    if (!noBookableSlots) return;
+    const request = new AbortController();
+
+    async function findNextDay() {
+      for (let step = 1; step <= 7; step++) {
+        const candidate = dateKey(dateMs(date) + step * dayMs);
+        if (Date.parse(candidate + 'T00:00:00+07:00') > Date.now() + 7 * dayMs) break;
+        if (movieMonth && candidate.slice(0, 7) !== movieMonth) break;
+        const { data } = await api.get('/movies/' + encodeURIComponent(id) + '/schedule', {
+          params: { date: candidate }, signal: request.signal,
+        });
+        if (request.signal.aborted) return;
+        if (data.showtimes?.some(slot => !scheduleStatus(slot, Date.now()).disabled)) {
+          setLookAhead({ from: date, date: candidate });
+          if (autoAdvance.current) {
+            autoAdvance.current = false;
+            setSelection({ day: today, date: candidate });
+          }
+          return;
+        }
+      }
+      if (!request.signal.aborted) setLookAhead({ from: date, date: null });
+    }
+
+    findNextDay().catch(() => {
+      if (!request.signal.aborted) setLookAhead({ from: date, date: null });
+    });
+    return () => request.abort();
+  }, [noBookableSlots, date, movieMonth, id, today]);
+
+  const chooseDate = (value) => {
+    if (endedRun || value < defaultDate || (lastDate && value > lastDate)) return;
+    autoAdvance.current = false;
+    setSelection({ day: today, date: value });
+  };
+
+  useEffect(() => {
+    const updateClock = () => setNow(Date.now());
+    const timer = window.setInterval(updateClock, 1000);
+    document.addEventListener('visibilitychange', updateClock);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', updateClock);
+    };
+  }, []);
+
+  useEffect(() => {
+    const button = activeDay.current;
+    if (!button) return;
+    const strip = button.parentElement;
+    const bounds = strip.getBoundingClientRect();
+    const day = button.getBoundingClientRect();
+    if (day.left < bounds.left || day.right > bounds.right) {
+      strip.scrollLeft += day.left - bounds.left - 4;
+    }
+  }, [date]);
+
+  const book = (slot) => {
+    if (scheduleStatus(slot, Date.now()).disabled) return;
+    const { showtimes, reviews, ...movieInfo } = movie;
+    navigate('/booking/seat/' + slot.id, { state: { slotInfo: {
+      ...slot, date, time: vietnamTime.format(new Date(slot.startTime)), format: slot.formatFeature || slot.roomType,
+      cinemaName: slot.cinemaName || cinema?.name, movie: movieInfo,
+    } } });
+  };
+
+  const upcomingSlots = (active?.slots ?? []).filter(slot => Date.parse(slot.startTime) > now);
+  const visibleFormats = [...formats];
+  for (const slot of upcomingSlots) {
+    if (!slot.roomType || visibleFormats.some(format => format.name === slot.roomType)) continue;
+    visibleFormats.push({ name: slot.roomType, tone: 'imax', icon: Monitor });
+  }
+  if (upcomingSlots.some(slot => !slot.roomType)) visibleFormats.push({ name: 'Khác', tone: 'imax', icon: Monitor });
+
+  return (
+    <section id="showtimes-section" className="sc-shell" aria-labelledby="sc-title">
+      <div className="sc-heading"><Clapperboard size={32} aria-hidden="true" /><div>
+        <h2 id="sc-title">Lịch chiếu</h2><p>Chọn ngày và suất chiếu phù hợp với bạn</p>
+      </div></div>
+
+      {!endedRun && <div className="sc-dates">
+        <button className="sc-arrow" type="button" aria-label="Bảy ngày trước" disabled={offset === 0} onClick={() => chooseDate(dateKey(weekStart - 7 * dayMs))}><ChevronLeft /></button>
+        <div className="sc-days" data-short-week={weekDays.length < 7 || undefined} aria-label="Ngày chiếu">
+          {weekDays.map(key => (
+            <button type="button" key={key} ref={date === key ? activeDay : null} aria-pressed={date === key} onClick={() => chooseDate(key)}>
+              {key === today && <small>Hôm nay</small>}
+              <strong>{key.slice(8)}/{key.slice(5, 7)}</strong>
+              <span>{weekday.format(dateMs(key))}</span>
+            </button>
+          ))}
+        </div>
+        <button className="sc-arrow" type="button" aria-label="Bảy ngày tiếp theo" disabled={lastWeek} onClick={() => chooseDate(dateKey(weekStart + 7 * dayMs))}><ChevronRight /></button>
+        <label className="sc-picker">
+          <CalendarDays size={19} aria-hidden="true" /><span>Chọn ngày</span>
+          <input type="date" aria-label="Chọn ngày" min={defaultDate} max={lastDate ?? undefined} value={date} onClick={(event) => {
+            try { event.currentTarget.showPicker?.(); } catch { /* Native date input remains available. */ }
+          }} onChange={(event) => {
+            if (event.target.value && event.target.validity.valid) chooseDate(event.target.value);
+          }} />
+        </label>
+      </div>}
+
+      <div className="sc-context">
+        {movieMonth && <span className="sc-release">{monthLabel(movieMonth)}</span>}
+        {cinema && <Link to={'/theaters?date=' + date} className="sc-location" title={cinema.address} aria-label={cinema.address ? cinema.name + ', ' + cinema.address : cinema.name}>
+          <MapPin size={19} aria-hidden="true" />{cinema.name}
+        </Link>}
+        <div className="sc-legend" aria-label="Loại phòng chiếu">
+          {formats.map(({ name, tone }) => <span key={name} data-tone={tone}>{name}</span>)}
+        </div>
+      </div>
+
+      {!endedRun && lastWeek && nextMonth != null && (
+        <Link className="sc-other-films sc-next-month" to={'/theaters?date=' + dateKey(nextMonth)}>
+          {'Xem phim tháng '}{dateKey(nextMonth).slice(5, 7)}/{dateKey(nextMonth).slice(0, 4)}
+        </Link>
+      )}
+
+      {noBookableSlots && (
+        <div className="sc-notice" role="status">
+          <span>{date === today ? 'Hôm nay không còn suất có thể đặt.' : 'Ngày này chưa có suất mở bán.'}</span>
+          {lookAhead?.from === date && lookAhead.date && (
+            <button type="button" onClick={() => chooseDate(lookAhead.date)}>
+              {'Xem suất ngày '}{lookAhead.date.slice(8)}/{lookAhead.date.slice(5, 7)}
+            </button>
+          )}
+        </div>
+      )}
+
+      {active?.stale && <p className="sc-notice" role="status">{'Chưa thể cập nhật số ghế. Đang thử lại…'}</p>}
+      <div className="sc-groups" aria-busy={!endedRun && !active}>
+        {endedRun ? <p className="sc-empty">
+          {'Lịch chiếu của phim trong '}{monthLabel(movieMonth).toLowerCase()}{' đã kết thúc. '}
+          <Link className="sc-other-films" to={'/theaters?date=' + today}>{'Xem lịch phim hiện tại'}</Link>
+        </p>
+        : !active ? <><p role="status" className="sr-only">Đang tải lịch chiếu…</p>
+          {formats.map(({ name }) => <div className="sc-skeleton" key={name} aria-hidden="true" />)}</>
+          : active.error ? <div className="sc-error" role="status">Không thể tải lịch chiếu. <button type="button" onClick={() => setRetry(value => value + 1)}>Thử lại</button></div>
+          : visibleFormats.map(format => {
+            const slots = upcomingSlots.filter(slot => (slot.roomType || 'Khác') === format.name);
+            return slots.length > 0 && <ScheduleGroup key={format.name} format={format}
+              slots={slots} duration={movie.duration} now={now} onBook={book} />;
+          })}
+      </div>
+    </section>
+  );
+}

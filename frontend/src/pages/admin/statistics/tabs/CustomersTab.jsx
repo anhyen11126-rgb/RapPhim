@@ -42,15 +42,15 @@ const CustomersTab = ({ customersData, loading, onPageChange }) => {
       </div>
 
       {/* 2. BẢNG XẾP HẠNG KHÁCH HÀNG CHI TIÊU HÀNG ĐẦU (VIP SPENDERS) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-default)]/80 pb-4">
           <div>
             <h3 className="text-base sm:text-lg font-bold text-white">Bảng Xếp Hạng Khách Hàng Chi Tiêu</h3>
             <p className="text-xs text-slate-400">
               Danh sách khách hàng VIP thân thiết có lượng đặt vé và đóng góp doanh số cao nhất
             </p>
           </div>
-          <span className="text-xs text-slate-400 font-semibold bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
+          <span className="text-xs text-slate-400 font-semibold bg-[var(--bg-surface)] px-3 py-1.5 rounded-xl border border-slate-700">
             Bảo mật số điện thoại (Masked)
           </span>
         </div>
@@ -58,7 +58,7 @@ const CustomersTab = ({ customersData, loading, onPageChange }) => {
         {/* Bảng dữ liệu */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-slate-800/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
+            <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
               <tr>
                 <th className="py-3 px-4 text-center">Thứ hạng</th>
                 <th className="py-3 px-4">Họ và tên</th>
@@ -79,7 +79,7 @@ const CustomersTab = ({ customersData, loading, onPageChange }) => {
                 </tr>
               ) : ranking.length > 0 ? (
                 ranking.map((c) => (
-                  <tr key={c.rank} className="hover:bg-slate-800/40 transition-colors">
+                  <tr key={c.rank} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
                     {/* Thứ hạng */}
                     <td className="py-3.5 px-4 text-center">
                       <span
@@ -90,7 +90,7 @@ const CustomersTab = ({ customersData, loading, onPageChange }) => {
                             ? 'bg-slate-300 text-slate-950 font-black'
                             : c.rank === 3
                             ? 'bg-amber-700 text-white font-black'
-                            : 'bg-slate-800 text-slate-400'
+                            : 'bg-[var(--bg-surface)] text-slate-400'
                         }`}
                       >
                         {c.rank}
@@ -136,14 +136,14 @@ const CustomersTab = ({ customersData, loading, onPageChange }) => {
 
         {/* Phân trang */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-4 border-t border-slate-800 text-xs text-slate-400">
+          <div className="flex items-center justify-between pt-4 border-t border-[var(--border-default)] text-xs text-slate-400">
             <span>Trang {page} / {totalPages} (Tổng {total} khách)</span>
             <div className="flex items-center space-x-1">
               <button
                 type="button"
                 disabled={page === 1}
                 onClick={() => onPageChange && onPageChange(page - 1)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40"
+                className="px-2.5 py-1 rounded bg-[var(--bg-surface)] hover:bg-slate-700 disabled:opacity-40"
               >
                 ‹
               </button>
@@ -153,7 +153,7 @@ const CustomersTab = ({ customersData, loading, onPageChange }) => {
                   type="button"
                   onClick={() => onPageChange && onPageChange(i + 1)}
                   className={`px-2.5 py-1 rounded font-bold ${
-                    page === i + 1 ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    page === i + 1 ? 'bg-red-600 text-white' : 'bg-[var(--bg-surface)] text-slate-300 hover:bg-slate-700'
                   }`}
                 >
                   {i + 1}
@@ -163,7 +163,7 @@ const CustomersTab = ({ customersData, loading, onPageChange }) => {
                 type="button"
                 disabled={page === totalPages}
                 onClick={() => onPageChange && onPageChange(page + 1)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40"
+                className="px-2.5 py-1 rounded bg-[var(--bg-surface)] hover:bg-slate-700 disabled:opacity-40"
               >
                 ›
               </button>

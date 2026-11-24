@@ -91,8 +91,8 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
       {/* 2. KHỐI BIỂU ĐỒ DOANH THU & DONUT TỶ LỆ BÁN VÉ / CÔNG SUẤT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Cột trái (7 cols): Biểu đồ Doanh thu */}
-        <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+        <div className="lg:col-span-7 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+          <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white">Diễn biến Doanh thu</h3>
               <p className="text-xs text-slate-400">Doanh thu vé xem phim và bắp nước qua các ngày</p>
@@ -106,8 +106,8 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
         </div>
 
         {/* Cột phải (5 cols): Tỷ lệ bán vé trung bình & công suất phòng chiếu */}
-        <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+        <div className="lg:col-span-5 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white">Tỷ Lệ Bán Vé & Công Suất</h3>
               <p className="text-xs text-slate-400">Hiệu suất lấp đầy ghế bình quân toàn cụm rạp</p>
@@ -119,7 +119,7 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
 
           <OccupancyChart occupancy={occupancy} loading={loading} />
 
-          <div className="pt-2 border-t border-slate-800/60 text-[11px] text-slate-400 flex items-center justify-between">
+          <div className="pt-2 border-t border-[var(--border-default)]/60 text-[11px] text-slate-400 flex items-center justify-between">
             <span>
               Ghế đã bán: <strong className="text-emerald-400 font-bold">{formatNumber(occupancy.booked || 0)}</strong>
             </span>
@@ -136,8 +136,8 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
       {/* 3. KHỐI THÔNG TIN BỔ SUNG: TOP PHIM & KHUNG GIỜ VÀNG */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Top 5 Phim doanh thu cao nhất (6 cols) */}
-        <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+        <div className="lg:col-span-6 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+          <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
               <h3 className="text-base font-bold text-white">Top 5 Phim Doanh Thu Cao Nhất</h3>
               <p className="text-xs text-slate-400">Các tác phẩm đạt doanh số ấn tượng trong kỳ</p>
@@ -151,7 +151,7 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
                 <div
                   key={m.movieId || idx}
                   onClick={() => onSelectMovie && onSelectMovie(m.movieId)}
-                  className="flex items-center justify-between p-3 rounded-2xl bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/50 cursor-pointer transition-all group"
+                  className="flex items-center justify-between p-3 rounded-2xl bg-[var(--bg-surface)]/40 hover:bg-[var(--bg-surface)]/80 border border-slate-700/50 cursor-pointer transition-all group"
                 >
                   <div className="flex items-center space-x-3 min-w-0">
                     <span
@@ -161,7 +161,7 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
                             ? 'bg-slate-300 text-slate-950 font-black'
                             : idx === 2
                               ? 'bg-amber-700 text-white font-black'
-                              : 'bg-slate-800 text-slate-400'
+                              : 'bg-[var(--bg-surface)] text-slate-400'
                         }`}
                     >
                       {idx + 1}
@@ -196,8 +196,8 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
         {/* Khung giờ có lượng khách cao nhất & Suất chiếu sắp diễn ra (6 cols) */}
         <div className="lg:col-span-6 space-y-6">
           {/* Khung giờ vàng */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
               <div>
                 <h3 className="text-base font-bold text-white">Khung Giờ Cao Điểm</h3>
                 <p className="text-xs text-slate-400">Các khung giờ khán giả đến rạp xem phim nhiều nhất</p>
@@ -209,7 +209,7 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
               {peakHours.map((slot, idx) => (
                 <div
                   key={idx}
-                  className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-3 text-center space-y-1"
+                  className="bg-[var(--bg-surface)]/40 border border-slate-700/60 rounded-2xl p-3 text-center space-y-1"
                 >
                   <span className="text-[10px] font-semibold text-slate-400 block">{slot.slot}</span>
                   <span className="text-lg font-black text-white block">{formatNumber(slot.tickets)}</span>
@@ -220,8 +220,8 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
           </div>
 
           {/* Suất chiếu sắp diễn ra */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-3.5 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-3.5 shadow-xl">
+            <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
               <h3 className="text-base font-bold text-white">Suất Chiếu Sắp Bắt Đầu</h3>
               <span className="text-xs text-slate-400">Theo thời gian thực</span>
             </div>
@@ -231,7 +231,7 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
                 <div
                   key={st.id}
                   onClick={() => onSelectShowtime && onSelectShowtime(st.id)}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/40 text-xs cursor-pointer transition-all"
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--bg-surface)]/40 hover:bg-[var(--bg-surface)]/80 border border-slate-700/40 text-xs cursor-pointer transition-all"
                 >
                   <div className="flex items-center space-x-2.5 min-w-0">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>

@@ -2,6 +2,9 @@ import mongoose from 'mongoose';
 import Movie from '../models/Movie.js';
 import Showtime from '../models/Showtime.js';
 import Booking from '../models/Booking.js';
+import Cinema from '../models/Cinema.js';
+import ShowtimeSeat from '../models/ShowtimeSeat.js';
+import { normalizeSeatCode, paidSeatCodes } from './showtimeController.js';
 import { ensure3DShowtimesSynced } from './cinemaController.js';
 
 let hasSyncedMovieFormats = false;
@@ -404,9 +407,73 @@ export const getMovies = async (req, res) => {
 };
 
 // Lấy chi tiết 1 phim kèm danh sách suất chiếu
+export const getMovieSchedule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date } = req.query;
+    const start = typeof date === 'string' ? new Date(date + 'T00:00:00+07:00') : new Date(NaN);
+    const dayMs = 86400000;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date ?? '') || !Number.isFinite(start.getTime())
+      || new Date(start.getTime() + 7 * 3600000).toISOString().slice(0, 10) !== date) {
+      return res.sendStatus(400);
+    }
+
+    const query = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { slug: id };
+    const movie = await Movie.findOne(query).select('releaseDate').lean();
+    if (!movie) return res.sendStatus(404);
+
+    const localRelease = movie.releaseDate?.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const showtimes = localRelease && (date < localRelease || date.slice(0, 7) !== localRelease.slice(0, 7))
+      ? [] : await Showtime.find({
+      movieId: movie._id,
+      startTime: { $gte: start, $lt: new Date(start.getTime() + dayMs) },
+    }).populate('roomId', 'name roomType formatFeature totalSeats')
+      .populate('cinemaId', 'name address')
+      .sort({ startTime: 1 }).lean();
+
+    const ids = showtimes.map(({ _id }) => _id);
+    const [seats, bookings, cinema] = await Promise.all([
+      ShowtimeSeat.find({ showtimeId: { $in: ids } }).select('showtimeId seatNumber').lean(),
+      Booking.find({ showtimeId: { $in: ids }, status: 'PAID' }).select('showtimeId seats bookingCode qrToken').lean(),
+      Cinema.findOne().sort({ _id: 1 }).select('name address').lean(),
+    ]);
+    const bookingsByShowtime = new Map();
+    for (const booking of bookings) {
+      const key = String(booking.showtimeId);
+      if (!bookingsByShowtime.has(key)) bookingsByShowtime.set(key, []);
+      bookingsByShowtime.get(key).push(booking);
+    }
+    const sold = new Map([...bookingsByShowtime].map(([key, orders]) => [key, paidSeatCodes(orders)]));
+
+    const counts = new Map();
+    for (const seat of seats) {
+      const key = String(seat.showtimeId);
+      const count = counts.get(key) ?? { total: 0, available: 0 };
+      count.total++;
+      if (!sold.get(key)?.has(normalizeSeatCode(seat.seatNumber))) count.available++;
+      counts.set(key, count);
+    }
+
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      cinema: showtimes.find(slot => slot.cinemaId)?.cinemaId ?? cinema,
+      showtimes: showtimes.map(({ _id, roomId, roomName, cinemaId, startTime, endTime, price, isLocked, formatFeature }) => ({
+        id: String(_id), roomId: roomId?._id ?? null, roomName: roomId?.name ?? roomName,
+        roomType: roomId?.roomType, roomFeature: roomId?.formatFeature,
+        cinemaName: cinemaId?.name, startTime, endTime, price, isLocked, formatFeature,
+        availableSeats: counts.get(String(_id))?.available ?? (roomId?.totalSeats > 0
+          ? Math.max(0, roomId.totalSeats - (sold.get(String(_id))?.size ?? 0)) : null),
+        totalSeats: counts.get(String(_id))?.total ?? roomId?.totalSeats ?? null,
+      })),
+    });
+  } catch {
+    return res.sendStatus(500);
+  }
+};
+
 export const getMovieById = async (req, res) => {
   try {
-    await ensureMovieFormatsClean();
+    if (req.query?.schedule !== 'read-only') await ensureMovieFormatsClean();
     const { id } = req.params;
 
     let movie = null;

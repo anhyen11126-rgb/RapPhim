@@ -30,7 +30,7 @@ const CheckoutCombos = ({
       </div>
 
       {/* THANH CHỌN VỊ BẮP YÊU THÍCH */}
-      <div className="bg-[#0f1524] border border-slate-800 rounded-2xl p-4 shadow-xl">
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-4 shadow-xl">
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-black text-white flex items-center gap-1.5">
             <span>👥</span>
@@ -49,8 +49,8 @@ const CheckoutCombos = ({
                 onClick={() => setSelectedFlavor(flavor.id)}
                 className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1 cursor-pointer border ${
                   isSelected
-                    ? 'bg-[#2563eb] border-blue-400 text-white shadow-lg shadow-blue-600/30 ring-1 ring-blue-300'
-                    : 'bg-[#161f30] hover:bg-[#202b40] text-slate-300 border-slate-700/70'
+                    ? 'cinema-action border-[var(--violet)] text-white shadow-lg shadow-violet-700/30 ring-1 ring-[var(--violet)]'
+                    : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-card)] text-slate-300 border-slate-700/70'
                 }`}
               >
                 <span>★</span>
@@ -71,12 +71,12 @@ const CheckoutCombos = ({
           return (
             <div
               key={combo.id}
-              className={`bg-[#0d1322] border ${
-                isAdded ? 'border-blue-500/70 shadow-lg shadow-blue-500/10' : 'border-slate-800'
+              className={`bg-[var(--bg-secondary)] border ${
+                isAdded ? 'border-[var(--cyan)]/70 shadow-lg shadow-blue-500/10' : 'border-[var(--border-default)]'
               } rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 transition-all`}
             >
               {/* Hình ảnh combo */}
-              <div className="w-full sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-slate-900 shrink-0 border border-slate-700/60 shadow">
+              <div className="w-full sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-[var(--bg-secondary)] shrink-0 border border-slate-700/60 shadow">
                 <img
                   src={combo.image}
                   alt={combo.title}
@@ -91,7 +91,7 @@ const CheckoutCombos = ({
                     {combo.badge}
                   </span>
                   {isAdded && (
-                    <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
+                    <span className="text-[10px] font-bold text-[var(--cyan)] bg-blue-500/10 px-2 py-0.5 rounded-full border border-[var(--cyan)]/20">
                       ✓ Đã thêm vào vé
                     </span>
                   )}
@@ -103,7 +103,7 @@ const CheckoutCombos = ({
                 </p>
 
                 <div className="flex items-center space-x-2 mt-2">
-                  <span className="text-base font-black text-blue-400">
+                  <span className="text-base font-black text-[var(--cyan)]">
                     {combo.price.toLocaleString('vi-VN')} đ
                   </span>
                   <span className="text-xs text-slate-500 line-through">
@@ -115,11 +115,11 @@ const CheckoutCombos = ({
               {/* Bộ tăng giảm số lượng / Nút Thêm */}
               <div className="shrink-0 w-full sm:w-auto flex justify-end">
                 {isAdded ? (
-                  <div className="flex items-center space-x-2 bg-[#162033] border border-blue-500/60 rounded-xl p-1 shadow-md">
+                  <div className="flex items-center space-x-2 bg-[var(--bg-surface)] border border-[var(--cyan)]/60 rounded-xl p-1 shadow-md">
                     <button
                       type="button"
                       onClick={() => onQuantityChange(combo.id, -1)}
-                      className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold text-sm transition-colors cursor-pointer"
+                      className="w-7 h-7 rounded-lg bg-[var(--bg-surface)] hover:bg-slate-700 text-white flex items-center justify-center font-bold text-sm transition-colors cursor-pointer"
                     >
                       -
                     </button>
@@ -129,7 +129,7 @@ const CheckoutCombos = ({
                     <button
                       type="button"
                       onClick={() => onQuantityChange(combo.id, 1)}
-                      className="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center font-bold text-sm transition-colors cursor-pointer"
+                      className="w-7 h-7 rounded-lg cinema-action text-white flex items-center justify-center font-bold text-sm transition-colors cursor-pointer"
                     >
                       +
                     </button>
@@ -138,7 +138,7 @@ const CheckoutCombos = ({
                   <button
                     type="button"
                     onClick={() => onQuantityChange(combo.id, 1)}
-                    className="w-full sm:w-auto px-4 py-2 bg-[#162033] hover:bg-blue-600 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 hover:border-blue-500 flex items-center justify-center space-x-1.5 cursor-pointer shadow"
+                    className="w-full sm:w-auto px-4 py-2 bg-[var(--bg-surface)] hover:cinema-action text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 hover:border-[var(--cyan)] flex items-center justify-center space-x-1.5 cursor-pointer shadow"
                   >
                     <span>+</span>
                     <span>Thêm vào vé</span>
@@ -151,7 +151,7 @@ const CheckoutCombos = ({
       </div>
 
       {/* DẢI CAM KẾT CHẤT LƯỢNG NGUYÊN LIỆU */}
-      <div className="bg-[#0b101c] border border-slate-800/90 rounded-2xl p-4 flex items-start space-x-3.5 shadow-lg">
+      <div className="bg-[var(--bg-main)] border border-[var(--border-default)]/90 rounded-2xl p-4 flex items-start space-x-3.5 shadow-lg">
         <svg
           className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5"
           viewBox="0 0 24 24"

@@ -40,9 +40,9 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
       <div className="absolute inset-0" onClick={onClose}></div>
 
       {/* Slide-out Drawer Panel */}
-      <div className="relative w-full max-w-3xl bg-slate-900 border-l border-slate-800 h-full overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl z-10 text-slate-200">
+      <div className="relative w-full max-w-3xl bg-[var(--bg-secondary)] border-l border-[var(--border-default)] h-full overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl z-10 text-slate-200">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-800 pb-4">
+        <div className="flex items-start justify-between border-b border-[var(--border-default)] pb-4">
           <div>
             <div className="flex items-center space-x-2">
               <span className="text-xs font-bold text-red-500 uppercase tracking-wider">Chi tiết suất chiếu</span>
@@ -59,7 +59,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-sm transition-all"
+            className="w-8 h-8 rounded-full bg-[var(--bg-surface)] hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-sm transition-all"
           >
             ✕
           </button>
@@ -78,25 +78,25 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
           <div className="space-y-6">
             {/* Dãy KPI tóm tắt */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+              <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                 <span className="text-[11px] text-slate-400 block">Doanh thu suất</span>
                 <span className="text-sm sm:text-base font-bold text-emerald-400 block mt-1">
                   {formatCurrency(data.stats.totalRevenue)}
                 </span>
               </div>
-              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+              <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                 <span className="text-[11px] text-slate-400 block">Ghế đã đặt</span>
                 <span className="text-sm sm:text-base font-bold text-white block mt-1">
                   {data.stats.bookedCount} / {data.stats.totalSeats} ghế
                 </span>
               </div>
-              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+              <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                 <span className="text-[11px] text-slate-400 block">Ghế còn trống</span>
                 <span className="text-sm sm:text-base font-bold text-slate-200 block mt-1">
                   {data.stats.availableCount} ghế
                 </span>
               </div>
-              <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+              <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                 <span className="text-[11px] text-slate-400 block">Tỷ lệ lấp đầy</span>
                 <span className="text-sm sm:text-base font-bold text-amber-400 block mt-1">
                   {formatPercent(data.stats.occupancyRate)}
@@ -105,7 +105,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
             </div>
 
             {/* SƠ ĐỒ MA TRẬN 88 GHẾ THỰC TẾ (CHỈ XEM THEO DÕI) */}
-            <div className="bg-slate-950 border border-slate-800 p-5 rounded-2xl space-y-4 text-center">
+            <div className="bg-slate-950 border border-[var(--border-default)] p-5 rounded-2xl space-y-4 text-center">
               <div className="relative mb-5">
                 <div className="h-2 w-3/4 mx-auto bg-gradient-to-r from-transparent via-red-600 to-transparent rounded-full shadow-[0_0_12px_rgba(220,38,38,0.5)]"></div>
                 <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block mt-1.5">
@@ -141,7 +141,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
                                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                                     : s.type === 'SWEETBOX'
                                     ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                                    : 'bg-slate-800 text-slate-300 border border-slate-700'
+                                    : 'bg-[var(--bg-surface)] text-slate-300 border border-slate-700'
                                 }`}
                               >
                                 {s.code}
@@ -157,13 +157,13 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
               </div>
 
               {/* Chú giải trạng thái ghế */}
-              <div className="flex flex-wrap items-center justify-center gap-3.5 text-xs text-slate-400 pt-4 border-t border-slate-800">
+              <div className="flex flex-wrap items-center justify-center gap-3.5 text-xs text-slate-400 pt-4 border-t border-[var(--border-default)]">
                 <span className="flex items-center space-x-1.5">
                   <span className="w-3 h-3 rounded bg-red-600 border border-red-500"></span>
                   <span>Đã đặt ({data.stats.bookedCount})</span>
                 </span>
                 <span className="flex items-center space-x-1.5">
-                  <span className="w-3 h-3 rounded bg-slate-800 border border-slate-700 text-slate-300"></span>
+                  <span className="w-3 h-3 rounded bg-[var(--bg-surface)] border border-slate-700 text-slate-300"></span>
                   <span>Ghế Thường trống (A-D)</span>
                 </span>
                 <span className="flex items-center space-x-1.5">
@@ -186,7 +186,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
               {data.bookings && data.bookings.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-slate-800 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
+                    <thead className="bg-[var(--bg-surface)] text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
                       <tr>
                         <th className="py-2.5 px-3">Mã đơn</th>
                         <th className="py-2.5 px-3">Khách hàng</th>
@@ -198,7 +198,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
                     </thead>
                     <tbody className="divide-y divide-slate-800">
                       {data.bookings.map((b) => (
-                        <tr key={b.id} className="hover:bg-slate-800/40">
+                        <tr key={b.id} className="hover:bg-[var(--bg-surface)]/40">
                           <td className="py-2.5 px-3 font-mono font-bold text-white">{b.bookingCode}</td>
                           <td className="py-2.5 px-3 font-medium text-slate-200">{b.customerName}</td>
                           <td className="py-2.5 px-3 font-mono text-slate-400">{b.customerPhone}</td>
@@ -207,7 +207,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
                             {formatCurrency(b.totalAmount)}
                           </td>
                           <td className="py-2.5 px-3 text-right">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[var(--bg-surface)] border border-slate-700 text-slate-300">
                               {b.paymentMethod}
                             </span>
                           </td>
@@ -217,7 +217,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose }) => {
                   </table>
                 </div>
               ) : (
-                <div className="p-6 text-center text-xs text-slate-400 bg-slate-800/20 rounded-xl border border-slate-800">
+                <div className="p-6 text-center text-xs text-slate-400 bg-[var(--bg-surface)]/20 rounded-xl border border-[var(--border-default)]">
                   Chưa có giao dịch đặt vé nào cho suất chiếu này.
                 </div>
               )}

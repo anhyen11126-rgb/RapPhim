@@ -36,12 +36,12 @@ const CheckoutOrderSummary = ({
   return (
     <div className="space-y-6">
       {/* Thẻ 1: Tóm Tắt Đơn Vé */}
-      <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-2xl p-5 shadow-2xl">
+      <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl p-5 shadow-2xl">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-black uppercase tracking-wider text-[#BEC5E5]">
             TÓM TẮT ĐƠN ĐẶT VÉ
           </span>
-          <span className="bg-[#20204B] text-[#42DFFF] border border-[#42DFFF]/40 text-[10px] font-black px-2 py-0.5 rounded uppercase">
+          <span className="bg-[var(--bg-card)] text-[#42DFFF] border border-[#42DFFF]/40 text-[10px] font-black px-2 py-0.5 rounded uppercase">
             {showtime?.format || '2D Tiêu Chuẩn'}
           </span>
         </div>
@@ -149,7 +149,7 @@ const CheckoutOrderSummary = ({
       </div>
 
       {/* Thẻ 2: THÔNG TIN KHÁCH HÀNG & NÚT THANH TOÁN */}
-      <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-2xl p-5 shadow-2xl space-y-4">
+      <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl p-5 shadow-2xl space-y-4">
         <h3 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
           <span>📋</span>
           <span>Thông tin người nhận vé</span>
@@ -163,7 +163,7 @@ const CheckoutOrderSummary = ({
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="Nguyễn Văn A"
-              className="w-full bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#42DFFF]"
+              className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#42DFFF]"
             />
           </div>
 
@@ -175,7 +175,7 @@ const CheckoutOrderSummary = ({
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 placeholder="0912 345 678"
-                className="w-full bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#42DFFF]"
+                className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#42DFFF]"
               />
             </div>
             <div>
@@ -185,7 +185,7 @@ const CheckoutOrderSummary = ({
                 value={customerEmail}
                 onChange={(e) => setCustomerEmail(e.target.value)}
                 placeholder="email@example.com"
-                className="w-full bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#42DFFF]"
+                className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#42DFFF]"
               />
             </div>
           </div>
@@ -197,7 +197,7 @@ const CheckoutOrderSummary = ({
             type="checkbox"
             checked={agreedTerms}
             onChange={(e) => setAgreedTerms(e.target.checked)}
-            className="mt-0.5 rounded border-[#AA9BFF]/30 bg-[#0B1026] text-[#42DFFF] focus:ring-0"
+            className="mt-0.5 rounded border-[#AA9BFF]/30 bg-[var(--bg-main)] text-[#42DFFF] focus:ring-0"
           />
           <span>
             Tôi đồng ý với điều khoản dịch vụ và chính sách vé của D'AVENOR CINEMA.
@@ -211,8 +211,8 @@ const CheckoutOrderSummary = ({
           disabled={isSubmitting || !agreedTerms}
           className={`w-full py-3.5 rounded-xl font-black text-sm tracking-wide transition-all shadow-xl flex items-center justify-center space-x-2 cursor-pointer ${
             !agreedTerms || isSubmitting
-              ? 'bg-[#20204B] text-[#BEC5E5]/40 border border-[#AA9BFF]/15 cursor-not-allowed'
-              : 'bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] hover:brightness-108 shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:scale-[1.01]'
+              ? 'bg-[var(--bg-card)] text-[#BEC5E5]/40 border border-[#AA9BFF]/15 cursor-not-allowed'
+              : 'cinema-action hover:brightness-108 shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:scale-[1.01]'
           }`}
         >
           {isSubmitting ? (
@@ -232,15 +232,15 @@ const CheckoutOrderSummary = ({
       {/* MODAL MÃ QR THANH TOÁN (VNPAY / MOMO) */}
       {showQRModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm bg-[#0e1424] border border-slate-800 rounded-3xl p-6 shadow-2xl text-center space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div className="w-full max-w-sm bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 shadow-2xl text-center space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[var(--border-default)]">
               <span className="text-xs font-black text-white uppercase tracking-wider">
                 Quét mã QR để thanh toán
               </span>
               <button
                 type="button"
                 onClick={() => setShowQRModal(false)}
-                className="w-6 h-6 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-xs"
+                className="w-6 h-6 rounded-full bg-[var(--bg-surface)] text-slate-400 hover:text-white flex items-center justify-center text-xs"
               >
                 ✕
               </button>

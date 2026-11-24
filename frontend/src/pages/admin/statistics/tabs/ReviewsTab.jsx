@@ -95,8 +95,8 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
       {/* 2. PHÂN BỐ SAO & BẢNG ĐÁNH GIÁ THEO PHIM */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Phân bố 1-5 sao toàn hệ thống (5 cols) */}
-        <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+        <div className="lg:col-span-5 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+          <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
               <h3 className="text-base font-bold text-white">Phân Bố Sao Đánh Giá</h3>
               <p className="text-xs text-slate-400">Tỷ trọng các mức sao trên toàn hệ thống</p>
@@ -108,7 +108,7 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
             {starDistribution.map((row) => (
               <div key={row.star} className="flex items-center text-xs space-x-3">
                 <span className="w-10 font-bold text-amber-400 shrink-0">{row.star} ★</span>
-                <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden">
+                <div className="flex-1 h-3 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-700"
                     style={{ width: `${Math.min(100, row.percent)}%` }}
@@ -121,14 +121,14 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
             ))}
           </div>
 
-          <p className="text-xs text-slate-400 pt-3 border-t border-slate-800/80 leading-relaxed">
+          <p className="text-xs text-slate-400 pt-3 border-t border-[var(--border-default)]/80 leading-relaxed">
             🛡️ <strong className="text-white">Xác thực 100%:</strong> Chỉ những tài khoản đã mua vé thành công và hoàn tất suất chiếu mới được ghi nhận đánh giá vào cơ sở dữ liệu.
           </p>
         </div>
 
         {/* Bảng Đánh Giá Theo Phim (7 cols) */}
-        <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+        <div className="lg:col-span-7 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+          <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
               <h3 className="text-base font-bold text-white">Bảng Đánh Giá Từng Bộ Phim</h3>
               <p className="text-xs text-slate-400">Điểm số và phân bổ đánh giá chi tiết theo từng tác phẩm</p>
@@ -138,7 +138,7 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
 
           <div className="overflow-x-auto max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
             <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-800/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider sticky top-0 z-10 border-b border-slate-700">
+              <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider sticky top-0 z-10 border-b border-slate-700">
                 <tr>
                   <th className="py-2.5 px-3">Phim</th>
                   <th className="py-2.5 px-3 text-center">Điểm TB</th>
@@ -150,7 +150,7 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
               </thead>
               <tbody className="divide-y divide-slate-800 font-medium">
                 {movies.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-800/40">
+                  <tr key={m.id} className="hover:bg-[var(--bg-surface)]/40">
                     <td className="py-2.5 px-3 font-semibold text-white truncate max-w-[200px]">
                       {m.title}
                     </td>
@@ -184,8 +184,8 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
       </div>
 
       {/* 3. DANH SÁCH NHẬN XÉT THỰC TẾ & BỘ LỌC */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-default)]/80 pb-4">
           <div>
             <h3 className="text-base sm:text-lg font-bold text-white">Nhận Xét Thực Tế Của Khán Giả</h3>
             <p className="text-xs text-slate-400">
@@ -195,7 +195,7 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Lọc theo sao */}
-            <div className="flex items-center space-x-1 bg-slate-800 rounded-xl p-1 text-xs">
+            <div className="flex items-center space-x-1 bg-[var(--bg-surface)] rounded-xl p-1 text-xs">
               {['ALL', '5', '4', '3', '2', '1'].map((star) => (
                 <button
                   key={star}
@@ -221,7 +221,7 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-44"
+              className="bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-44"
             />
           </div>
         </div>
@@ -241,7 +241,7 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
               return (
                 <div
                   key={idx}
-                  className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-4 space-y-2.5 text-xs hover:border-slate-600 transition-all"
+                  className="bg-[var(--bg-surface)]/40 border border-slate-700/60 rounded-2xl p-4 space-y-2.5 text-xs hover:border-slate-600 transition-all"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-2.5">
@@ -277,14 +277,14 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
 
         {/* Phân trang nhận xét */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-4 border-t border-slate-800 text-xs text-slate-400">
+          <div className="flex items-center justify-between pt-4 border-t border-[var(--border-default)] text-xs text-slate-400">
             <span>Trang {currentPage} / {totalPages} (Tổng {filteredReviews.length} nhận xét)</span>
             <div className="flex items-center space-x-1">
               <button
                 type="button"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(currentPage - 1)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
+                className="px-2.5 py-1 rounded bg-[var(--bg-surface)] hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
               >
                 ‹
               </button>
@@ -294,7 +294,7 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
                   type="button"
                   onClick={() => setCurrentPage(i + 1)}
                   className={`px-2.5 py-1 rounded font-bold cursor-pointer ${
-                    currentPage === i + 1 ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    currentPage === i + 1 ? 'bg-red-600 text-white' : 'bg-[var(--bg-surface)] text-slate-300 hover:bg-slate-700'
                   }`}
                 >
                   {i + 1}
@@ -304,7 +304,7 @@ const ReviewsTab = ({ reviewsData, loading, onSelectMovie }) => {
                 type="button"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(currentPage + 1)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
+                className="px-2.5 py-1 rounded bg-[var(--bg-surface)] hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
               >
                 ›
               </button>

@@ -16,7 +16,7 @@ const StatisticsHeader = ({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-default)] pb-3.5">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
           Thống kê & Báo cáo
@@ -28,7 +28,7 @@ const StatisticsHeader = ({
 
       <div className="flex flex-wrap items-center gap-2.5">
         {/* Thời gian cập nhật gần nhất */}
-        <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-xs text-slate-300">
+        <div className="flex items-center space-x-2 bg-[var(--bg-secondary)] border border-[var(--border-default)] px-3 py-1.5 rounded-xl text-xs text-slate-300">
           <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
           <span>Cập nhật: <strong className="text-white font-medium">{lastUpdated || 'Vừa xong'}</strong></span>
         </div>
@@ -38,7 +38,7 @@ const StatisticsHeader = ({
           type="button"
           onClick={onRefresh}
           disabled={isRefreshing}
-          className="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white px-3 py-1.5 rounded-xl text-xs font-semibold border border-slate-700 transition-all disabled:opacity-50 cursor-pointer"
+          className="flex items-center space-x-1.5 bg-[var(--bg-surface)] hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white px-3 py-1.5 rounded-xl text-xs font-semibold border border-slate-700 transition-all disabled:opacity-50 cursor-pointer"
           title="Làm mới dữ liệu từ hệ thống"
         >
           <svg
@@ -63,7 +63,7 @@ const StatisticsHeader = ({
             type="button"
             onClick={() => setShowExportMenu(!showExportMenu)}
             disabled={isExporting}
-            className="flex items-center space-x-1.5 bg-red-600 hover:bg-red-500 active:scale-95 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-red-600/20 transition-all disabled:opacity-50 cursor-pointer"
+            className="flex items-center space-x-1.5 cinema-action active:scale-95 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-violet-700/20 transition-all disabled:opacity-50 cursor-pointer"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -80,14 +80,14 @@ const StatisticsHeader = ({
           </button>
 
           {showExportMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl py-1.5 z-30 animate-fadeIn text-xs">
-              <div className="px-3 py-1.5 font-bold text-slate-400 border-b border-slate-800 text-[10px] uppercase tracking-wider">
+            <div className="absolute right-0 mt-2 w-56 bg-[var(--bg-secondary)] border border-slate-700 rounded-2xl shadow-2xl py-1.5 z-30 animate-fadeIn text-xs">
+              <div className="px-3 py-1.5 font-bold text-slate-400 border-b border-[var(--border-default)] text-[10px] uppercase tracking-wider">
                 Chọn mẫu báo cáo (Excel/CSV)
               </div>
               <button
                 type="button"
                 onClick={() => handleSelectExport('revenue')}
-                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center justify-between"
+                className="w-full text-left px-3.5 py-2.5 hover:bg-[var(--bg-surface)] text-slate-200 flex items-center justify-between"
               >
                 <span>Báo cáo Doanh thu & Dòng tiền</span>
                 <span className="text-[10px] text-slate-400 font-semibold">CSV</span>
@@ -95,7 +95,7 @@ const StatisticsHeader = ({
               <button
                 type="button"
                 onClick={() => handleSelectExport('movies')}
-                className="w-full text-left px-3.5 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center justify-between"
+                className="w-full text-left px-3.5 py-2.5 hover:bg-[var(--bg-surface)] text-slate-200 flex items-center justify-between"
               >
                 <span>Báo cáo Hiệu suất Phim</span>
                 <span className="text-[10px] text-slate-400 font-semibold">CSV</span>

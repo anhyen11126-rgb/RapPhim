@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import CheckoutCombos from '../../components/checkout/CheckoutCombos';
 import CheckoutPaymentMethods from '../../components/checkout/CheckoutPaymentMethods';
@@ -15,7 +15,7 @@ const CheckoutPage = () => {
   const location = useLocation();
 
   const stateData = location.state || {};
-  const showtimeId = stateData.showtimeId || 1;
+  const showtimeId = stateData.showtimeId || stateData.showtime?._id || stateData.showtime?.id;
   const showtime = stateData.showtime || {
     movie: { title: 'Dune: Hành Tinh Cát 2', ageRating: 'T16' },
     roomName: "D'AVENOR Center (P.3)",
@@ -26,6 +26,19 @@ const CheckoutPage = () => {
       ? stateData.selectedSeats
       : ['F6', 'F7'];
   const seatTotal = typeof stateData.seatTotal === 'number' ? stateData.seatTotal : 140000;
+
+  const goBackToSeats = () => {
+    if (stateData.returnToSeatHistory) {
+      navigate(-1);
+    } else if (showtimeId) {
+      navigate('/booking/seat/' + encodeURIComponent(showtimeId), {
+        replace: true,
+        state: { slotInfo: stateData.showtime, draftSeats: stateData.selectedSeats },
+      });
+    } else {
+      navigate('/theaters', { replace: true });
+    }
+  };
 
   // Danh sách các vị bắp
   const popcornFlavors = [
@@ -195,7 +208,7 @@ const CheckoutPage = () => {
         // Nếu ghế bị xung đột do khách khác vừa mua trước (HTTP 409 Conflict)
         // Đưa khách quay lại trang chọn ghế để cập nhật lại sơ đồ ghế mới nhất
         if (apiErr.response?.status === 409) {
-          navigate(`/booking/seat/${showtimeId}`);
+          goBackToSeats();
         }
         return;
       }
@@ -205,16 +218,16 @@ const CheckoutPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1026] text-[#F8F7FF] selection:bg-[#42DFFF] selection:text-[#0B1026]">
+    <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] selection:bg-[#42DFFF] selection:text-[#0B1026]">
       {/* 1. THANH TIÊU ĐỀ TRÊN CÙNG: QUAY LẠI + TIẾN TRÌNH 3 BƯỚC (HIỆN RA DẦN DẦN) */}
-      <div className="w-full bg-[#11152F]/95 backdrop-blur-xl border-b border-[#AA9BFF]/20 py-3.5 sticky top-0 z-40 shadow-xl animate-smooth-fade">
+      <div className="w-full bg-[var(--bg-secondary)]/95 backdrop-blur-xl border-b border-[#AA9BFF]/20 py-3.5 sticky top-0 z-40 shadow-xl animate-smooth-fade">
         <div className="max-w-[1560px] mx-auto px-6 sm:px-10 lg:px-14 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
           {/* Cụm bên trái: Nút Back tròn + Tên phim + Nhãn T16 / IMAX LASER */}
           <div className="flex items-center space-x-3.5">
             <button
               type="button"
-              onClick={() => navigate(`/booking/seat/${showtimeId}`)}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#151d2d] hover:bg-[#202b3f] border border-slate-700/70 text-slate-200 hover:text-white flex items-center justify-center text-sm transition-all shadow-md shrink-0 cursor-pointer"
+              onClick={goBackToSeats}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-card)] border border-slate-700/70 text-slate-200 hover:text-white flex items-center justify-center text-sm transition-all shadow-md shrink-0 cursor-pointer"
               title="Quay lại sơ đồ ghế"
             >
               ←
@@ -228,14 +241,14 @@ const CheckoutPage = () => {
                 <span className="bg-[#f59e0b] text-[#0a1120] font-black text-[10px] px-2 py-0.5 rounded-full shadow-sm">
                   {showtime?.movie?.ageRating || 'T16'}
                 </span>
-                <span className="bg-[#1b263b] text-blue-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border border-blue-400/30 uppercase tracking-wider">
+                <span className="bg-[var(--bg-card)] text-[var(--ice-blue)] font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border border-blue-400/30 uppercase tracking-wider">
                   IMAX LASER
                 </span>
               </div>
 
               <div className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mt-0.5 flex-wrap">
                 <span className="flex items-center gap-1 text-slate-300 font-medium">
-                  <span className="text-blue-400">📽</span>
+                  <span className="text-[var(--cyan)]">📽</span>
                   <span>{showtime?.roomName || 'Phòng Chiếu 03'}</span>
                 </span>
                 <span className="text-slate-600">•</span>
@@ -250,10 +263,11 @@ const CheckoutPage = () => {
           </div>
 
           {/* Thanh tiến trình 3 bước chuẩn Mockup */}
-          <div className="inline-flex items-center bg-[#0c1220]/90 border border-slate-800/80 rounded-full px-4 sm:px-5 py-1.5 shadow-lg backdrop-blur-md overflow-x-auto max-w-full">
+          <div className="inline-flex items-center bg-[var(--bg-main)]/90 border border-[var(--border-default)]/80 rounded-full px-4 sm:px-5 py-1.5 shadow-lg backdrop-blur-md overflow-x-auto max-w-full">
             {/* BƯỚC 1: Hoàn thành (Chọn ghế) */}
-            <Link
-              to={`/booking/seat/${showtimeId}`}
+            <button
+              type="button"
+              onClick={goBackToSeats}
               className="flex items-center space-x-2 shrink-0 hover:opacity-90 transition-opacity"
             >
               <div className="w-5 h-5 rounded-full bg-[#059669] flex items-center justify-center text-white shadow-sm shrink-0">
@@ -277,17 +291,17 @@ const CheckoutPage = () => {
                   Chọn ghế
                 </span>
               </div>
-            </Link>
+            </button>
 
             <div className="w-10 sm:w-16 h-[1.5px] bg-[#059669] mx-2.5 sm:mx-3 shrink-0"></div>
 
             {/* BƯỚC 2: Đang ở đây (Đồ ăn & Thanh toán) */}
-            <div className="flex items-center space-x-2.5 bg-[#1b253b] border border-blue-500/35 rounded-full pl-1.5 pr-3.5 py-1 shadow-[0_0_15px_rgba(37,99,235,0.3)] shrink-0">
+            <div className="flex items-center space-x-2.5 bg-[var(--bg-card)] border border-[var(--cyan)]/35 rounded-full pl-1.5 pr-3.5 py-1 shadow-[0_0_15px_rgba(37,99,235,0.3)] shrink-0">
               <div className="w-5 h-5 rounded-full bg-[#2563eb] text-white flex items-center justify-center text-[11px] font-black shadow-sm shrink-0">
                 2
               </div>
               <div className="flex flex-col text-left">
-                <span className="text-[9px] font-bold text-blue-300 uppercase tracking-wider leading-none">
+                <span className="text-[9px] font-bold text-[var(--ice-blue)] uppercase tracking-wider leading-none">
                   BƯỚC 2
                 </span>
                 <span className="text-xs font-black text-white leading-tight mt-0.5">
@@ -300,7 +314,7 @@ const CheckoutPage = () => {
 
             {/* BƯỚC 3: Vé điện tử */}
             <div className="flex items-center space-x-2 text-slate-500 shrink-0">
-              <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 text-[10px] font-bold shrink-0">
+              <div className="w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center text-slate-500 text-[10px] font-bold shrink-0">
                 3
               </div>
               <div className="flex flex-col text-left">

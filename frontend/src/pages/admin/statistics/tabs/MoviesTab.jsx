@@ -22,7 +22,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
       {/* 1. DÃY 5 THẺ XẾP HẠNG TỔNG KẾT (RANKINGS - ĐÁP ỨNG TRỌN VẸN YÊU CẦU 2 & 3 CỦA GIẢNG VIÊN) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-3.5">
         {/* Phim bán nhiều vé nhất */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2 shadow-lg">
+        <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-3.5 space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold">
             <span>Bán nhiều vé nhất</span>
             <span className="text-sm">🎟️</span>
@@ -46,7 +46,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
         </div>
 
         {/* Phim có tỷ lệ lấp đầy cao nhất */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2 shadow-lg">
+        <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-3.5 space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold">
             <span>Lấp đầy cao nhất</span>
             <span className="text-sm">🌟</span>
@@ -70,7 +70,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
         </div>
 
         {/* Phim doanh thu cao nhất */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2 shadow-lg">
+        <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-3.5 space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold">
             <span>Doanh thu cao nhất</span>
             <span className="text-sm">💳</span>
@@ -94,7 +94,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
         </div>
 
         {/* Phim sinh lời tốt nhất */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2 shadow-lg">
+        <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-3.5 space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold">
             <span>Sinh lời tốt nhất</span>
             <span className="text-sm">💰</span>
@@ -118,7 +118,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
         </div>
 
         {/* Phim bán chậm nhất */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2 shadow-lg">
+        <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-3.5 space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold">
             <span>Bán chậm nhất</span>
             <span className="text-sm">📉</span>
@@ -142,7 +142,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
         </div>
 
         {/* Phim bị lỗ hoặc LN thấp nhất */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2 shadow-lg">
+        <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-3.5 space-y-2 shadow-lg">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold">
             <span>Cần chú ý / Lỗ</span>
             <span className="text-sm">⚠️</span>
@@ -170,9 +170,9 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
       </div>
 
       {/* 2. BẢNG HIỆU SUẤT TỪNG PHIM (CHUYỂN ĐỔI GIỮA YÊU CẦU 2 VÀ YÊU CẦU 3) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-xl">
+      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-5 shadow-xl">
         {/* Header bảng & Nút chuyển đổi chế độ */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-default)]/80 pb-4">
           <div className="flex flex-wrap items-center gap-3">
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white">
@@ -186,7 +186,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
             </div>
 
             {/* Nút Toggle 2 Chế Độ Đáp Ứng Yêu Cầu 2 & Yêu Cầu 3 */}
-            <div className="bg-slate-800 p-1 rounded-xl flex items-center space-x-1 border border-slate-700 text-xs">
+            <div className="bg-[var(--bg-surface)] p-1 rounded-xl flex items-center space-x-1 border border-slate-700 text-xs">
               <button
                 type="button"
                 onClick={() => setViewMode('tickets')}
@@ -217,7 +217,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
               placeholder="Tìm tên tác phẩm..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-48 sm:w-56"
+              className="bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-48 sm:w-56"
             />
             <button
               type="submit"
@@ -232,7 +232,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
         {viewMode === 'tickets' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-800/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
+              <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
                 <tr>
                   <th className="py-3 px-4 min-w-[220px]">Tác phẩm điện ảnh</th>
                   <th className="py-3 px-3 text-center">Trạng thái</th>
@@ -257,7 +257,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
                   items.map((m) => {
                     const isHot = m.occupancyRate >= 70;
                     return (
-                      <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
+                      <tr key={m.id} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
                         {/* Cột 1: Poster & Tên phim */}
                         <td className="py-3 px-4">
                           <div className="flex items-center space-x-3">
@@ -296,7 +296,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
                                 ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/30'
                                 : m.status === 'COMING_SOON'
                                 ? 'bg-amber-950/60 text-amber-400 border-amber-500/30'
-                                : 'bg-slate-800 text-slate-400 border-slate-700'
+                                : 'bg-[var(--bg-surface)] text-slate-400 border-slate-700'
                             }`}
                           >
                             {m.status === 'NOW_SHOWING' ? 'Đang chiếu' : m.status === 'COMING_SOON' ? 'Sắp chiếu' : 'Đã kết thúc'}
@@ -334,7 +334,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
                                 {formatNumber(m.ticketsSold)}/{formatNumber(m.totalSellableSeats)}
                               </span>
                             </div>
-                            <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-2 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all duration-700 ${
                                   isHot ? 'bg-gradient-to-r from-amber-500 to-red-500' : 'bg-red-600'
@@ -355,7 +355,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
                           <button
                             type="button"
                             onClick={() => onSelectMovie && onSelectMovie(m.id)}
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-red-600 hover:text-white text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+                            className="px-2.5 py-1 bg-[var(--bg-surface)] hover:bg-red-600 hover:text-white text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
                           >
                             Chi tiết
                           </button>
@@ -379,7 +379,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
         {viewMode === 'financial' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-800/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
+              <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
                 <tr>
                   <th className="py-3 px-4 min-w-[200px]">Bộ phim</th>
                   <th className="py-3 px-4 text-right font-black text-emerald-400">Doanh thu thuần</th>
@@ -404,7 +404,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
                   items.map((m) => {
                     const isProfitable = m.profit >= 0;
                     return (
-                      <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
+                      <tr key={m.id} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
                         {/* Cột 1: Tên phim */}
                         <td className="py-3 px-4">
                           <div className="flex items-center space-x-3">
@@ -484,7 +484,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
                           <button
                             type="button"
                             onClick={() => onSelectMovie && onSelectMovie(m.id)}
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-red-600 hover:text-white text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+                            className="px-2.5 py-1 bg-[var(--bg-surface)] hover:bg-red-600 hover:text-white text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
                           >
                             Chi tiết
                           </button>
@@ -506,14 +506,14 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
 
         {/* Phân trang */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-4 border-t border-slate-800 text-xs text-slate-400">
+          <div className="flex items-center justify-between pt-4 border-t border-[var(--border-default)] text-xs text-slate-400">
             <span>Trang {page} / {totalPages} (Tổng {total} phim)</span>
             <div className="flex items-center space-x-1">
               <button
                 type="button"
                 disabled={page === 1}
                 onClick={() => onPageChange && onPageChange(page - 1)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
+                className="px-2.5 py-1 rounded bg-[var(--bg-surface)] hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
               >
                 ‹
               </button>
@@ -523,7 +523,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
                   type="button"
                   onClick={() => onPageChange && onPageChange(i + 1)}
                   className={`px-2.5 py-1 rounded font-bold cursor-pointer ${
-                    page === i + 1 ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    page === i + 1 ? 'bg-red-600 text-white' : 'bg-[var(--bg-surface)] text-slate-300 hover:bg-slate-700'
                   }`}
                 >
                   {i + 1}
@@ -533,7 +533,7 @@ const MoviesTab = ({ moviesData, loading, onSelectMovie, onPageChange, onSearch,
                 type="button"
                 disabled={page === totalPages}
                 onClick={() => onPageChange && onPageChange(page + 1)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
+                className="px-2.5 py-1 rounded bg-[var(--bg-surface)] hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
               >
                 ›
               </button>

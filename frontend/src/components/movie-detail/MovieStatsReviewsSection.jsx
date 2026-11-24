@@ -247,10 +247,10 @@ const MovieStatsReviewsSection = ({ movie }) => {
     'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=300&auto=format&fit=crop';
 
   return (
-    <div className="bg-[#0f1422] border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl relative">
+    <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl relative">
       {/* 1. HEADER: POSTER NHỎ + TÊN PHIM + BADGE ĐANG CHIẾU */}
-      <div className="flex items-start space-x-4 border-b border-slate-800/80 pb-5">
-        <div className="w-14 h-20 sm:w-16 sm:h-24 rounded-xl overflow-hidden border border-slate-700/60 shadow-lg shrink-0 bg-slate-900">
+      <div className="flex items-start space-x-4 border-b border-[var(--border-default)]/80 pb-5">
+        <div className="w-14 h-20 sm:w-16 sm:h-24 rounded-xl overflow-hidden border border-slate-700/60 shadow-lg shrink-0 bg-[var(--bg-secondary)]">
           <img
             src={posterSrc}
             alt={movie.title}
@@ -292,7 +292,7 @@ const MovieStatsReviewsSection = ({ movie }) => {
             return (
               <div key={row.star} className="flex items-center text-xs space-x-3">
                 <span className="w-10 text-slate-400 font-medium shrink-0">{row.label}</span>
-                <div className="flex-1 h-2 rounded-full bg-slate-800/90 overflow-hidden">
+                <div className="flex-1 h-2 rounded-full bg-[var(--bg-surface)]/90 overflow-hidden">
                   <div
                     className="h-full rounded-full bg-[#22c55e] transition-all duration-700"
                     style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
@@ -305,7 +305,7 @@ const MovieStatsReviewsSection = ({ movie }) => {
         </div>
       </div>
 
-      <div className="border-t border-slate-800/80"></div>
+      <div className="border-t border-[var(--border-default)]/80"></div>
 
       {/* 4. DANH SÁCH BÌNH LUẬN CỦA KHÁCH HÀNG (THIẾT KẾ RÚT GỌN TINH TẾ) */}
       <div className="space-y-3">
@@ -313,7 +313,7 @@ const MovieStatsReviewsSection = ({ movie }) => {
           <h4 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
             <span>💬</span>
             <span>Bình luận khách hàng</span>
-            <span className="px-2 py-0.5 rounded-full bg-slate-800/90 border border-slate-700/80 text-[11px] font-bold text-blue-400">
+            <span className="px-2 py-0.5 rounded-full bg-[var(--bg-surface)]/90 border border-slate-700/80 text-[11px] font-bold text-[var(--cyan)]">
               {reviewsList.length}
             </span>
           </h4>
@@ -338,7 +338,7 @@ const MovieStatsReviewsSection = ({ movie }) => {
             return (
               <div
                 key={rev._id || rev.id || idx}
-                className="bg-slate-900/40 hover:bg-slate-900/70 py-2.5 px-3 sm:px-3.5 rounded-xl border border-slate-800/70 hover:border-slate-700/60 transition-all duration-200 space-y-1 group/rev"
+                className="bg-[var(--bg-secondary)]/40 hover:bg-[var(--bg-secondary)]/70 py-2.5 px-3 sm:px-3.5 rounded-xl border border-[var(--border-default)]/70 hover:border-slate-700/60 transition-all duration-200 space-y-1 group/rev"
               >
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center space-x-2 flex-wrap gap-y-1">
@@ -353,7 +353,7 @@ const MovieStatsReviewsSection = ({ movie }) => {
                       {renderStars(rev.rating || 5)}
                     </span>
                     {canDelete && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-blue-500/20 text-[var(--ice-blue)] border border-[var(--cyan)]/30">
                         Của bạn
                       </span>
                     )}
@@ -391,12 +391,12 @@ const MovieStatsReviewsSection = ({ movie }) => {
             <button
               type="button"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="px-4 py-1.5 rounded-full bg-slate-900/70 hover:bg-slate-800/90 border border-slate-700/60 hover:border-blue-500/50 text-slate-300 hover:text-white text-xs font-semibold transition-all duration-200 flex items-center space-x-1.5 shadow-sm hover:shadow-[0_0_12px_rgba(59,130,246,0.2)] group cursor-pointer active:scale-95"
+              className="px-4 py-1.5 rounded-full bg-[var(--bg-secondary)]/70 hover:bg-[var(--bg-surface)]/90 border border-slate-700/60 hover:border-[var(--cyan)]/50 text-slate-300 hover:text-white text-xs font-semibold transition-all duration-200 flex items-center space-x-1.5 shadow-sm hover:shadow-[0_0_12px_rgba(59,130,246,0.2)] group cursor-pointer active:scale-95"
             >
               {isExpanded ? (
                 <>
                   <span>Thu gọn bình luận</span>
-                  <span className="text-slate-400 group-hover:text-blue-400 transition-transform group-hover:-translate-y-0.5 text-[11px]">
+                  <span className="text-slate-400 group-hover:text-[var(--cyan)] transition-transform group-hover:-translate-y-0.5 text-[11px]">
                     ▲
                   </span>
                 </>
@@ -405,7 +405,7 @@ const MovieStatsReviewsSection = ({ movie }) => {
                   <span>
                     Xem thêm {reviewsList.length - INITIAL_VISIBLE_COUNT} bình luận khác
                   </span>
-                  <span className="text-blue-400 group-hover:translate-y-0.5 transition-transform text-[11px]">
+                  <span className="text-[var(--cyan)] group-hover:translate-y-0.5 transition-transform text-[11px]">
                     ▼
                   </span>
                 </>
@@ -416,7 +416,7 @@ const MovieStatsReviewsSection = ({ movie }) => {
       </div>
 
       {/* 5. FOOTER: THANH VIẾT BÌNH LUẬN Ở PHÍA DƯỚI CÙNG & NÚT NHỎ ĐỂ ĐĂNG (ĐÃ BỎ DẤU MŨI TÊN) */}
-      <div className="pt-4 border-t border-slate-800/80 space-y-3">
+      <div className="pt-4 border-t border-[var(--border-default)]/80 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex items-center space-x-2">
             <span className="text-slate-400 font-medium">Bạn đánh giá:</span>
@@ -444,7 +444,7 @@ const MovieStatsReviewsSection = ({ movie }) => {
               placeholder="Tên của bạn..."
               value={reviewerName}
               onChange={(e) => setReviewerName(e.target.value)}
-              className="bg-slate-900 border border-slate-700/80 rounded-xl px-2.5 py-1 text-xs text-white placeholder-slate-500 outline-none focus:border-blue-500 w-36"
+              className="bg-[var(--bg-secondary)] border border-slate-700/80 rounded-xl px-2.5 py-1 text-xs text-white placeholder-slate-500 outline-none focus:border-[var(--cyan)] w-36"
             />
           )}
         </div>
@@ -458,7 +458,7 @@ const MovieStatsReviewsSection = ({ movie }) => {
               placeholder="Viết bình luận..."
               value={reviewerComment}
               onChange={(e) => setReviewerComment(e.target.value)}
-              className="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl px-4 py-2 text-xs sm:text-sm text-white placeholder-slate-500 outline-none focus:border-blue-500 pr-9 shadow-inner"
+              className="w-full bg-[var(--bg-secondary)]/90 border border-slate-700/80 rounded-2xl px-4 py-2 text-xs sm:text-sm text-white placeholder-slate-500 outline-none focus:border-[var(--cyan)] pr-9 shadow-inner"
             />
             {reviewerComment && (
               <button
@@ -476,7 +476,7 @@ const MovieStatsReviewsSection = ({ movie }) => {
           <button
             type="submit"
             disabled={isSubmitting || !reviewerComment.trim() || (!currentUser && !reviewerName.trim())}
-            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 active:scale-95 flex items-center space-x-1.5 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+            className="px-3.5 py-2 cinema-action disabled:bg-[var(--bg-surface)] disabled:text-slate-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-violet-700/20 active:scale-95 flex items-center space-x-1.5 shrink-0 cursor-pointer disabled:cursor-not-allowed"
           >
             <span>{isSubmitting ? '...' : 'Đăng'}</span>
             <span>🚀</span>

@@ -124,28 +124,28 @@ const PromotionsPage = () => {
       return 'bg-slate-950/90 text-emerald-400 border border-emerald-500/40';
     }
     if (prog.badgeColor === 'blue' || (prog.badgeSpecial || '').includes('45.000')) {
-      return 'bg-slate-950/90 text-blue-300 border border-blue-400/40';
+      return 'bg-slate-950/90 text-[var(--ice-blue)] border border-blue-400/40';
     }
     return 'bg-slate-950/90 text-amber-400 border border-amber-500/40';
   };
 
   return (
-    <div className="bg-[#0B1026] min-h-screen text-[#F8F7FF] pb-20">
+    <div className="bg-[var(--bg-main)] min-h-screen text-[var(--text-main)] pb-20">
       {/* 1. BREADCRUMBS & TIÊU ĐỀ TRANG */}
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 pt-5 pb-4">
         {/* Breadcrumb */}
-        <div className="flex items-center space-x-2 text-xs text-[#BEC5E5] mb-2 font-medium">
+        <div className="flex items-center space-x-2 text-xs text-[var(--text-muted)] mb-2 font-medium">
           <Link to="/" className="hover:text-white transition-colors">
             Trang chủ
           </Link>
           <span>/</span>
-          <span className="text-[#F8F7FF]">Ưu đãi & Khuyến mãi</span>
+          <span className="text-[var(--text-main)]">Ưu đãi & Khuyến mãi</span>
         </div>
 
         {/* Tiêu đề & Thẻ Thống kê bên phải */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center space-x-2 bg-[#20204B] border border-[#AA9BFF]/30 text-[#83F5FF] text-[11px] font-bold px-2.5 py-1 rounded-full mb-1.5">
+            <div className="inline-flex items-center space-x-2 bg-[var(--bg-card)] border border-[#AA9BFF]/30 text-[#83F5FF] text-[11px] font-bold px-2.5 py-1 rounded-full mb-1.5">
               <span>🔥</span>
               <span>HOT DEAL • Ưu đãi độc quyền tại D'AVENOR Thanh Khê Plaza</span>
             </div>
@@ -155,11 +155,11 @@ const PromotionsPage = () => {
           </div>
 
           {/* Thẻ Thống kê mã của bạn */}
-          <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-2xl px-5 py-3 flex items-center space-x-5 shadow-lg">
+          <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl px-5 py-3 flex items-center space-x-5 shadow-lg">
             <div className="flex items-center space-x-3">
               <span className="text-2xl">🎟️</span>
               <div>
-                <span className="text-[10px] font-bold text-[#BEC5E5] block uppercase">Mã của bạn</span>
+                <span className="text-[10px] font-bold text-[var(--text-muted)] block uppercase">Mã của bạn</span>
                 <span className="text-xs font-black text-white">05 Sẵn sàng</span>
               </div>
             </div>
@@ -167,7 +167,7 @@ const PromotionsPage = () => {
             <div className="flex items-center space-x-3">
               <span className="text-2xl">💰</span>
               <div>
-                <span className="text-[10px] font-bold text-[#BEC5E5] block uppercase">Tiết kiệm tối đa</span>
+                <span className="text-[10px] font-bold text-[var(--text-muted)] block uppercase">Tiết kiệm tối đa</span>
                 <span className="text-xs font-black text-[#42DFFF]">120.000đ</span>
               </div>
             </div>
@@ -177,7 +177,7 @@ const PromotionsPage = () => {
 
       {/* 2. HERO FEATURED PROMOTION (SIÊU BÃO THỨ 3) */}
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 py-3">
-        <div className="relative rounded-3xl overflow-hidden border border-[#AA9BFF]/25 bg-gradient-to-br from-[#11152F] via-[#20204B]/60 to-[#0B1026] shadow-2xl p-6 sm:p-10">
+        <div className="relative rounded-3xl overflow-hidden border border-[#AA9BFF]/25 bg-gradient-to-br from-[var(--bg-secondary)] via-[var(--bg-card)]/60 to-[var(--bg-main)] shadow-2xl p-6 sm:p-10">
           {/* Background ambient glow */}
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#A855F7]/15 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute bottom-0 left-10 w-80 h-80 bg-[#42DFFF]/15 rounded-full blur-3xl pointer-events-none" />
@@ -194,44 +194,44 @@ const PromotionsPage = () => {
                 THỨ 3 VUI VẺ — <span className="bg-gradient-to-r from-[#F4A5FF] via-[#C56BFF] via-[#83F5FF] to-[#F4A5FF] bg-clip-text text-transparent">ĐỒNG GIÁ VÉ 45K</span>
               </h2>
 
-              <p className="text-sm text-[#BEC5E5] leading-relaxed max-w-2xl">
+              <p className="text-sm text-[var(--text-muted)] leading-relaxed max-w-2xl">
                 {heroDeal?.description ||
                   "Thưởng thức mọi bom tấn màn ảnh rộng Laser hiện đại nhất D'AVENOR Thanh Khê Plaza với giá vé chỉ 45.000đ. Tặng kèm 01 bắp ngọt Caramel thơm lừng khi áp dụng mua vé đôi online hôm nay."}
               </p>
 
               {/* Bộ đếm ngược thời gian (Countdown Timer) */}
               <div className="space-y-2 pt-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#BEC5E5] flex items-center space-x-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center space-x-1.5">
                   <span>⏱️</span>
                   <span>Ưu đãi kết thúc sau:</span>
                 </span>
                 <div className="flex items-center space-x-2 text-center">
-                  <div className="bg-[#20204B] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
+                  <div className="bg-[var(--bg-card)] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
                     <span className="text-lg sm:text-xl font-black text-white block">
                       {String(timeLeft.days).padStart(2, '0')}
                     </span>
-                    <span className="text-[9px] text-[#BEC5E5] font-bold uppercase">Ngày</span>
+                    <span className="text-[9px] text-[var(--text-muted)] font-bold uppercase">Ngày</span>
                   </div>
                   <span className="text-[#AA9BFF]/40 font-black">:</span>
-                  <div className="bg-[#20204B] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
+                  <div className="bg-[var(--bg-card)] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
                     <span className="text-lg sm:text-xl font-black text-white block">
                       {String(timeLeft.hours).padStart(2, '0')}
                     </span>
-                    <span className="text-[9px] text-[#BEC5E5] font-bold uppercase">Giờ</span>
+                    <span className="text-[9px] text-[var(--text-muted)] font-bold uppercase">Giờ</span>
                   </div>
                   <span className="text-[#AA9BFF]/40 font-black">:</span>
-                  <div className="bg-[#20204B] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
+                  <div className="bg-[var(--bg-card)] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
                     <span className="text-lg sm:text-xl font-black text-white block">
                       {String(timeLeft.minutes).padStart(2, '0')}
                     </span>
-                    <span className="text-[9px] text-[#BEC5E5] font-bold uppercase">Phút</span>
+                    <span className="text-[9px] text-[var(--text-muted)] font-bold uppercase">Phút</span>
                   </div>
                   <span className="text-[#AA9BFF]/40 font-black">:</span>
-                  <div className="bg-[#20204B] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
+                  <div className="bg-[var(--bg-card)] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 min-w-[58px]">
                     <span className="text-lg sm:text-xl font-black text-[#42DFFF] block">
                       {String(timeLeft.seconds).padStart(2, '0')}
                     </span>
-                    <span className="text-[9px] text-[#BEC5E5] font-bold uppercase">Giây</span>
+                    <span className="text-[9px] text-[var(--text-muted)] font-bold uppercase">Giây</span>
                   </div>
                 </div>
               </div>
@@ -258,7 +258,7 @@ const PromotionsPage = () => {
                       metadataRight: '🕒 Cả ngày Thứ 3',
                     })
                   }
-                  className="bg-[#20204B] hover:bg-[#25234D] text-[#F8F7FF] font-semibold text-xs sm:text-sm px-5 py-3 rounded-xl transition-colors border border-[#AA9BFF]/30 flex items-center space-x-1.5 cursor-pointer"
+                  className="bg-[var(--bg-card)] hover:bg-[#25234D] text-[var(--text-main)] font-semibold text-xs sm:text-sm px-5 py-3 rounded-xl transition-colors border border-[#AA9BFF]/30 flex items-center space-x-1.5 cursor-pointer"
                 >
                   <span>ℹ️</span>
                   <span>Xem thể lệ chi tiết</span>
@@ -268,26 +268,26 @@ const PromotionsPage = () => {
 
             {/* Cột phải: Thẻ quà tặng kèm ảnh */}
             <div className="lg:col-span-5 flex justify-center">
-              <div className="relative w-full max-w-sm bg-[#11152F] border border-[#AA9BFF]/30 rounded-3xl p-4 shadow-2xl overflow-hidden group hover:border-[#42DFFF]/50 transition-all">
+              <div className="relative w-full max-w-sm bg-[var(--bg-secondary)] border border-[#AA9BFF]/30 rounded-3xl p-4 shadow-2xl overflow-hidden group hover:border-[#42DFFF]/50 transition-all">
                 {/* Badge giảm 50% góc phải */}
                 <div className="absolute top-6 right-6 z-10 bg-gradient-to-r from-[#F4A5FF] to-[#A855F7] text-[#0B1026] text-xs font-black px-3 py-1 rounded-full shadow-lg">
                   -50%
                 </div>
 
-                <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-[#0B1026] mb-3 relative">
+                <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-[var(--bg-main)] mb-3 relative">
                   <img
                     src={heroDeal?.image || '/images/combos/combo-couple.png'}
                     alt="Combo Bắp Nước"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute bottom-2.5 left-2.5 bg-[#0B1026]/85 backdrop-blur-md text-[10px] text-[#42DFFF] font-bold px-2.5 py-1 rounded-md border border-[#42DFFF]/30">
+                  <div className="absolute bottom-2.5 left-2.5 bg-[var(--bg-main)]/85 backdrop-blur-md text-[10px] text-[#42DFFF] font-bold px-2.5 py-1 rounded-md border border-[#42DFFF]/30">
                     🍿 Combo Đôi Cinema VIP
                   </div>
                 </div>
 
                 <div className="text-center py-1">
                   <h3 className="text-base font-black text-white">Bắp Lớn 2 Ngăn + 02 Nước Ngọt</h3>
-                  <p className="text-xs text-[#BEC5E5] mt-0.5">Ưu đãi đặc biệt khi đặt kèm vé đôi trực tuyến</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">Ưu đãi đặc biệt khi đặt kèm vé đôi trực tuyến</p>
                 </div>
               </div>
             </div>
@@ -307,7 +307,7 @@ const PromotionsPage = () => {
                 className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   activeCategory === cat.key
                     ? 'bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] font-black shadow-[0_0_12px_rgba(168,85,247,0.35)]'
-                    : 'bg-[#11152F] text-[#BEC5E5] hover:text-white hover:bg-[#20204B] border border-[#AA9BFF]/20'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-white hover:bg-[var(--bg-card)] border border-[#AA9BFF]/20'
                 }`}
               >
                 {cat.label}
@@ -318,7 +318,7 @@ const PromotionsPage = () => {
           {/* Ô tìm kiếm & Nhãn Rạp duy nhất */}
           <div className="flex items-center space-x-3">
             <div className="relative flex-1 sm:w-64">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#BEC5E5]/60 text-xs">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[var(--text-muted)]/60 text-xs">
                 🔍
               </span>
               <input
@@ -326,11 +326,11 @@ const PromotionsPage = () => {
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
                 placeholder="Tìm tên ưu đãi, mã code..."
-                className="w-full bg-[#11152F] border border-[#AA9BFF]/25 rounded-xl pl-9 pr-3 py-2 text-xs text-[#F8F7FF] placeholder-[#BEC5E5]/50 focus:outline-none focus:border-[#42DFFF] transition-colors"
+                className="w-full bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-xl pl-9 pr-3 py-2 text-xs text-[var(--text-main)] placeholder-[#BEC5E5]/50 focus:outline-none focus:border-[#42DFFF] transition-colors"
               />
             </div>
 
-            <div className="bg-[#11152F] border border-[#AA9BFF]/25 text-xs text-[#BEC5E5] font-semibold rounded-xl px-3.5 py-2 flex items-center gap-1.5 shrink-0">
+            <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 text-xs text-[var(--text-muted)] font-semibold rounded-xl px-3.5 py-2 flex items-center gap-1.5 shrink-0">
               <span className="text-[#42DFFF]">📍</span>
               <span>[Q. Thanh Khê] D'AVENOR Thanh Khê Plaza</span>
             </div>
@@ -340,7 +340,7 @@ const PromotionsPage = () => {
 
       {/* 4. KHO VOUCHER ĐỔI THƯỞNG & NHẬP MÃ NHANH */}
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 py-5">
-        <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-3xl p-6 sm:p-7 space-y-5">
+        <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-3xl p-6 sm:p-7 space-y-5">
           {/* Header Kho Voucher */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -348,7 +348,7 @@ const PromotionsPage = () => {
                 <span>🎟️</span>
                 <span>Kho Voucher Đổi Thưởng & Nhập Mã Nhanh</span>
               </h2>
-              <p className="text-xs text-[#BEC5E5] mt-0.5">
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
                 Lưu mã ngay để áp dụng tự động ở bước thanh toán & hoàn tiền đơn hàng.
               </p>
             </div>
@@ -360,7 +360,7 @@ const PromotionsPage = () => {
                 value={voucherInput}
                 onChange={(e) => setVoucherInput(e.target.value)}
                 placeholder="NHẬP MÃ VOUCHER CỦA BẠN"
-                className="bg-[#0B1026] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 text-xs text-white placeholder-[#BEC5E5]/50 uppercase tracking-wider focus:outline-none focus:border-[#42DFFF] w-48 sm:w-56"
+                className="bg-[var(--bg-main)] border border-[#AA9BFF]/30 rounded-xl px-3 py-2 text-xs text-white placeholder-[#BEC5E5]/50 uppercase tracking-wider focus:outline-none focus:border-[#42DFFF] w-48 sm:w-56"
               />
               <button
                 type="submit"
@@ -390,14 +390,14 @@ const PromotionsPage = () => {
               return (
                 <div
                   key={v.id}
-                  className="relative bg-[#20204B] border border-[#AA9BFF]/25 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-[#42DFFF]/60 transition-all group"
+                  className="relative bg-[var(--bg-card)] border border-[#AA9BFF]/25 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-[#42DFFF]/60 transition-all group"
                 >
                   {/* Top Badge & HSD */}
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="font-bold text-[#42DFFF] bg-cyan-500/10 px-2 py-0.5 rounded border border-[#42DFFF]/25 uppercase tracking-wider">
                       {v.badgeTop}
                     </span>
-                    <span className="text-[#BEC5E5] font-medium">{v.expiryDate}</span>
+                    <span className="text-[var(--text-muted)] font-medium">{v.expiryDate}</span>
                   </div>
 
                   {/* Giá trị giảm & Điều kiện */}
@@ -405,7 +405,7 @@ const PromotionsPage = () => {
                     <h3 className="text-base font-black text-white group-hover:text-[#42DFFF] transition-colors">
                       {v.discountValue}
                     </h3>
-                    <p className="text-[11px] text-[#BEC5E5] line-clamp-2 mt-1 leading-relaxed">
+                    <p className="text-[11px] text-[var(--text-muted)] line-clamp-2 mt-1 leading-relaxed">
                       {v.conditions}
                     </p>
                   </div>
@@ -420,7 +420,7 @@ const PromotionsPage = () => {
                       className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                         isCopied
                           ? 'bg-emerald-500 text-white shadow-sm'
-                          : 'bg-[#11152F] hover:bg-[#25234D] text-[#BEC5E5] hover:text-white border border-[#AA9BFF]/30'
+                          : 'bg-[var(--bg-secondary)] hover:bg-[#25234D] text-[var(--text-muted)] hover:text-white border border-[#AA9BFF]/30'
                       }`}
                     >
                       {isCopied ? '✔ Đã lưu' : '📋 Sao chép'}
@@ -448,7 +448,7 @@ const PromotionsPage = () => {
 
           <div className="text-xs text-slate-400 hidden sm:flex items-center space-x-1.5">
             <span>Sắp xếp theo:</span>
-            <select className="bg-[#111624] border border-slate-800 text-blue-400 font-bold rounded-lg px-2.5 py-1 text-xs focus:outline-none">
+            <select className="bg-[var(--bg-secondary)] border border-[var(--border-default)] text-[var(--cyan)] font-bold rounded-lg px-2.5 py-1 text-xs focus:outline-none">
               <option>Mới nhất</option>
               <option>Giảm nhiều nhất</option>
               <option>Sắp hết hạn</option>
@@ -459,11 +459,11 @@ const PromotionsPage = () => {
         {/* Grid 6 Thẻ Khuyến Mãi */}
         {loading ? (
           <div className="p-16 text-center text-slate-400 text-xs">
-            <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent mb-2"></div>
+            <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[var(--cyan)] border-t-transparent mb-2"></div>
             <p>Đang tải danh sách khuyến mãi từ Database...</p>
           </div>
         ) : programs.length === 0 ? (
-          <div className="p-12 text-center bg-[#0f1422] rounded-3xl border border-slate-800 text-slate-400 text-xs">
+          <div className="p-12 text-center bg-[var(--bg-secondary)] rounded-3xl border border-[var(--border-default)] text-slate-400 text-xs">
             Không có chương trình khuyến mãi nào phù hợp với bộ lọc này.
           </div>
         ) : (
@@ -476,7 +476,7 @@ const PromotionsPage = () => {
               return (
                 <div
                   key={prog.id}
-                  className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-2xl overflow-hidden shadow-xl flex flex-col justify-between hover:border-[#42DFFF]/60 transition-all duration-300 group"
+                  className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-2xl overflow-hidden shadow-xl flex flex-col justify-between hover:border-[#42DFFF]/60 transition-all duration-300 group"
                 >
                   <div>
                     {/* Ảnh bìa 16:9 + Badges chuẩn vị trí */}
@@ -486,7 +486,7 @@ const PromotionsPage = () => {
                         alt={prog.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#11152F] via-transparent to-black/20 opacity-90" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-secondary)] via-transparent to-black/20 opacity-90" />
 
                       {/* Badge top-left */}
                       {prog.badgeTop && (
@@ -516,7 +516,7 @@ const PromotionsPage = () => {
                       <h3 className="text-[15px] font-black text-white group-hover:text-[#42DFFF] transition-colors line-clamp-1">
                         {prog.title}
                       </h3>
-                      <p className="text-xs text-[#BEC5E5] line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-[var(--text-muted)] line-clamp-2 leading-relaxed">
                         {prog.description}
                       </p>
 
@@ -534,7 +534,7 @@ const PromotionsPage = () => {
                                 ? (prog.metadataRight || '').includes('Tặng')
                                   ? 'text-[#F4A5FF]'
                                   : 'text-emerald-400'
-                                : 'text-[#BEC5E5]'
+                                : 'text-[var(--text-muted)]'
                             }`}
                           >
                             • {prog.metadataRight.replace(/^•\s*/, '')}
@@ -549,7 +549,7 @@ const PromotionsPage = () => {
                     <button
                       type="button"
                       onClick={() => setSelectedProgramModal(prog)}
-                      className="py-2.5 px-3 rounded-xl bg-[#20204B] hover:bg-[#25234D] border border-[#AA9BFF]/30 text-xs font-bold text-[#F8F7FF] transition-colors cursor-pointer"
+                      className="py-2.5 px-3 rounded-xl bg-[var(--bg-card)] hover:bg-[#25234D] border border-[#AA9BFF]/30 text-xs font-bold text-[var(--text-main)] transition-colors cursor-pointer"
                     >
                       Xem thể lệ
                     </button>
@@ -576,7 +576,7 @@ const PromotionsPage = () => {
           onClick={() => setSelectedProgramModal(null)}
         >
           <div
-            className="bg-[#111726] border border-slate-700 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl text-white"
+            className="bg-[var(--bg-secondary)] border border-slate-700 rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl text-white"
             onClick={(e) => e.stopPropagation()}
           >
             {selectedProgramModal.image && (
@@ -586,7 +586,7 @@ const PromotionsPage = () => {
                   alt={selectedProgramModal.title}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#111726] via-transparent to-black/40" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-secondary)] via-transparent to-black/40" />
                 <button
                   onClick={() => setSelectedProgramModal(null)}
                   className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-950/80 text-slate-300 hover:text-white flex items-center justify-center font-bold cursor-pointer"
@@ -598,7 +598,7 @@ const PromotionsPage = () => {
             <div className="p-6 space-y-4">
               <div className="flex items-center gap-2">
                 {selectedProgramModal.badgeTop && (
-                  <span className="text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2.5 py-0.5 rounded">
+                  <span className="text-[10px] font-bold bg-blue-500/20 text-[var(--ice-blue)] border border-[var(--cyan)]/30 px-2.5 py-0.5 rounded">
                     {selectedProgramModal.badgeTop}
                   </span>
                 )}
@@ -610,7 +610,7 @@ const PromotionsPage = () => {
               </div>
               <h3 className="text-lg font-black text-white">{selectedProgramModal.title}</h3>
               <p className="text-xs text-slate-300 leading-relaxed">{selectedProgramModal.description}</p>
-              <div className="bg-[#161f33] border border-slate-800 rounded-2xl p-4 space-y-2 text-xs text-slate-300">
+              <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl p-4 space-y-2 text-xs text-slate-300">
                 <p className="font-bold text-amber-400">📌 Điều kiện & Thể lệ áp dụng:</p>
                 <ul className="list-disc list-inside space-y-1 text-slate-400 text-[11px]">
                   <li>Địa điểm áp dụng: Cụm rạp D'AVENOR Thanh Khê Plaza (Đà Nẵng).</li>
@@ -621,7 +621,7 @@ const PromotionsPage = () => {
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   onClick={() => setSelectedProgramModal(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[var(--bg-surface)] hover:bg-slate-700 text-xs font-bold text-slate-300 cursor-pointer"
                 >
                   Đóng
                 </button>
@@ -643,10 +643,10 @@ const PromotionsPage = () => {
 
       {/* 6. MỘT SỐ LƯU Ý KHI SỬ DỤNG MÃ ƯU ĐÃI (3 CARDS) */}
       <div className="max-w-[1560px] mx-auto px-4 sm:px-8 pt-8">
-        <div className="bg-[#0f1422] border border-slate-800/90 rounded-3xl p-6 sm:p-7 space-y-4">
+        <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)]/90 rounded-3xl p-6 sm:p-7 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-200 flex items-center space-x-2">
-              <span className="text-blue-400">ℹ️</span>
+              <span className="text-[var(--cyan)]">ℹ️</span>
               <span>Một số lưu ý khi sử dụng mã ưu đãi D'AVENOR CINEMA</span>
             </h3>
             <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
@@ -655,7 +655,7 @@ const PromotionsPage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div className="bg-[#141b2c] border border-slate-800/80 rounded-2xl p-4 space-y-1.5">
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-default)]/80 rounded-2xl p-4 space-y-1.5">
               <div className="flex items-center space-x-2 text-white font-bold">
                 <span className="text-amber-400">🔄</span>
                 <span>Áp dụng đồng thời</span>
@@ -665,9 +665,9 @@ const PromotionsPage = () => {
               </p>
             </div>
 
-            <div className="bg-[#141b2c] border border-slate-800/80 rounded-2xl p-4 space-y-1.5">
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-default)]/80 rounded-2xl p-4 space-y-1.5">
               <div className="flex items-center space-x-2 text-white font-bold">
-                <span className="text-blue-400">⏳</span>
+                <span className="text-[var(--cyan)]">⏳</span>
                 <span>Đổi vé & Hoàn hủy</span>
               </div>
               <p className="text-slate-400 leading-relaxed text-[11px]">
@@ -675,7 +675,7 @@ const PromotionsPage = () => {
               </p>
             </div>
 
-            <div className="bg-[#141b2c] border border-slate-800/80 rounded-2xl p-4 space-y-1.5">
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-default)]/80 rounded-2xl p-4 space-y-1.5">
               <div className="flex items-center space-x-2 text-white font-bold">
                 <span className="text-emerald-400">🥤</span>
                 <span>Nhận bắp nước tại quầy</span>

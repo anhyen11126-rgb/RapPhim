@@ -130,7 +130,7 @@ const StatisticsPage = () => {
   };
 
   return (
-    <div className="flex bg-[#0a0e17] min-h-screen text-slate-200 font-sans">
+    <div className="flex bg-[var(--bg-main)] min-h-screen text-slate-200 font-sans">
       {/* Sidebar Admin bên trái */}
       <SidebarAdmin />
 
@@ -151,7 +151,7 @@ const StatisticsPage = () => {
 
           {/* Thông báo thao tác xuất file nếu có */}
           {notification && (
-            <div className="p-3 bg-slate-900 border border-slate-700 rounded-2xl text-xs font-semibold text-emerald-300 shadow-lg animate-fadeIn flex items-center justify-between">
+            <div className="p-3 bg-[var(--bg-secondary)] border border-slate-700 rounded-2xl text-xs font-semibold text-emerald-300 shadow-lg animate-fadeIn flex items-center justify-between">
               <span>{notification}</span>
               <button onClick={() => setNotification('')} className="text-slate-400 hover:text-white">
                 ✕
@@ -168,7 +168,7 @@ const StatisticsPage = () => {
           />
 
           {/* 3. Dãy 4 Tabs điều hướng chính: Tổng quan, Doanh thu & Chi phí, Phim & Lợi nhuận, Suất chiếu */}
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800">
+          <div className="flex items-center gap-2 border-b border-[var(--border-default)] pb-3 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800">
             {TABS.map((tab) => {
               const isActive = activeTab === tab.id;
               return (
@@ -178,8 +178,8 @@ const StatisticsPage = () => {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
                     isActive
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 ring-1 ring-red-500'
-                      : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+                      ? 'cinema-action text-white shadow-lg shadow-violet-700/30 ring-1 ring-[var(--violet)]'
+                      : 'bg-[var(--bg-secondary)] text-slate-400 hover:text-white hover:bg-[var(--bg-surface)] border border-[var(--border-default)]'
                   }`}
                 >
                   <span className="text-base">{tab.icon}</span>

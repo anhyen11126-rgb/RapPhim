@@ -54,7 +54,7 @@ const Navbar = () => {
 
   return (
     <header className="bg-[#0B1026]/95 backdrop-blur-md border-b border-[#AA9BFF]/25 sticky top-0 z-50 transition-all shadow-[0_4px_24px_rgba(11,16,38,0.85)]">
-      <div className="max-w-[1560px] mx-auto px-4 sm:px-8 lg:px-10 h-16 flex items-center justify-between gap-4">
+      <div className="client-navbar-row max-w-[1560px] mx-auto px-4 sm:px-8 lg:px-10 h-16 flex items-center justify-between gap-4">
         {/* Cụm Trái: Brand Logo & Navigation (Không có viền khung) */}
         <div className="flex items-center space-x-5 lg:space-x-7">
           <Link

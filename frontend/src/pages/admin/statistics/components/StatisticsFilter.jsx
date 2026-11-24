@@ -69,11 +69,11 @@ const StatisticsFilter = ({
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-3 shadow-lg">
+    <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-3 sm:p-4 space-y-3 shadow-lg">
       {/* 2 Dropdown Bộ Lọc Cân Đối: Thời gian & Phim */}
       <div className={`grid grid-cols-1 ${showMovieFilter ? 'md:grid-cols-2' : 'md:grid-cols-2'} gap-3 sm:gap-4`}>
         {/* 1. Dropdown Thời Gian */}
-        <div className="flex items-center space-x-2 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs transition-colors">
+        <div className="flex items-center space-x-2 bg-[var(--bg-surface)]/80 hover:bg-[var(--bg-surface)] border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs transition-colors">
           <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
@@ -89,7 +89,7 @@ const StatisticsFilter = ({
             className="bg-transparent text-white font-semibold outline-none w-full cursor-pointer truncate"
           >
             {TIME_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value} className="bg-slate-900 text-white py-1">
+              <option key={opt.value} value={opt.value} className="bg-[var(--bg-secondary)] text-white py-1">
                 {opt.label}
               </option>
             ))}
@@ -98,7 +98,7 @@ const StatisticsFilter = ({
 
         {/* 2. Dropdown Phim */}
         {showMovieFilter && (
-          <div className="flex items-center space-x-2 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs transition-colors">
+          <div className="flex items-center space-x-2 bg-[var(--bg-surface)]/80 hover:bg-[var(--bg-surface)] border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs transition-colors">
             <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
@@ -113,9 +113,9 @@ const StatisticsFilter = ({
               onChange={(e) => onChange({ ...filters, movieId: e.target.value })}
               className="bg-transparent text-white font-semibold outline-none w-full cursor-pointer truncate"
             >
-              <option value="ALL" className="bg-slate-900 text-white">Tất cả phim</option>
+              <option value="ALL" className="bg-[var(--bg-secondary)] text-white">Tất cả phim</option>
               {movies.map((m) => (
-                <option key={m.id || m._id} value={m.id || m._id} className="bg-slate-900 text-white truncate">
+                <option key={m.id || m._id} value={m.id || m._id} className="bg-[var(--bg-secondary)] text-white truncate">
                   {m.title}
                 </option>
               ))}
@@ -126,7 +126,7 @@ const StatisticsFilter = ({
 
       {/* Lọc theo tháng & năm cụ thể (khi chọn 'by_month') */}
       {filters.timeRange === 'by_month' && (
-        <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center gap-3 text-xs animate-fadeIn">
+        <div className="pt-2.5 border-t border-[var(--border-default)]/80 flex flex-wrap items-center gap-3 text-xs animate-fadeIn">
           <span className="text-slate-400 font-semibold flex items-center space-x-1.5">
             <span className="w-2 h-2 rounded-full bg-red-500"></span>
             <span>Chọn kỳ báo cáo tháng:</span>
@@ -135,10 +135,10 @@ const StatisticsFilter = ({
             <select
               value={filters.month || 11}
               onChange={(e) => onChange({ ...filters, month: Number(e.target.value) })}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-bold outline-none focus:border-red-500 text-xs cursor-pointer"
+              className="bg-[var(--bg-surface)] border border-slate-700 rounded-lg px-3 py-1.5 text-white font-bold outline-none focus:border-red-500 text-xs cursor-pointer"
             >
               {MONTHS.map((m) => (
-                <option key={m.value} value={m.value} className="bg-slate-900 text-white">
+                <option key={m.value} value={m.value} className="bg-[var(--bg-secondary)] text-white">
                   {m.label}
                 </option>
               ))}
@@ -146,10 +146,10 @@ const StatisticsFilter = ({
             <select
               value={filters.year || 2026}
               onChange={(e) => onChange({ ...filters, year: Number(e.target.value) })}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-bold outline-none focus:border-red-500 text-xs cursor-pointer"
+              className="bg-[var(--bg-surface)] border border-slate-700 rounded-lg px-3 py-1.5 text-white font-bold outline-none focus:border-red-500 text-xs cursor-pointer"
             >
               {YEARS.map((y) => (
-                <option key={y} value={y} className="bg-slate-900 text-white">
+                <option key={y} value={y} className="bg-[var(--bg-secondary)] text-white">
                   Năm {y}
                 </option>
               ))}
@@ -163,7 +163,7 @@ const StatisticsFilter = ({
 
       {/* Tùy chọn khoảng ngày tùy chỉnh (khi chọn 'custom') */}
       {filters.timeRange === 'custom' && (
-        <div className="pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center gap-3 text-xs animate-fadeIn">
+        <div className="pt-2.5 border-t border-[var(--border-default)]/80 flex flex-wrap items-center gap-3 text-xs animate-fadeIn">
           <span className="text-slate-400 font-semibold flex items-center space-x-1">
             <span>Khoảng ngày tùy chọn:</span>
           </span>
@@ -173,7 +173,7 @@ const StatisticsFilter = ({
               type="date"
               value={localStart}
               onChange={(e) => setLocalStart(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-medium outline-none focus:border-red-500 text-xs"
+              className="bg-[var(--bg-surface)] border border-slate-700 rounded-lg px-2.5 py-1 text-white font-medium outline-none focus:border-red-500 text-xs"
             />
           </div>
           <div className="flex items-center space-x-1.5">
@@ -182,13 +182,13 @@ const StatisticsFilter = ({
               type="date"
               value={localEnd}
               onChange={(e) => setLocalEnd(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-medium outline-none focus:border-red-500 text-xs"
+              className="bg-[var(--bg-surface)] border border-slate-700 rounded-lg px-2.5 py-1 text-white font-medium outline-none focus:border-red-500 text-xs"
             />
           </div>
           <button
             type="button"
             onClick={handleApplyCustom}
-            className="px-3.5 py-1 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-all shadow-md text-xs cursor-pointer"
+            className="px-3.5 py-1 cinema-action text-white font-bold rounded-lg transition-all shadow-md text-xs cursor-pointer"
           >
             Áp dụng
           </button>

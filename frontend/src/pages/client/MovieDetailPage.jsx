@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import api from '../../services/api';
 
 // Các module thành phần con được tách biệt rõ ràng (tránh conflict khi nhóm cùng làm)
@@ -48,96 +48,24 @@ const getAgeBadgeStyle = (ageRating) => {
 
 const MovieDetailPage = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
 
   const [movie, setMovie] = useState(null);
-  const [cinemas, setCinemas] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modal Trailer & Trạng thái yêu thích
   const [isTrailerModalOpen, setIsTrailerModalOpen] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
 
-  // Bộ chọn Lịch chiếu & Rạp
-  const [selectedCity, setSelectedCity] = useState(
-    () => localStorage.getItem('selectedCity') || 'TP. Hồ Chí Minh'
-  );
-  const [selectedDateIndex, setSelectedDateIndex] = useState(0);
-  const [selectedCinemaId, setSelectedCinemaId] = useState('');
-  const [selectedShowtime, setSelectedShowtime] = useState(null);
-
-  // Lắng nghe thay đổi tỉnh/thành phố từ Header Navbar
   useEffect(() => {
-    const handleCitySync = (e) => {
-      if (e.detail) {
-        setSelectedCity(e.detail);
-      }
-    };
-    window.addEventListener('cityChange', handleCitySync);
-    return () => window.removeEventListener('cityChange', handleCitySync);
-  }, []);
-
-  useEffect(() => {
-    fetchMovieDetail();
-    fetchCinemas();
+    const request = new AbortController();
+    setLoading(true);
+    setMovie(null);
+    api.get('/movies/' + encodeURIComponent(id), { params: { schedule: 'read-only' }, signal: request.signal })
+      .then(({ data }) => setMovie(data))
+      .catch(() => {})
+      .finally(() => { if (!request.signal.aborted) setLoading(false); });
+    return () => request.abort();
   }, [id]);
-
-  // Lọc danh sách cụm rạp theo đúng Tỉnh / Thành Phố đang chọn trên Navbar hoặc Selector
-  const normalizeCity = (c) => (c || '').toLowerCase().replace(/^tp\.?\s*/i, '').trim();
-
-  const filteredCinemas = useMemo(() => {
-    if (!cinemas || cinemas.length === 0) return [];
-    if (!selectedCity || selectedCity === 'Tất cả khu vực') return cinemas;
-    const normSelected = normalizeCity(selectedCity);
-    const matched = cinemas.filter((c) => {
-      const normCinemaCity = normalizeCity(c.city);
-      return (
-        normCinemaCity.includes(normSelected) ||
-        normSelected.includes(normCinemaCity) ||
-        (c.address && c.address.toLowerCase().includes(normSelected))
-      );
-    });
-    return matched.length > 0 ? matched : cinemas;
-  }, [cinemas, selectedCity]);
-
-  // Tự động chọn rạp đầu tiên của khu vực mới khi danh sách rạp lọc thay đổi
-  useEffect(() => {
-    if (filteredCinemas && filteredCinemas.length > 0) {
-      const isCurrentInList = filteredCinemas.some((c) => (c._id || c.id) === selectedCinemaId);
-      if (!isCurrentInList) {
-        setSelectedCinemaId(filteredCinemas[0]._id || filteredCinemas[0].id);
-      }
-    }
-  }, [filteredCinemas, selectedCinemaId]);
-
-  const fetchMovieDetail = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get(`/movies/${id}`);
-      setMovie(res.data);
-      if (res.data?.showtimes && res.data.showtimes.length > 0) {
-        setSelectedShowtime(res.data.showtimes[0]);
-      }
-    } catch (error) {
-      console.error('Lỗi khi tải chi tiết phim:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCinemas = async () => {
-    try {
-      const res = await api.get('/cinemas');
-      if (Array.isArray(res.data)) {
-        setCinemas(res.data);
-        if (res.data.length > 0) {
-          setSelectedCinemaId(res.data[0]._id || res.data[0].id);
-        }
-      }
-    } catch (e) {
-      console.warn('Không tải được danh sách rạp:', e);
-    }
-  };
 
   const scrollToBooking = () => {
     const el = document.getElementById('showtimes-section');
@@ -146,44 +74,9 @@ const MovieDetailPage = () => {
     }
   };
 
-  // Tạo danh sách 30 ngày liên tiếp từ hôm nay (hỗ trợ xem tuần này, tuần sau, tháng 11, tháng 12)
-  const generateDateTabs = () => {
-    const tabs = [];
-    const daysOfWeek = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
-    const now = new Date();
-
-    for (let i = 0; i < 30; i++) {
-      const d = new Date(now);
-      d.setDate(now.getDate() + i);
-
-      let tag = '';
-      if (i === 0) tag = 'HÔM NAY';
-      else if (i === 1) tag = 'NGÀY MAI';
-      else if (d.getDay() === 0 || d.getDay() === 6) tag = 'CUỐI TUẦN';
-      else tag = `THỨ ${d.getDay() + 1}`;
-
-      const dateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const dayName = daysOfWeek[d.getDay()];
-      const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-      tabs.push({
-        index: i,
-        tag,
-        dateStr,
-        dayName,
-        fullDate: d,
-        isoDate,
-      });
-    }
-    return tabs;
-  };
-
-  const dateTabs = generateDateTabs();
-  const selectedDate = dateTabs[selectedDateIndex] || dateTabs[0];
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0e17] flex flex-col items-center justify-center text-slate-400 py-32 space-y-4">
+      <div className="min-h-screen bg-[var(--bg-main)] flex flex-col items-center justify-center text-slate-400 py-32 space-y-4">
         <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
         <p className="text-sm font-semibold tracking-wide text-slate-300">Đang nạp dữ liệu phim điện ảnh...</p>
       </div>
@@ -192,7 +85,7 @@ const MovieDetailPage = () => {
 
   if (!movie) {
     return (
-      <div className="min-h-screen bg-[#0a0e17] flex flex-col items-center justify-center text-slate-400 py-32 space-y-4">
+      <div className="min-h-screen bg-[var(--bg-main)] flex flex-col items-center justify-center text-slate-400 py-32 space-y-4">
         <span className="text-4xl">🎬</span>
         <p className="text-xl font-bold text-white">Không tìm thấy thông tin bộ phim này.</p>
         <Link
@@ -207,217 +100,8 @@ const MovieDetailPage = () => {
 
   const ageBadge = getAgeBadgeStyle(movie.ageRating);
 
-  // Phân bổ suất chiếu thực tế từ database
-  const allShowtimes = Array.isArray(movie.showtimes) ? movie.showtimes : [];
-  const realShowtimeIds = allShowtimes.map((st) => st._id || st.id || st.showtimeId).filter(Boolean);
-  const primaryShowtimeId = movie.firstShowtimeId || realShowtimeIds[0] || '6aecb21dd70710fc53a15c06';
-
-  const fallbackImaxTimes = [
-    {
-      id: 'imax-morning',
-      realId: realShowtimeIds[0] || primaryShowtimeId,
-      time: '09:30',
-      roomName: 'Phòng IMAX 01',
-      availableSeats: 65,
-      price: 140000,
-      tag: 'CA SÁNG',
-    },
-    {
-      id: 'imax-afternoon',
-      realId: realShowtimeIds[0] || primaryShowtimeId,
-      time: '14:30',
-      roomName: 'Phòng IMAX 01',
-      availableSeats: 52,
-      price: 150000,
-      tag: 'CA CHIỀU',
-    },
-    {
-      id: 'imax-1',
-      realId: realShowtimeIds[0] || primaryShowtimeId,
-      time: '17:30',
-      roomName: 'Phòng IMAX 01',
-      availableSeats: 82,
-      price: 160000,
-      tag: '',
-    },
-    {
-      id: 'imax-2',
-      realId: realShowtimeIds[1] || primaryShowtimeId,
-      time: '19:15',
-      roomName: 'Phòng IMAX 01',
-      availableSeats: 12,
-      price: 160000,
-      tag: 'ĐẶT NHIỀU NHẤT',
-    },
-    {
-      id: 'imax-3',
-      realId: realShowtimeIds[2] || primaryShowtimeId,
-      time: '20:45',
-      roomName: 'Phòng IMAX 01',
-      availableSeats: 54,
-      price: 160000,
-      tag: '',
-    },
-    {
-      id: 'imax-4',
-      realId: realShowtimeIds[3] || primaryShowtimeId,
-      time: '22:30',
-      roomName: 'Phòng IMAX 01',
-      availableSeats: 20,
-      price: 140000,
-      tag: '',
-    },
-  ];
-
-  const fallbackStandardTimes = [
-    {
-      id: 'std-morning',
-      realId: realShowtimeIds[0] || primaryShowtimeId,
-      time: '09:30',
-      roomName: 'Rạp 03 (Tầng 2)',
-      availableSeats: 58,
-      price: 45000,
-      tag: 'CA SÁNG',
-    },
-    {
-      id: 'std-afternoon',
-      realId: realShowtimeIds[0] || primaryShowtimeId,
-      time: '14:00',
-      roomName: 'Rạp 03 (Tầng 2)',
-      availableSeats: 48,
-      price: 45000,
-      tag: 'CA CHIỀU',
-    },
-    {
-      id: 'std-1',
-      realId: realShowtimeIds[0] || primaryShowtimeId,
-      time: '18:00',
-      roomName: 'Rạp 03 (Tầng 2)',
-      availableSeats: 90,
-      price: 50000,
-      tag: '',
-    },
-    {
-      id: 'std-2',
-      realId: realShowtimeIds[1] || primaryShowtimeId,
-      time: '19:45',
-      roomName: 'Rạp 04 (Tầng 2)',
-      availableSeats: 31,
-      price: 50000,
-      tag: '',
-    },
-    {
-      id: 'std-3',
-      realId: realShowtimeIds[2] || primaryShowtimeId,
-      time: '21:15',
-      roomName: 'Rạp 03 (Tầng 2)',
-      availableSeats: 45,
-      price: 50000,
-      tag: '',
-    },
-    {
-      id: 'std-4',
-      realId: realShowtimeIds[3] || primaryShowtimeId,
-      time: '23:00',
-      roomName: 'Rạp 02',
-      availableSeats: 0,
-      price: 50000,
-      tag: 'HẾT VÉ',
-    },
-  ];
-
-  const fallback3DTimes = [
-    {
-      id: '3d-1',
-      realId: realShowtimeIds[0] || primaryShowtimeId,
-      time: '18:30',
-      roomName: 'Rạp 05 (Tầng 3)',
-      availableSeats: 64,
-      price: 50000,
-      tag: '',
-    },
-    {
-      id: '3d-2',
-      realId: realShowtimeIds[1] || primaryShowtimeId,
-      time: '20:00',
-      roomName: 'Rạp 05 (Tầng 3)',
-      availableSeats: 48,
-      price: 50000,
-      tag: '',
-    },
-    {
-      id: '3d-3',
-      realId: realShowtimeIds[2] || primaryShowtimeId,
-      time: '21:15',
-      roomName: 'Rạp 05 (Tầng 3)',
-      availableSeats: 42,
-      price: 50000,
-      tag: '',
-    },
-    {
-      id: '3d-4',
-      realId: realShowtimeIds[3] || primaryShowtimeId,
-      time: '22:15',
-      roomName: 'Rạp 05 (Tầng 3)',
-      availableSeats: 28,
-      price: 45000,
-      tag: 'GIÁ ƯU ĐÃI',
-    },
-  ];
-
-  const displayCinema =
-    filteredCinemas.find((c) => (c._id || c.id) === selectedCinemaId) ||
-    filteredCinemas[0] ||
-    cinemas[0] || {
-      name: "D'AVENOR Thanh Khê Plaza",
-      address: 'Tầng 4 TTTM Thanh Khê Plaza, 295 Điện Biên Phủ, Q. Thanh Khê, Đà Nẵng',
-    };
-
-  // Helper tính giờ kết thúc suất chiếu
-  const getEndTime = (timeStr, durationMins = 120) => {
-    if (!timeStr) return '';
-    const [h, m] = timeStr.split(':').map(Number);
-    if (isNaN(h) || isNaN(m)) return '';
-    const totalMins = h * 60 + m + (Number(durationMins) || 120);
-    const endH = Math.floor(totalMins / 60) % 24;
-    const endM = totalMins % 60;
-    return `~${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-  };
-
-  const currentActiveShowtime = selectedShowtime || {
-    ...fallbackImaxTimes[1],
-    cinemaName: displayCinema.name,
-    format: 'IMAX Laser 2D',
-  };
-
-  const handleSelectSlot = (st, formatName, directToSeat = false) => {
-    const slotData = {
-      ...st,
-      cinemaName: displayCinema.name,
-      format: formatName,
-      startTime: selectedDate?.fullDate,
-      movie: {
-        id: movie?.id || movie?._id,
-        _id: movie?._id || movie?.id,
-        title: movie?.title,
-        ageRating: movie?.ageRating,
-        duration: movie?.duration,
-        poster: movie?.poster || movie?.posterUrl,
-        genre: movie?.genre,
-        slug: movie?.slug,
-      },
-    };
-    setSelectedShowtime(slotData);
-    if (directToSeat) {
-      const targetId = st.realId || primaryShowtimeId;
-      navigate(`/booking/seat/${targetId}`, {
-        state: { slotInfo: slotData },
-      });
-    }
-  };
-
   return (
-    <div className="bg-[#0B1026] text-[#F8F7FF] min-h-screen pb-28 select-none">
+    <div className="bg-[var(--bg-main)] text-[var(--text-main)] min-h-screen pb-28 select-none">
       {/* 1. HERO TRAILER SECTION (THEATRICAL AMBIENT BANNER & MODAL) */}
       <MovieHeroTrailer
         movie={movie}
@@ -458,35 +142,7 @@ const MovieDetailPage = () => {
       </section>
 
       {/* 3. LỊCH CHIẾU RẠP TOÀN QUỐC (SHOWTIMES & BOOKING SECTION) */}
-      <MovieShowtimesSection
-        movie={movie}
-        dateTabs={dateTabs}
-        selectedDateIndex={selectedDateIndex}
-        onSelectDateIndex={setSelectedDateIndex}
-        selectedCity={selectedCity}
-        filteredCinemas={filteredCinemas}
-        selectedCinemaId={selectedCinemaId}
-        onSelectCinemaId={setSelectedCinemaId}
-        fallbackImaxTimes={fallbackImaxTimes}
-        fallbackStandardTimes={fallbackStandardTimes}
-        fallback3DTimes={fallback3DTimes}
-        currentActiveShowtime={currentActiveShowtime}
-        onSelectSlot={handleSelectSlot}
-        getEndTime={getEndTime}
-        selectedDate={selectedDate}
-        displayCinema={displayCinema}
-        onProceedToBooking={() => {
-          const targetId = currentActiveShowtime?.realId || primaryShowtimeId;
-          const finalSlot = {
-            ...currentActiveShowtime,
-            cinemaName: displayCinema.name,
-            startTime: selectedDate?.fullDate,
-          };
-          navigate(`/booking/seat/${targetId}`, {
-            state: { slotInfo: finalSlot },
-          });
-        }}
-      />
+      <MovieShowtimesSection key={id} movie={movie} />
     </div>
   );
 };

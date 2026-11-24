@@ -32,9 +32,9 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
       <div className="absolute inset-0" onClick={onClose}></div>
 
       {/* Slide-out Drawer Panel */}
-      <div className="relative w-full max-w-2xl bg-slate-900 border-l border-slate-800 h-full overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl z-10 text-slate-200">
+      <div className="relative w-full max-w-2xl bg-[var(--bg-secondary)] border-l border-[var(--border-default)] h-full overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl z-10 text-slate-200">
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-800 pb-4">
+        <div className="flex items-start justify-between border-b border-[var(--border-default)] pb-4">
           <div>
             <div className="flex items-center space-x-2">
               <span className="text-xs font-bold text-red-500 uppercase tracking-wider">Hồ sơ phân tích tài chính & suất chiếu</span>
@@ -48,7 +48,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-sm transition-all cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[var(--bg-surface)] hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold text-sm transition-all cursor-pointer"
           >
             ✕
           </button>
@@ -66,7 +66,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
         ) : (
           <div className="space-y-6">
             {/* Banner tóm tắt phim */}
-            <div className="flex gap-4 p-4 rounded-2xl bg-slate-800/50 border border-slate-700/60">
+            <div className="flex gap-4 p-4 rounded-2xl bg-[var(--bg-surface)]/50 border border-slate-700/60">
               <img
                 src={data.movie.poster}
                 alt={data.movie.title}
@@ -108,25 +108,25 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                 1. Hiệu suất bán vé & Ghế ngồi
               </h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+                <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                   <span className="text-[11px] text-slate-400 block">Số suất chiếu</span>
                   <span className="text-sm font-bold text-white block mt-1">
                     {formatNumber(data.stats.showtimesCount)} suất
                   </span>
                 </div>
-                <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+                <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                   <span className="text-[11px] text-slate-400 block">Vé đã bán</span>
                   <span className="text-sm font-bold text-white block mt-1">
                     {formatNumber(data.stats.totalTickets)} vé
                   </span>
                 </div>
-                <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+                <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                   <span className="text-[11px] text-slate-400 block">Ghế còn trống</span>
                   <span className="text-sm font-bold text-slate-300 block mt-1">
                     {formatNumber(data.stats.availableSeats || 0)} ghế
                   </span>
                 </div>
-                <div className="bg-slate-800/60 border border-slate-700/70 p-3 rounded-xl">
+                <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                   <span className="text-[11px] text-slate-400 block">Tỷ lệ bán vé TB</span>
                   <span className="text-sm font-bold text-amber-400 block mt-1">
                     {formatPercent(data.stats.avgOccupancy)}
@@ -153,25 +153,25 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-                <div className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl">
+                <div className="bg-slate-950/60 border border-[var(--border-default)] p-2.5 rounded-xl">
                   <span className="text-[10px] text-slate-400 block">Doanh thu thuần</span>
                   <strong className="text-emerald-400 text-xs block mt-0.5">
                     {data.stats.revenueFormatted}
                   </strong>
                 </div>
-                <div className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl">
+                <div className="bg-slate-950/60 border border-[var(--border-default)] p-2.5 rounded-xl">
                   <span className="text-[10px] text-slate-400 block">Chi phí trực tiếp</span>
                   <strong className="text-rose-300 text-xs block mt-0.5">
                     {data.stats.directExpensesFormatted || '0 đ'}
                   </strong>
                 </div>
-                <div className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl">
+                <div className="bg-slate-950/60 border border-[var(--border-default)] p-2.5 rounded-xl">
                   <span className="text-[10px] text-slate-400 block">Chi phí phân bổ</span>
                   <strong className="text-amber-300 text-xs block mt-0.5">
                     {data.stats.allocatedExpensesFormatted || '0 đ'}
                   </strong>
                 </div>
-                <div className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl">
+                <div className="bg-slate-950/60 border border-[var(--border-default)] p-2.5 rounded-xl">
                   <span className="text-[10px] text-slate-400 block">Lợi nhuận thuần</span>
                   <strong
                     className={`text-xs block mt-0.5 ${
@@ -183,7 +183,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                 </div>
               </div>
 
-              <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-800/80 leading-relaxed">
+              <div className="text-[11px] text-slate-400 pt-1 border-t border-[var(--border-default)]/80 leading-relaxed">
                 💡 Chi phí trực tiếp bao gồm phí bản quyền nhà phát hành (~46%) và marketing phim. Chi phí phân bổ là phần chi phí vận hành chung của rạp chia theo tỷ lệ doanh thu.
               </div>
             </div>
@@ -198,11 +198,11 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                   {data.expensesList.map((exp) => (
                     <div
                       key={exp.id}
-                      className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 text-xs flex items-center justify-between"
+                      className="p-3 rounded-xl bg-[var(--bg-surface)]/50 border border-slate-700/60 text-xs flex items-center justify-between"
                     >
                       <div>
                         <div className="flex items-center space-x-2">
-                          <span className="font-mono text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded">
+                          <span className="font-mono text-[10px] text-slate-400 bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded">
                             {exp.costCode}
                           </span>
                           <span className="font-bold text-white">{exp.title}</span>
@@ -229,7 +229,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                 {(data.showtimesList || []).map((st) => (
                   <div
                     key={st.id}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800 text-xs"
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--bg-surface)]/40 border border-[var(--border-default)] text-xs"
                   >
                     <div>
                       <span className="font-semibold text-white">{st.roomName}</span>
@@ -252,7 +252,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
             </div>
 
             {/* Phân bố đánh giá sao */}
-            <div className="bg-slate-800/40 border border-slate-800 p-4 rounded-2xl space-y-3">
+            <div className="bg-[var(--bg-surface)]/40 border border-[var(--border-default)] p-4 rounded-2xl space-y-3">
               <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
                 <span>Phân bố đánh giá khán giả</span>
                 <span className="text-amber-400">Điểm trung bình: {data.movie.rating} / 5.0</span>
@@ -269,7 +269,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                   return (
                     <div key={star} className="flex items-center space-x-2">
                       <span className="w-8 font-semibold text-slate-400">{star} ★</span>
-                      <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="flex-1 h-2 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                         <div
                           className="h-full bg-amber-400 rounded-full transition-all"
                           style={{ width: `${pct}%` }}

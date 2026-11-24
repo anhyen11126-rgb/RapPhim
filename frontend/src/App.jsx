@@ -30,7 +30,7 @@ import ChatbotManagePage from './pages/admin/ChatbotManagePage';
 // Client Layout bọc Navbar, Footer và Chatbot AI (Màn hình 6)
 const ClientLayout = () => {
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
+    <div className="flex flex-col min-h-screen bg-[var(--bg-main)] text-[var(--text-main)]">
       <Navbar />
       <main className="flex-1">
         <Outlet />

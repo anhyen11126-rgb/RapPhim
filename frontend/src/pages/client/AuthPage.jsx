@@ -469,13 +469,13 @@ const AuthPage = ({ initialMode = 'login' }) => {
   const isBackToPage = redirectFrom && redirectFrom !== '/' && redirectFrom !== '/login' && redirectFrom !== '/register';
 
   return (
-    <div className="min-h-screen bg-[#0B1026] text-[#F8F7FF] flex flex-col justify-between py-6 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] flex flex-col justify-between py-6 px-4 sm:px-6 lg:px-8">
       {/* 1. TOP HEADER */}
       <div className="max-w-[1380px] w-full mx-auto flex items-center justify-between py-2">
         {/* Nút quay lại Trang chủ hoặc trang trước */}
         <Link
           to={redirectFrom || '/'}
-          className="text-xs font-semibold text-[#BEC5E5] hover:text-[#F8F7FF] flex items-center space-x-1.5 transition-colors"
+          className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center space-x-1.5 transition-colors"
         >
           <span>←</span>
           <span>{isBackToPage ? 'Quay lại trang trước' : 'Về trang chủ'}</span>
@@ -498,7 +498,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
 
       {/* 2. MAIN CARD: 2 CỘT CHÍNH */}
       <div className="max-w-[1140px] w-full mx-auto my-auto py-6">
-        <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-3xl overflow-hidden shadow-2xl grid grid-cols-1 lg:grid-cols-12 min-h-[640px]">
+        <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-3xl overflow-hidden shadow-2xl grid grid-cols-1 lg:grid-cols-12 min-h-[640px]">
           {/* CỘT TRÁI (5 cols): BANNER ĐẶC QUYỀN VIP PASS */}
           <div className="lg:col-span-5 relative p-8 sm:p-10 flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#20204B] via-[#11152F] to-[#0B1026] border-b lg:border-b-0 lg:border-r border-[#AA9BFF]/20">
             {/* Background ambient */}
@@ -518,7 +518,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                       VIP PASS
                     </span>
                   </div>
-                  <span className="text-[10px] text-[#BEC5E5] block font-medium">
+                  <span className="text-[10px] text-[var(--text-muted)] block font-medium">
                     Hệ sinh thái rạp chiếu phim kỹ thuật số
                   </span>
                 </div>
@@ -541,7 +541,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                     <span>💡</span>
                     <span>Bạn đang tiếp tục tiến trình:</span>
                   </div>
-                  <p className="text-[11px] text-[#BEC5E5] break-all truncate">
+                  <p className="text-[11px] text-[var(--text-muted)] break-all truncate">
                     Sau khi đăng nhập xong, hệ thống sẽ tự động đưa bạn quay lại đúng trang này.
                   </p>
                 </div>
@@ -560,7 +560,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                         GOLD TIER
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#BEC5E5] leading-relaxed">
+                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
                       Tích lũy bắp nước & vé xem phim, thăng hạng Diamond nhận bắp nước miễn phí mỗi tháng.
                     </p>
                   </div>
@@ -572,7 +572,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   </div>
                   <div className="space-y-0.5">
                     <h4 className="text-xs font-black text-white">Check-in QR Code siêu tốc</h4>
-                    <p className="text-[11px] text-[#BEC5E5] leading-relaxed">
+                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
                       Lưu vé điện tử tức thì vào ví Movie Pass, quét mã vào phòng chiếu trong 1 giây không cần xếp hàng.
                     </p>
                   </div>
@@ -584,7 +584,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   </div>
                   <div className="space-y-0.5">
                     <h4 className="text-xs font-black text-white">Trợ lý AI gợi ý phim & chọn ghế</h4>
-                    <p className="text-[11px] text-[#BEC5E5] leading-relaxed">
+                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
                       Phân tích khẩu vị điện ảnh, giữ chỗ vị trí tầm nhìn vàng trung tâm (Sweet spot) tự động.
                     </p>
                   </div>
@@ -611,7 +611,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                     <span>500,000+</span>
                     <span className="text-[#42DFFF] text-[10px]">✔</span>
                   </div>
-                  <span className="text-[10px] text-[#BEC5E5] block font-medium">Tín đồ điện ảnh tin dùng</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block font-medium">Tín đồ điện ảnh tin dùng</span>
                 </div>
               </div>
 
@@ -626,13 +626,13 @@ const AuthPage = ({ initialMode = 'login' }) => {
           <div className="lg:col-span-7 p-8 sm:p-10 flex flex-col justify-between space-y-6">
             {/* Top Bar: Nút Đóng & Nút Toggle Tab */}
             <div className="flex items-center justify-between">
-              <div className="bg-[#0B1026] border border-[#AA9BFF]/25 p-1 rounded-2xl flex items-center space-x-1">
+              <div className="bg-[var(--bg-main)] border border-[#AA9BFF]/25 p-1 rounded-2xl flex items-center space-x-1">
                 <button
                   type="button"
                   onClick={() => handleSwitchMode('login')}
                   className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${mode === 'login'
                     ? 'bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] font-black shadow-md shadow-purple-500/25'
-                    : 'text-[#BEC5E5] hover:text-[#F8F7FF]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                     }`}
                 >
                   <i className="fa-solid fa-arrow-right-from-bracket"></i>
@@ -644,7 +644,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   onClick={() => handleSwitchMode('register')}
                   className={`px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${mode === 'register'
                     ? 'bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] font-black shadow-md shadow-purple-500/25'
-                    : 'text-[#BEC5E5] hover:text-[#F8F7FF]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                     }`}
                 >
                   <span>👤</span>
@@ -655,7 +655,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
               {/* Quay lại */}
               <Link
                 to={redirectFrom || '/'}
-                className="text-xs text-[#BEC5E5] hover:text-[#F8F7FF] transition-colors bg-[#0B1026] hover:bg-[#20204B] px-3 py-1.5 rounded-xl border border-[#AA9BFF]/25"
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors bg-[var(--bg-main)] hover:bg-[#20204B] px-3 py-1.5 rounded-xl border border-[#AA9BFF]/25"
               >
                 ✕ Đóng
               </Link>
@@ -723,17 +723,17 @@ const AuthPage = ({ initialMode = 'login' }) => {
                         value={loginForm.identifier}
                         onChange={(e) => setLoginForm({ ...loginForm, identifier: e.target.value })}
                         placeholder="nguyen.van.a@example.com hoặc 0912..."
-                        className="w-full bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl pl-10 pr-4 py-3 text-xs sm:text-sm text-[#F8F7FF] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF] transition-colors"
+                        className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl pl-10 pr-4 py-3 text-xs sm:text-sm text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF] transition-colors"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-[#BEC5E5] mb-1">
+                    <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
                       Mật khẩu *
                     </label>
                     <div className="relative">
-                      <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#BEC5E5]/60 text-sm">
+                      <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[var(--text-muted)]/60 text-sm">
                         🔒
                       </span>
                       <input
@@ -742,12 +742,12 @@ const AuthPage = ({ initialMode = 'login' }) => {
                         value={loginForm.password}
                         onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                         placeholder="••••••••"
-                        className="w-full bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl pl-10 pr-11 py-3 text-xs sm:text-sm text-[#F8F7FF] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF] transition-colors [&::-ms-reveal]:hidden [&::-webkit-contacts-auto-fill-button]:hidden"
+                        className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl pl-10 pr-11 py-3 text-xs sm:text-sm text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF] transition-colors [&::-ms-reveal]:hidden [&::-webkit-contacts-auto-fill-button]:hidden"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#BEC5E5] hover:text-[#F8F7FF] transition-colors text-xs cursor-pointer"
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors text-xs cursor-pointer"
                         title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                       >
                         {showPassword ? (
@@ -760,12 +760,12 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   </div>
 
                   <div className="flex items-center justify-between text-xs pt-1">
-                    <label className="flex items-center space-x-2 cursor-pointer text-[#BEC5E5]">
+                    <label className="flex items-center space-x-2 cursor-pointer text-[var(--text-muted)]">
                       <input
                         type="checkbox"
                         checked={loginForm.rememberMe}
                         onChange={(e) => setLoginForm({ ...loginForm, rememberMe: e.target.checked })}
-                        className="rounded border-[#AA9BFF]/40 bg-[#0B1026] text-[#42DFFF] focus:ring-0 cursor-pointer"
+                        className="rounded border-[#AA9BFF]/40 bg-[var(--bg-main)] text-[#42DFFF] focus:ring-0 cursor-pointer"
                       />
                       <span>Ghi nhớ đăng nhập trên thiết bị này</span>
                     </label>
@@ -823,18 +823,18 @@ const AuthPage = ({ initialMode = 'login' }) => {
                         value={registerForm.name}
                         onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
                         placeholder="Nguyễn Văn A"
-                        className="w-full bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-[#F8F7FF] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF]"
+                        className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF]"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block text-[11px] font-bold text-[#BEC5E5] mb-1">
+                      <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
                         Email *
                       </label>
                       <div className="relative">
-                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#BEC5E5]/60 text-sm">
+                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[var(--text-muted)]/60 text-sm">
                           ✉️
                         </span>
                         <input
@@ -843,17 +843,17 @@ const AuthPage = ({ initialMode = 'login' }) => {
                           value={registerForm.email}
                           onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
                           placeholder="nguyen.van.a@example.com"
-                          className="w-full bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl pl-10 pr-3 py-2 text-xs sm:text-sm text-[#F8F7FF] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF]"
+                          className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl pl-10 pr-3 py-2 text-xs sm:text-sm text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF]"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-[#BEC5E5] mb-1">
+                      <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
                         Số điện thoại *
                       </label>
                       <div className="relative">
-                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#BEC5E5]/60 text-sm">
+                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[var(--text-muted)]/60 text-sm">
                           📞
                         </span>
                         <input
@@ -862,7 +862,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                           value={registerForm.phone}
                           onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })}
                           placeholder="0912 345 678"
-                          className={`w-full bg-[#0B1026] border rounded-xl pl-10 pr-3 py-2 text-xs sm:text-sm text-[#F8F7FF] placeholder-[#BEC5E5]/40 focus:outline-none transition-colors ${registerForm.phone && !/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(registerForm.phone.replace(/[\s.-]/g, ''))
+                          className={`w-full bg-[var(--bg-main)] border rounded-xl pl-10 pr-3 py-2 text-xs sm:text-sm text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none transition-colors ${registerForm.phone && !/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(registerForm.phone.replace(/[\s.-]/g, ''))
                             ? 'border-amber-500/80 focus:border-amber-500'
                             : 'border-[#AA9BFF]/25 focus:border-[#42DFFF]'
                             }`}
@@ -880,11 +880,11 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   {/* Cặp ô Mật khẩu & Nhập lại Mật khẩu */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block text-[11px] font-bold text-[#BEC5E5] mb-1">
+                      <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">
                         Mật khẩu *
                       </label>
                       <div className="relative">
-                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#BEC5E5]/60 text-sm">
+                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[var(--text-muted)]/60 text-sm">
                           🔒
                         </span>
                         <input
@@ -893,7 +893,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                           value={registerForm.password}
                           onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
                           placeholder="Tối thiểu 6 ký tự"
-                          className="w-full bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl pl-10 pr-10 py-2 text-xs sm:text-sm text-[#F8F7FF] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF] [&::-ms-reveal]:hidden [&::-webkit-contacts-auto-fill-button]:hidden"
+                          className="w-full bg-[var(--bg-main)] border border-[#AA9BFF]/25 rounded-xl pl-10 pr-10 py-2 text-xs sm:text-sm text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none focus:border-[#42DFFF] [&::-ms-reveal]:hidden [&::-webkit-contacts-auto-fill-button]:hidden"
                         />
                         <button
                           type="button"
@@ -938,7 +938,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                           value={registerForm.confirmPassword}
                           onChange={(e) => setRegisterForm({ ...registerForm, confirmPassword: e.target.value })}
                           placeholder="Nhập lại mật khẩu"
-                          className={`w-full bg-[#0B1026] border rounded-xl pl-10 pr-10 py-2 text-xs sm:text-sm text-[#F8F7FF] placeholder-[#BEC5E5]/40 focus:outline-none transition-colors [&::-ms-reveal]:hidden [&::-webkit-contacts-auto-fill-button]:hidden ${registerForm.confirmPassword && registerForm.password !== registerForm.confirmPassword
+                          className={`w-full bg-[var(--bg-main)] border rounded-xl pl-10 pr-10 py-2 text-xs sm:text-sm text-[var(--text-main)] placeholder-[#BEC5E5]/40 focus:outline-none transition-colors [&::-ms-reveal]:hidden [&::-webkit-contacts-auto-fill-button]:hidden ${registerForm.confirmPassword && registerForm.password !== registerForm.confirmPassword
                             ? 'border-rose-500/80 focus:border-rose-500'
                             : registerForm.confirmPassword && registerForm.password === registerForm.confirmPassword
                               ? 'border-emerald-500/80 focus:border-emerald-500'
@@ -948,7 +948,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                         <button
                           type="button"
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#BEC5E5] hover:text-[#F8F7FF] transition-colors text-xs cursor-pointer"
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors text-xs cursor-pointer"
                         >
                           {showConfirmPassword ? (
                             <i className="fa-solid fa-eye"></i>
@@ -978,12 +978,12 @@ const AuthPage = ({ initialMode = 'login' }) => {
                   </div>
 
                   <div className="pt-1">
-                    <label className="flex items-start space-x-2 cursor-pointer text-[11px] text-[#BEC5E5] leading-tight">
+                    <label className="flex items-start space-x-2 cursor-pointer text-[11px] text-[var(--text-muted)] leading-tight">
                       <input
                         type="checkbox"
                         checked={registerForm.agreeTerms}
                         onChange={(e) => setRegisterForm({ ...registerForm, agreeTerms: e.target.checked })}
-                        className="rounded border-[#AA9BFF]/40 bg-[#0B1026] text-[#42DFFF] focus:ring-0 mt-0.5 cursor-pointer"
+                        className="rounded border-[#AA9BFF]/40 bg-[var(--bg-main)] text-[#42DFFF] focus:ring-0 mt-0.5 cursor-pointer"
                       />
                       <span>
                         Tôi đồng ý với <a href="#terms" className="text-[#42DFFF] hover:underline">Điều khoản dịch vụ</a> và <a href="#privacy" className="text-[#42DFFF] hover:underline">Chính sách bảo mật</a> của D'AVENOR CINEMA.
@@ -1016,7 +1016,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
             <div className="space-y-4 pt-1">
               <div className="relative flex items-center justify-center">
                 <div className="border-t border-[#AA9BFF]/20 w-full" />
-                <span className="bg-[#11152F] px-3 text-[10px] font-bold text-[#BEC5E5]/60 uppercase tracking-wider shrink-0">
+                <span className="bg-[var(--bg-secondary)] px-3 text-[10px] font-bold text-[var(--text-muted)]/60 uppercase tracking-wider shrink-0">
                   HOẶC TIẾP TỤC VỚI
                 </span>
                 <div className="border-t border-[#AA9BFF]/20 w-full" />
@@ -1026,7 +1026,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                 <button
                   type="button"
                   onClick={() => alert("Đăng nhập nhanh với Google đang được liên kết tài khoản rạp!")}
-                  className="bg-[#0B1026] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[#F8F7FF] text-xs font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-2 transition-colors cursor-pointer"
+                  className="bg-[var(--bg-main)] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[var(--text-main)] text-xs font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-2 transition-colors cursor-pointer"
                 >
                   <span className="text-red-500 font-bold">G</span>
                   <span>Google</span>
@@ -1035,7 +1035,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                 <button
                   type="button"
                   onClick={() => alert("Đăng nhập nhanh với Facebook đang được liên kết tài khoản rạp!")}
-                  className="bg-[#0B1026] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[#F8F7FF] text-xs font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-2 transition-colors cursor-pointer"
+                  className="bg-[var(--bg-main)] hover:bg-[#20204B] border border-[#AA9BFF]/25 text-[var(--text-main)] text-xs font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center space-x-2 transition-colors cursor-pointer"
                 >
                   <span className="text-blue-500 font-bold">f</span>
                   <span>Facebook</span>
@@ -1043,7 +1043,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
               </div>
 
               {/* Chuyển đổi giữa Đăng ký và Đăng nhập */}
-              <div className="text-center text-xs text-[#BEC5E5] pt-1">
+              <div className="text-center text-xs text-[var(--text-muted)] pt-1">
                 {mode === 'login' ? (
                   <p>
                     Bạn chưa có tài khoản D'AVENOR?{' '}

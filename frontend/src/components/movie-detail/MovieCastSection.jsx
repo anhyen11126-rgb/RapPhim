@@ -94,9 +94,9 @@ const MovieCastSection = ({ cast }) => {
   const castList = Array.isArray(cast) ? cast : [];
 
   return (
-    <div className="bg-[#101625] border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
-      <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-        <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider border-l-4 border-blue-500 pl-3">
+    <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
+      <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
+        <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-wider border-l-4 border-[var(--cyan)] pl-3">
           Dàn diễn viên & Nhân vật
         </h3>
         <span className="text-xs text-slate-400 font-semibold">
@@ -109,7 +109,7 @@ const MovieCastSection = ({ cast }) => {
         {castList.length > 0 ? (
           castList.slice(0, 6).map((actor, idx) => (
             <div key={idx} className="flex flex-col items-center text-center space-y-2.5 group/actor">
-              <div className="w-20 h-20 sm:w-22 sm:h-22 md:w-24 md:h-24 rounded-full overflow-hidden border-2 border-slate-700/80 group-hover/actor:border-blue-500 ring-2 ring-slate-800/60 group-hover/actor:ring-blue-500/40 transition-all duration-300 shadow-xl bg-gradient-to-b from-slate-700/70 via-slate-800 to-slate-950 flex-shrink-0">
+              <div className="w-20 h-20 sm:w-22 sm:h-22 md:w-24 md:h-24 rounded-full overflow-hidden border-2 border-slate-700/80 group-hover/actor:border-[var(--cyan)] ring-2 ring-slate-800/60 group-hover/actor:ring-[var(--cyan)]/40 transition-all duration-300 shadow-xl bg-gradient-to-b from-slate-700/70 via-slate-800 to-slate-950 flex-shrink-0">
                 <img
                   src={
                     actor.avatar ||
@@ -125,7 +125,7 @@ const MovieCastSection = ({ cast }) => {
                 />
               </div>
               <div className="space-y-0.5">
-                <h4 className="text-xs sm:text-sm font-bold text-white group-hover/actor:text-blue-400 transition-colors line-clamp-1">
+                <h4 className="text-xs sm:text-sm font-bold text-white group-hover/actor:text-[var(--cyan)] transition-colors line-clamp-1">
                   {actor.name}
                 </h4>
                 <p className="text-[11px] text-slate-400 font-medium line-clamp-1">{actor.role}</p>

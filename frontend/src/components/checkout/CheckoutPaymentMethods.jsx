@@ -2,10 +2,10 @@ import React from 'react';
 
 const CheckoutPaymentMethods = ({ paymentMethod, setPaymentMethod }) => {
   return (
-    <div className="bg-[#0e1424] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+    <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-5 shadow-2xl space-y-4">
       <div className="flex items-center justify-between pb-1">
         <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-2">
-          <span className="w-5 h-5 rounded-md bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center text-xs">
+          <span className="w-5 h-5 rounded-md bg-[var(--cyan)]/15 border border-[var(--cyan)]/40 text-[var(--cyan)] flex items-center justify-center text-xs">
             💳
           </span>
           <span>Phương thức thanh toán</span>
@@ -20,15 +20,15 @@ const CheckoutPaymentMethods = ({ paymentMethod, setPaymentMethod }) => {
           onClick={() => setPaymentMethod('VNPAY')}
           className={`flex items-center space-x-3 p-3 rounded-xl border cursor-pointer transition-all select-none ${
             paymentMethod === 'VNPAY'
-              ? 'bg-[#151f33] border-blue-500/80 shadow-md shadow-blue-500/10'
-              : 'bg-[#121828] hover:bg-[#182136] border-slate-800/90'
+              ? 'bg-[var(--bg-surface)] border-[var(--cyan)]/80 shadow-md shadow-blue-500/10'
+              : 'bg-[var(--bg-secondary)] hover:bg-[var(--bg-surface)] border-[var(--border-default)]/90'
           }`}
         >
           {/* Custom Radio Button */}
           <div className="shrink-0 flex items-center justify-center">
             {paymentMethod === 'VNPAY' ? (
-              <div className="w-4 h-4 rounded-full border-2 border-blue-500 flex items-center justify-center bg-blue-500/20 shadow-sm">
-                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+              <div className="w-4 h-4 rounded-full border-2 border-[var(--cyan)] flex items-center justify-center bg-[var(--cyan)]/20 shadow-sm">
+                <div className="w-2 h-2 rounded-full bg-[var(--cyan)]"></div>
               </div>
             ) : (
               <div className="w-4 h-4 rounded-full border border-slate-600"></div>
@@ -55,7 +55,7 @@ const CheckoutPaymentMethods = ({ paymentMethod, setPaymentMethod }) => {
 
           {/* Icon QR Code */}
           <div className="text-slate-400 shrink-0 pr-1" title="Quét mã QR">
-            <svg className="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-4 h-4 text-[var(--cyan)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="3" width="7" height="7"></rect>
               <rect x="14" y="3" width="7" height="7"></rect>
               <rect x="14" y="14" width="7" height="7"></rect>
@@ -69,14 +69,14 @@ const CheckoutPaymentMethods = ({ paymentMethod, setPaymentMethod }) => {
           onClick={() => setPaymentMethod('MOMO')}
           className={`flex items-center space-x-3 p-3 rounded-xl border cursor-pointer transition-all select-none ${
             paymentMethod === 'MOMO'
-              ? 'bg-[#151f33] border-blue-500/80 shadow-md shadow-blue-500/10'
-              : 'bg-[#121828] hover:bg-[#182136] border-slate-800/90'
+              ? 'bg-[var(--bg-surface)] border-[var(--cyan)]/80 shadow-md shadow-blue-500/10'
+              : 'bg-[var(--bg-secondary)] hover:bg-[var(--bg-surface)] border-[var(--border-default)]/90'
           }`}
         >
           <div className="shrink-0 flex items-center justify-center">
             {paymentMethod === 'MOMO' ? (
-              <div className="w-4 h-4 rounded-full border-2 border-blue-500 flex items-center justify-center bg-blue-500/20 shadow-sm">
-                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+              <div className="w-4 h-4 rounded-full border-2 border-[var(--cyan)] flex items-center justify-center bg-[var(--cyan)]/20 shadow-sm">
+                <div className="w-2 h-2 rounded-full bg-[var(--cyan)]"></div>
               </div>
             ) : (
               <div className="w-4 h-4 rounded-full border border-slate-600"></div>
@@ -102,14 +102,14 @@ const CheckoutPaymentMethods = ({ paymentMethod, setPaymentMethod }) => {
           onClick={() => setPaymentMethod('ATM')}
           className={`flex items-center space-x-3 p-3 rounded-xl border cursor-pointer transition-all select-none ${
             paymentMethod === 'ATM'
-              ? 'bg-[#151f33] border-blue-500/80 shadow-md shadow-blue-500/10'
-              : 'bg-[#121828] hover:bg-[#182136] border-slate-800/90'
+              ? 'bg-[var(--bg-surface)] border-[var(--cyan)]/80 shadow-md shadow-blue-500/10'
+              : 'bg-[var(--bg-secondary)] hover:bg-[var(--bg-surface)] border-[var(--border-default)]/90'
           }`}
         >
           <div className="shrink-0 flex items-center justify-center">
             {paymentMethod === 'ATM' ? (
-              <div className="w-4 h-4 rounded-full border-2 border-blue-500 flex items-center justify-center bg-blue-500/20 shadow-sm">
-                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+              <div className="w-4 h-4 rounded-full border-2 border-[var(--cyan)] flex items-center justify-center bg-[var(--cyan)]/20 shadow-sm">
+                <div className="w-2 h-2 rounded-full bg-[var(--cyan)]"></div>
               </div>
             ) : (
               <div className="w-4 h-4 rounded-full border border-slate-600"></div>
@@ -142,21 +142,21 @@ const CheckoutPaymentMethods = ({ paymentMethod, setPaymentMethod }) => {
           onClick={() => setPaymentMethod('VISA')}
           className={`flex items-center space-x-3 p-3 rounded-xl border cursor-pointer transition-all select-none ${
             paymentMethod === 'VISA'
-              ? 'bg-[#151f33] border-blue-500/80 shadow-md shadow-blue-500/10'
-              : 'bg-[#121828] hover:bg-[#182136] border-slate-800/90'
+              ? 'bg-[var(--bg-surface)] border-[var(--cyan)]/80 shadow-md shadow-blue-500/10'
+              : 'bg-[var(--bg-secondary)] hover:bg-[var(--bg-surface)] border-[var(--border-default)]/90'
           }`}
         >
           <div className="shrink-0 flex items-center justify-center">
             {paymentMethod === 'VISA' ? (
-              <div className="w-4 h-4 rounded-full border-2 border-blue-500 flex items-center justify-center bg-blue-500/20 shadow-sm">
-                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+              <div className="w-4 h-4 rounded-full border-2 border-[var(--cyan)] flex items-center justify-center bg-[var(--cyan)]/20 shadow-sm">
+                <div className="w-2 h-2 rounded-full bg-[var(--cyan)]"></div>
               </div>
             ) : (
               <div className="w-4 h-4 rounded-full border border-slate-600"></div>
             )}
           </div>
 
-          <div className="w-12 h-8 rounded-lg bg-[#0f172a] border border-slate-700 flex items-center justify-center space-x-1 shrink-0 shadow-sm">
+          <div className="w-12 h-8 rounded-lg bg-[var(--bg-secondary)] border border-slate-700 flex items-center justify-center space-x-1 shrink-0 shadow-sm">
             <span className="font-black text-[9px] text-[#2563eb] italic">VISA</span>
             <span className="w-2 h-2 rounded-full bg-amber-500 inline-block -ml-0.5"></span>
             <span className="w-2 h-2 rounded-full bg-red-500 inline-block -ml-1"></span>

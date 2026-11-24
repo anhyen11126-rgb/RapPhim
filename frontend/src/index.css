@@ -2,6 +2,7 @@
 
 :root {
   color-scheme: dark;
+  --cinema-action-gradient: linear-gradient(90deg, #F9B8FF, #D99BFF 38%, #86DEFF 74%, #B4F7FF);
   --bg-main: #0B1026;
   --bg-surface: #171936;
   --bg-secondary: #11152F;
@@ -18,6 +19,7 @@
   --neon-pink: #F4A5FF;
   --neon-cyan: #72E8FF;
   --neon-ice-blue: #B4F7FF;
+  --text-main: #F8F7FF;
   --text-primary: #FFFFFF;
   --text-secondary: #E9B5FF;
   --text-muted: #BEC5E5;
@@ -25,10 +27,16 @@
   --border-active: rgba(114, 232, 255, 0.85);
 }
 
+.cinema-action:not(:disabled) {
+  background: var(--cinema-action-gradient);
+  color: var(--bg-main);
+}
+.cinema-action:not(:disabled):hover { filter: brightness(1.08); }
+
 body {
   margin: 0;
-  background-color: #0B1026;
-  color: #F8F7FF;
+  background-color: var(--bg-main);
+  color: var(--text-main);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   min-height: 100vh;
 }

@@ -32,14 +32,14 @@ const MovieHeroTrailer = ({
             alt={movie.title}
             className="w-full h-full object-cover object-center brightness-[0.72] contrast-[1.08] saturate-[1.1] scale-100 group-hover:scale-[1.02] transition-transform duration-1000"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#090d16] via-[#090d16]/50 to-[#090d16]/30"></div>
-          <div className="absolute inset-0 bg-gradient-to-r from-[#090d16]/90 via-[#090d16]/30 via-40% to-[#090d16]/80"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/50 to-[var(--bg-main)]/30"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-main)]/90 via-[var(--bg-main)]/30 via-40% to-[var(--bg-main)]/80"></div>
         </div>
 
         {/* Center Play Trailer Action Callout */}
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-center flex flex-col items-center space-y-4 pt-16">
           {/* Badge Quality */}
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-amber-500/40 text-[#f59e0b] text-[10px] sm:text-xs font-black tracking-wider uppercase shadow-lg">
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-[var(--bg-secondary)]/80 backdrop-blur-md border border-amber-500/40 text-[#f59e0b] text-[10px] sm:text-xs font-black tracking-wider uppercase shadow-lg">
             <span>● {movie.trailerQualityBadge || 'OFFICIAL IMAX LASER TRAILER • 4K UHD • Dolby Atmos'}</span>
           </div>
 
@@ -47,7 +47,7 @@ const MovieHeroTrailer = ({
           <button
             type="button"
             onClick={onOpenTrailer}
-            className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#3b82f6]/90 hover:bg-blue-500 text-white flex items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.6)] hover:shadow-[0_0_70px_rgba(59,130,246,0.9)] hover:scale-110 active:scale-95 transition-all cursor-pointer group/btn my-1"
+            className="w-20 h-20 sm:w-24 sm:h-24 rounded-full cinema-action text-white flex items-center justify-center shadow-[0_0_50px_rgba(167,111,255,0.42)] hover:shadow-[0_0_70px_rgba(114,232,255,0.42)] hover:scale-110 active:scale-95 transition-all cursor-pointer group/btn my-1"
             title="Nhấn để xem Trailer chính thức"
           >
             <span className="text-3xl sm:text-4xl ml-1 group-hover/btn:scale-110 transition-transform">▶</span>
@@ -68,7 +68,7 @@ const MovieHeroTrailer = ({
       {/* 2. MODAL XEM TRAILER POPUP ĐỈNH CAO */}
       {isTrailerModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-4xl w-full p-4 relative shadow-2xl">
+          <div className="bg-[var(--bg-secondary)] border border-slate-700/80 rounded-2xl max-w-4xl w-full p-4 relative shadow-2xl">
             <button
               onClick={onCloseTrailer}
               className="absolute -top-3 -right-3 w-8 h-8 bg-red-600 hover:bg-red-700 text-white rounded-full font-bold flex items-center justify-center transition-colors shadow-lg cursor-pointer"
@@ -95,7 +95,7 @@ const MovieHeroTrailer = ({
                   onCloseTrailer();
                   if (onScrollToBooking) onScrollToBooking();
                 }}
-                className="bg-[#2563eb] hover:bg-blue-600 text-white font-bold px-4 py-2 rounded-lg text-xs transition-colors flex items-center gap-1 shadow cursor-pointer"
+                className="cinema-action text-white font-bold px-4 py-2 rounded-lg text-xs transition-colors flex items-center gap-1 shadow cursor-pointer"
               >
                 <span>🎟️</span>
                 <span>Đặt vé ngay</span>

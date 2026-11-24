@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
+import { cinemaDate, monthLabel, releaseMonth } from '../../utils/cinemaCalendar';
 
 const getAgeBadgeStyle = (ageRating) => {
   switch (ageRating) {
@@ -87,77 +89,18 @@ export const getDynamicRecentDays = () => {
 
 // Sinh lịch chiếu 6 tháng linh hoạt theo năm/tháng thực tế hiện tại
 // Tháng hiện tại là "Đang chiếu", 5 tháng tiếp theo là "Sắp chiếu"
-export const generateDynamicMonthlySchedule = () => {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1; // 1 - 12
-
-  const movieSlices = [
-    {
-      status: 'NOW_SHOWING',
-      statusLabel: 'Đang công chiếu tại rạp',
-      badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-      shortNames: 'Dune 2, Mai, Deadpool',
-      slugs: ['dune-hanh-tinh-cat-phan-2', 'mai', 'deadpool-and-wolverine'],
-    },
-    {
-      status: 'COMING_SOON',
-      statusLabel: 'Sắp chiếu',
-      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-      shortNames: 'Moana 2, Mufasa, Venom',
-      slugs: ['moana-2', 'mufasa-the-lion-king', 'venom-the-last-dance'],
-    },
-    {
-      status: 'COMING_SOON',
-      statusLabel: 'Sắp chiếu',
-      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-      shortNames: 'Cô Dâu, Transformers, Inside Out',
-      slugs: ['co-dau-hao-mon', 'transformers-one', 'inside-out-2'],
-    },
-    {
-      status: 'COMING_SOON',
-      statusLabel: 'Sắp chiếu',
-      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-      shortNames: 'Cap 4, Joker 2, Panda 4',
-      slugs: ['captain-america-brave-new-world', 'joker-folie-a-deux', 'kung-fu-panda-4'],
-    },
-    {
-      status: 'COMING_SOON',
-      statusLabel: 'Sắp chiếu',
-      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-      shortNames: 'Quật Mộ, Lật Mặt, Godzilla',
-      slugs: ['quat-mo-trung-ma', 'lat-mat-7-mot-dieu-uoc', 'godzilla-x-kong-de-che-moi'],
-    },
-    {
-      status: 'COMING_SOON',
-      statusLabel: 'Sắp chiếu',
-      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-      shortNames: 'Oppenheimer, Spider-Man, Avatar',
-      slugs: ['oppenheimer', 'spider-man-no-way-home', 'avatar-the-way-of-water'],
-    },
-  ];
-
-  return movieSlices.map((slice, idx) => {
-    const targetDate = new Date(currentYear, currentMonth - 1 + idx, 1);
-    const m = targetDate.getMonth() + 1;
-    const y = targetDate.getFullYear();
-    const mStr = String(m).padStart(2, '0');
-    const isCurrent = idx === 0;
-
-    return {
-      month: m,
-      year: y,
-      code: `month-${y}-${mStr}`,
-      label: `Tháng ${mStr}/${y}${isCurrent ? ' (Hiện tại)' : ''}`,
-      dropdownLabel: `Tháng ${mStr}/${y} (${isCurrent ? 'Đang chiếu' : 'Sắp chiếu'}: ${slice.shortNames})`,
-      defaultDate: isCurrent ? getIsoDateString(now) : `${y}-${mStr}-15`,
-      status: slice.status,
-      statusLabel: slice.statusLabel,
-      badgeColor: slice.badgeColor,
-      slugs: slice.slugs,
-    };
-  });
-};
+function monthSchedule(month, today, movies) {
+  const status = month < today ? 'ENDED' : month === today ? 'NOW_SHOWING' : 'COMING_SOON';
+  const label = monthLabel(month);
+  const [year, number] = month.split('-').map(Number);
+  return {
+    year, month: number, label, code: 'month-' + month, status,
+    dropdownLabel: label + ' (' + movies.length + ' phim)',
+    badgeColor: status === 'NOW_SHOWING'
+      ? 'text-cyan-200 bg-cyan-500/10 border-cyan-400/30'
+      : 'text-violet-200 bg-violet-500/10 border-violet-400/30',
+  };
+}
 
 // Hàm bóc tách tháng/năm từ lựa chọn Ngày chiếu một cách linh hoạt theo giờ thực tế
 export const parseSelectedDateInfo = (val) => {
@@ -219,153 +162,6 @@ export const parseSelectedDateInfo = (val) => {
   };
 };
 
-// Tính toán chính xác khung giờ chiếu dựa trên thời lượng phim và khoảng nghỉ dọn dẹp (30-45 phút)
-// Chỉ gồm đúng 3 phòng: Phòng IMAX Laser, Phòng Dolby Atmos, Phòng Gold Class
-const getCleanShowtimesForMovie = (movie) => {
-  const duration = movie?.duration || 120;
-  const slug = movie?.slug || '';
-  const movieId = movie?.id || 'm';
-
-  // Suất giờ vàng tối là 19:30
-  // Tính giờ suất tiếp theo sau khi hết phim + 30-45 phút dọn dẹp
-  let lateHour = 22;
-  let lateMinute = 15;
-
-  if (slug === 'dune-hanh-tinh-cat-phan-2' || duration >= 160) {
-    // 166 phút -> 19:30 chiếu đến 22:16 + 34p dọn dẹp = 22:50
-    lateHour = 22;
-    lateMinute = 50;
-  } else if (slug === 'mai' || (duration >= 130 && duration < 140)) {
-    // 131 phút -> 19:30 chiếu đến 21:41 + 39p dọn dẹp = 22:20
-    lateHour = 22;
-    lateMinute = 20;
-  } else if (slug === 'deadpool-and-wolverine' || (duration >= 120 && duration < 130)) {
-    // 128 phút -> 19:30 chiếu đến 21:38 + 37p dọn dẹp = 22:15
-    lateHour = 22;
-    lateMinute = 15;
-  } else {
-    const endMinutes = 19 * 60 + 30 + duration;
-    const nextSlotMinutes = endMinutes + 35;
-    lateHour = Math.floor(nextSlotMinutes / 60) % 24;
-    lateMinute = Math.round((nextSlotMinutes % 60) / 5) * 5;
-  }
-
-  const lateTimeStr = `${String(lateHour).padStart(2, '0')}:${String(lateMinute).padStart(2, '0')}`;
-
-  return [
-    // 1. Phòng IMAX Laser: 09:30, 12:30, 15:30, 18:30, 21:30
-    {
-      id: `${movieId}-0930-imax`,
-      time: '09:30',
-      roomName: 'Phòng IMAX Laser',
-      format: 'IMAX Laser 2D',
-      price: 130000,
-    },
-    {
-      id: `${movieId}-1230-imax`,
-      time: '12:30',
-      roomName: 'Phòng IMAX Laser',
-      format: 'IMAX Laser 2D',
-      price: 140000,
-    },
-    {
-      id: `${movieId}-1530-imax`,
-      time: '15:30',
-      roomName: 'Phòng IMAX Laser',
-      format: 'IMAX Laser 2D',
-      price: 140000,
-    },
-    {
-      id: `${movieId}-1830-imax`,
-      time: '18:30',
-      roomName: 'Phòng IMAX Laser',
-      format: 'IMAX Laser 2D',
-      price: 150000,
-    },
-    {
-      id: `${movieId}-2130-imax`,
-      time: '21:30',
-      roomName: 'Phòng IMAX Laser',
-      format: 'IMAX Laser 2D',
-      price: 150000,
-    },
-
-    // 2. Phòng Dolby Atmos: 09:30, 12:30, 15:30, 18:30, 21:30
-    {
-      id: `${movieId}-0930-atmos`,
-      time: '09:30',
-      roomName: 'Phòng Dolby Atmos',
-      format: '2D Dolby Atmos',
-      price: 100000,
-    },
-    {
-      id: `${movieId}-1230-atmos`,
-      time: '12:30',
-      roomName: 'Phòng Dolby Atmos',
-      format: '2D Dolby Atmos',
-      price: 110000,
-    },
-    {
-      id: `${movieId}-1530-atmos`,
-      time: '15:30',
-      roomName: 'Phòng Dolby Atmos',
-      format: '2D Dolby Atmos',
-      price: 110000,
-    },
-    {
-      id: `${movieId}-1830-atmos`,
-      time: '18:30',
-      roomName: 'Phòng Dolby Atmos',
-      format: '2D Dolby Atmos',
-      price: 120000,
-    },
-    {
-      id: `${movieId}-2130-atmos`,
-      time: '21:30',
-      roomName: 'Phòng Dolby Atmos',
-      format: '2D Dolby Atmos',
-      price: 120000,
-    },
-
-    // 3. Phòng Gold Class: 10:00, 13:00, 16:00, 19:00, 22:00
-    {
-      id: `${movieId}-1000-gold`,
-      time: '10:00',
-      roomName: 'Phòng Gold Class',
-      format: 'Gold Class Luxury',
-      price: 170000,
-    },
-    {
-      id: `${movieId}-1300-gold`,
-      time: '13:00',
-      roomName: 'Phòng Gold Class',
-      format: 'Gold Class Luxury',
-      price: 180000,
-    },
-    {
-      id: `${movieId}-1600-gold`,
-      time: '16:00',
-      roomName: 'Phòng Gold Class',
-      format: 'Gold Class Luxury',
-      price: 180000,
-    },
-    {
-      id: `${movieId}-1900-gold`,
-      time: '19:00',
-      roomName: 'Phòng Gold Class',
-      format: 'Gold Class Luxury',
-      price: 190000,
-    },
-    {
-      id: `${movieId}-2200-gold`,
-      time: '22:00',
-      roomName: 'Phòng Gold Class',
-      format: 'Gold Class Luxury',
-      price: 190000,
-    },
-  ];
-};
-
 const HomeQuickBooking = ({
   moviesList,
   cinemas,
@@ -408,10 +204,12 @@ const HomeQuickBooking = ({
   const dynamicDays = useMemo(() => getDynamicRecentDays(), []);
 
   // Lịch 6 tháng luân phiên linh hoạt từ tháng hiện tại
-  const monthlySchedule = useMemo(() => generateDynamicMonthlySchedule(), []);
+  const todayMonth = cinemaDate().slice(0, 7);
+  const monthlySchedule = [...new Set([todayMonth, ...moviesList.map(releaseMonth).filter(Boolean)])]
+    .sort().map(key => monthSchedule(key, todayMonth, moviesList.filter(movie => releaseMonth(movie) === key)));
 
   // Xác định lịch tháng tương ứng với ngày chiếu đang được chọn
-  const { month, year, dateStr, isPast } = useMemo(
+  const { month, year, dateStr: selectedDay } = useMemo(
     () => parseSelectedDateInfo(selectedDate),
     [selectedDate]
   );
@@ -434,159 +232,46 @@ const HomeQuickBooking = ({
     return selectedDate < todayIso;
   }, [selectedDate, dynamicDays]);
 
-  const currentSchedule = useMemo(() => {
-    const matched =
-      monthlySchedule.find((s) => s.month === month && s.year === year) ||
-      monthlySchedule.find((s) => s.status === 'NOW_SHOWING') ||
-      monthlySchedule[0];
-
-    // Nếu người dùng chọn ngày/tháng trong quá khứ so với thời điểm hiện tại
-    if (isPast || isPastDate) {
-      return {
-        ...matched,
-        status: 'ENDED',
-        statusLabel: 'Phim đã công chiếu',
-        badgeColor: 'text-slate-300 bg-slate-700/60 border-slate-600/40',
-      };
-    }
-    return matched;
-  }, [month, year, isPast, isPastDate, monthlySchedule]);
-
-  // Lọc chính xác 3 bộ phim tương ứng với tháng đó
-  const quickBookingMovies = useMemo(() => {
-    if (!moviesList || moviesList.length === 0) return [];
-    const matched = currentSchedule.slugs
-      .map((slug) => moviesList.find((m) => m.slug === slug))
-      .filter(Boolean);
-
-    if (matched.length > 0) return matched;
-
-    // Fallback nếu chưa tải đủ dữ liệu
-    const fallback = moviesList.filter((m) => m.status === currentSchedule.status);
-    return fallback.length > 0 ? fallback.slice(0, 3) : moviesList.slice(0, 3);
-  }, [moviesList, currentSchedule]);
-
-  // Tự động chọn phim đầu tiên trong tháng khi chuyển sang tháng/ngày mới
-  useEffect(() => {
-    if (quickBookingMovies.length > 0) {
-      const isCurrentInList = quickBookingMovies.some((m) => String(m.id) === String(selectedMovieId));
-      if (!isCurrentInList) {
-        setSelectedMovieId(String(quickBookingMovies[0].id));
-      }
-    }
-  }, [quickBookingMovies, selectedMovieId, setSelectedMovieId]);
-
-  const activeMovie =
-    quickBookingMovies.find((m) => String(m.id) === String(selectedMovieId)) ||
-    quickBookingMovies[0];
+  const currentMonth = year + '-' + String(month).padStart(2, '0');
+  const currentSchedule = monthSchedule(currentMonth, todayMonth, []);
+  const quickBookingMovies = moviesList.filter(movie => releaseMonth(movie) === currentMonth);
+  const activeMovie = quickBookingMovies.find(movie => String(movie.id) === String(selectedMovieId)) || quickBookingMovies[0];
+  const activeMovieId = activeMovie?.id || activeMovie?._id;
   const activeBadge = getAgeBadgeStyle(activeMovie?.ageRating);
+  const dateStr = typeof selectedDate === 'string' && selectedDate.startsWith('month-')
+    ? [currentMonth + '-01', cinemaDate(), cinemaDate(activeMovie?.releaseDate)].sort().at(-1) : selectedDay;
 
   // Phim của tháng hiện tại -> "Đặt vé"
   // Phim của các tháng tương lai -> "Đặt trước vé"
-  const isAdvanceBooking = useMemo(() => {
-    if (activeMovie?.status === 'COMING_SOON') return true;
-    const now = new Date();
-    const curY = now.getFullYear();
-    const curM = now.getMonth() + 1;
-    if (year > curY || (year === curY && month > curM)) return true;
-    if (currentSchedule?.status === 'COMING_SOON') return true;
-    return false;
-  }, [activeMovie?.status, year, month, currentSchedule?.status]);
+  const isAdvanceBooking = Date.parse(dateStr + 'T00:00:00+07:00') - Date.now() > 7 * 86400000;
+  const [schedule, setSchedule] = useState(null);
+  const showtimeKey = activeMovieId + '/' + dateStr;
+  useEffect(() => {
+    if (!activeMovieId || isPastDate) return;
+    const request = new AbortController();
+    api.get('/movies/' + encodeURIComponent(activeMovieId) + '/schedule', { params: { date: dateStr }, signal: request.signal })
+      .then(({ data }) => {
+        if (!request.signal.aborted) setSchedule({ key: showtimeKey, slots: data.showtimes ?? [] });
+      })
+      .catch(() => { if (!request.signal.aborted) setSchedule({ key: showtimeKey, slots: [] }); });
+    return () => request.abort();
+  }, [showtimeKey, activeMovieId, dateStr, isPastDate]);
 
-  // Cấu hình suất chiếu thích ứng: Chỉ gồm 3 phòng (IMAX Laser, Dolby Atmos, Gold Class)
-  // và tuân thủ chặt chẽ thời lượng phim + thời gian dọn dẹp (30-45 phút)
   const availableShowtimes = useMemo(() => {
-    if (isPastDate || currentSchedule.status === 'ENDED') {
-      return [
-        {
-          id: 'ended-status',
-          roomName: 'Đã hoàn thành đợt chiếu rạp',
-          format: 'Lịch sử chiếu',
-          time: 'Đã kết thúc',
-        },
-      ];
-    }
-
-    if (activeMovie?.showtimes && activeMovie.showtimes.length > 0) {
-      // Chỉ chấp nhận đúng 3 phòng theo yêu cầu
-      const validKeywords = ['IMAX', 'Atmos', 'Gold'];
-      const filtered = activeMovie.showtimes.filter((st) =>
-        validKeywords.some((kw) => (st.roomName || '').includes(kw))
-      );
-
-      // Chuẩn hóa tên phòng hiển thị cho đồng bộ: Phòng IMAX Laser, Phòng Dolby Atmos, Phòng Gold Class
-      const standardized = filtered.map((st) => {
-        let cleanRoom = 'Phòng IMAX Laser';
-        if ((st.roomName || '').includes('Atmos')) cleanRoom = 'Phòng Dolby Atmos';
-        if ((st.roomName || '').includes('Gold')) cleanRoom = 'Phòng Gold Class';
-        return {
-          ...st,
-          roomName: cleanRoom,
-        };
-      });
-
-      // Lọc theo ngày hiện tại hoặc deduplicate theo cặp [time + roomName]
-      const onDay = standardized.filter((st) => !st.date || st.date === dateStr);
-      const candidates = onDay.length > 0 ? onDay : standardized;
-
-      const seen = new Set();
-      const uniqueSlots = [];
-      for (const st of candidates) {
-        const key = `${st.time}_${st.roomName}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          uniqueSlots.push(st);
-        }
-      }
-
-      // Sắp xếp theo trình tự thời gian tự nhiên: Ca sáng (09:xx, 10:xx) -> Ca chiều (14:xx, 16:xx) -> Giờ vàng (19:30) -> Ca khuya (22:xx)
-      uniqueSlots.sort((a, b) => {
-        const getPriority = (t) => {
-          if (t && (t.startsWith('08:') || t.startsWith('09:'))) return 1;
-          if (t && (t.startsWith('10:') || t.startsWith('11:'))) return 2;
-          if (t && (t.startsWith('13:') || t.startsWith('14:'))) return 3;
-          if (t && (t.startsWith('15:') || t.startsWith('16:') || t.startsWith('17:'))) return 4;
-          if (t === '19:30') return 5;
-          if (t && t.startsWith('22:')) return 6;
-          return 7;
-        };
-        const pA = getPriority(a.time);
-        const pB = getPriority(b.time);
-        if (pA !== pB) return pA - pB;
-
-        if (a.time !== b.time) return (a.time || '').localeCompare(b.time || '');
-
-        const roomOrder = ['IMAX', 'Atmos', 'Gold'];
-        const rA = roomOrder.findIndex((ro) => (a.roomName || '').includes(ro));
-        const rB = roomOrder.findIndex((ro) => (b.roomName || '').includes(ro));
-        return (rA === -1 ? 99 : rA) - (rB === -1 ? 99 : rB);
-      });
-
-      // Giữ các suất Sáng (08:xx-11:xx), Chiều (13:xx-17:xx), Giờ vàng 19:30 và ca khuya (22:xx) cho 3 phòng
-      const primeSlots = uniqueSlots.filter(
-        (st) =>
-          (st.time && (st.time.startsWith('08:') || st.time.startsWith('09:') || st.time.startsWith('10:') || st.time.startsWith('11:'))) ||
-          (st.time && (st.time.startsWith('13:') || st.time.startsWith('14:') || st.time.startsWith('15:') || st.time.startsWith('16:') || st.time.startsWith('17:'))) ||
-          st.time === '19:30' ||
-          (st.time && st.time.startsWith('22:'))
-      );
-
-      if (primeSlots.length > 0) {
-        return primeSlots;
-      }
-
-      if (uniqueSlots.length > 0) {
-        return uniqueSlots;
-      }
-    }
-
-    // Fallback chuẩn theo thời lượng phim và thời gian dọn dẹp (Sáng, Chiều, Tối 19:30 và Khuya 22:xx)
-    return getCleanShowtimesForMovie(activeMovie);
-  }, [isPastDate, currentSchedule.status, activeMovie, dateStr]);
+    if (isPastDate || schedule?.key !== showtimeKey) return [];
+    const now = Date.now();
+    return schedule.slots.filter(slot => {
+      const start = Date.parse(slot.startTime);
+      return slot.roomId && !slot.isLocked && slot.availableSeats !== 0 && start > now && start - now <= 7 * 86400000;
+    }).map(slot => ({
+      ...slot,
+      time: new Date(slot.startTime).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }),
+    }));
+  }, [isPastDate, schedule, showtimeKey]);
 
   // Đồng bộ suất chiếu: Nếu suất đã chọn không còn trong danh sách thì trả về trống để hiển thị "Chọn suất chiếu"
   useEffect(() => {
-    if (availableShowtimes.length > 0 && selectedShowtimeId) {
+    if (selectedShowtimeId) {
       const isCurrentInList = availableShowtimes.some((st) => String(st.id) === String(selectedShowtimeId));
       if (!isCurrentInList) {
         setSelectedShowtimeId('');
@@ -602,31 +287,6 @@ const HomeQuickBooking = ({
 
   // Nhóm các suất chiếu theo 3 phòng vật lý (IMAX Laser, Dolby Atmos, Gold Class)
   const showtimesByRoom = useMemo(() => {
-    const movieId = activeMovie?.id || activeMovie?._id || 'dune-2';
-    const defaultSlots = {
-      IMAX: [
-        { id: `${movieId}-0930-imax`, time: '09:30', roomName: 'Phòng IMAX Laser' },
-        { id: `${movieId}-1230-imax`, time: '12:30', roomName: 'Phòng IMAX Laser' },
-        { id: `${movieId}-1530-imax`, time: '15:30', roomName: 'Phòng IMAX Laser' },
-        { id: `${movieId}-1830-imax`, time: '18:30', roomName: 'Phòng IMAX Laser' },
-        { id: `${movieId}-2130-imax`, time: '21:30', roomName: 'Phòng IMAX Laser' },
-      ],
-      ATMOS: [
-        { id: `${movieId}-0930-atmos`, time: '09:30', roomName: 'Phòng Dolby Atmos' },
-        { id: `${movieId}-1230-atmos`, time: '12:30', roomName: 'Phòng Dolby Atmos' },
-        { id: `${movieId}-1530-atmos`, time: '15:30', roomName: 'Phòng Dolby Atmos' },
-        { id: `${movieId}-1830-atmos`, time: '18:30', roomName: 'Phòng Dolby Atmos' },
-        { id: `${movieId}-2130-atmos`, time: '21:30', roomName: 'Phòng Dolby Atmos' },
-      ],
-      GOLD: [
-        { id: `${movieId}-1000-gold`, time: '10:00', roomName: 'Phòng Gold Class' },
-        { id: `${movieId}-1300-gold`, time: '13:00', roomName: 'Phòng Gold Class' },
-        { id: `${movieId}-1600-gold`, time: '16:00', roomName: 'Phòng Gold Class' },
-        { id: `${movieId}-1900-gold`, time: '19:00', roomName: 'Phòng Gold Class' },
-        { id: `${movieId}-2200-gold`, time: '22:00', roomName: 'Phòng Gold Class' },
-      ],
-    };
-
     const groups = {
       IMAX: {
         key: 'IMAX',
@@ -658,19 +318,13 @@ const HomeQuickBooking = ({
     };
 
     availableShowtimes.forEach((st) => {
-      const room = (st.roomName || '').toLowerCase();
+      const room = (st.roomType || '').toLowerCase();
       if (room.includes('gold')) {
         groups.GOLD.slots.push(st);
       } else if (room.includes('atmos')) {
         groups.ATMOS.slots.push(st);
       } else {
         groups.IMAX.slots.push(st);
-      }
-    });
-
-    ['IMAX', 'ATMOS', 'GOLD'].forEach((k) => {
-      if (groups[k].slots.length === 0) {
-        groups[k].slots = defaultSlots[k];
       }
     });
 
@@ -703,12 +357,6 @@ const HomeQuickBooking = ({
       return;
     }
 
-    const matchedMonth = monthlySchedule.find((s) => val.startsWith(`${s.year}-${String(s.month).padStart(2, '0')}`));
-    if (matchedMonth) {
-      setSelectedDate(matchedMonth.code);
-      return;
-    }
-
     setSelectedDate(val);
   };
 
@@ -737,29 +385,12 @@ const HomeQuickBooking = ({
 
     const targetShowtimeId = selectedShowtimeId;
 
-    const chosenSlot =
-      availableShowtimes.find((st) => String(st.id) === String(targetShowtimeId)) ||
-      availableShowtimes[0];
-
-    const cleanRoomName = chosenSlot?.roomName || 'Phòng IMAX Laser';
-    const roomType = cleanRoomName.toLowerCase().includes('atmos')
-      ? 'ATMOS'
-      : cleanRoomName.toLowerCase().includes('gold')
-      ? 'GOLD'
-      : 'IMAX';
-
-    const format =
-      chosenSlot?.format ||
-      (roomType === 'GOLD'
-        ? 'Gold Class Luxury'
-        : roomType === 'ATMOS'
-        ? '2D Dolby Atmos'
-        : 'IMAX Laser 2D');
-
-    const time = chosenSlot?.time || '19:30';
-    const price =
-      chosenSlot?.price ||
-      (roomType === 'GOLD' ? 190000 : roomType === 'ATMOS' ? 120000 : 150000);
+    const chosenSlot = availableShowtimes.find(slot => String(slot.id) === String(targetShowtimeId));
+    if (!chosenSlot || Date.parse(chosenSlot.startTime) <= Date.now()) {
+      setSelectedShowtimeId('');
+      return;
+    }
+    const { roomName, roomType, price, time, roomId, startTime, formatFeature } = chosenSlot;
 
     const slotInfo = {
       id: targetShowtimeId,
@@ -777,9 +408,11 @@ const HomeQuickBooking = ({
         rating: activeMovie?.rating || '4.8',
         status: activeMovie?.status || 'NOW_SHOWING',
       },
-      roomName: cleanRoomName,
-      roomType, // 'IMAX' | 'ATMOS' | 'GOLD'
-      format,
+      roomName,
+      roomType,
+      roomId,
+      startTime,
+      format: formatFeature || roomType,
       time,
       date: dateStr || dynamicDays.today.dateStr,
       price,
@@ -869,13 +502,13 @@ const HomeQuickBooking = ({
                   <span
                     className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${currentSchedule.badgeColor}`}
                   >
-                    3 phim {currentSchedule.status === 'NOW_SHOWING' ? 'đang chiếu' : currentSchedule.status === 'COMING_SOON' ? 'sắp chiếu' : 'đã chiếu'} ({currentSchedule.label.replace(' (Hiện tại)', '')})
+                    {quickBookingMovies.length} phim {currentSchedule.status === 'NOW_SHOWING' ? 'đang chiếu' : currentSchedule.status === 'COMING_SOON' ? 'sắp chiếu' : 'đã chiếu'} ({currentSchedule.label.replace(' (Hiện tại)', '')})
                   </span>
                 </div>
 
                 <div className="space-y-1.5 max-h-[340px] overflow-y-auto pr-1">
                   {quickBookingMovies.map((m) => {
-                    const isSelected = String(m.id) === String(selectedMovieId);
+                    const isSelected = String(m.id) === String(activeMovieId);
                     const badge = getAgeBadgeStyle(m.ageRating);
                     return (
                       <div
@@ -1020,13 +653,14 @@ const HomeQuickBooking = ({
                 }}
                 className="w-full h-[38px] bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-2.5 text-xs font-bold text-[#F8F7FF] focus:outline-none focus:border-[#42DFFF] appearance-none cursor-pointer pr-12 truncate"
               >
-                <optgroup label="── NGÀY GẦN NHẤT ──">
+                {/^\d{4}-\d{2}-\d{2}$/.test(selectedDate ?? '') && <option value={selectedDate}>{selectedDate.split('-').reverse().join('/')}</option>}
+                <optgroup label=" ── NGÀY GẦN NHẤT ──">
                   <option value="Hôm nay">{dynamicDays.today.label}</option>
                   <option value="Ngày mai">{dynamicDays.tomorrow.label}</option>
                   <option value="Ngày kia">{dynamicDays.dayAfter.label}</option>
                 </optgroup>
 
-                <optgroup label="── LỊCH CHIẾU THEO THÁNG (3 PHIM/THÁNG) ──">
+                <optgroup label="── LỊCH CHIẾU THEO THÁNG ──">
                   {monthlySchedule.map((s) => (
                     <option key={s.code} value={s.code}>
                       {s.dropdownLabel}
@@ -1105,7 +739,10 @@ const HomeQuickBooking = ({
               {isShowtimeDropdownOpen && (
                 <div className="absolute right-0 bottom-full sm:bottom-auto sm:top-full mb-2 sm:mb-0 sm:mt-2 w-[340px] sm:w-[580px] md:w-[680px] max-w-[95vw] bg-[#090D22]/98 backdrop-blur-2xl border border-[#42DFFF]/40 rounded-2xl p-3 sm:p-3.5 shadow-[0_20px_60px_rgba(5,8,20,0.98),0_0_35px_rgba(66,223,255,0.25)] z-50 animate-in fade-in zoom-in-95 duration-150">
                   <div className="space-y-2.5">
-                    {Object.values(showtimesByRoom).map((grp) => (
+                    {!availableShowtimes.length && <p className="p-2 text-sm text-[#BEC5E5]">
+                      {schedule?.key !== showtimeKey && activeMovieId ? 'Đang tải suất chiếu…' : 'Chưa có suất mở bán cho ngày này.'}
+                    </p>}
+                    {Object.values(showtimesByRoom).filter(group => group.slots.length).map((grp) => (
                       <div
                         key={grp.key}
                         className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-2 rounded-2xl bg-[#0e142e]/60 border border-white/5 hover:border-white/15 transition-all"
@@ -1161,18 +798,19 @@ const HomeQuickBooking = ({
             ) : isAdvanceBooking ? (
               <button
                 type="button"
-                onClick={handleQuickBooking}
-                className="w-full h-[38px] bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] font-black px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:brightness-108 cursor-pointer"
-                title="Đặt trước vé xem phim"
+                disabled={!activeMovieId}
+                onClick={() => navigate('/movie/' + activeMovieId + '?date=' + dateStr)}
+                className="w-full h-[38px] cinema-action font-black px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:brightness-108 cursor-pointer"
+                title="Xem lịch chiếu"
               >
                 <span>🎫</span>
-                <span>Đặt trước vé</span>
+                <span>Xem lịch chiếu</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handleQuickBooking}
-                className="w-full h-[38px] bg-gradient-to-r from-[#F9B8FF] via-[#D99BFF] via-[#86DEFF] to-[#B4F7FF] text-[#0B1026] font-black px-4 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:brightness-108 cursor-pointer"
+                className="w-full h-[38px] cinema-action font-black px-4 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-all shadow-[0_0_8px_rgba(255,255,255,0.25),0_0_20px_rgba(204,130,255,0.35),0_0_30px_rgba(80,220,255,0.22)] hover:brightness-108 cursor-pointer"
                 title="Đặt vé xem phim"
               >
                 <span>🎟️</span>

@@ -47,9 +47,9 @@ const ShowtimesTab = ({
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-xl">
+    <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-5 shadow-xl">
       {/* Header & Tìm kiếm */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-default)]/80 pb-4">
         <div>
           <h3 className="text-base sm:text-lg font-bold text-white">Thống Kê Chi Tiết Suất Chiếu</h3>
           <p className="text-xs text-slate-400">
@@ -60,7 +60,7 @@ const ShowtimesTab = ({
         {/* Bộ lọc phòng chiếu & Tìm kiếm */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Lọc theo Phòng chiếu */}
-          <div className="flex items-center space-x-1.5 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs">
+          <div className="flex items-center space-x-1.5 bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-1.5 text-xs">
             <span className="text-slate-400">Phòng:</span>
             <select
               value={selectedRoom}
@@ -68,7 +68,7 @@ const ShowtimesTab = ({
               className="bg-transparent text-white font-semibold outline-none cursor-pointer text-xs"
             >
               {ROOM_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                <option key={opt.value} value={opt.value} className="bg-[var(--bg-secondary)] text-white">
                   {opt.label}
                 </option>
               ))}
@@ -82,7 +82,7 @@ const ShowtimesTab = ({
               placeholder="Tìm theo phim, phòng..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-44 sm:w-52"
+              className="bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-44 sm:w-52"
             />
             <button
               type="submit"
@@ -97,7 +97,7 @@ const ShowtimesTab = ({
       {/* Bảng dữ liệu suất chiếu */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs text-slate-300">
-          <thead className="bg-slate-800/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
+          <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
             <tr>
               <th className="py-3 px-4 min-w-[200px]">Phim & Suất chiếu</th>
               <th className="py-3 px-3">Phòng chiếu</th>
@@ -127,7 +127,7 @@ const ShowtimesTab = ({
                 const isHot = st.occupancyRate >= 80;
 
                 return (
-                  <tr key={st.id} className="hover:bg-slate-800/40 transition-colors">
+                  <tr key={st.id} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
                     {/* Phim & Poster */}
                     <td className="py-3 px-4">
                       <div className="flex items-center space-x-2.5">
@@ -151,7 +151,7 @@ const ShowtimesTab = ({
 
                     {/* Định dạng */}
                     <td className="py-3 px-3">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[var(--bg-surface)] border border-slate-700 text-slate-300">
                         {st.format}
                       </span>
                     </td>
@@ -192,7 +192,7 @@ const ShowtimesTab = ({
                             {formatPercent(st.occupancyRate)}
                           </span>
                         </div>
-                        <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full ${
                               isHot ? 'bg-amber-500' : 'bg-red-600'
@@ -213,7 +213,7 @@ const ShowtimesTab = ({
                       <span
                         className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
                           isFinished
-                            ? 'bg-slate-800 text-slate-400 border-slate-700'
+                            ? 'bg-[var(--bg-surface)] text-slate-400 border-slate-700'
                             : 'bg-emerald-950/60 text-emerald-400 border-emerald-500/30'
                         }`}
                       >
@@ -226,7 +226,7 @@ const ShowtimesTab = ({
                       <button
                         type="button"
                         onClick={() => onSelectShowtime && onSelectShowtime(st.id)}
-                        className="px-2.5 py-1 bg-slate-800 hover:bg-red-600 hover:text-white text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all"
+                        className="px-2.5 py-1 bg-[var(--bg-surface)] hover:bg-red-600 hover:text-white text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all"
                         title="Xem sơ đồ 88 ghế và vé đã đặt"
                       >
                         Sơ đồ ghế
@@ -248,14 +248,14 @@ const ShowtimesTab = ({
 
       {/* Phân trang */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-4 border-t border-slate-800 text-xs text-slate-400">
+        <div className="flex items-center justify-between pt-4 border-t border-[var(--border-default)] text-xs text-slate-400">
           <span>Trang {page} / {totalPages} (Tổng {total} suất chiếu)</span>
           <div className="flex items-center space-x-1">
             <button
               type="button"
               disabled={page === 1}
               onClick={() => onPageChange && onPageChange(page - 1)}
-              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40"
+              className="px-2.5 py-1 rounded bg-[var(--bg-surface)] hover:bg-slate-700 disabled:opacity-40"
             >
               ‹
             </button>
@@ -265,7 +265,7 @@ const ShowtimesTab = ({
                 type="button"
                 onClick={() => onPageChange && onPageChange(i + 1)}
                 className={`px-2.5 py-1 rounded font-bold ${
-                  page === i + 1 ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  page === i + 1 ? 'bg-red-600 text-white' : 'bg-[var(--bg-surface)] text-slate-300 hover:bg-slate-700'
                 }`}
               >
                 {i + 1}
@@ -275,7 +275,7 @@ const ShowtimesTab = ({
               type="button"
               disabled={page === totalPages}
               onClick={() => onPageChange && onPageChange(page + 1)}
-              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40"
+              className="px-2.5 py-1 rounded bg-[var(--bg-surface)] hover:bg-slate-700 disabled:opacity-40"
             >
               ›
             </button>

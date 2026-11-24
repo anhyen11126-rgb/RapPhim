@@ -14,6 +14,7 @@ const SeatSelectionPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const slotInfo = location.state?.slotInfo;
+  const draftSeats = location.state?.draftSeats;
 
   const [showtime, setShowtime] = useState(slotInfo || null);
   const [selectedSeats, setSelectedSeats] = useState([]);
@@ -109,6 +110,13 @@ const SeatSelectionPage = () => {
         const latestBooked = res.data.seats
           .filter((s) => s.status === 'BOOKED')
           .map((s) => s.seatNumber);
+
+        if (!isSilent && Array.isArray(draftSeats)) {
+          const available = new Set(res.data.seats.filter(seat => seat.status !== 'BOOKED').map(seat => seat.seatNumber));
+          const restored = draftSeats.filter(code => available.has(code));
+          setSelectedSeats(restored);
+          selectedSeatsRef.current = restored;
+        }
 
         // PHÁT HIỆN XUNG ĐỘT THỜI GIAN THỰC:
         // Nếu ghế mà khách này đang chọn vừa có khách khác mua thành công
@@ -224,9 +232,14 @@ const SeatSelectionPage = () => {
 
     const targetShowtimeId = showtime?._id?.toString() || showtime?.id || showtimeId;
 
+    navigate(location.pathname + location.search + location.hash, {
+      replace: true,
+      state: { ...location.state, draftSeats: selectedSeats },
+    });
     navigate('/checkout', {
       state: {
         showtimeId: targetShowtimeId,
+        returnToSeatHistory: true,
         showtime: {
           ...showtime,
           id: targetShowtimeId,
@@ -328,7 +341,7 @@ const SeatSelectionPage = () => {
 
   return (
     <div
-      className={`min-h-screen ${roomTheme.pageBgGradient} text-[#F8F7FF] pb-24 selection:bg-[#00D9FF] selection:text-[#030D25] transition-colors duration-500 relative`}
+      className={`min-h-screen ${roomTheme.pageBgGradient} text-[var(--text-main)] pb-24 selection:bg-[#00D9FF] selection:text-[#030D25] transition-colors duration-500 relative`}
     >
       {/* Vầng sáng quang học ambient hòa trộn theo màu phòng chiếu */}
       <div

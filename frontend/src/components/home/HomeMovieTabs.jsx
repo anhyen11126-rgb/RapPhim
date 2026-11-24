@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { cinemaDate, monthLabel, releaseMonth } from '../../utils/cinemaCalendar';
 
 // Biểu tượng Cành Nguyệt Quế Hoàng Gia sang trọng (Laurel Wreath)
 const LaurelLeft = () => (
@@ -24,50 +25,7 @@ const LaurelRight = () => (
   </svg>
 );
 
-// Danh sách thứ tự chuẩn 15 bộ phim sắp chiếu trải dài từ Tháng 12/2026 đến Tháng 04/2027
-const COMING_SOON_SLUGS_ORDER = [
-  // Tháng 12/2026 (3 phim)
-  'moana-2',
-  'mufasa-the-lion-king',
-  'venom-the-last-dance',
-  // Tháng 01/2027 (3 phim)
-  'co-dau-hao-mon',
-  'transformers-one',
-  'inside-out-2',
-  // Tháng 02/2027 (3 phim)
-  'captain-america-brave-new-world',
-  'joker-folie-a-deux',
-  'kung-fu-panda-4',
-  // Tháng 03/2027 (3 phim)
-  'quat-mo-trung-ma',
-  'lat-mat-7-mot-dieu-uoc',
-  'godzilla-x-kong-de-che-moi',
-  // Tháng 04/2027 (3 phim)
-  'oppenheimer',
-  'spider-man-no-way-home',
-  'avatar-the-way-of-water',
-];
-
-// Hàm xác định tháng khởi chiếu của từng phim sắp chiếu
-const getMovieReleaseMonth = (movie) => {
-  const slug = movie?.slug || '';
-  if (['moana-2', 'mufasa-the-lion-king', 'venom-the-last-dance'].includes(slug)) {
-    return 'Tháng 12/2026';
-  }
-  if (['co-dau-hao-mon', 'transformers-one', 'inside-out-2'].includes(slug)) {
-    return 'Tháng 01/2027';
-  }
-  if (['captain-america-brave-new-world', 'joker-folie-a-deux', 'kung-fu-panda-4'].includes(slug)) {
-    return 'Tháng 02/2027';
-  }
-  if (['quat-mo-trung-ma', 'lat-mat-7-mot-dieu-uoc', 'godzilla-x-kong-de-che-moi'].includes(slug)) {
-    return 'Tháng 03/2027';
-  }
-  if (['oppenheimer', 'spider-man-no-way-home', 'avatar-the-way-of-water'].includes(slug)) {
-    return 'Tháng 04/2027';
-  }
-  return 'Năm 2027';
-};
+const getMovieReleaseMonth = (movie) => monthLabel(releaseMonth(movie));
 
 const HomeMovieTabs = ({ moviesList }) => {
   const [activeTab, setActiveTab] = useState('NOW_SHOWING');
@@ -97,28 +55,26 @@ const HomeMovieTabs = ({ moviesList }) => {
   const autoScrollTimerRef = useRef(null);
   const initialPositionedRef = useRef(false);
 
-  const nowShowingMovies = moviesList.filter((m) => m.status === 'NOW_SHOWING');
-  const comingSoonMovies = moviesList.filter((m) => m.status === 'COMING_SOON');
-
-  // Sắp xếp đủ 15 phim sắp chiếu thành 1 danh sách chuẩn theo thứ tự thời gian
-  const all15ComingSoonMovies = useMemo(() => {
-    if (!moviesList || moviesList.length === 0) return [];
-    const ordered = COMING_SOON_SLUGS_ORDER.map((slug) =>
-      moviesList.find((m) => m.slug === slug)
-    ).filter(Boolean);
-    if (ordered.length >= 12) return ordered;
-    return comingSoonMovies;
-  }, [moviesList, comingSoonMovies]);
+  const today = cinemaDate();
+  const month = today.slice(0, 7);
+  const nowShowingMovies = moviesList.filter((movie) => {
+    const release = cinemaDate(movie.releaseDate);
+    return release ? release.slice(0, 7) === month && release <= today : movie.status === 'NOW_SHOWING';
+  });
+  const comingSoonMovies = useMemo(() => moviesList.filter((movie) => {
+    const release = cinemaDate(movie.releaseDate);
+    return release ? release > today : movie.status === 'COMING_SOON';
+  }).sort((a, b) => cinemaDate(a.releaseDate).localeCompare(cinemaDate(b.releaseDate))), [moviesList, today]);
 
   // Vòng lặp vô tận: 3 chu kỳ lặp liên tục (Set 0, Set 1, Set 2) để cuộn không bao giờ bị đứt quãng
   const loopedMovies = useMemo(() => {
-    if (all15ComingSoonMovies.length === 0) return [];
+    if (comingSoonMovies.length === 0) return [];
     return [
-      ...all15ComingSoonMovies,
-      ...all15ComingSoonMovies,
-      ...all15ComingSoonMovies,
+      ...comingSoonMovies,
+      ...comingSoonMovies,
+      ...comingSoonMovies,
     ];
-  }, [all15ComingSoonMovies]);
+  }, [comingSoonMovies]);
 
   // Animation cuộn mượt mà 60-120fps bằng RequestAnimationFrame (mượt mà, lướt êm, không gián đoạn)
   const animateScrollTo = (targetX, duration = 380, onMidpoint = null) => {
@@ -200,7 +156,8 @@ const HomeMovieTabs = ({ moviesList }) => {
     if (activeTab === 'COMING_SOON' && reelScrollRef.current) {
       const timer = setTimeout(() => {
         const container = reelScrollRef.current;
-        const targetIdx = comingSoonVirtualIndexRef.current ?? 22;
+        const n = comingSoonMovies.length;
+        const targetIdx = n ? n + (comingSoonVirtualIndexRef.current % n) : 0;
         const card = cardRefs.current[targetIdx];
         if (container && card) {
           const containerWidth = container.clientWidth;
@@ -212,7 +169,7 @@ const HomeMovieTabs = ({ moviesList }) => {
       }, 60);
       return () => clearTimeout(timer);
     }
-  }, [activeTab, all15ComingSoonMovies.length]);
+  }, [activeTab, comingSoonMovies.length]);
 
   // Tự động căn đối chính giữa khi người dùng đổi kích thước cửa sổ
   useEffect(() => {
@@ -241,7 +198,7 @@ const HomeMovieTabs = ({ moviesList }) => {
   const checkBoundaryReset = () => {
     if (isDragging || isAutoScrollingRef.current) return;
     const container = reelScrollRef.current;
-    if (!container || all15ComingSoonMovies.length === 0) return;
+    if (!container || comingSoonMovies.length === 0) return;
 
     const currentIdx = comingSoonVirtualIndexRef.current;
     // Khi người dùng lướt qua cực biên xa Set 2 (từ card 36 trở đi)
@@ -499,12 +456,12 @@ const HomeMovieTabs = ({ moviesList }) => {
   };
 
   const comingSoonRealIndex =
-    all15ComingSoonMovies.length > 0
-      ? ((comingSoonVirtualIndex % all15ComingSoonMovies.length) + all15ComingSoonMovies.length) %
-        all15ComingSoonMovies.length
+    comingSoonMovies.length > 0
+      ? ((comingSoonVirtualIndex % comingSoonMovies.length) + comingSoonMovies.length) %
+        comingSoonMovies.length
       : 0;
   const activeComingSoonMovie =
-    all15ComingSoonMovies[comingSoonRealIndex] || all15ComingSoonMovies[0];
+    comingSoonMovies[comingSoonRealIndex] || comingSoonMovies[0];
 
   return (
     <section className="max-w-[1560px] mx-auto px-4 sm:px-8 lg:px-14 py-8">
@@ -532,7 +489,7 @@ const HomeMovieTabs = ({ moviesList }) => {
                 : 'bg-[#11152F] text-[#BEC5E5] hover:text-[#F8F7FF] hover:bg-[#20204B] border border-[#AA9BFF]/25'
             }`}
           >
-            🍿 Phim Sắp Chiếu ({all15ComingSoonMovies.length || comingSoonMovies.length})
+            🍿 Phim Sắp Chiếu ({comingSoonMovies.length})
           </button>
         </div>
       </div>
@@ -560,7 +517,7 @@ const HomeMovieTabs = ({ moviesList }) => {
           {/* 3 BỘ PHIM ĐANG CHIẾU SONG SONG - CÂN ĐỐI HOÀN HẢO */}
           <div className="relative z-10 max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-center gap-4 sm:gap-5 lg:gap-6 pt-2 sm:pt-3 pb-5 sm:pb-6">
             {nowShowingMovies.slice(0, 3).map((movie, idx) => {
-              const isActive = activeNowShowingIndex === idx;
+              const isActive = Math.min(activeNowShowingIndex, nowShowingMovies.length - 1) === idx;
               const badge = getAgeHotBadge(movie);
               const ratingDisplay = getRatingDisplay(movie);
 
@@ -682,7 +639,7 @@ const HomeMovieTabs = ({ moviesList }) => {
       )}
 
       {/* 2. NỘI DUNG TAB PHIM SẮP CHIẾU (TỐI ƯU CHIỀU CAO & CÂN ĐỐI 10/10) */}
-      {activeTab === 'COMING_SOON' && all15ComingSoonMovies.length > 0 && (
+      {activeTab === 'COMING_SOON' && comingSoonMovies.length > 0 && (
         <div
           ref={comingSoonSectionRef}
           className="mt-6 relative w-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#20204B]/95 via-[#11152F] to-[#0B1026] border border-[#AA9BFF]/30 p-3.5 sm:p-5 lg:p-6 shadow-[0_12px_45px_rgba(11,16,38,0.95)]"
@@ -852,7 +809,7 @@ const HomeMovieTabs = ({ moviesList }) => {
 
             {/* Hàng 15 chấm tròn */}
             <div className="flex items-center justify-center space-x-1.5 mt-2.5">
-              {all15ComingSoonMovies.map((m, i) => (
+              {comingSoonMovies.map((m, i) => (
                 <button
                   key={i}
                   type="button"

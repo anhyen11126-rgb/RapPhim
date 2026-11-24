@@ -55,7 +55,7 @@ const MyTicketsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1026] text-[#F8F7FF] py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-[1380px] mx-auto space-y-8">
         {/* HEADER TRANG */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#AA9BFF]/25 pb-6">
@@ -67,13 +67,13 @@ const MyTicketsPage = () => {
             <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#F4A5FF] via-[#C56BFF] via-[#83F5FF] to-[#F4A5FF] bg-clip-text text-transparent tracking-tight">
               Vé Của Tôi & Lịch Sử Đặt Vé
             </h1>
-            <p className="text-xs sm:text-sm text-[#BEC5E5] mt-1">
+            <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-1">
               Quản lý vé điện tử, mã check-in phòng chiếu và lịch sử giao dịch tại D'AVENOR CINEMA.
             </p>
           </div>
 
           {currentUser && (
-            <div className="flex items-center space-x-3 bg-[#11152F] border border-[#AA9BFF]/25 px-4 py-2.5 rounded-2xl">
+            <div className="flex items-center space-x-3 bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 px-4 py-2.5 rounded-2xl">
               <div className="w-9 h-9 rounded-full overflow-hidden bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] to-[#42DFFF] text-[#0B1026] flex items-center justify-center font-bold text-sm uppercase shadow border border-[#42DFFF]/40 shrink-0">
                 {currentUser.avatar ? (
                   <img
@@ -99,17 +99,17 @@ const MyTicketsPage = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24 space-y-3">
             <div className="w-10 h-10 border-4 border-[#AA9BFF]/20 border-t-[#42DFFF] rounded-full animate-spin"></div>
-            <p className="text-xs text-[#BEC5E5]">Đang đồng bộ dữ liệu vé từ hệ thống D'AVENOR CINEMA...</p>
+            <p className="text-xs text-[var(--text-muted)]">Đang đồng bộ dữ liệu vé từ hệ thống D'AVENOR CINEMA...</p>
           </div>
         ) : !currentUser ? (
           /* TRƯỜNG HỢP CHƯA ĐĂNG NHẬP */
-          <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-3xl p-10 sm:p-14 text-center max-w-xl mx-auto space-y-5 shadow-2xl">
+          <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-3xl p-10 sm:p-14 text-center max-w-xl mx-auto space-y-5 shadow-2xl">
             <div className="w-20 h-20 rounded-full bg-[#20204B] border border-[#AA9BFF]/30 flex items-center justify-center mx-auto text-3xl text-[#42DFFF]">
               👤
             </div>
             <div className="space-y-1.5">
               <h2 className="text-xl sm:text-2xl font-black text-white">Vui lòng đăng nhập tài khoản</h2>
-              <p className="text-xs sm:text-sm text-[#BEC5E5]">
+              <p className="text-xs sm:text-sm text-[var(--text-muted)]">
                 Đăng nhập để xem danh sách vé điện tử đã đặt và lịch sử xem phim của bạn.
               </p>
             </div>
@@ -125,7 +125,7 @@ const MyTicketsPage = () => {
               <Link
                 to="/register"
                 state={{ from: '/my-tickets' }}
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#0B1026] hover:bg-[#20204B] text-[#F8F7FF] font-bold text-xs transition-all border border-[#AA9BFF]/25 cursor-pointer"
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[var(--bg-main)] hover:bg-[#20204B] text-[var(--text-main)] font-bold text-xs transition-all border border-[#AA9BFF]/25 cursor-pointer"
               >
                 Đăng ký tài khoản
               </Link>
@@ -133,7 +133,7 @@ const MyTicketsPage = () => {
           </div>
         ) : bookings.length === 0 ? (
           /* TRƯỜNG HỢP CHƯA ĐẶT VÉ / LỊCH SỬ TRỐNG (THEO YÊU CẦU CỦA USER: KHÔNG CÓ GÌ CẢ) */
-          <div className="bg-[#11152F] border border-[#AA9BFF]/25 rounded-3xl p-10 sm:p-16 text-center max-w-2xl mx-auto space-y-6 shadow-2xl animate-in fade-in duration-300">
+          <div className="bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-3xl p-10 sm:p-16 text-center max-w-2xl mx-auto space-y-6 shadow-2xl animate-in fade-in duration-300">
             {/* Biểu tượng vé trống */}
             <div className="w-24 h-24 rounded-full bg-[#20204B] border border-[#AA9BFF]/30 flex items-center justify-center mx-auto text-4xl shadow-inner text-[#42DFFF]">
               🎟️
@@ -146,12 +146,12 @@ const MyTicketsPage = () => {
               <h2 className="text-2xl sm:text-3xl font-black text-white">
                 Bạn chưa có vé xem phim nào!
               </h2>
-              <p className="text-xs sm:text-sm text-[#BEC5E5] max-w-md mx-auto leading-relaxed">
+              <p className="text-xs sm:text-sm text-[var(--text-muted)] max-w-md mx-auto leading-relaxed">
                 Tài khoản <strong className="text-white">{currentUser.name}</strong> ({currentUser.email}) chưa từng đặt vé hoặc chưa có giao dịch nào được ghi nhận.
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-[#0B1026] border border-[#AA9BFF]/20 max-w-md mx-auto text-left flex items-start space-x-3 text-xs text-[#BEC5E5]">
+            <div className="p-4 rounded-2xl bg-[var(--bg-main)] border border-[#AA9BFF]/20 max-w-md mx-auto text-left flex items-start space-x-3 text-xs text-[var(--text-muted)]">
               <span className="text-[#42DFFF] text-base shrink-0">💡</span>
               <p className="leading-relaxed">
                 Hãy chọn ngay các bộ phim bom tấn đang chiếu tại hệ thống D'AVENOR CINEMA để trải nghiệm công nghệ màn chiếu laser đỉnh cao và tích điểm thăng hạng hội viên!
@@ -169,14 +169,14 @@ const MyTicketsPage = () => {
               </Link>
               <Link
                 to="/theaters"
-                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-[#0B1026] hover:bg-[#20204B] text-[#F8F7FF] font-bold text-xs sm:text-sm transition-all border border-[#AA9BFF]/25 flex items-center justify-center space-x-2 cursor-pointer"
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-[var(--bg-main)] hover:bg-[#20204B] text-[var(--text-main)] font-bold text-xs sm:text-sm transition-all border border-[#AA9BFF]/25 flex items-center justify-center space-x-2 cursor-pointer"
               >
                 <span>📍</span>
                 <span>Xem lịch rạp chiếu</span>
               </Link>
               <Link
                 to="/promotions"
-                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-[#0B1026] hover:bg-[#20204B] text-[#42DFFF] font-bold text-xs sm:text-sm transition-all border border-[#AA9BFF]/25 flex items-center justify-center space-x-2 cursor-pointer"
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-[var(--bg-main)] hover:bg-[#20204B] text-[#42DFFF] font-bold text-xs sm:text-sm transition-all border border-[#AA9BFF]/25 flex items-center justify-center space-x-2 cursor-pointer"
               >
                 <span>🎁</span>
                 <span>Kho voucher ưu đãi</span>
@@ -189,7 +189,7 @@ const MyTicketsPage = () => {
             {/* CỘT TRÁI: DANH SÁCH CÁC VÉ ĐÃ ĐẶT */}
             <div className="lg:col-span-5 space-y-4">
               <div className="flex items-center justify-between px-1">
-                <span className="text-xs font-black uppercase tracking-wider text-[#BEC5E5]">
+                <span className="text-xs font-black uppercase tracking-wider text-[var(--text-muted)]">
                   LỊCH SỬ ĐẶT VÉ ({bookings.length})
                 </span>
                 <span className="text-[11px] text-emerald-400 font-semibold">
@@ -222,7 +222,7 @@ const MyTicketsPage = () => {
                       className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${
                         isSelected
                           ? 'bg-[#20204B] border-[#42DFFF] shadow-[0_4px_20px_rgba(66,223,255,0.25)] ring-1 ring-[#83F5FF]/50'
-                          : 'bg-[#11152F] hover:bg-[#20204B] border-[#AA9BFF]/20'
+                          : 'bg-[var(--bg-secondary)] hover:bg-[#20204B] border-[#AA9BFF]/20'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -238,7 +238,7 @@ const MyTicketsPage = () => {
                           <h3 className="text-sm font-black text-white line-clamp-1">
                             {movie?.title || 'Vé xem phim D\'AVENOR'}
                           </h3>
-                          <p className="text-[11px] text-[#BEC5E5]">
+                          <p className="text-[11px] text-[var(--text-muted)]">
                             {b.showtime?.roomName || 'Phòng chiếu D\'AVENOR'} • Ghế: <strong className="text-[#42DFFF]">{b.seats}</strong>
                           </p>
                         </div>
@@ -247,7 +247,7 @@ const MyTicketsPage = () => {
                           <span className="text-xs font-black text-white block">
                             {b.totalAmount ? b.totalAmount.toLocaleString('vi-VN') : 0} đ
                           </span>
-                          <span className="text-[10px] text-[#BEC5E5] block mt-0.5">
+                          <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
                             {dateStr} • {timeStr}
                           </span>
                         </div>
@@ -260,10 +260,10 @@ const MyTicketsPage = () => {
 
             {/* CỘT PHẢI: CHI TIẾT CUỐNG VÉ ĐIỆN TỬ VỪA CHỌN */}
             {selectedBooking && (
-              <div className="lg:col-span-7 bg-[#11152F] border border-[#AA9BFF]/25 rounded-3xl shadow-2xl relative p-6 sm:p-8 space-y-6">
+              <div className="lg:col-span-7 bg-[var(--bg-secondary)] border border-[#AA9BFF]/25 rounded-3xl shadow-2xl relative p-6 sm:p-8 space-y-6">
                 <div className="flex items-center justify-between pb-3.5 border-b border-[#AA9BFF]/20">
                   <div className="flex items-center space-x-2">
-                    <span className="text-[11px] font-bold text-[#BEC5E5] uppercase tracking-wider">
+                    <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
                       MÃ VÉ ĐIỆN TỬ
                     </span>
                     <span className="text-sm font-black font-mono text-[#42DFFF] bg-[#7C3AED]/30 px-2.5 py-0.5 rounded border border-[#A855F7]/30">
@@ -272,7 +272,7 @@ const MyTicketsPage = () => {
                     <button
                       type="button"
                       onClick={() => handleCopyCode(selectedBooking.bookingCode)}
-                      className="text-xs text-[#BEC5E5] hover:text-white bg-[#0B1026] px-2.5 py-0.5 rounded border border-[#AA9BFF]/20 transition-colors cursor-pointer"
+                      className="text-xs text-[var(--text-muted)] hover:text-white bg-[var(--bg-main)] px-2.5 py-0.5 rounded border border-[#AA9BFF]/20 transition-colors cursor-pointer"
                       title="Sao chép mã vé"
                     >
                       {copied ? 'Đã sao chép' : '📋'}
@@ -286,7 +286,7 @@ const MyTicketsPage = () => {
 
                 {/* Thông tin phim */}
                 <div className="flex items-start space-x-4">
-                  <div className="w-20 h-28 rounded-xl overflow-hidden bg-[#0B1026] border border-[#AA9BFF]/25 shrink-0 shadow-md relative">
+                  <div className="w-20 h-28 rounded-xl overflow-hidden bg-[var(--bg-main)] border border-[#AA9BFF]/25 shrink-0 shadow-md relative">
                     <img
                       src={
                         selectedBooking.showtime?.movie?.posterUrl ||
@@ -304,10 +304,10 @@ const MyTicketsPage = () => {
                     <h3 className="text-xl font-black text-white">
                       {selectedBooking.showtime?.movie?.title || 'Vé Xem Phim D\'AVENOR'}
                     </h3>
-                    <p className="text-xs text-[#BEC5E5]">
+                    <p className="text-xs text-[var(--text-muted)]">
                       {selectedBooking.showtime?.movie?.genre || 'Điện ảnh đặc sắc'} • {selectedBooking.showtime?.movie?.duration || 120} phút
                     </p>
-                    <p className="text-xs text-[#BEC5E5] pt-1">
+                    <p className="text-xs text-[var(--text-muted)] pt-1">
                       Họ tên khách: <strong className="text-white">{selectedBooking.customerName}</strong> • SĐT: <strong className="text-white">{selectedBooking.customerPhone}</strong>
                     </p>
                   </div>
@@ -316,28 +316,28 @@ const MyTicketsPage = () => {
                 {/* Grid 4 chi tiết */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-[#AA9BFF]/20 text-xs">
                   <div>
-                    <span className="text-[10px] text-[#BEC5E5] block font-medium">📽️ Phòng chiếu</span>
+                    <span className="text-[10px] text-[var(--text-muted)] block font-medium">📽️ Phòng chiếu</span>
                     <span className="font-bold text-white text-xs block mt-0.5">{selectedBooking.showtime?.roomName || 'Phòng 03'}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-[#BEC5E5] block font-medium">🕒 Giờ chiếu</span>
+                    <span className="text-[10px] text-[var(--text-muted)] block font-medium">🕒 Giờ chiếu</span>
                     <span className="font-bold text-white text-xs block mt-0.5">
                       {selectedBooking.showtime?.startTime
                         ? new Date(selectedBooking.showtime.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
                         : '19:00'}
                     </span>
-                    <span className="text-[10px] text-[#BEC5E5]">
+                    <span className="text-[10px] text-[var(--text-muted)]">
                       {selectedBooking.showtime?.startTime
                         ? new Date(selectedBooking.showtime.startTime).toLocaleDateString('vi-VN')
                         : ''}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-[#BEC5E5] block font-medium">💺 Ghế</span>
+                    <span className="text-[10px] text-[var(--text-muted)] block font-medium">💺 Ghế</span>
                     <span className="font-black text-[#42DFFF] text-sm block mt-0.5">{selectedBooking.seats}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-[#BEC5E5] block font-medium">💳 Tổng tiền</span>
+                    <span className="text-[10px] text-[var(--text-muted)] block font-medium">💳 Tổng tiền</span>
                     <span className="font-black text-emerald-400 text-sm block mt-0.5">
                       {selectedBooking.totalAmount ? selectedBooking.totalAmount.toLocaleString('vi-VN') : 0} đ
                     </span>
@@ -346,7 +346,7 @@ const MyTicketsPage = () => {
 
                 {/* Bắp nước */}
                 {selectedBooking.concessions && (
-                  <div className="bg-[#0B1026] border border-[#AA9BFF]/20 rounded-xl p-3 text-xs flex items-center space-x-2.5">
+                  <div className="bg-[var(--bg-main)] border border-[#AA9BFF]/20 rounded-xl p-3 text-xs flex items-center space-x-2.5">
                     <span className="text-[#42DFFF] text-lg">🍿</span>
                     <div>
                       <span className="text-[10px] text-[#42DFFF] font-bold block uppercase tracking-wider">
@@ -366,7 +366,7 @@ const MyTicketsPage = () => {
                       className="w-36 h-36 object-contain rounded-lg mx-auto"
                     />
                   </div>
-                  <p className="text-[11px] text-[#BEC5E5] max-w-sm mx-auto">
+                  <p className="text-[11px] text-[var(--text-muted)] max-w-sm mx-auto">
                     Xuất trình mã QR tại cửa phòng chiếu hoặc quầy D'AVENOR Express để vào xem phim.
                   </p>
                 </div>
