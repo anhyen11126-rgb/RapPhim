@@ -90,7 +90,7 @@ const CheckoutPaymentMethods = ({ paymentMethod, setPaymentMethod }) => {
           <div className="flex-1 min-w-0">
             <span className="text-xs font-black text-white block">Ví điện tử MoMo</span>
             <p className="text-[10px] text-slate-400 mt-0.5 truncate">
-              Hoàn tiền 5% cho thành viên Vàng
+              Mô phỏng phương thức thanh toán
             </p>
           </div>
 
@@ -125,7 +125,7 @@ const CheckoutPaymentMethods = ({ paymentMethod, setPaymentMethod }) => {
               Thẻ ATM nội địa (Internet Banking)
             </span>
             <p className="text-[10px] text-slate-400 mt-0.5 truncate">
-              Tất cả ngân hàng tại Việt Nam
+              Mô phỏng phương thức thanh toán
             </p>
           </div>
 
@@ -167,7 +167,7 @@ const CheckoutPaymentMethods = ({ paymentMethod, setPaymentMethod }) => {
               Thẻ thanh toán Quốc Tế
             </span>
             <p className="text-[10px] text-slate-400 mt-0.5 truncate">
-              Visa, Mastercard, JCB, American Express
+              Mô phỏng phương thức thanh toán
             </p>
           </div>
 

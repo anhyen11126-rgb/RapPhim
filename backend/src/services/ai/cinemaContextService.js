@@ -1,3 +1,4 @@
+import { opensMoreThanSevenDaysAhead } from '../bookingPolicy.js';
 import mongoose from 'mongoose';
 import Movie from '../../models/Movie.js';
 import Showtime from '../../models/Showtime.js';
@@ -135,20 +136,20 @@ export const isValidShowtimeForBooking = (showtime, movieId = null, nowDate = ne
 
   // Kiểm tra trạng thái mở bán
   const stStatus = String(showtime.status || 'OPEN').toUpperCase();
-  if (stStatus === 'CLOSED' || stStatus === 'CANCELLED' || stStatus === 'INACTIVE') {
+  if (showtime.isLocked || stStatus === 'CLOSED' || stStatus === 'CANCELLED' || stStatus === 'INACTIVE') {
     return false;
   }
 
   // Kiểm tra thời gian chiếu chưa qua
   if (showtime.startTime) {
     const start = new Date(showtime.startTime);
-    if (Number.isNaN(start.getTime()) || start.getTime() <= nowDate.getTime()) {
+    if (Number.isNaN(start.getTime()) || start.getTime() <= nowDate.getTime() || opensMoreThanSevenDaysAhead(start, nowDate)) {
       return false;
     }
   }
 
   // Kiểm tra số ghế trống > 0
-  const avail = Number(showtime.availableSeats);
+  const avail = showtime.availableSeats;
   if (!Number.isFinite(avail) || avail <= 0) {
     return false;
   }
@@ -253,7 +254,7 @@ export const buildNormalizedCinemaContext = ({
 
     // Kiểm tra trạng thái mở bán của suất chiếu
     const stStatus = String(st.status || 'OPEN').toUpperCase();
-    if (stStatus === 'CLOSED' || stStatus === 'CANCELLED') continue;
+    if (st.isLocked || stStatus === 'CLOSED' || stStatus === 'CANCELLED') continue;
 
     const stId = String(st._id || st.showtimeId || '');
     const movieIdStr = String(st.movieId?._id || st.movieId);
@@ -369,9 +370,9 @@ export const buildNormalizedCinemaContext = ({
       seatsInitialized,
       availableByTier,
       rawSeats,
-      isSoldOut: availableSeats <= 0,
+      isSoldOut: availableSeats === 0,
       bookingLink: buildValidBookingLink(
-        { showtimeId: stId, startTime, availableSeats, status: st.status },
+        { showtimeId: stId, startTime, availableSeats, isLocked: st.isLocked, status: st.status },
         movieIdStr,
         nowDate
       ),

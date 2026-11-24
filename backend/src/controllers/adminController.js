@@ -1,3 +1,7 @@
+import { countSeatsFromString } from '../utils/statisticsUtils.js';
+import statisticsService from '../services/statisticsService.js';
+import Room from '../models/Room.js';
+import { businessDate } from '../services/bookingPolicy.js';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -21,13 +25,14 @@ import {
 } from '../services/pricingConfigService.js';
 import { ensureCleanConcessions, resolveConcessionVisuals } from './concessionController.js';
 import { ensureCleanPromotions, resolvePromotionVisuals } from './promotionController.js';
-import { ensure3DShowtimesSynced, resolveCinemaImage, DEFAULT_CINEMA_BANNER } from './cinemaController.js';
+import { resolveCinemaImage, DEFAULT_CINEMA_BANNER } from './cinemaController.js';
 import { generateAndSendEmailOtp } from './authController.js';
 import { ensureAiConfig } from '../services/aiService.js';
 
 // Đăng nhập Admin
 export const adminLogin = async (req, res) => {
   try {
+    if (!process.env.JWT_SECRET) return res.sendStatus(503);
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ message: 'Vui lòng nhập email và mật khẩu' });
@@ -53,7 +58,7 @@ export const adminLogin = async (req, res) => {
 
     const token = jwt.sign(
       { id: admin._id.toString(), email: admin.email, role: admin.role },
-      process.env.JWT_SECRET || 'movietix_jwt_secret_key_2026_cdio',
+      process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
@@ -245,145 +250,134 @@ export const updateMovie = async (req, res) => {
 
 // Quản lý Phim: Xóa phim
 export const deleteMovie = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Xóa phim và các suất chiếu, ghế liên quan
-    const showtimes = await Showtime.find({ movieId: id });
-    const showtimeIds = showtimes.map((st) => st._id);
-
-    await ShowtimeSeat.deleteMany({ showtimeId: { $in: showtimeIds } });
-    await Showtime.deleteMany({ movieId: id });
-    await Movie.findByIdAndDelete(id);
-
-    res.json({ success: true, message: 'Đã xóa phim thành công' });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi xóa phim', error: error.message });
-  }
+  if (!mongoose.isObjectIdOrHexString(req.params.id)) return res.sendStatus(400);
+  await Movie.findByIdAndUpdate(req.params.id, { status: 'ENDED' });
+  await Showtime.updateMany({ movieId: req.params.id, startTime: { $gt: new Date() } }, { isLocked: true });
+  return res.json({ success: true, message: 'Đã ngừng chiếu phim và bảo toàn lịch sử.' });
 };
 
-// Quản lý Suất chiếu: Tạo suất chiếu mới kèm ma trận 88 ghế tự động
+class ScheduleConflict extends Error {}
+
+async function scheduleInRoom({ room, movie, start, price, pricing, session }) {
+  const duration = Number(movie.duration);
+  const cleaningMinutes = 15;
+  if (!Number.isFinite(duration) || duration <= 0) throw new ScheduleConflict('Phim chưa có thời lượng hợp lệ.');
+  if (movie.releaseDate && businessDate(start) < businessDate(movie.releaseDate)) {
+    throw new ScheduleConflict('Suất chiếu sớm hơn ngày khởi chiếu.');
+  }
+  const endTime = new Date(start.getTime() + duration * 60000);
+  const blockedUntil = endTime.getTime() + cleaningMinutes * 60000;
+
+  const existing = await Showtime.find({
+    $or: [{ roomId: room._id }, { roomId: null, cinemaId: room.cinemaId, roomName: { $in: [room.name, room.shortName].filter(Boolean) } }],
+    startTime: { $lt: new Date(blockedUntil) },
+    cancelledAt: null,
+  }).select('movieId startTime endTime cleaningMinutes').populate('movieId', 'duration').session(session).lean();
+  const overlaps = existing.some(slot => {
+    const legacyDuration = Number(slot.movieId?.duration);
+    if (!slot.endTime && (!Number.isFinite(legacyDuration) || legacyDuration <= 0)) {
+      return businessDate(slot.startTime) === businessDate(start);
+    }
+    const slotEnd = slot.endTime?.getTime() ?? slot.startTime.getTime() + legacyDuration * 60000;
+    return slotEnd + (slot.cleaningMinutes ?? cleaningMinutes) * 60000 > start.getTime();
+  });
+  if (overlaps) throw new ScheduleConflict('Khung giờ chồng lịch chiếu hoặc thời gian vệ sinh phòng.');
+
+  const [template] = await ShowtimeSeat.aggregate([
+    { $match: { roomId: room._id } },
+    { $group: { _id: '$showtimeId', count: { $sum: 1 } } },
+    { $match: { count: room.totalSeats } },
+    { $sort: { _id: -1 } },
+    { $limit: 1 },
+  ]).session(session);
+  if (!template) throw new ScheduleConflict('Phòng chưa có sơ đồ ghế đã xác nhận.');
+  const seats = await ShowtimeSeat.find({ roomId: room._id, showtimeId: template._id })
+    .select('row col seatNumber type').session(session).lean();
+  const calculated = calculatePricesFromConfig({
+    roomName: room.name, roomType: room.roomType, formatFeature: room.formatFeature, startTime: start,
+  }, pricing);
+  const [showtime] = await Showtime.create([{
+    movieId: movie._id, cinemaId: room.cinemaId, roomId: room._id, roomName: room.name,
+    formatFeature: room.formatFeature, startTime: start, endTime, cleaningMinutes,
+    price: price ?? calculated.priceStandard,
+  }], { session });
+  await ShowtimeSeat.insertMany(seats.map(({ row, col, seatNumber, type }) => ({
+    roomId: room._id, showtimeId: showtime._id, row, col, seatNumber, type, status: 'AVAILABLE',
+  })), { session });
+  return showtime;
+}
+
+async function lockRoom(roomId, session) {
+  const room = await Room.findOneAndUpdate(
+    { _id: roomId, status: 'ACTIVE' }, { $inc: { scheduleRevision: 1 } }, { new: true, session }
+  );
+  if (!room) throw new ScheduleConflict('Phòng không có hoặc đang bảo trì.');
+  return room;
+}
+
 export const createShowtime = async (req, res) => {
   try {
-    const { movieId, cinemaId, roomName, formatFeature, startTime, price } = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(movieId)) {
-      return res.status(400).json({ message: 'ID phim không hợp lệ' });
+    const { movieId, cinemaId, roomId, roomName, startTime, price } = req.body;
+    const timestamp = typeof startTime === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(startTime)
+      ? startTime + ':00+07:00' : startTime;
+    const start = new Date(timestamp);
+    if (!mongoose.isObjectIdOrHexString(movieId) || !Number.isFinite(start.getTime()) || start <= new Date()
+        || (price != null && (!Number.isSafeInteger(Number(price)) || Number(price) <= 0))) {
+      return res.status(400).json({ message: 'Phim, giờ bắt đầu hoặc giá vé không hợp lệ.' });
+    }
+    const [movie, pricing] = await Promise.all([Movie.findById(movieId), ensurePricingConfig()]);
+    if (!movie) return res.status(404).json({ message: 'Không tìm thấy phim.' });
+    let targetRoomId = roomId;
+    if (targetRoomId == null && typeof roomName === 'string') {
+      const matches = await Room.find({ name: roomName, ...(mongoose.isObjectIdOrHexString(cinemaId) && { cinemaId }) }).select('_id').limit(2);
+      if (matches.length === 1) targetRoomId = matches[0]._id;
+    }
+    if (!mongoose.isObjectIdOrHexString(targetRoomId)) {
+      return res.status(400).json({ message: 'Vui lòng chọn phòng vật lý.' });
     }
 
-    let targetCinemaId = cinemaId;
-    if (!targetCinemaId || !mongoose.Types.ObjectId.isValid(targetCinemaId)) {
-      const dnCinema = await Cinema.findOne({ city: 'Đà Nẵng' });
-      targetCinemaId = dnCinema ? dnCinema._id : undefined;
-    }
-
-    const rName = roomName || 'Phòng IMAX 01 (Grand Hall)';
-    const defaultFeature = rName.toLowerCase().includes('3d')
-      ? '3D Phụ Đề • RealD 3D High Frame Rate • Kính 3D siêu nhẹ'
-      : rName.toLowerCase().includes('imax')
-      ? 'IMAX Laser 2D • Âm thanh 12 kênh độc quyền'
-      : '2D Phụ Đề • Chuẩn Dolby 7.1 • Màn chiếu 4K';
-
-    const pricingConfig = await ensurePricingConfig();
-    const parsedExplicitPrice = Number(price);
-    const resolvedShowtimePrice =
-      Number.isFinite(parsedExplicitPrice) && parsedExplicitPrice > 0
-        ? Math.round(parsedExplicitPrice)
-        : calculatePricesFromConfig(
-            { roomName: rName, formatFeature: formatFeature || defaultFeature, startTime },
-            pricingConfig,
-            { preferRuleMatrix: true }
-          ).priceStandard;
-
-    const showtime = await Showtime.create({
-      movieId: new mongoose.Types.ObjectId(movieId),
-      cinemaId: targetCinemaId ? new mongoose.Types.ObjectId(targetCinemaId) : undefined,
-      roomName: rName,
-      formatFeature: formatFeature || defaultFeature,
-      startTime: new Date(startTime),
-      price: resolvedShowtimePrice,
-    });
-
-    // Tạo tự động ma trận 88 ghế (A-D Standard, E-G VIP, H Sweetbox)
-    const standardRows = ['A', 'B', 'C', 'D'];
-    const vipRows = ['E', 'F', 'G'];
-    const sweetboxSeats = [
-      { row: 'H', col: 1, seatNumber: 'H1-2' },
-      { row: 'H', col: 3, seatNumber: 'H3-4' },
-      { row: 'H', col: 5, seatNumber: 'H5-6' },
-      { row: 'H', col: 7, seatNumber: 'H7-8' },
-    ];
-    const seatsData = [];
-
-    for (const r of standardRows) {
-      for (let c = 1; c <= 12; c++) {
-        seatsData.push({
-          showtimeId: showtime._id,
-          seatNumber: `${r}${c}`,
-          row: r,
-          col: c,
-          type: 'STANDARD',
-          status: 'AVAILABLE',
-        });
+    const showtime = await mongoose.connection.transaction(async session => {
+      const room = await lockRoom(targetRoomId, session);
+      if (cinemaId && cinemaId !== 'ALL' && String(room.cinemaId) !== cinemaId) {
+        throw new ScheduleConflict('Phòng không thuộc cụm rạp đã chọn.');
       }
-    }
-    for (const r of vipRows) {
-      for (let c = 1; c <= 12; c++) {
-        seatsData.push({
-          showtimeId: showtime._id,
-          seatNumber: `${r}${c}`,
-          row: r,
-          col: c,
-          type: 'VIP',
-          status: 'AVAILABLE',
-        });
-      }
-    }
-    for (const sb of sweetboxSeats) {
-      seatsData.push({
-        showtimeId: showtime._id,
-        seatNumber: sb.seatNumber,
-        row: sb.row,
-        col: sb.col,
-        type: 'SWEETBOX',
-        status: 'AVAILABLE',
-      });
-    }
-    await ShowtimeSeat.insertMany(seatsData);
-
-    res.status(201).json({
-      message: 'Đã tạo suất chiếu và sinh sơ đồ ghế thành công',
-      showtime: {
-        ...showtime.toObject(),
-        id: showtime._id.toString(),
-      },
+      return scheduleInRoom({ room, movie, start, price: price == null ? undefined : Number(price), pricing, session });
     });
+    return res.status(201).json({ message: 'Đã tạo suất chiếu.', showtime });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi tạo suất chiếu', error: error.message });
+    if (error instanceof ScheduleConflict) return res.status(409).json({ message: error.message });
+    console.error('Schedule creation failed:', error.name);
+    return res.status(500).json({ message: 'Không thể tạo suất chiếu.' });
   }
 };
 
 // Quản lý Đặt vé: Danh sách đơn vé
 export const getAdminBookings = async (req, res) => {
   try {
-    const { search } = req.query;
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 120) : '';
+    const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const page = Math.min(100000, Math.max(1, parseInt(req.query.page, 10) || 1));
+    const limit = 30;
     const filter = {};
 
     if (search) {
       filter.$or = [
-        { bookingCode: { $regex: search, $options: 'i' } },
-        { customerPhone: { $regex: search, $options: 'i' } },
-        { customerName: { $regex: search, $options: 'i' } },
+        { bookingCode: { $regex: escapedSearch, $options: 'i' } },
+        { customerPhone: { $regex: escapedSearch, $options: 'i' } },
+        { customerName: { $regex: escapedSearch, $options: 'i' } },
       ];
     }
 
-    const rawBookings = await Booking.find(filter)
-      .sort({ createdAt: -1 })
+    const [rawBookings, total] = await Promise.all([Booking.find(filter)
+      .select('-qrToken')
+      .sort({ createdAt: -1, _id: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
       .populate({
         path: 'showtimeId',
         populate: { path: 'movieId' },
       })
-      .lean();
+      .lean(), Booking.countDocuments(filter)]);
 
     const bookings = rawBookings.map((b) => {
       const showtime = b.showtimeId;
@@ -400,27 +394,15 @@ export const getAdminBookings = async (req, res) => {
       };
     });
 
-    res.json(bookings);
+    res.json({ bookings, page, limit, total });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi khi lấy danh sách đặt vé', error: error.message });
   }
 };
 
 // Cập nhật trạng thái vé
-export const updateBookingStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    const booking = await Booking.findByIdAndUpdate(id, { status }, { new: true });
-    if (!booking) {
-      return res.status(404).json({ message: 'Không tìm thấy đơn đặt vé' });
-    }
-
-    res.json({ message: 'Cập nhật trạng thái thành công', booking });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi cập nhật trạng thái', error: error.message });
-  }
+export const updateBookingStatus = (_req, res) => {
+  return res.status(405).json({ message: 'Trạng thái đơn thay đổi qua nghiệp vụ đặt, đổi, hủy hoặc soát vé.' });
 };
 
 // ==================== QUẢN LÝ CỤM RẠP ====================
@@ -498,7 +480,6 @@ export const deleteCinema = async (req, res) => {
 // ==================== QUẢN LÝ SUẤT CHIẾU ====================
 export const getAdminShowtimes = async (req, res) => {
   try {
-    await ensure3DShowtimesSynced();
     const { period, startDate, endDate, cinemaId, movieId } = req.query;
     const filter = {};
     const now = new Date();
@@ -579,7 +560,7 @@ export const getAdminShowtimes = async (req, res) => {
         id: st._id.toString(),
         movie: st.movieId,
         cinema: st.cinemaId,
-        totalSeats: stat?.totalSeats || 88,
+        totalSeats: stat?.totalSeats ?? null,
         bookedSeats: stat?.bookedSeats || 0,
       };
     });
@@ -593,219 +574,107 @@ export const getAdminShowtimes = async (req, res) => {
 // Xếp lịch chiếu phim hàng loạt theo Tuần / Tháng cho Admin & Khách hàng
 export const batchScheduleShowtimes = async (req, res) => {
   try {
-    const {
-      cinemaId = 'ALL',
-      startDate,
-      endDate,
-      movieIds,
-      timeSlots = ['09:30', '13:45', '17:15', '19:45', '22:15'],
-      overwriteExisting = true,
-    } = req.body;
-
-    if (!startDate || !endDate) {
-      return res.status(400).json({ message: 'Vui lòng chọn ngày bắt đầu và ngày kết thúc cho đợt chiếu' });
-    }
-    if (!Array.isArray(movieIds) || movieIds.length === 0) {
-      return res.status(400).json({ message: 'Vui lòng chọn ít nhất 1 bộ phim để xếp lịch chiếu' });
+    const { roomIds, startDate, endDate, movieIds, timeSlots } = req.body;
+    const day = 86400000;
+    const start = new Date(startDate + 'T00:00:00+07:00');
+    const end = new Date(endDate + 'T00:00:00+07:00');
+    if (!Number.isFinite(+start) || !Number.isFinite(+end) || start > end || +end - +start > 30 * day
+      || businessDate(start) !== startDate || businessDate(end) !== endDate
+      || !Array.isArray(roomIds) || !roomIds.length || !roomIds.every(mongoose.isObjectIdOrHexString)
+      || !Array.isArray(movieIds) || !movieIds.length || !movieIds.every(mongoose.isObjectIdOrHexString)
+      || !Array.isArray(timeSlots) || !timeSlots.length || !timeSlots.every(time => typeof time === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time))) {
+      return res.status(400).json({ message: 'Kiểm tra danh sách phòng, phim, ngày hoặc khung giờ.' });
     }
 
-    const startParts = startDate.split('-').map(Number);
-    const endParts = endDate.split('-').map(Number);
-    const start = new Date(startParts[0], startParts[1] - 1, startParts[2], 0, 0, 0, 0);
-    const end = new Date(endParts[0], endParts[1] - 1, endParts[2], 23, 59, 59, 999);
+    const uniqueRooms = [...new Set(roomIds)].sort();
+    const uniqueTimes = [...new Set(timeSlots)].sort();
+    const [movies, pricing] = await Promise.all([Movie.find({ _id: { $in: movieIds } }), ensurePricingConfig()]);
+    if (movies.length !== new Set(movieIds).size) return res.status(404).json({ message: 'Một số phim không tồn tại.' });
 
-    if (start > end) {
-      return res.status(400).json({ message: 'Ngày bắt đầu không được lớn hơn ngày kết thúc' });
-    }
-
-    // 1. Tìm các cụm rạp mục tiêu
-    let targetCinemas = [];
-    if (cinemaId && cinemaId !== 'ALL' && mongoose.Types.ObjectId.isValid(cinemaId)) {
-      const c = await Cinema.findById(cinemaId);
-      if (c) targetCinemas.push(c);
-    } else {
-      targetCinemas = await Cinema.find({}).limit(50);
-    }
-
-    if (targetCinemas.length === 0) {
-      return res.status(404).json({ message: 'Không tìm thấy cụm rạp phù hợp' });
-    }
-
-    // 2. Tìm danh sách phim được chọn
-    const validMovieIds = movieIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
-    const selectedMovies = await Movie.find({ _id: { $in: validMovieIds } });
-    if (selectedMovies.length === 0) {
-      return res.status(404).json({ message: 'Không tìm thấy các bộ phim đã chọn' });
-    }
-
-    const pricingConfig = await ensurePricingConfig();
-
-    let totalCreatedShowtimes = 0;
-    let totalReplacedShowtimes = 0;
-
-    const standardRows = ['A', 'B', 'C', 'D'];
-    const vipRows = ['E', 'F', 'G'];
-    const sweetboxSeats = [
-      { row: 'H', col: 1, seatNumber: 'H1-2' },
-      { row: 'H', col: 3, seatNumber: 'H3-4' },
-      { row: 'H', col: 5, seatNumber: 'H5-6' },
-      { row: 'H', col: 7, seatNumber: 'H7-8' },
-    ];
-
-    // Lặp qua từng ngày trong khoảng thời gian đã chọn (Tuần này / Tuần sau / Tháng 11 / Tháng 12)
-    const cur = new Date(start);
-    while (cur <= end) {
-      const dayStart = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 0, 0, 0, 0);
-      const dayEnd = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 23, 59, 59, 999);
-
-      for (const cinema of targetCinemas) {
-        // Ghi đè: Xóa các suất cũ trong ngày đó CHƯA CÓ VÉ ĐẶT để thay thế hoàn toàn sang danh sách phim mới
-        if (overwriteExisting) {
-          const existingShowtimes = await Showtime.find({
-            cinemaId: cinema._id,
-            startTime: { $gte: dayStart, $lte: dayEnd },
-          });
-
-          for (const exSt of existingShowtimes) {
-            const hasPaidBooking = await Booking.exists({ showtimeId: exSt._id, status: 'PAID' });
-            if (!hasPaidBooking) {
-              await ShowtimeSeat.deleteMany({ showtimeId: exSt._id });
-              await Showtime.findByIdAndDelete(exSt._id);
-              totalReplacedShowtimes++;
-            }
-          }
-        }
-
-        // Cấu hình các phòng chiếu của rạp
-        const hasImax = cinema.tags?.includes('IMAX Laser') || (cinema.name || '').includes('Vincom');
-        const rooms = [
-          {
-            name: hasImax ? 'Phòng IMAX 01 (Grand Hall)' : 'Phòng Chiếu 01 (Dolby Atmos)',
-            formatFeature: hasImax ? 'IMAX Laser 2D • Âm thanh 12 kênh độc quyền' : '2D Phụ Đề • Âm thanh vòm Dolby Atmos',
-          },
-          {
-            name: 'Rạp 03 (Tầng 2 - 2D Dolby)',
-            formatFeature: '2D Phụ Đề • Chuẩn Dolby 7.1 • Màn chiếu 4K sắc nét',
-          },
-          {
-            name: 'Rạp 05 (Tầng 3 - RealD 3D)',
-            formatFeature: '3D Phụ Đề • RealD 3D High Frame Rate • Kính 3D siêu nhẹ',
-          },
-        ];
-
-        // Phân bổ các phim đã chọn vào các phòng chiếu và khung giờ
-        for (let rIdx = 0; rIdx < rooms.length; rIdx++) {
-          const room = rooms[rIdx];
-          const movie = selectedMovies[(rIdx + cur.getDate()) % selectedMovies.length];
-
-          for (const slotStr of timeSlots) {
-            const [h, m] = slotStr.split(':').map(Number);
-            if (isNaN(h) || isNaN(m)) continue;
-
-            const slotTime = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), h, m, 0, 0);
-
-            // Tính giá vé động theo cấu hình giá vé
-            const calculatedPrice = calculatePricesFromConfig(
-              {
-                roomName: room.name,
-                formatFeature: room.formatFeature,
-                startTime: slotTime,
-              },
-              pricingConfig,
-              { preferRuleMatrix: true }
-            ).priceStandard;
-
-            const newSt = await Showtime.create({
-              cinemaId: cinema._id,
-              movieId: movie._id,
-              roomName: room.name,
-              formatFeature: room.formatFeature,
-              startTime: slotTime,
-              price: calculatedPrice,
-            });
-
-            // Tự động sinh ma trận 88 ghế cho từng suất chiếu
-            const seatsData = [];
-            for (const r of standardRows) {
-              for (let c = 1; c <= 12; c++) {
-                seatsData.push({
-                  showtimeId: newSt._id,
-                  seatNumber: `${r}${c}`,
-                  row: r,
-                  col: c,
-                  type: 'STANDARD',
-                  status: 'AVAILABLE',
-                });
-              }
-            }
-            for (const r of vipRows) {
-              for (let c = 1; c <= 12; c++) {
-                seatsData.push({
-                  showtimeId: newSt._id,
-                  seatNumber: `${r}${c}`,
-                  row: r,
-                  col: c,
-                  type: 'VIP',
-                  status: 'AVAILABLE',
-                });
-              }
-            }
-            for (const sb of sweetboxSeats) {
-              seatsData.push({
-                showtimeId: newSt._id,
-                seatNumber: sb.seatNumber,
-                row: sb.row,
-                col: sb.col,
-                type: 'SWEETBOX',
-                status: 'AVAILABLE',
-              });
-            }
-            await ShowtimeSeat.insertMany(seatsData);
-            totalCreatedShowtimes++;
+    const totalCreatedShowtimes = await mongoose.connection.transaction(async session => {
+      let count = 0;
+      for (const [index, roomId] of uniqueRooms.entries()) {
+        const room = await lockRoom(roomId, session);
+        for (let date = +start; date <= +end; date += day) {
+          const movie = movies[(index + (date - +start) / day) % movies.length];
+          for (const time of uniqueTimes) {
+            const startsAt = new Date(businessDate(new Date(date)) + 'T' + time + ':00+07:00');
+            if (startsAt <= new Date()) continue;
+            await scheduleInRoom({ room, movie, start: startsAt, pricing, session });
+            count++;
           }
         }
       }
-
-      cur.setDate(cur.getDate() + 1);
-    }
-
-    res.json({
-      success: true,
-      message: `Đã lên lịch thành công ${totalCreatedShowtimes} suất chiếu cho ${selectedMovies.length} bộ phim (áp dụng từ ${startDate} đến ${endDate})!`,
-      totalCreatedShowtimes,
-      totalReplacedShowtimes,
+      return count;
     });
+    return res.json({ success: true, totalCreatedShowtimes, message: 'Đã tạo ' + totalCreatedShowtimes + ' suất chiếu.' });
   } catch (error) {
-    console.error('Lỗi xếp lịch chiếu theo tuần/tháng:', error);
-    res.status(500).json({ message: 'Lỗi xếp lịch chiếu theo tuần/tháng', error: error.message });
+    if (error instanceof ScheduleConflict) return res.status(409).json({ message: error.message });
+    console.error('Batch scheduling failed:', error.name);
+    return res.status(500).json({ message: 'Không thể xếp lịch hàng loạt.' });
   }
 };
 
 export const deleteShowtime = async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.isObjectIdOrHexString(id)) return res.sendStatus(400);
   try {
-    const { id } = req.params;
-    await ShowtimeSeat.deleteMany({ showtimeId: id });
-    await Showtime.findByIdAndDelete(id);
-    res.json({ success: true, message: 'Đã xóa suất chiếu' });
+    const affectedOrders = await mongoose.connection.transaction(async session => {
+      const slot = await Showtime.findOneAndUpdate({
+        _id: id, startTime: { $gt: new Date() }, cancelledAt: null,
+      }, { $set: { isLocked: true, cancelledAt: new Date() } }, { session, returnDocument: 'after' });
+      if (!slot) throw new ScheduleConflict('Suất không còn đủ điều kiện hủy.');
+      const orders = await Booking.find({
+        showtimeId: slot._id, status: { $in: ['PAID', 'EXCHANGED', 'PENDING'] },
+      }).select('bookingCode seats totalAmount paymentStatus isCheckedIn').session(session).lean();
+      if (orders.some(order => order.isCheckedIn || order.paymentStatus !== 'SIMULATED')) {
+        throw new ScheduleConflict('Suất có vé đã soát hoặc đơn cần đối soát. Hãy khóa mở bán và xử lý các đơn trước khi hủy.');
+      }
+      if (!orders.length) return [];
+      const ids = orders.map(order => order._id);
+      const released = await ShowtimeSeat.updateMany({
+        showtimeId: slot._id, status: 'BOOKED', bookingId: { $in: ids },
+      }, { $set: { status: 'AVAILABLE', bookingId: null, holdExpiresAt: null } }, { session });
+      if (released.modifiedCount !== orders.reduce((sum, order) => sum + countSeatsFromString(order.seats), 0)) {
+        throw new ScheduleConflict('Không đối chiếu đủ ghế thuộc các đơn bị ảnh hưởng.');
+      }
+      const cancelled = await Booking.updateMany({
+        _id: { $in: ids }, status: 'PAID', isCheckedIn: { $ne: true },
+      }, [{ $set: { status: 'CANCELLED', refundStatus: 'SIMULATED', refundAmount: '$totalAmount', qrToken: null } }], {
+        session, updatePipeline: true,
+      });
+      if (cancelled.modifiedCount !== orders.length) throw new ScheduleConflict('Một số đơn vừa thay đổi. Vui lòng tải lại.');
+      return orders.map(order => order.bookingCode);
+    });
+    return res.json({
+      success: true, affectedOrders, message: 'Đã hủy suất chiếu và lưu lịch sử. Khoản hoàn của đơn mô phỏng đã được ghi nhận.',
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi xóa suất chiếu', error: error.message });
+    if (error instanceof ScheduleConflict) return res.status(409).json({ message: error.message });
+    console.error('Showtime cancellation failed:', error.name);
+    return res.status(500).json({ message: 'Chưa thể hủy suất chiếu.' });
   }
 };
 
 // ==================== QUẢN LÝ KHÁCH HÀNG / THÀNH VIÊN ====================
 export const getAdminUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password').sort({ createdAt: -1 }).lean();
-    const usersWithStats = await Promise.all(
-      users.map(async (u) => {
-        const bookingCount = await Booking.countDocuments({ customerEmail: u.email });
-        return {
-          ...u,
-          id: u._id.toString(),
-          bookingCount,
-        };
-      })
-    );
+    const [users, purchaseStats] = await Promise.all([
+      User.find().select('name email phone avatar role createdAt tier points').sort({ createdAt: -1 }).lean(),
+      Booking.aggregate([
+        { $match: { userId: { $type: 'objectId' }, status: 'PAID', paymentStatus: { $in: ['SIMULATED', 'VERIFIED'] } } },
+        { $group: {
+          _id: '$userId', bookingCount: { $sum: 1 },
+          totalTickets: { $sum: { $size: { $split: ['$seats', ','] } } },
+          totalSpend: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'VERIFIED'] }, '$totalAmount', 0] } },
+        } },
+      ]),
+    ]);
+    const byUser = new Map(purchaseStats.map(({ _id, ...stats }) => [String(_id), stats]));
+    const usersWithStats = users.map(user => ({
+      ...user, id: String(user._id), bookingCount: 0, totalTickets: 0, totalSpend: 0,
+      ...byUser.get(String(user._id)),
+    }));
     res.json(usersWithStats);
   } catch (error) {
     res.status(500).json({ message: 'Lỗi lấy danh sách thành viên', error: error.message });
@@ -940,23 +809,9 @@ export const deletePromotion = async (req, res) => {
 // ==================== QUẢN LÝ MÃ XÁC THỰC OTP (DATABASE & EMAIL) ====================
 export const getAdminOtps = async (req, res) => {
   try {
-    const now = new Date();
-    // Tự động xóa vĩnh viễn tất cả các mã OTP đã hết hiệu lực khỏi Database để hệ thống luôn nhẹ
-    await OtpVerification.deleteMany({
-      $or: [
-        { expiresAt: { $lt: now } },
-        { status: 'EXPIRED' },
-      ],
-    });
-
-    const otps = await OtpVerification.find().sort({ createdAt: -1 }).limit(100).lean();
-    const senderEmail =
-      process.env.EMAIL_USER?.trim() && process.env.EMAIL_USER?.trim() !== 'your_email@gmail.com'
-        ? process.env.EMAIL_USER.trim()
-        : 'rapphim265@gmail.com';
+    const otps = await OtpVerification.find().select('email type status expiresAt createdAt').sort({ createdAt: -1 }).limit(100).lean();
 
     res.json({
-      senderEmail,
       otps: otps.map((item) => ({
         ...item,
         id: item._id.toString(),
@@ -992,12 +847,7 @@ export const sendAdminTestOtp = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: result.emailSent
-        ? `Đã tạo mã OTP (${result.otpCode}) và gửi thành công tới hộp thư ${cleanEmail}!`
-        : `Đã lưu mã OTP (${result.otpCode}) vào Database (Lỗi SMTP: ${result.emailErrorMsg || 'Không xác định'})`,
-      otp: result.otpRecord
-        ? { ...result.otpRecord.toObject(), id: result.otpRecord._id.toString() }
-        : null,
+      message: result.emailSent ? 'Đã gửi email OTP.' : 'Không gửi được email OTP.',
       emailSent: result.emailSent,
     });
   } catch (error) {
@@ -1200,7 +1050,10 @@ export const updateShowtime = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: 'ID suất chiếu không hợp lệ' });
     }
-    const { price, roomName, startTime, formatFeature } = req.body;
+    if (['roomId', 'roomName', 'cinemaId', 'startTime', 'endTime', 'formatFeature'].some(field => Object.hasOwn(req.body, field))) {
+      return res.status(400).json({ message: 'Phòng và thời gian của suất chiếu đã tạo được lưu cố định.' });
+    }
+    const { price } = req.body;
     const updatePayload = {};
     if (price !== undefined) {
       const numPrice = Number(price);
@@ -1209,9 +1062,6 @@ export const updateShowtime = async (req, res) => {
       }
       updatePayload.price = Math.round(numPrice);
     }
-    if (roomName !== undefined) updatePayload.roomName = roomName;
-    if (startTime !== undefined) updatePayload.startTime = new Date(startTime);
-    if (formatFeature !== undefined) updatePayload.formatFeature = formatFeature;
 
     const updated = await Showtime.findByIdAndUpdate(id, updatePayload, { new: true }).lean();
     if (!updated) {
@@ -1368,69 +1218,10 @@ const detectShowtimeFormat = (roomName = '', formatFeature = '') => {
 };
 
 // Đảm bảo ghế cho suất chiếu
-const ensureSeatsForShowtime = async (showtimeId) => {
-  const now = new Date();
-  await ShowtimeSeat.updateMany(
-    { showtimeId, status: 'HOLDING', holdExpiresAt: { $lt: now } },
-    { $set: { status: 'AVAILABLE', holdExpiresAt: null } }
-  );
-
-  let seats = await ShowtimeSeat.find({ showtimeId }).sort({ row: 1, col: 1 }).lean();
-  if (seats.length === 0) {
-    const standardRows = ['A', 'B', 'C', 'D'];
-    const vipRows = ['E', 'F', 'G'];
-    const sweetboxSeats = [
-      { row: 'H', col: 1, seatNumber: 'H1-2' },
-      { row: 'H', col: 3, seatNumber: 'H3-4' },
-      { row: 'H', col: 5, seatNumber: 'H5-6' },
-      { row: 'H', col: 7, seatNumber: 'H7-8' },
-    ];
-    const newSeats = [];
-    for (const row of standardRows) {
-      for (let col = 1; col <= 12; col++) {
-        newSeats.push({
-          showtimeId,
-          seatNumber: `${row}${col}`,
-          row,
-          col,
-          type: 'STANDARD',
-          status: 'AVAILABLE',
-        });
-      }
-    }
-    for (const row of vipRows) {
-      for (let col = 1; col <= 12; col++) {
-        newSeats.push({
-          showtimeId,
-          seatNumber: `${row}${col}`,
-          row,
-          col,
-          type: 'VIP',
-          status: 'AVAILABLE',
-        });
-      }
-    }
-    for (const sb of sweetboxSeats) {
-      newSeats.push({
-        showtimeId,
-        seatNumber: sb.seatNumber,
-        row: sb.row,
-        col: sb.col,
-        type: 'SWEETBOX',
-        status: 'AVAILABLE',
-      });
-    }
-    await ShowtimeSeat.insertMany(newSeats);
-    seats = await ShowtimeSeat.find({ showtimeId }).sort({ row: 1, col: 1 }).lean();
-  }
-  return seats;
-};
-
 export const getShowtimeOccupancyAnalytics = async (req, res) => {
   try {
     const { date = 'today', cinemaId = 'ALL', format = 'ALL', search = '' } = req.query;
 
-    await ensure3DShowtimesSynced();
 
     // 1. Xác định thời gian lọc
     const now = new Date();
@@ -1535,7 +1326,7 @@ export const getShowtimeOccupancyAnalytics = async (req, res) => {
         imaxRoomsTotal++;
       }
 
-      const seats = await ensureSeatsForShowtime(st._id);
+      const seats = await ShowtimeSeat.find({ showtimeId: st._id }).lean();
 
       const bookings = await Booking.find({ showtimeId: st._id, status: 'PAID' })
         .sort({ createdAt: -1 })
@@ -1555,7 +1346,7 @@ export const getShowtimeOccupancyAnalytics = async (req, res) => {
       }
 
       let bookedCount = seats.filter((s) => s.status === 'BOOKED').length;
-      const totalCount = seats.length || 88;
+      const totalCount = seats.length;
 
       let customerCount = bookings.length;
       if (customerCount === 0 && bookedCount > 0) {
@@ -1609,32 +1400,12 @@ export const getShowtimeOccupancyAnalytics = async (req, res) => {
         id: b._id.toString(),
         bookingCode: b.bookingCode,
         customerName: b.customerName,
-        customerPhone: b.customerPhone ? b.customerPhone.replace(/(\d{4})\d{3}(\d{3})/, '$1***$2') : '0905***888',
-        customerEmail: b.customerEmail || 'khachhang@movietix.vn',
+        customerPhone: b.customerPhone ? b.customerPhone.replace(/(\d{4})\d{3}(\d{3})/, '$1***$2') : '',
+        customerEmail: b.customerEmail || '',
         seats: b.seats,
         totalAmount: b.totalAmount,
         createdAt: b.createdAt,
       }));
-
-      // Nếu có booked seats nhưng không có bản ghi booking riêng lẻ, tạo danh sách khách mua hiển thị
-      if (customerBookings.length === 0 && bookedCount > 0) {
-        const demoNames = ['Nguyễn Hoàng Nam', 'Trần Thu Trang', 'Lê Minh Quân', 'Phạm Quỳnh Anh', 'Võ Đức Huy', 'Đặng Thảo Vy', 'Ngô Quốc Bảo', 'Hoàng Yến Nhi'];
-        const bookedList = seats.filter((s) => s.status === 'BOOKED');
-        for (let i = 0; i < bookedList.length; i += 2) {
-          const pair = bookedList.slice(i, i + 2).map((s) => s.seatNumber).join(', ');
-          const nameIdx = Math.floor(i / 2) % demoNames.length;
-          customerBookings.push({
-            id: `DEMO-${st._id}-${i}`,
-            bookingCode: `MTX${Math.floor(100000 + (i * 12345) % 900000)}`,
-            customerName: demoNames[nameIdx],
-            customerPhone: `0905***${String(100 + i * 17).slice(-3)}`,
-            customerEmail: `${demoNames[nameIdx].toLowerCase().replace(/\s+/g, '')}@gmail.com`,
-            seats: pair,
-            totalAmount: (st.price || 95000) * (bookedList.slice(i, i + 2).length),
-            createdAt: new Date(Date.now() - (i + 1) * 8 * 60000),
-          });
-        }
-      }
 
       processedShowtimes.push({
         id: st._id.toString(),
@@ -1715,6 +1486,7 @@ export const toggleShowtimeLock = async (req, res) => {
     if (!showtime) {
       return res.status(404).json({ message: 'Không tìm thấy suất chiếu' });
     }
+    if (showtime.cancelledAt) return res.status(409).json({ message: 'Suất đã hủy.' });
     showtime.isLocked = !showtime.isLocked;
     await showtime.save();
     res.json({
@@ -1734,6 +1506,7 @@ export const getShowtimeBookings = async (req, res) => {
       return res.status(400).json({ message: 'ID suất chiếu không hợp lệ' });
     }
     const bookings = await Booking.find({ showtimeId: id, status: 'PAID' })
+      .select('-qrToken')
       .sort({ createdAt: -1 })
       .lean();
     res.json({ success: true, bookings });
@@ -1742,240 +1515,11 @@ export const getShowtimeBookings = async (req, res) => {
   }
 };
 
-// Lấy Thống Kê Chi Tiết Phim chuẩn từ MongoDB Atlas (Không dùng dữ liệu fit cứng)
 export const getMovieAnalytics = async (req, res) => {
   try {
-    const { id } = req.params;
-    let movie = null;
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      movie = await Movie.findById(id).lean();
-    } else {
-      movie = await Movie.findOne({ slug: id }).lean();
-    }
-
-    if (!movie) {
-      return res.status(404).json({ message: 'Không tìm thấy bộ phim yêu cầu' });
-    }
-
-    // Lấy danh sách suất chiếu thực tế của phim trong MongoDB
-    const showtimes = await Showtime.find({ movieId: movie._id })
-      .populate('cinemaId', 'name city address')
-      .sort({ startTime: -1 })
-      .lean();
-
-    const showtimeIds = showtimes.map((st) => st._id);
-    let realBookings = [];
-    if (showtimeIds.length > 0) {
-      realBookings = await Booking.find({ showtimeId: { $in: showtimeIds }, status: 'PAID' })
-        .select('totalAmount seats createdAt')
-        .lean();
-    }
-
-    let realRevenue = 0;
-    let realTickets = 0;
-    for (const b of realBookings) {
-      realRevenue += b.totalAmount || 0;
-      const count = b.seats ? b.seats.split(',').filter(Boolean).length : 1;
-      realTickets += count;
-    }
-
-    // Nếu phim có trường analytics trong DB, sử dụng nó và kết hợp dữ liệu realtime
-    let analytics = movie.analytics;
-    if (!analytics) {
-      const isMai = (movie.slug || '').includes('mai');
-      const baseRev = isMai ? 18420000000 : 14850200000;
-      const baseTickets = isMai ? 142500 : 98420;
-      const totalRev = baseRev + realRevenue;
-      const totalTickets = baseTickets + realTickets;
-      const seatsAvailable = Math.max(12000, 26980 - realTickets);
-
-      analytics = {
-        title: movie.title,
-        originalTitle: `${movie.title} (${new Date(movie.releaseDate || Date.now()).getFullYear()})`,
-        posterUrl: movie.posterUrl || movie.poster,
-        bannerUrl: movie.bannerUrl,
-        status: movie.status === 'COMING_SOON' ? 'Sắp chiếu' : 'Đang chiếu',
-        statusBadge: `${movie.status === 'COMING_SOON' ? 'Sắp chiếu' : 'Đang chiếu'} • ${movie.duration || 120}’`,
-        ageRating: movie.ageRating || 'T16',
-        posterTagline: `Phim rạp ${movie.ageRating || 'T16'} – Quán quân vé`,
-        genre: movie.genre || 'Hành động, Phiêu lưu',
-        director: movie.director || 'Denis Villeneuve',
-        cast: Array.isArray(movie.cast) && movie.cast.length > 0
-          ? movie.cast.map((c) => c.name).filter(Boolean).join(', ')
-          : 'Đang cập nhật dàn diễn viên',
-        cinemasCount: '12/12 Cụm rạp toàn quốc (24 phòng chiếu)',
-        duration: movie.duration || 120,
-        releaseDate: new Date(movie.releaseDate || Date.now()).toLocaleDateString('vi-VN'),
-        rating: movie.rating || 4.8,
-        ratingCount: movie.ratingCount || '3,420',
-        freshScore: movie.rottenTomatoes || '96%',
-        verifiedRate: '100% Khách Hàng Thật (Verified E-Ticket)',
-        metrics: {
-          revenue: `${totalRev.toLocaleString('vi-VN')} đ`,
-          revenueGrowth: isMai ? '+18.2%' : '+13.4%',
-          revenueNote: isMai ? 'Chiếm 52.4% tổng doanh thu toàn rạp' : 'Chiếm 41.5% tổng doanh thu toàn rạp',
-          ticketsSold: totalTickets.toLocaleString('vi-VN'),
-          avgTicketPrice: 'TB ~110,000 đ / vé',
-          ticketsNote: 'Không gồm vé hủy / hoàn',
-          seatsBooked: totalTickets.toLocaleString('vi-VN'),
-          occupancyRatio: `Lấp đầy ${Math.max(showtimes.length, 642)} suất: ${isMai ? '84.2%' : '78.5%'}`,
-          vipSeatRatio: 'Tỷ trọng phòng VIP: 42%',
-          seatsAvailable: seatsAvailable.toLocaleString('vi-VN'),
-          totalSeats: `Trên ${(totalTickets + seatsAvailable).toLocaleString('vi-VN')} ghế mở bán`,
-          availableNote: 'Tập trung các suất sáng',
-          totalShowtimes: `${Math.max(showtimes.length, isMai ? 780 : 642)} suất`,
-          roomCoverage: `Phủ 12 rạp / ${isMai ? 28 : 24} phòng`,
-          avgDailyShowtimes: isMai ? 'TB 32.5 suất/ngày' : 'TB 26.7 suất/ngày',
-          avgOccupancy: isMai ? '84.2%' : '78.5%',
-          occupancyGrowth: isMai ? '+12.9% vs TB rạp 71.3%' : '+7.2% vs TB rạp 71.3%',
-          laserEfficiency: isMai ? 'Hiệu suất phòng 2D Atmos: 96%' : 'Hiệu suất phòng Laser: 94%',
-        },
-        trendDays: isMai
-          ? [
-              { day: 'T2', tickets: 12000, revenue: 1.4, label: '12,000 vé' },
-              { day: 'T3', tickets: 14500, revenue: 1.7, label: '14,500 vé' },
-              { day: 'T4', tickets: 16800, revenue: 2.1, label: '16,800 vé' },
-              { day: 'T5', tickets: 19400, revenue: 2.4, label: '19,400 vé' },
-              { day: 'T6', tickets: 25100, revenue: 3.2, label: '25,100 vé' },
-              { day: 'T7', tickets: 38200, revenue: 4.8, label: '38,200 vé (Cháy vé)' },
-              { day: 'CN', tickets: 41200, revenue: 5.2, label: '41,200 vé (Đỉnh cao)' },
-            ]
-          : [
-              { day: 'T2', tickets: 8400, revenue: 1.1, label: '8,400 vé' },
-              { day: 'T3', tickets: 9200, revenue: 1.25, label: '9,200 vé' },
-              { day: 'T4', tickets: 11500, revenue: 1.6, label: '11,500 vé' },
-              { day: 'T5', tickets: 12800, revenue: 1.8, label: '12,800 vé' },
-              { day: 'T6', tickets: 16400, revenue: 2.3, label: '16,400 vé' },
-              { day: 'T7', tickets: 24100, revenue: 3.2, label: '24,100 vé (Đỉnh điểm)' },
-              { day: 'CN', tickets: 26020, revenue: 3.6, label: '26,020 vé (Cháy vé)' },
-            ],
-        cinemasDistribution: [
-          { name: 'Landmark 81 – IMAX Laser', booked: 24120, total: 25720, percent: 94, color: '#f59e0b' },
-          { name: 'Vincom Đồng Khởi – Dolby Atmos', booked: 27850, total: 34000, percent: 82, color: '#10b981' },
-          { name: 'Crescent Mall Quận 7', booked: 18750, total: 24000, percent: 78, color: '#3b82f6' },
-          { name: 'Thảo Điền Pearl TP. Thủ Đức', booked: 17200, total: 22500, percent: 76, color: '#8b5cf6' },
-        ],
-        ratingBreakdown: [
-          { star: 5, count: '2,716', percent: 79.4 },
-          { star: 4, count: '513', percent: 15.0 },
-          { star: 3, count: '123', percent: 3.6 },
-          { star: 2, count: '48', percent: 1.4 },
-          { star: 1, count: '20', percent: 0.6 },
-        ],
-        timeSlots: [
-          { time: '10:00 - 13:00', title: 'Suất Sáng', rate: 52, color: '#60a5fa' },
-          { time: '13:30 - 17:30', title: 'Suất Chiều', rate: 71, color: '#34d399' },
-          { time: '18:00 - 21:30', title: 'Giờ Vàng', rate: 94, color: '#f97316', isHot: true },
-          { time: '22:00 - 01:00', title: 'Suất Khuya', rate: 66, color: '#a78bfa' },
-        ],
-        highlightSessions: [
-          {
-            id: `#SC-${(movie.slug || 'MOV').slice(0, 4).toUpperCase()}-1930`,
-            cinema: 'Landmark 81',
-            room: 'Phòng IMAX Laser 01',
-            time: '19:30 - 22:15',
-            format: 'IMAX 3D',
-            formatStyle: 'bg-blue-600/20 text-blue-400 border-blue-500/40',
-            bookedSeats: '415 / 430',
-            revenue: '98,440,000 đ',
-            statusText: 'Cháy vé (96.5%)',
-            statusStyle: 'bg-red-500/20 text-red-400 border-red-500/40',
-          },
-          {
-            id: `#SC-${(movie.slug || 'MOV').slice(0, 4).toUpperCase()}-2100`,
-            cinema: 'Vincom Đồng Khởi',
-            room: 'Phòng VIP Recliner 02',
-            time: '21:00 - 23:45',
-            format: '2D Atmos',
-            formatStyle: 'bg-slate-700/40 text-slate-300 border-slate-600/40',
-            bookedSeats: '295 / 320',
-            revenue: '47,650,000 đ',
-            statusText: 'Cháy vé (92.1%)',
-            statusStyle: 'bg-red-500/20 text-red-400 border-red-500/40',
-          },
-          {
-            id: `#SC-${(movie.slug || 'MOV').slice(0, 4).toUpperCase()}-1845`,
-            cinema: 'Thảo Điền Pearl',
-            room: 'Phòng Standard 01',
-            time: '18:45 - 21:30',
-            format: '2D Digital',
-            formatStyle: 'bg-slate-800 text-slate-400 border-slate-700',
-            bookedSeats: '194 / 240',
-            revenue: '27,160,000 đ',
-            statusText: 'Gần đầy (80.8%)',
-            statusStyle: 'bg-amber-500/20 text-amber-400 border-amber-500/40',
-          },
-          {
-            id: `#SC-${(movie.slug || 'MOV').slice(0, 4).toUpperCase()}-1500`,
-            cinema: 'Crescent Mall Quận 7',
-            room: 'Phòng Standard 02',
-            time: '15:00 - 17:45',
-            format: '2D Digital',
-            formatStyle: 'bg-slate-800 text-slate-400 border-slate-700',
-            bookedSeats: '118 / 220',
-            revenue: '15,340,000 đ',
-            statusText: 'Ổn định (53.6%)',
-            statusStyle: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
-          },
-        ],
-        verifiedReviews: [
-          {
-            id: 'rev-1',
-            name: 'Trần Hoàng Nam',
-            initial: 'TN',
-            ticketCode: '#MTX-98214',
-            roomLocation: 'IMAX Laser 01, Landmark 81',
-            rating: 5.0,
-            timeAgo: 'Hôm nay, 14:20',
-            quote: `Hình ảnh và âm thanh của "${movie.title}" thực sự choáng ngợp! Âm trầm rung chuyển cả ghế ngồi. Trải nghiệm điện ảnh đỉnh nhất từ đầu năm đến giờ.`,
-            pros: 'Màn chiếu IMAX siêu lớn, âm thanh sống động, diễn xuất đỉnh cao, ghế ngồi êm ái.',
-            cons: 'Phim hơi dài, cả rạp quá đông nên xếp hàng lấy bắp nước hơi lâu.',
-          },
-          {
-            id: 'rev-2',
-            name: 'Lê Minh Thảo',
-            initial: 'LT',
-            ticketCode: '#MTX-77612',
-            roomLocation: 'VIP Recliner, Vincom ĐK',
-            rating: 5.0,
-            timeAgo: 'Hôm qua, 21:45',
-            quote: `Cốt truyện phát triển rất cuốn hút, không một phút thừa thãi. Đặt vé trên MovieTix chọn ghế Sweet spot ở hàng E rất chuẩn tầm mắt.`,
-            pros: 'Nội dung kịch tính, kỹ xảo xuất sắc, chọn ghế theo app rất chuẩn.',
-            cons: 'Suất tối khá đông, giá vé VIP hơi cao nhưng trải nghiệm hoàn toàn xứng đáng.',
-          },
-          {
-            id: 'rev-3',
-            name: 'Đặng Quốc Hưng',
-            initial: 'ĐH',
-            ticketCode: '#MTX-52019',
-            roomLocation: '2D, Thảo Điền Pearl',
-            rating: 4.0,
-            timeAgo: '22/03/2026, 19:15',
-            quote: `Phim hay, nhạc phim quá xuất sắc. Rạp điều hòa hơi lạnh một chút nhưng nhân viên phục vụ rất nhiệt tình.`,
-            pros: 'Nhạc phim hoành tráng, màu sắc tốt, góc nhìn từ ghế chuẩn.',
-            cons: 'Nhiệt độ phòng chiếu hơi lạnh vào ban đêm.',
-          },
-          {
-            id: 'rev-4',
-            name: 'Nguyễn Bảo Trâm',
-            initial: 'NT',
-            ticketCode: '#MTX-64890',
-            roomLocation: 'IMAX Laser, Q7',
-            rating: 5.0,
-            timeAgo: '20/03/2026, 15:30',
-            quote: `Xem lại lần 2 vẫn thấy nổi da gà từng phân cảnh cao trào. Rất đáng đồng tiền bát gạo cho vé xem tại rạp!`,
-            pros: 'Trải nghiệm thị giác tuyệt đối, bắp phô mai ngon giòn.',
-            cons: 'Hoàn toàn không có điểm trừ!',
-          },
-        ],
-      };
-
-      // Lưu lại vào MongoDB Atlas để từ nay phim đã có analytics sẵn trong database!
-      await Movie.findByIdAndUpdate(movie._id, { analytics });
-    }
-
-    res.json({ success: true, analytics });
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi lấy thống kê chi tiết phim từ database', error: error.message });
+    const analytics = await statisticsService.getMovieDetailStats(req.params.id);
+    return res.json({ success: true, analytics });
+  } catch {
+    return res.status(404).json({ message: 'Không tìm thấy thống kê phim.' });
   }
 };

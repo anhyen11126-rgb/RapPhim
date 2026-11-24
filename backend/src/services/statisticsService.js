@@ -1,3 +1,4 @@
+import { summarizeReviews } from './reviewSummary.js';
 import mongoose from 'mongoose';
 import Booking from '../models/Booking.js';
 import Showtime from '../models/Showtime.js';
@@ -17,6 +18,11 @@ import {
   formatExactCurrency,
 } from '../utils/statisticsUtils.js';
 
+const validPayments = { $in: ['VERIFIED', 'SIMULATED'] };
+const verifiedRevenue = booking => booking.paymentStatus === 'VERIFIED' ? booking.totalAmount || 0 : 0;
+const verifiedRefund = booking => booking.refundStatus === 'REFUNDED' && booking.paymentStatus === 'VERIFIED'
+  ? booking.refundAmount || 0 : 0;
+
 class StatisticsService {
   /**
    * Helper phân bổ doanh thu vé và bắp nước từ 1 booking
@@ -24,6 +30,13 @@ class StatisticsService {
    */
   resolveBookingSplit(booking, showtimePrice = 95000) {
     const seatCount = countSeatsFromString(booking.seats);
+    if (booking.paymentStatus !== 'VERIFIED') return { ticketRev: 0, concessionRev: 0 };
+    if (booking.priceSnapshot?.tickets?.length) {
+      const concessionRev = Math.min(verifiedRevenue(booking), booking.priceSnapshot.combos.reduce(
+        (sum, combo) => sum + combo.price * combo.quantity, 0
+      ));
+      return { ticketRev: verifiedRevenue(booking) - concessionRev, concessionRev };
+    }
     const estTicketRev = seatCount > 0 ? seatCount * (showtimePrice || 95000) : booking.totalAmount;
 
     let ticketRev = booking.totalAmount;
@@ -67,11 +80,11 @@ class StatisticsService {
     // Match condition cho Booking kỳ hiện tại & kỳ trước
     const bookingMatch = {
       createdAt: { $gte: start, $lte: end },
-      status: 'PAID',
+      status: 'PAID', paymentStatus: validPayments,
     };
     const prevBookingMatch = {
       createdAt: { $gte: prevStart, $lte: prevEnd },
-      status: 'PAID',
+      status: 'PAID', paymentStatus: validPayments,
     };
 
     // Điều kiện lọc theo showtime (rạp / phim)
@@ -115,7 +128,7 @@ class StatisticsService {
     const customerSet = new Set();
 
     currentBookings.forEach((b) => {
-      totalGrossRevenue += b.totalAmount || 0;
+      totalGrossRevenue += verifiedRevenue(b);
       const count = countSeatsFromString(b.seats);
       validTicketsSold += count;
       const stPrice = b.showtimeId?.price || 95000;
@@ -126,15 +139,15 @@ class StatisticsService {
       customerSet.add(cKey);
     });
 
-    const totalRefunded = cancelledBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
-    const netRevenue = Math.max(0, totalGrossRevenue - totalRefunded);
+    const totalRefunded = cancelledBookings.reduce((sum, b) => sum + verifiedRefund(b), 0);
+    const netRevenue = totalGrossRevenue;
 
     // Tính toán KPI kỳ trước để so sánh tăng trưởng
     let prevGrossRevenue = 0;
     let prevTicketsSold = 0;
     const prevCustomerSet = new Set();
     prevBookings.forEach((b) => {
-      prevGrossRevenue += b.totalAmount || 0;
+      prevGrossRevenue += verifiedRevenue(b);
       prevTicketsSold += countSeatsFromString(b.seats);
       const cKey = b.customerPhone || b.customerName || b._id.toString();
       prevCustomerSet.add(cKey);
@@ -208,22 +221,24 @@ class StatisticsService {
 
     // 1.4 Thống kê Ghế & Tỷ lệ bán vé / Tỷ lệ lấp đầy
     const allRooms = await Room.find().lean();
-    const totalTheaterSeats = allRooms.reduce((sum, r) => sum + (r.totalSeats || 88), 0) || 792;
+    const totalTheaterSeats = allRooms.reduce((sum, r) => sum + (r.totalSeats || 0), 0);
 
-    // Tổng số ghế có thể bán trong kỳ = tổng suất chiếu * 88 ghế
-    const totalSellablePeriod = totalShowtimesCount > 0 ? totalShowtimesCount * 88 : totalTheaterSeats;
+    const roomCapacities = new Map(allRooms.map(room => [String(room._id), room.totalSeats ?? 0]));
+    const periodShowtimes = await Showtime.find({ ...showtimeMatch, startTime: { $gte: start, $lte: end } })
+      .select('roomId').lean();
+    const totalSellablePeriod = periodShowtimes.reduce((sum, slot) => sum + (roomCapacities.get(String(slot.roomId)) ?? 0), 0);
     const availableSeatsPeriod = Math.max(0, totalSellablePeriod - validTicketsSold);
     const avgTicketSalesRate = totalSellablePeriod > 0
       ? Number(Math.min(100, (validTicketsSold / totalSellablePeriod) * 100).toFixed(1))
       : 0;
 
-    // Thống kê snapshot thời gian thực của toàn bộ 9 phòng chiếu (chuẩn 792 ghế)
+    // Thống kê sức chứa theo phòng vật lý
     let liveBookedSeats = 0;
     let liveAvailableSeats = 0;
     const now = new Date();
 
     for (const room of allRooms) {
-      const roomCap = room.totalSeats || 88;
+      const roomCap = room.totalSeats ?? 0;
       let activeSt = await Showtime.findOne({
         $or: [
           { roomName: room.name },
@@ -254,7 +269,7 @@ class StatisticsService {
         if (seatCounts.length > 0) {
           roomBooked = seatCounts[0].count;
         } else {
-          const bks = await Booking.find({ showtimeId: activeSt._id, status: 'PAID' }).lean();
+          const bks = await Booking.find({ showtimeId: activeSt._id, status: 'PAID', paymentStatus: validPayments }).lean();
           bks.forEach((b) => {
             roomBooked += countSeatsFromString(b.seats);
           });
@@ -290,7 +305,7 @@ class StatisticsService {
         const split = this.resolveBookingSplit(b, b.showtimeId?.price);
         revenueTrendMap[dayKey].ticketRevenue += split.ticketRev;
         revenueTrendMap[dayKey].concessionRevenue += split.concessionRev;
-        revenueTrendMap[dayKey].netRevenue += b.totalAmount;
+        revenueTrendMap[dayKey].netRevenue += verifiedRevenue(b);
         revenueTrendMap[dayKey].tickets += countSeatsFromString(b.seats);
       }
     });
@@ -325,7 +340,7 @@ class StatisticsService {
           bookingsCount: 0,
         };
       }
-      movieStatsMap[mId].revenue += b.totalAmount || 0;
+      movieStatsMap[mId].revenue += verifiedRevenue(b);
       movieStatsMap[mId].tickets += countSeatsFromString(b.seats);
       movieStatsMap[mId].bookingsCount += 1;
     });
@@ -390,7 +405,7 @@ class StatisticsService {
       .limit(5)
       .lean();
 
-    const recentBookings = await Booking.find({ status: 'PAID' })
+    const recentBookings = await Booking.find({ status: 'PAID', paymentStatus: validPayments })
       .populate({
         path: 'showtimeId',
         populate: { path: 'movieId', select: 'title' },
@@ -399,9 +414,18 @@ class StatisticsService {
       .limit(6)
       .lean();
 
+    const summaryRows = await Booking.aggregate([
+      { $match: { createdAt: { $gte: start, $lte: end }, ...('showtimeId' in bookingMatch && { showtimeId: bookingMatch.showtimeId }) } },
+      { $group: { _id: { $ifNull: ['$paymentStatus', 'LEGACY_UNVERIFIED'] }, count: { $sum: 1 } } },
+    ]);
+    const paymentCounts = Object.fromEntries(summaryRows.map(entry => [entry._id, entry.count]));
+    const profitKnown = currentBookings.some(order => order.paymentStatus === 'VERIFIED') && currentExpenses.length > 0;
+
     return {
       timeRangeLabel: label,
       filter: { timeRange, start, end },
+      paymentCounts,
+      profitKnown,
       kpis: {
         // 1. Tổng doanh thu thuần
         netRevenue: {
@@ -417,7 +441,7 @@ class StatisticsService {
           value: validTicketsSold,
           formatted: `${validTicketsSold.toLocaleString('vi-VN')} vé`,
           growth: ticketsGrowth,
-          title: 'Vé đã bán',
+          title: 'Vé xác minh và mô phỏng',
           tooltip: 'Tổng số lượng vé xem phim đã thanh toán thành công trong tháng',
         },
         // 3. Số bộ phim đã chiếu
@@ -446,14 +470,14 @@ class StatisticsService {
           tooltip: 'Tổng chi phí thực tế gồm bản quyền, marketing và vận hành cụm rạp',
         },
         profit: {
-          value: profit,
-          formatted: formatCompactCurrency(profit),
-          exactFormatted: formatExactCurrency(profit),
+          value: profitKnown ? profit : null,
+          formatted: profitKnown ? formatCompactCurrency(profit) : 'Chưa đủ dữ liệu',
+          exactFormatted: profitKnown ? formatExactCurrency(profit) : '',
           growth: profitGrowth,
           margin: profitMargin,
           status: profitStatus,
-          statusLabel: profitStatus === 'PROFIT' ? 'Có lãi' : 'Bị lỗ',
-          title: profitStatus === 'PROFIT' ? 'Lợi nhuận (Lãi)' : 'Lợi nhuận (Lỗ)',
+          statusLabel: profitKnown ? 'Ước tính theo chi phí đã ghi nhận' : '',
+          title: 'Lợi nhuận',
           tooltip: `Lợi nhuận = Doanh thu thuần (${formatExactCurrency(netRevenue)}) - Chi phí (${formatExactCurrency(totalExpenses)}). Biên LN: ${profitMargin}%`,
         },
         // 6. Tỷ lệ bán vé trung bình
@@ -472,14 +496,14 @@ class StatisticsService {
           formatted: `${liveBookedSeats.toLocaleString('vi-VN')} ghế`,
           growth: ticketsGrowth,
           title: 'Ghế đã đặt',
-          tooltip: `Số ghế đã có khách đặt hiện tại trong tổng ${totalTheaterSeats} ghế của 9 phòng chiếu rạp`,
+          tooltip: `Số ghế đã có khách đặt hiện tại trong tổng ${totalTheaterSeats} ghế của các phòng chiếu`,
         },
         availableSeats: {
           value: liveAvailableSeats,
           formatted: `${liveAvailableSeats.toLocaleString('vi-VN')} ghế`,
           growth: null,
           title: 'Ghế chưa đặt',
-          tooltip: `Số ghế trống sẵn sàng phục vụ trong tổng ${totalTheaterSeats} ghế của 9 phòng chiếu rạp`,
+          tooltip: `Số ghế trống sẵn sàng phục vụ trong tổng ${totalTheaterSeats} ghế của các phòng chiếu`,
         },
         bookedCustomers: {
           value: bookingCustomersCount,
@@ -556,7 +580,7 @@ class StatisticsService {
 
     const bookingMatch = {
       createdAt: { $gte: start, $lte: end },
-      status: 'PAID',
+      status: 'PAID', paymentStatus: validPayments,
     };
 
     if (cinemaId && cinemaId !== 'ALL' && mongoose.Types.ObjectId.isValid(cinemaId)) {
@@ -606,7 +630,7 @@ class StatisticsService {
     const movieRevenueMap = {};
 
     bookings.forEach((b) => {
-      grossRevenue += b.totalAmount || 0;
+      grossRevenue += verifiedRevenue(b);
       const seatsCount = countSeatsFromString(b.seats);
       totalTickets += seatsCount;
 
@@ -616,7 +640,7 @@ class StatisticsService {
 
       // Phương thức thanh toán
       const method = b.paymentMethod || 'MOMO';
-      paymentMethodsMap[method] = (paymentMethodsMap[method] || 0) + b.totalAmount;
+      paymentMethodsMap[method] = (paymentMethodsMap[method] || 0) + verifiedRevenue(b);
       paymentMethodsCount[method] = (paymentMethodsCount[method] || 0) + 1;
 
       // Cụm rạp
@@ -624,7 +648,7 @@ class StatisticsService {
       if (!cinemaMap[cinemaName]) {
         cinemaMap[cinemaName] = { name: cinemaName, revenue: 0, orders: 0, tickets: 0 };
       }
-      cinemaMap[cinemaName].revenue += b.totalAmount;
+      cinemaMap[cinemaName].revenue += verifiedRevenue(b);
       cinemaMap[cinemaName].orders += 1;
       cinemaMap[cinemaName].tickets += seatsCount;
 
@@ -652,7 +676,7 @@ class StatisticsService {
       dailyMap[dayStr].tickets += seatsCount;
       dailyMap[dayStr].ticketRev += split.ticketRev;
       dailyMap[dayStr].concessionRev += split.concessionRev;
-      dailyMap[dayStr].netRev += b.totalAmount;
+      dailyMap[dayStr].netRev += verifiedRevenue(b);
 
       // Theo từng phim
       const mv = b.showtimeId?.movieId;
@@ -674,7 +698,7 @@ class StatisticsService {
         movieRevenueMap[mId].tickets += seatsCount;
         movieRevenueMap[mId].ticketRevenue += split.ticketRev;
         movieRevenueMap[mId].concessionRevenue += split.concessionRev;
-        movieRevenueMap[mId].totalRevenue += b.totalAmount || 0;
+        movieRevenueMap[mId].totalRevenue += verifiedRevenue(b);
       }
     });
 
@@ -694,8 +718,8 @@ class StatisticsService {
       d.profit = d.netRev - d.expense;
     });
 
-    const refundedAmount = cancelledBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
-    const netRevenue = Math.max(0, grossRevenue - refundedAmount);
+    const refundedAmount = cancelledBookings.reduce((sum, b) => sum + verifiedRefund(b), 0);
+    const netRevenue = grossRevenue;
     const aov = bookings.length > 0 ? Math.round(netRevenue / bookings.length) : 0;
 
     // Chi phí & Lợi nhuận toàn kỳ
@@ -741,8 +765,8 @@ class StatisticsService {
     const [yearBookings, yearExpenses, yearShowtimes] = await Promise.all([
       Booking.find({
         createdAt: { $gte: yearStart, $lte: yearEnd },
-        status: 'PAID',
-      }).select('createdAt totalAmount seats').lean(),
+        status: 'PAID', paymentStatus: validPayments,
+      }).select('createdAt totalAmount seats paymentStatus').lean(),
       Expense.find({
         date: { $gte: yearStart, $lte: yearEnd },
       }).select('date amount').lean(),
@@ -761,7 +785,7 @@ class StatisticsService {
       yearBookings.forEach((b) => {
         const d = new Date(b.createdAt);
         if (d.getMonth() === mIdx) {
-          mNetRevenue += b.totalAmount || 0;
+          mNetRevenue += verifiedRevenue(b);
           mTickets += countSeatsFromString(b.seats);
         }
       });
@@ -815,12 +839,15 @@ class StatisticsService {
         tickets: d.tickets,
       }));
 
+    const profitKnown = bookings.some(order => order.paymentStatus === 'VERIFIED') && expenses.length > 0;
+
     return {
       timeRangeLabel: label,
       revenueChartData: combinedChartData,
       combinedChartData,
       monthlyBreakdown,
       metrics: {
+        profitKnown,
         grossRevenue,
         grossFormatted: formatCurrency(grossRevenue),
         netRevenue,
@@ -833,11 +860,11 @@ class StatisticsService {
         refundedFormatted: formatCurrency(refundedAmount),
         totalExpenses,
         expensesFormatted: formatCurrency(totalExpenses),
-        profit,
-        profitFormatted: formatCurrency(profit),
+        profit: profitKnown ? profit : null,
+        profitFormatted: profitKnown ? formatCurrency(profit) : 'Chưa đủ dữ liệu',
         profitMargin,
         profitStatus,
-        profitStatusLabel: profitStatus === 'PROFIT' ? 'Có lãi' : 'Bị lỗ',
+        profitStatusLabel: profitKnown ? 'Ước tính theo chi phí đã ghi nhận' : '',
         aov,
         aovFormatted: formatCurrency(aov),
         successfulOrders: bookings.length,
@@ -894,7 +921,7 @@ class StatisticsService {
     const [allPeriodBookings, allPeriodExpenses] = await Promise.all([
       Booking.find({
         createdAt: { $gte: start, $lte: end },
-        status: 'PAID',
+        status: 'PAID', paymentStatus: validPayments,
       })
         .populate({ path: 'showtimeId', select: 'movieId price' })
         .lean(),
@@ -916,8 +943,8 @@ class StatisticsService {
       }
       const count = countSeatsFromString(b.seats);
       movieBookingsMap[mId].tickets += count;
-      movieBookingsMap[mId].revenue += b.totalAmount || 0;
-      theaterTotalNetRevenue += b.totalAmount || 0;
+      movieBookingsMap[mId].revenue += verifiedRevenue(b);
+      theaterTotalNetRevenue += verifiedRevenue(b);
     });
 
     // Gom chi phí theo phim và chi phí dùng chung của rạp
@@ -942,20 +969,15 @@ class StatisticsService {
         const showtimes = await Showtime.find({
           movieId: m._id,
           startTime: { $gte: start, $lte: end },
-        }).lean();
+        }).populate('roomId', 'totalSeats').lean();
 
         const showtimesCount = showtimes.length;
-        const totalSellableSeats = showtimesCount * 88;
+        const totalSellableSeats = showtimes.reduce((sum, slot) => sum + (slot.roomId?.totalSeats || 0), 0);
 
         const bookingData = movieBookingsMap[mId] || { tickets: 0, revenue: 0 };
-        let ticketsSold = bookingData.tickets;
-        let revenue = bookingData.revenue;
+        const ticketsSold = bookingData.tickets;
+        const revenue = bookingData.revenue;
 
-        // Fallback tích luỹ nếu không lọc theo tháng đặc thù
-        if (ticketsSold === 0 && showtimesCount > 0 && m.stats?.ticketsSold) {
-          ticketsSold = m.stats.ticketsSold;
-          revenue = m.stats.revenue || 0;
-        }
 
         const availableSeats = Math.max(0, totalSellableSeats - ticketsSold);
         const occupancyRate = totalSellableSeats > 0
@@ -1008,7 +1030,7 @@ class StatisticsService {
           profitMargin,
           profitStatus,
           statusLabel: profitStatus === 'PROFIT' ? 'Có lãi' : 'Bị lỗ',
-          rating: m.rating || 4.8,
+          rating: summarizeReviews(m.reviews).rating,
           ratingCount: m.ratingCount || '120 lượt đánh giá',
           hasExpenseData: directExpenses > 0 || allocatedExpenses > 0,
         };
@@ -1097,11 +1119,12 @@ class StatisticsService {
 
     const showtimes = await Showtime.find({ movieId: movie._id })
       .populate('cinemaId', 'name city')
+      .populate('roomId', 'totalSeats')
       .sort({ startTime: -1 })
       .lean();
 
     const stIds = showtimes.map((s) => s._id);
-    const bookings = await Booking.find({ showtimeId: { $in: stIds }, status: 'PAID' })
+    const bookings = await Booking.find({ showtimeId: { $in: stIds }, status: 'PAID', paymentStatus: validPayments })
       .sort({ createdAt: -1 })
       .lean();
 
@@ -1110,22 +1133,18 @@ class StatisticsService {
     const dailyMap = {};
 
     bookings.forEach((b) => {
-      totalRevenue += b.totalAmount || 0;
+      totalRevenue += verifiedRevenue(b);
       const count = countSeatsFromString(b.seats);
       totalTickets += count;
 
       const dayStr = new Date(b.createdAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
       if (!dailyMap[dayStr]) dailyMap[dayStr] = { date: dayStr, revenue: 0, tickets: 0 };
-      dailyMap[dayStr].revenue += b.totalAmount || 0;
+      dailyMap[dayStr].revenue += verifiedRevenue(b);
       dailyMap[dayStr].tickets += count;
     });
 
-    if (bookings.length === 0) {
-      totalTickets = movie.stats?.ticketsSold || 0;
-      totalRevenue = movie.stats?.revenue || 0;
-    }
 
-    const totalSellable = showtimes.length * 88;
+    const totalSellable = showtimes.reduce((sum, slot) => sum + (slot.roomId?.totalSeats || 0), 0);
     const bookedSeats = totalTickets;
     const availableSeats = Math.max(0, totalSellable - bookedSeats);
     const avgOccupancy = totalSellable > 0 ? Number(Math.min(100, (totalTickets / totalSellable) * 100).toFixed(1)) : 0;
@@ -1157,7 +1176,7 @@ class StatisticsService {
         director: movie.director,
         cast: Array.isArray(movie.cast) ? movie.cast.map((c) => c.name).join(', ') : '',
         status: movie.status,
-        rating: movie.rating || 4.8,
+        rating: summarizeReviews(movie.reviews).rating,
         ratingCount: movie.ratingCount || '120 đánh giá',
       },
       stats: {
@@ -1244,6 +1263,7 @@ class StatisticsService {
     let showtimes = await Showtime.find(query)
       .populate('movieId', 'title poster posterUrl status')
       .populate('cinemaId', 'name city')
+      .populate('roomId', 'totalSeats')
       .sort({ startTime: -1 })
       .lean();
 
@@ -1256,52 +1276,38 @@ class StatisticsService {
       );
     }
 
-    const rooms = await Room.find().lean();
-    const roomMap = new Map();
-    rooms.forEach((r) => {
-      if (r.name) roomMap.set(r.name.trim().toLowerCase(), r.totalSeats || 88);
-      if (r.shortName) roomMap.set(r.shortName.trim().toLowerCase(), r.totalSeats || 88);
-    });
-    const defaultCapacity =
-      rooms.length > 0
-        ? Math.round(rooms.reduce((s, r) => s + (r.totalSeats || 88), 0) / rooms.length)
-        : 88;
-
-    const showtimesDetails = await Promise.all(
-      showtimes.map(async (st) => {
-        const bookings = await Booking.find({ showtimeId: st._id, status: 'PAID' }).lean();
-
-        let bookedSeats = 0;
-        let revenue = 0;
-        const customers = new Set();
-
-        bookings.forEach((b) => {
-          bookedSeats += countSeatsFromString(b.seats);
-          revenue += b.totalAmount || 0;
-          const cKey = b.customerPhone || b.customerName || b._id.toString();
-          if (cKey) customers.add(cKey);
-        });
-
-        const roomKey = (st.roomName || '').trim().toLowerCase();
-        let totalSeats = roomMap.get(roomKey) || defaultCapacity;
-
-        const seatCounts = await ShowtimeSeat.aggregate([
-          { $match: { showtimeId: st._id } },
-          { $group: { _id: '$status', count: { $sum: 1 } } },
-        ]);
-        if (seatCounts.length > 0) {
-          let dbTotal = 0;
-          let dbBooked = 0;
-          seatCounts.forEach((sc) => {
-            dbTotal += sc.count;
-            if (sc._id === 'BOOKED') dbBooked += sc.count;
-          });
-          if (dbTotal > 0) totalSeats = dbTotal;
-          if (dbBooked > 0) bookedSeats = Math.max(bookedSeats, dbBooked);
-        }
-
-        const availableSeats = Math.max(0, totalSeats - bookedSeats);
-        const occupancyRate = totalSeats > 0 ? Number(((bookedSeats / totalSeats) * 100).toFixed(1)) : 0;
+    const total = showtimes.length;
+    const startIndex = (Number(page) - 1) * Number(limit);
+    const pageShowtimes = showtimes.slice(startIndex, startIndex + Number(limit));
+    const ids = pageShowtimes.map(slot => slot._id);
+    const [orders, counts] = await Promise.all([
+      Booking.find({ showtimeId: { $in: ids }, status: 'PAID', paymentStatus: validPayments })
+        .select('showtimeId userId customerPhone totalAmount paymentStatus').lean(),
+      ShowtimeSeat.aggregate([
+        { $match: { showtimeId: { $in: ids } } },
+        { $group: {
+          _id: '$showtimeId', total: { $sum: 1 },
+          booked: { $sum: { $cond: [{ $eq: ['$status', 'BOOKED'] }, 1, 0] } },
+          available: { $sum: { $cond: [{ $eq: ['$status', 'AVAILABLE'] }, 1, 0] } },
+        } },
+      ]),
+    ]);
+    const orderMap = new Map();
+    for (const order of orders) {
+      const id = String(order.showtimeId);
+      if (!orderMap.has(id)) orderMap.set(id, []);
+      orderMap.get(id).push(order);
+    }
+    const seatCounts = new Map(counts.map(count => [String(count._id), count]));
+    const items = pageShowtimes.map(st => {
+        const bookings = orderMap.get(String(st._id)) || [];
+        const customers = new Set(bookings.map(booking => String(booking.userId || booking.customerPhone || booking._id)));
+        const revenue = bookings.reduce((sum, booking) => sum + verifiedRevenue(booking), 0);
+        const counts = seatCounts.get(String(st._id));
+        const totalSeats = counts?.total ?? null;
+        const bookedSeats = counts?.booked ?? null;
+        const availableSeats = counts?.available ?? null;
+        const occupancyRate = totalSeats ? Number(((bookedSeats / totalSeats) * 100).toFixed(1)) : null;
 
         const now = new Date();
         let showtimeStatus = 'UPCOMING';
@@ -1328,12 +1334,7 @@ class StatisticsService {
           revenueFormatted: formatCurrency(revenue),
           status: showtimeStatus,
         };
-      })
-    );
-
-    const total = showtimesDetails.length;
-    const startIndex = (page - 1) * limit;
-    const items = showtimesDetails.slice(startIndex, startIndex + Number(limit));
+    });
 
     return {
       total,
@@ -1356,96 +1357,25 @@ class StatisticsService {
       throw new Error('Không tìm thấy suất chiếu yêu cầu');
     }
 
-    const bookings = await Booking.find({ showtimeId: showtime._id, status: 'PAID' })
+    const bookings = await Booking.find({ showtimeId: showtime._id, status: 'PAID', paymentStatus: validPayments })
       .sort({ createdAt: -1 })
       .lean();
 
-    const bookedSeatNumbers = new Set();
-    let totalRevenue = 0;
-    bookings.forEach((b) => {
-      totalRevenue += b.totalAmount || 0;
-      if (b.seats) {
-        b.seats
-          .split(',')
-          .map((s) => {
-            const raw = s.trim().toUpperCase();
-            const match = raw.match(/^([A-Z])0*(\d+)$/);
-            return match ? `${match[1]}${parseInt(match[2], 10)}` : raw;
-          })
-          .filter(Boolean)
-          .forEach((seat) => bookedSeatNumbers.add(seat));
-      }
-    });
+    const totalRevenue = bookings.reduce((sum, booking) => sum + verifiedRevenue(booking), 0);
 
     const dbSeats = await ShowtimeSeat.find({ showtimeId: showtime._id }).lean();
-    const seatMap = new Map();
-    dbSeats.forEach((s) => {
-      const raw = s.seatNumber ? s.seatNumber.trim().toUpperCase() : '';
-      const match = raw.match(/^([A-Z])0*(\d+)$/);
-      const norm = match ? `${match[1]}${parseInt(match[2], 10)}` : raw;
-      seatMap.set(norm, s);
-    });
-
-    // Cấu trúc chuẩn 88 ghế của D'AVENOR CINEMA:
-    // Hàng A - D: 12 ghế/hàng (48 ghế Standard)
-    // Hàng E - G: 12 ghế/hàng (36 ghế VIP)
-    // Hàng H: 4 ghế (4 ghế Sweetbox / VIP Recliner)
-    // Tổng cộng: 48 + 36 + 4 = 88 ghế
-    const rows = [
-      { row: 'A', type: 'STANDARD', count: 12 },
-      { row: 'B', type: 'STANDARD', count: 12 },
-      { row: 'C', type: 'STANDARD', count: 12 },
-      { row: 'D', type: 'STANDARD', count: 12 },
-      { row: 'E', type: 'VIP', count: 12 },
-      { row: 'F', type: 'VIP', count: 12 },
-      { row: 'G', type: 'VIP', count: 12 },
-      { row: 'H', type: 'SWEETBOX', count: 4 },
-    ];
-
-    let bookedCount = 0;
-    let availableCount = 0;
-
-    const seatMatrix = rows.map((r) => {
-      const seats = [];
-      for (let c = 1; c <= r.count; c++) {
-        const code = `${r.row}${c}`;
-        const dbSeat = seatMap.get(code);
-
-        let status = 'AVAILABLE';
-        if (bookedSeatNumbers.has(code) || dbSeat?.status === 'BOOKED') {
-          status = 'BOOKED';
-        }
-
-        if (status === 'BOOKED') bookedCount++;
-        else availableCount++;
-
-        seats.push({
-          code,
-          row: r.row,
-          col: c,
-          type: dbSeat?.type || r.type,
-          status,
-        });
-      }
-      return {
-        row: r.row,
-        type: r.type,
-        seats,
-      };
-    });
-
-    const roomDoc = await Room.findOne({
-      $or: [
-        { name: showtime.roomName },
-        { shortName: showtime.roomName },
-        { name: { $regex: (showtime.roomName || '').trim(), $options: 'i' } },
-      ],
-    }).lean();
-    const totalRoomSeats = roomDoc?.totalSeats || (dbSeats.length > 0 ? dbSeats.length : 88);
-
-    bookedCount = Math.max(bookedCount, bookedSeatNumbers.size);
-    availableCount = Math.max(0, totalRoomSeats - bookedCount);
-    const occupancyRate = totalRoomSeats > 0 ? Number(((bookedCount / totalRoomSeats) * 100).toFixed(1)) : 0;
+    const rows = new Map();
+    for (const seat of dbSeats.sort((left, right) => left.row.localeCompare(right.row) || left.col - right.col)) {
+      if (!rows.has(seat.row)) rows.set(seat.row, { row: seat.row, type: seat.type, seats: [] });
+      rows.get(seat.row).seats.push({
+        code: seat.seatNumber, row: seat.row, col: seat.col, type: seat.type, status: seat.status,
+      });
+    }
+    const seatMatrix = [...rows.values()];
+    const totalRoomSeats = dbSeats.length || null;
+    const bookedCount = totalRoomSeats ? dbSeats.filter(seat => seat.status === 'BOOKED').length : null;
+    const availableCount = totalRoomSeats ? dbSeats.filter(seat => seat.status === 'AVAILABLE').length : null;
+    const occupancyRate = totalRoomSeats ? Number(((bookedCount / totalRoomSeats) * 100).toFixed(1)) : null;
 
     return {
       showtime: {
@@ -1494,7 +1424,7 @@ class StatisticsService {
       createdAt: { $gte: start, $lte: end },
     });
 
-    const bookings = await Booking.find({ status: 'PAID' }).sort({ createdAt: 1 }).lean();
+    const bookings = await Booking.find({ status: 'PAID', paymentStatus: validPayments }).sort({ createdAt: 1 }).lean();
 
     const customerAggregation = {};
     bookings.forEach((b) => {
@@ -1516,7 +1446,7 @@ class StatisticsService {
 
       customerAggregation[key].successfulOrders += 1;
       customerAggregation[key].totalTickets += countSeatsFromString(b.seats);
-      customerAggregation[key].totalSpend += b.totalAmount || 0;
+      customerAggregation[key].totalSpend += verifiedRevenue(b);
       if (new Date(b.createdAt) > new Date(customerAggregation[key].lastBooking)) {
         customerAggregation[key].lastBooking = b.createdAt;
       }
@@ -1570,43 +1500,20 @@ class StatisticsService {
     let sumRating = 0;
     const starCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
 
-    const movieReviewsList = movies.map((m) => {
-      const breakdown = m.ratingBreakdown || {
-        fiveStar: 90,
-        fourStar: 20,
-        threeStar: 7,
-        twoStar: 2,
-        oneStar: 1,
-      };
-
-      const mTotal =
-        (breakdown.fiveStar || 0) +
-        (breakdown.fourStar || 0) +
-        (breakdown.threeStar || 0) +
-        (breakdown.twoStar || 0) +
-        (breakdown.oneStar || 0);
-
-      totalReviews += mTotal;
-      sumRating += (m.rating || 4.8) * mTotal;
-
-      starCounts[5] += breakdown.fiveStar || 0;
-      starCounts[4] += breakdown.fourStar || 0;
-      starCounts[3] += breakdown.threeStar || 0;
-      starCounts[2] += breakdown.twoStar || 0;
-      starCounts[1] += breakdown.oneStar || 0;
-
+    const movieReviewsList = movies.map(movie => {
+      const summary = summarizeReviews(movie.reviews);
+      totalReviews += summary.reviews.length;
+      for (const review of summary.reviews) {
+        starCounts[review.rating]++;
+        sumRating += review.rating;
+      }
       return {
-        id: m._id,
-        title: m.title,
-        poster: m.posterUrl || m.poster,
-        rating: m.rating || 4.8,
-        totalReviews: mTotal,
-        breakdown,
-        reviews: m.reviews || [],
+        id: movie._id, title: movie.title, poster: movie.posterUrl || movie.poster,
+        rating: summary.rating, totalReviews: summary.reviews.length,
+        breakdown: summary.ratingBreakdown, reviews: summary.reviews,
       };
     });
-
-    const avgRating = totalReviews > 0 ? Number((sumRating / totalReviews).toFixed(1)) : 4.8;
+    const avgRating = totalReviews > 0 ? Number((sumRating / totalReviews).toFixed(1)) : null;
 
     const topRatedMovies = [...movieReviewsList]
       .filter((m) => m.totalReviews >= 2)
@@ -1623,11 +1530,11 @@ class StatisticsService {
         mostReviewedMovie: mostReviewedMovies[0] || null,
       },
       starDistribution: [
-        { star: 5, count: starCounts[5], percent: totalReviews > 0 ? Number(((starCounts[5] / totalReviews) * 100).toFixed(1)) : 80 },
-        { star: 4, count: starCounts[4], percent: totalReviews > 0 ? Number(((starCounts[4] / totalReviews) * 100).toFixed(1)) : 15 },
-        { star: 3, count: starCounts[3], percent: totalReviews > 0 ? Number(((starCounts[3] / totalReviews) * 100).toFixed(1)) : 3 },
-        { star: 2, count: starCounts[2], percent: totalReviews > 0 ? Number(((starCounts[2] / totalReviews) * 100).toFixed(1)) : 1 },
-        { star: 1, count: starCounts[1], percent: totalReviews > 0 ? Number(((starCounts[1] / totalReviews) * 100).toFixed(1)) : 1 },
+        { star: 5, count: starCounts[5], percent: totalReviews > 0 ? Number(((starCounts[5] / totalReviews) * 100).toFixed(1)) : 0 },
+        { star: 4, count: starCounts[4], percent: totalReviews > 0 ? Number(((starCounts[4] / totalReviews) * 100).toFixed(1)) : 0 },
+        { star: 3, count: starCounts[3], percent: totalReviews > 0 ? Number(((starCounts[3] / totalReviews) * 100).toFixed(1)) : 0 },
+        { star: 2, count: starCounts[2], percent: totalReviews > 0 ? Number(((starCounts[2] / totalReviews) * 100).toFixed(1)) : 0 },
+        { star: 1, count: starCounts[1], percent: totalReviews > 0 ? Number(((starCounts[1] / totalReviews) * 100).toFixed(1)) : 0 },
       ],
       movies: movieReviewsList,
     };
@@ -1656,7 +1563,7 @@ class StatisticsService {
       csvContent += `Doanh thu bắp nước,${data.metrics.concessionRevenue}\n`;
       csvContent += `Tổng chi phí phát sinh,${data.metrics.totalExpenses}\n`;
       csvContent += `Lợi nhuận rạp (Lãi/Lỗ),${data.metrics.profit}\n`;
-      csvContent += `Tỷ suất lợi nhuận (%),${data.metrics.profitMargin}%\n`;
+      csvContent += `Tỷ suất lợi nhuận (%),${data.metrics.profitKnown ? data.metrics.profitMargin + '%' : ''}\n`;
       csvContent += `Trạng thái kinh doanh,${data.metrics.profitStatusLabel}\n`;
       csvContent += `Tổng số vé bán ra,${data.metrics.totalTicketsSold}\n\n`;
 

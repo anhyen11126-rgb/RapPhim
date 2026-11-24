@@ -175,7 +175,7 @@ const ShowtimesTab = ({
                     <td className="py-3 px-3 text-center font-bold text-white">
                       {st.bookedSeats}{' '}
                       <span className="text-[10px] text-slate-500 font-normal">
-                        / {st.totalSeats || 88}
+                        / {st.totalSeats ?? '—'}
                       </span>
                     </td>
 

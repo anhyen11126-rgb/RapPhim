@@ -220,7 +220,7 @@ const RevenueTab = ({ data, loading }) => {
 
         {/* Chỉ số 3: Lợi nhuận rạp */}
         <StatisticCard
-          title={metrics.profitStatus === 'LOSS' ? 'Lợi Nhuận (Lỗ)' : 'Lợi Nhuận (Lãi)'}
+          title="Lợi nhuận"
           value={metrics.profitFormatted || '0 đ'}
           subtitle={metrics.profitStatusLabel ? `${metrics.profitStatusLabel} (Biên LN ${metrics.profitMargin}%)` : ''}
           tooltip={`Lợi nhuận = Doanh thu thuần (${metrics.netFormatted}) - Chi phí (${metrics.expensesFormatted})`}
@@ -508,7 +508,7 @@ const RevenueTab = ({ data, loading }) => {
                         {m.formattedProfit}
                       </td>
                       <td className="py-3.5 px-3 text-center font-bold text-slate-300">
-                        {m.profitMargin}%
+                        {metrics.profitKnown ? m.profitMargin + '%' : '—'}
                       </td>
                       <td className="py-3.5 px-3 text-center">
                         <span
@@ -567,7 +567,7 @@ const RevenueTab = ({ data, loading }) => {
                           (r.profit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
-                        {formatCurrency(r.profit || r.netRev)}
+                        {metrics.profitKnown ? formatCurrency(r.profit) : '—'}
                       </td>
                     </tr>
                   ))

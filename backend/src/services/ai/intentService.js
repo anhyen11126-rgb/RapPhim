@@ -834,9 +834,20 @@ export const classifyIntent = (message = '', entities = {}) => {
     return INTENTS.CUSTOMER_SUPPORT;
   }
 
-  // 3. Hướng dẫn đặt vé / xin link đặt vé / chính sách hoàn đổi vé
+  // 3. Hướng dẫn đặt vé / muốn đặt vé / xin link đặt vé / chính sách hoàn đổi vé
   if (
-    /\b(link\s+dat\s+ve|duong\s+dan\s+dat\s+ve|cho\s+(toi\s+|minh\s+)?link|cach\s+dat\s+ve|huong\s+dan\s+dat\s+ve|lam\s+sao\s+(de\s+)?dat\s+ve|mua\s+ve\s+nhu\s+the\s+nao|hoan\s+ve|doi\s+ve|huy\s+ve|tra\s+ve)\b/i.test(
+    /\b(link\s+dat\s+ve|duong\s+dan\s+dat\s+ve|cho\s+(toi\s+|minh\s+|em\s+)?link|cach\s+dat\s+ve|huong\s+dan\s+dat\s+ve|lam\s+sao\s+(de\s+)?dat\s+ve|mua\s+ve\s+nhu\s+the\s+nao|muon\s+(dat|mua|book)\s+ve|(dat|mua|book)\s+ve(\s+xem\s+phim)?(\s+ngay|\s+luon|\s+voi|\s+nha|\s+nhe)?|hoan\s+ve|doi\s+ve|huy\s+ve|tra\s+ve)\b/i.test(
+      noTone
+    ) &&
+    !entities.matchedMovie &&
+    !entities.timeFilter &&
+    !entities.format
+  ) {
+    return INTENTS.BOOKING_GUIDE;
+  }
+
+  if (
+    /\b(link\s+dat\s+ve|duong\s+dan\s+dat\s+ve|cho\s+(toi\s+|minh\s+|em\s+)?link|hoan\s+ve|doi\s+ve|huy\s+ve|tra\s+ve)\b/i.test(
       noTone
     )
   ) {

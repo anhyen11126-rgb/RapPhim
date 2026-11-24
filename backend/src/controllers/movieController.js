@@ -1,227 +1,23 @@
+import { summarizeReviews } from '../services/reviewSummary.js';
 import mongoose from 'mongoose';
 import Movie from '../models/Movie.js';
 import Showtime from '../models/Showtime.js';
 import Booking from '../models/Booking.js';
 import Cinema from '../models/Cinema.js';
 import ShowtimeSeat from '../models/ShowtimeSeat.js';
-import { normalizeSeatCode, paidSeatCodes } from './showtimeController.js';
-import { ensure3DShowtimesSynced } from './cinemaController.js';
 
 let hasSyncedMovieFormats = false;
 
 // Hàm phân tích và tính toán thống kê, đánh giá đồng bộ cho từng bộ phim
 export const resolveMovieStatsAndReviews = async (movie, showtimes = []) => {
-  const showtimeIds = showtimes.map((st) => st._id || st.id);
-
-  let realRevenue = 0;
-  let realTickets = 0;
-
-  if (showtimeIds.length > 0) {
-    try {
-      const paidBookings = await Booking.find({
-        showtimeId: { $in: showtimeIds },
-        status: 'PAID',
-      }).select('totalAmount seats').lean();
-
-      for (const b of paidBookings) {
-        realRevenue += b.totalAmount || 0;
-        const seatCount = b.seats ? b.seats.split(',').filter(Boolean).length : 1;
-        realTickets += seatCount;
-      }
-    } catch (e) {
-      console.warn('Không thể gom nhóm bookings cho stats phim:', e.message);
-    }
-  }
-
-  const titleLower = (movie.title || '').toLowerCase();
-
-  // Mẫu đánh giá và thông số chuẩn theo từng phim
-  let baseRevenue = 125000000;
-  let baseTickets = 850;
-  let baseAvailable = 150;
-  let baseRating = 4.6;
-  let baseCount = 120;
-  let baseBreakdown = {
-    fiveStar: 90,
-    fourStar: 20,
-    threeStar: 7,
-    twoStar: 2,
-    oneStar: 1,
-  };
-  let baseReviews = [
-    {
-      userName: 'Nguyễn Văn A',
-      rating: 5,
-      comment: 'Hình ảnh đẹp, âm thanh sống động, nội dung rất cuốn hút.',
-      createdAt: new Date(Date.now() - 3600000 * 24 * 2),
-    },
-    {
-      userName: 'Trần Thị B',
-      rating: 4,
-      comment: 'Phim hay, kỹ xảo tốt nhưng thời lượng hơi dài.',
-      createdAt: new Date(Date.now() - 3600000 * 24 * 5),
-    },
-  ];
-
-  if (titleLower.includes('mai')) {
-    baseRevenue = 168000000;
-    baseTickets = 1150;
-    baseAvailable = 90;
-    baseRating = 4.8;
-    baseCount = 210;
-    baseBreakdown = { fiveStar: 165, fourStar: 33, threeStar: 8, twoStar: 3, oneStar: 1 };
-    baseReviews = [
-      {
-        userName: 'Lê Phương Thảo',
-        rating: 5,
-        comment: 'Phim quá cảm xúc, diễn xuất của Phương Anh Đào và Tuấn Trần chạm đến trái tim.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 1),
-      },
-      {
-        userName: 'Nguyễn Văn A',
-        rating: 5,
-        comment: 'Hình ảnh đẹp, âm thanh sống động, nội dung rất cuốn hút.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 3),
-      },
-      {
-        userName: 'Trần Thị B',
-        rating: 4,
-        comment: 'Phim tình cảm sâu sắc, nhiều phân đoạn lấy nước mắt khán giả.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 6),
-      },
-    ];
-  } else if (titleLower.includes('dune')) {
-    baseRevenue = 135000000;
-    baseTickets = 910;
-    baseAvailable = 140;
-    baseRating = 4.9;
-    baseCount = 154;
-    baseBreakdown = { fiveStar: 120, fourStar: 24, threeStar: 7, twoStar: 2, oneStar: 1 };
-    baseReviews = [
-      {
-        userName: 'Nguyễn Văn A',
-        rating: 5,
-        comment: 'Hình ảnh đẹp, âm thanh sống động, nội dung rất cuốn hút.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 2),
-      },
-      {
-        userName: 'Trần Thị B',
-        rating: 4,
-        comment: 'Phim hay, kỹ xảo tốt nhưng thời lượng hơi dài.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 4),
-      },
-      {
-        userName: 'Đặng Minh Khôi',
-        rating: 5,
-        comment: 'Âm thanh Hans Zimmer rung chuyển cả phòng chiếu, siêu phẩm điện ảnh năm nay!',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 7),
-      },
-    ];
-  } else if (titleLower.includes('godzilla')) {
-    baseRevenue = 140000000;
-    baseTickets = 950;
-    baseAvailable = 130;
-    baseRating = 4.6;
-    baseCount = 135;
-    baseBreakdown = { fiveStar: 98, fourStar: 26, threeStar: 8, twoStar: 2, oneStar: 1 };
-    baseReviews = [
-      {
-        userName: 'Vũ Đình Nam',
-        rating: 5,
-        comment: 'Các phân cảnh đấm nhau giữa Kong và Godzilla mãn nhãn cực kỳ, âm thanh rung chuyển rạp!',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 2),
-      },
-      {
-        userName: 'Trần Thị B',
-        rating: 4,
-        comment: 'Phim hay, kỹ xảo tốt nhưng thời lượng hơi dài.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 5),
-      },
-      {
-        userName: 'Nguyễn Văn A',
-        rating: 5,
-        comment: 'Hình ảnh đẹp, âm thanh sống động, nội dung rất cuốn hút.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 7),
-      },
-    ];
-  } else if (titleLower.includes('panda')) {
-    baseRevenue = 112000000;
-    baseTickets = 820;
-    baseAvailable = 160;
-    baseRating = 4.7;
-    baseCount = 128;
-    baseBreakdown = { fiveStar: 95, fourStar: 23, threeStar: 7, twoStar: 2, oneStar: 1 };
-    baseReviews = [
-      {
-        userName: 'Nguyễn Bảo Anh',
-        rating: 5,
-        comment: 'Po vẫn hài hước và dễ thương như ngày nào. Cả gia đình mình xem cười nghiêng ngả!',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 1),
-      },
-      {
-        userName: 'Nguyễn Văn A',
-        rating: 5,
-        comment: 'Hình ảnh đẹp, âm thanh sống động, nội dung rất cuốn hút.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 3),
-      },
-      {
-        userName: 'Trần Thị B',
-        rating: 4,
-        comment: 'Phim vui nhộn, đồ họa rực rỡ, rất thích hợp xem cùng gia đình.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 6),
-      },
-    ];
-  } else if (titleLower.includes('oppenheimer')) {
-    baseRevenue = 155000000;
-    baseTickets = 980;
-    baseAvailable = 120;
-    baseRating = 4.9;
-    baseCount = 180;
-    baseBreakdown = { fiveStar: 162, fourStar: 14, threeStar: 3, twoStar: 1, oneStar: 0 };
-    baseReviews = [
-      {
-        userName: 'Trần Quốc Cường',
-        rating: 5,
-        comment: 'Kiệt tác của Christopher Nolan! Nhạc phim và diễn xuất của Cillian Murphy xuất sắc không tì vết.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 2),
-      },
-      {
-        userName: 'Nguyễn Văn A',
-        rating: 5,
-        comment: 'Hình ảnh đẹp, âm thanh sống động, nội dung rất cuốn hút.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 4),
-      },
-      {
-        userName: 'Trần Thị B',
-        rating: 4,
-        comment: 'Phim hay, chiều sâu triết lý cao, xem rất đáng đồng tiền.',
-        createdAt: new Date(Date.now() - 3600000 * 24 * 8),
-      },
-    ];
-  }
-
-  // Kết hợp đánh giá của người dùng từ MongoDB nếu có
-  const customReviews = Array.isArray(movie.reviews) ? movie.reviews : [];
-  const allReviews = [...customReviews, ...baseReviews];
-
-  // Tính toán số liệu thống kê tổng hợp (đồng bộ cho tất cả các bộ phim)
-  const totalRevenue = baseRevenue + realRevenue;
-  const totalTickets = baseTickets + realTickets;
-  const totalSeatsBooked = totalTickets;
-  const totalSeatsAvailable = Math.max(20, baseAvailable - realTickets);
-
+  const byId = showtimes.map(slot => slot._id).filter(Boolean);
+  const bookings = await Booking.find({ showtimeId: { $in: byId }, status: 'PAID', paymentStatus: { $in: ['VERIFIED', 'SIMULATED'] } })
+    .select('seats totalAmount paymentStatus').lean();
+  const revenue = bookings.reduce((sum, booking) => sum + (booking.paymentStatus === 'VERIFIED' ? booking.totalAmount : 0), 0);
+  const ticketsSold = bookings.reduce((sum, booking) => sum + booking.seats.split(',').filter(seat => seat.trim()).length, 0);
   return {
-    stats: {
-      revenue: totalRevenue,
-      revenueText: `${Math.round(totalRevenue / 1000000)} triệu`,
-      ticketsSold: totalTickets,
-      seatsBooked: totalSeatsBooked,
-      seatsAvailable: totalSeatsAvailable,
-    },
-    rating: movie.rating || baseRating,
-    ratingCount: `${baseCount + customReviews.length} lượt đánh giá`,
-    ratingBreakdown: movie.ratingBreakdown || baseBreakdown,
-    reviews: allReviews,
+    stats: { revenue, revenueText: Math.round(revenue / 1000000) + ' triệu', ticketsSold, seatsBooked: ticketsSold },
+    ...summarizeReviews(movie.reviews),
   };
 };
 
@@ -294,8 +90,6 @@ export const ensureMovieFormatsClean = async () => {
 // Lấy danh sách phim (kèm lọc theo trạng thái / thể loại / tìm kiếm)
 export const getMovies = async (req, res) => {
   try {
-    await ensure3DShowtimesSynced();
-    await ensureMovieFormatsClean();
     const { status, genre, search } = req.query;
     const filter = {};
 
@@ -432,27 +226,17 @@ export const getMovieSchedule = async (req, res) => {
       .sort({ startTime: 1 }).lean();
 
     const ids = showtimes.map(({ _id }) => _id);
-    const [seats, bookings, cinema] = await Promise.all([
-      ShowtimeSeat.find({ showtimeId: { $in: ids } }).select('showtimeId seatNumber').lean(),
-      Booking.find({ showtimeId: { $in: ids }, status: 'PAID' }).select('showtimeId seats bookingCode qrToken').lean(),
+    const [countsByShowtime, cinema] = await Promise.all([
+      ShowtimeSeat.aggregate([
+        { $match: { showtimeId: { $in: ids } } },
+        { $group: {
+          _id: '$showtimeId', total: { $sum: 1 },
+          available: { $sum: { $cond: [{ $eq: ['$status', 'AVAILABLE'] }, 1, 0] } },
+        } },
+      ]),
       Cinema.findOne().sort({ _id: 1 }).select('name address').lean(),
     ]);
-    const bookingsByShowtime = new Map();
-    for (const booking of bookings) {
-      const key = String(booking.showtimeId);
-      if (!bookingsByShowtime.has(key)) bookingsByShowtime.set(key, []);
-      bookingsByShowtime.get(key).push(booking);
-    }
-    const sold = new Map([...bookingsByShowtime].map(([key, orders]) => [key, paidSeatCodes(orders)]));
-
-    const counts = new Map();
-    for (const seat of seats) {
-      const key = String(seat.showtimeId);
-      const count = counts.get(key) ?? { total: 0, available: 0 };
-      count.total++;
-      if (!sold.get(key)?.has(normalizeSeatCode(seat.seatNumber))) count.available++;
-      counts.set(key, count);
-    }
+    const counts = new Map(countsByShowtime.map(row => [String(row._id), row]));
 
     res.set('Cache-Control', 'no-store');
     return res.json({
@@ -461,8 +245,7 @@ export const getMovieSchedule = async (req, res) => {
         id: String(_id), roomId: roomId?._id ?? null, roomName: roomId?.name ?? roomName,
         roomType: roomId?.roomType, roomFeature: roomId?.formatFeature,
         cinemaName: cinemaId?.name, startTime, endTime, price, isLocked, formatFeature,
-        availableSeats: counts.get(String(_id))?.available ?? (roomId?.totalSeats > 0
-          ? Math.max(0, roomId.totalSeats - (sold.get(String(_id))?.size ?? 0)) : null),
+        availableSeats: counts.get(String(_id))?.available ?? null,
         totalSeats: counts.get(String(_id))?.total ?? roomId?.totalSeats ?? null,
       })),
     });
@@ -473,7 +256,6 @@ export const getMovieSchedule = async (req, res) => {
 
 export const getMovieById = async (req, res) => {
   try {
-    if (req.query?.schedule !== 'read-only') await ensureMovieFormatsClean();
     const { id } = req.params;
 
     let movie = null;
@@ -529,164 +311,50 @@ export const getMovieById = async (req, res) => {
 export const addMovieReview = async (req, res) => {
   try {
     const { id } = req.params;
-    const { userName, rating, comment, userId, userEmail } = req.body;
-
-    if (!userName || !userName.trim()) {
-      return res.status(400).json({ message: 'Vui lòng nhập tên người đánh giá' });
-    }
-    if (!comment || !comment.trim()) {
-      return res.status(400).json({ message: 'Vui lòng nhập nội dung nhận xét' });
+    const { rating, comment } = req.body;
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5 || typeof comment !== 'string' || !comment.trim() || comment.length > 2000) {
+      return res.status(400).json({ message: 'Nhập điểm đánh giá và nhận xét hợp lệ.' });
     }
 
-    const star = Math.min(5, Math.max(1, Number(rating) || 5));
-
-    let movie = null;
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      movie = await Movie.findById(id);
-    } else {
-      movie = await Movie.findOne({ slug: id });
-    }
-
-    if (!movie) {
-      return res.status(404).json({ message: 'Không tìm thấy phim yêu cầu' });
-    }
-
-    const newReview = {
-      userName: userName.trim(),
-      userId: userId && mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : undefined,
-      userEmail: userEmail ? String(userEmail).trim() : undefined,
-      rating: star,
-      comment: comment.trim(),
-      createdAt: new Date(),
-    };
-
-    if (!Array.isArray(movie.reviews)) movie.reviews = [];
-    movie.reviews.unshift(newReview);
-
-    // Cập nhật ratingBreakdown
-    if (!movie.ratingBreakdown) {
-      movie.ratingBreakdown = { fiveStar: 90, fourStar: 20, threeStar: 7, twoStar: 2, oneStar: 1 };
-    }
-    if (star === 5) movie.ratingBreakdown.fiveStar = (movie.ratingBreakdown.fiveStar || 0) + 1;
-    else if (star === 4) movie.ratingBreakdown.fourStar = (movie.ratingBreakdown.fourStar || 0) + 1;
-    else if (star === 3) movie.ratingBreakdown.threeStar = (movie.ratingBreakdown.threeStar || 0) + 1;
-    else if (star === 2) movie.ratingBreakdown.twoStar = (movie.ratingBreakdown.twoStar || 0) + 1;
-    else if (star === 1) movie.ratingBreakdown.oneStar = (movie.ratingBreakdown.oneStar || 0) + 1;
-
-    // Tính điểm trung bình mới
-    const totalVotes =
-      (movie.ratingBreakdown.fiveStar || 0) +
-      (movie.ratingBreakdown.fourStar || 0) +
-      (movie.ratingBreakdown.threeStar || 0) +
-      (movie.ratingBreakdown.twoStar || 0) +
-      (movie.ratingBreakdown.oneStar || 0);
-
-    const weightedScore =
-      (movie.ratingBreakdown.fiveStar || 0) * 5 +
-      (movie.ratingBreakdown.fourStar || 0) * 4 +
-      (movie.ratingBreakdown.threeStar || 0) * 3 +
-      (movie.ratingBreakdown.twoStar || 0) * 2 +
-      (movie.ratingBreakdown.oneStar || 0) * 1;
-
-    if (totalVotes > 0) {
-      movie.rating = Number((weightedScore / totalVotes).toFixed(1));
-      movie.ratingCount = `${totalVotes} lượt đánh giá`;
-    }
-
-    await movie.save();
-
-    res.status(201).json({
-      message: 'Gửi nhận xét thành công',
-      review: newReview,
-      rating: movie.rating,
-      ratingCount: movie.ratingCount,
-      ratingBreakdown: movie.ratingBreakdown,
+    const query = mongoose.isObjectIdOrHexString(id) ? { _id: id } : { slug: id };
+    const movie = await Movie.findOne(query).select('_id');
+    if (!movie) return res.sendStatus(404);
+    const showtimes = await Showtime.find({ movieId: movie._id, startTime: { $lte: new Date() } }).distinct('_id');
+    const attended = await Booking.exists({
+      userId: req.user._id, showtimeId: { $in: showtimes }, status: 'PAID',
+      paymentStatus: { $in: ['VERIFIED', 'SIMULATED'] }, isCheckedIn: true,
     });
+    if (!attended) return res.status(403).json({ message: 'Chỉ tài khoản đã soát vé của phim này được đánh giá.' });
+
+    const review = {
+      _id: new mongoose.Types.ObjectId(), userName: req.user.name, userId: req.user._id,
+      rating, comment: comment.trim(), createdAt: new Date(), verifiedAttendance: true,
+    };
+    const updated = await Movie.findOneAndUpdate(
+      { _id: movie._id, reviews: { $not: { $elemMatch: { userId: req.user._id, verifiedAttendance: true } } } },
+      { $push: { reviews: { $each: [review], $position: 0 } } }, { new: true }
+    ).select('reviews');
+    if (!updated) return res.status(409).json({ message: 'Bạn đã đánh giá phim này.' });
+    return res.status(201).json({ ...summarizeReviews(updated.reviews), review });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi gửi nhận xét phim', error: error.message });
+    console.error('Review write failed:', error.name);
+    return res.status(500).json({ message: 'Không lưu được đánh giá.' });
   }
 };
 
-// Khách hàng xóa bình luận / nhận xét phim nếu viết nhầm
 export const deleteMovieReview = async (req, res) => {
   try {
     const { id, reviewId } = req.params;
-    const { comment, userName } = req.body || {};
-
-    let movie = null;
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      movie = await Movie.findById(id);
-    } else {
-      movie = await Movie.findOne({ slug: id });
-    }
-
-    if (!movie) {
-      return res.status(404).json({ message: 'Không tìm thấy phim yêu cầu' });
-    }
-
-    if (!Array.isArray(movie.reviews)) movie.reviews = [];
-
-    let removedReview = null;
-
-    if (reviewId && reviewId !== 'by-content' && mongoose.Types.ObjectId.isValid(reviewId)) {
-      removedReview = movie.reviews.find((r) => r._id?.toString() === reviewId);
-      movie.reviews = movie.reviews.filter((r) => r._id?.toString() !== reviewId);
-    } else if (comment) {
-      const idx = movie.reviews.findIndex(
-        (r) => r.comment === comment && (!userName || r.userName === userName)
-      );
-      if (idx !== -1) {
-        removedReview = movie.reviews[idx];
-        movie.reviews.splice(idx, 1);
-      }
-    } else if (reviewId) {
-      const idx = movie.reviews.findIndex((r) => r._id?.toString() === reviewId);
-      if (idx !== -1) {
-        removedReview = movie.reviews[idx];
-        movie.reviews.splice(idx, 1);
-      }
-    }
-
-    // Cập nhật lại ratingBreakdown nếu có xóa review
-    if (removedReview && movie.ratingBreakdown) {
-      const star = removedReview.rating || 5;
-      if (star === 5) movie.ratingBreakdown.fiveStar = Math.max(0, (movie.ratingBreakdown.fiveStar || 0) - 1);
-      else if (star === 4) movie.ratingBreakdown.fourStar = Math.max(0, (movie.ratingBreakdown.fourStar || 0) - 1);
-      else if (star === 3) movie.ratingBreakdown.threeStar = Math.max(0, (movie.ratingBreakdown.threeStar || 0) - 1);
-      else if (star === 2) movie.ratingBreakdown.twoStar = Math.max(0, (movie.ratingBreakdown.twoStar || 0) - 1);
-      else if (star === 1) movie.ratingBreakdown.oneStar = Math.max(0, (movie.ratingBreakdown.oneStar || 0) - 1);
-
-      const totalVotes =
-        (movie.ratingBreakdown.fiveStar || 0) +
-        (movie.ratingBreakdown.fourStar || 0) +
-        (movie.ratingBreakdown.threeStar || 0) +
-        (movie.ratingBreakdown.twoStar || 0) +
-        (movie.ratingBreakdown.oneStar || 0);
-
-      const weightedScore =
-        (movie.ratingBreakdown.fiveStar || 0) * 5 +
-        (movie.ratingBreakdown.fourStar || 0) * 4 +
-        (movie.ratingBreakdown.threeStar || 0) * 3 +
-        (movie.ratingBreakdown.twoStar || 0) * 2 +
-        (movie.ratingBreakdown.oneStar || 0) * 1;
-
-      if (totalVotes > 0) {
-        movie.rating = Number((weightedScore / totalVotes).toFixed(1));
-        movie.ratingCount = `${totalVotes} lượt đánh giá`;
-      }
-    }
-
-    await movie.save();
-
-    res.json({
-      success: true,
-      message: 'Đã xóa bình luận thành công',
-      reviews: movie.reviews,
-      rating: movie.rating,
-      ratingCount: movie.ratingCount,
-      ratingBreakdown: movie.ratingBreakdown,
-    });
+    if (!mongoose.isObjectIdOrHexString(reviewId)) return res.sendStatus(400);
+    const movie = mongoose.isObjectIdOrHexString(id) ? { _id: id } : { slug: id };
+    const review = { _id: new mongoose.Types.ObjectId(reviewId), userId: req.user._id };
+    const updated = await Movie.findOneAndUpdate(
+      { ...movie, reviews: { $elemMatch: review } }, { $pull: { reviews: review } }, { new: true }
+    ).select('reviews');
+    if (!updated) return res.sendStatus(404);
+    return res.json({ success: true, ...summarizeReviews(updated.reviews) });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi xóa nhận xét phim', error: error.message });
+    console.error('Review removal failed:', error.name);
+    return res.status(500).json({ message: 'Không xóa được đánh giá.' });
   }
 };

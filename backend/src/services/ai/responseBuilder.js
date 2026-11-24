@@ -518,6 +518,7 @@ export const buildVerifiedDatabaseResponse = ({
       const pair = candidatePairs[0];
       const { movie, showtime } = pair;
 
+      if (showtime.availableSeats == null) return `• **${movie.title}** — ${showtime.time}: Chưa xác nhận số ghế.`;
       if (showtime.availableSeats <= 0) {
         return {
           reply: `⚠️ Suất chiếu phim **${movie.title}** lúc **${showtime.time}** (${showtime.relativeDayLabel}) tại **${showtime.roomName}** hiện đã **HẾT GHẾ (còn 0 ghế trống)**, vì vậy không còn ${reqCount} ghế liền nhau.`,
@@ -564,15 +565,7 @@ export const buildVerifiedDatabaseResponse = ({
         };
       }
 
-      // Trường hợp suất chiếu mới chưa khởi tạo ghế chi tiết (còn 86/88 ghế trống)
-      const linkPart = showtime.bookingLink
-        ? `\n\n👉 [Chọn ghế ngay cho suất ${showtime.time} ➔](${showtime.bookingLink})`
-        : '';
-      return {
-        reply: `✅ Suất chiếu phim **${movie.title}** lúc **${showtime.time}** (${showtime.relativeDayLabel}) tại **${showtime.roomName}** hiện còn **${showtime.availableSeats} ghế trống** và vẫn còn nhiều dãy **${reqCount} ghế liền nhau** (khu vực hàng E, F, G trung tâm).${linkPart}`,
-        movieCard: buildSafeMovieCard(showtime, movie, nowDate),
-        recommendedMovie: movie.title,
-      };
+      return { reply: 'Mình chưa xác nhận được cụm ghế liền nhau cho suất này.', suggestions: [] };
     }
 
     // Nếu khách hỏi tình trạng ghế của 1 bộ phim cụ thể -> gom theo từng phòng & hiển thị đầy đủ mọi khung giờ của ngày đó
@@ -600,6 +593,9 @@ export const buildVerifiedDatabaseResponse = ({
 
     // Báo cáo số ghế trống thực tế khi hỏi chung nhiều phim
     const seatLines = candidatePairs.slice(0, 9).map(({ movie, showtime }) => {
+      if (showtime.availableSeats == null) {
+        return `• **${movie.title}** — Suất **${showtime.time}**: Chưa xác nhận số ghế.`;
+      }
       const total = Number(showtime.totalSeats) > 0 ? showtime.totalSeats : 88;
       if (showtime.availableSeats <= 0) {
         return `• **${movie.title}** — Suất **${showtime.time}** (${showtime.relativeDayLabel}, ${showtime.roomName}): **HẾT GHẾ (0/${total} ghế)**`;
@@ -1256,10 +1252,39 @@ export const buildVerifiedDatabaseResponse = ({
       };
     }
 
-    // Nếu chưa biết khách muốn đặt phim nào -> Hỏi lại lịch sự kèm hướng dẫn
+    // Nếu chưa biết khách muốn đặt phim nào -> Gợi ý ngay các phim đang chiếu kèm thẻ chọn suất đặt vé trực tiếp
+    const showingForBooking = movies.filter((m) => m.status === 'NOW_SHOWING').slice(0, 6);
+    if (showingForBooking.length > 0) {
+      const movieListLines = showingForBooking.map((m, idx) => {
+        const { daySlots, dayLabel } = selectDayShowtimesAndOtherDates(m.showtimes || [], entities);
+        const slotDesc =
+          daySlots.length > 0
+            ? `${dayLabel ? `(${dayLabel}) ` : ''}${summarizeMovieSlotsCompact(daySlots)}`
+            : 'Đang cập nhật suất chiếu';
+        return `${idx + 1}. 🎬 **${m.title}** (**${m.ageRating}** | ${m.genre})\n   🕒 ${slotDesc}`;
+      });
+
+      const bookingCards = buildInteractiveMovieCards(
+        showingForBooking.map((m) => {
+          const { daySlots } = selectDayShowtimesAndOtherDates(m.showtimes || [], entities);
+          return { movie: m, showtimes: daySlots.length > 0 ? daySlots : m.showtimes || [] };
+        }),
+        nowDate
+      );
+
+      return {
+        reply: `🎟️ Bạn muốn đặt vé xem phim nào tại **${cinemaName}** ạ? Hiện rạp đang mở bán các bộ phim sau:\n\n${movieListLines.join('\n\n')}\n\n💡 *Bạn có thể nhắn tên phim + khung giờ muốn xem, hoặc bấm trực tiếp vào nút giờ chiếu bên dưới để chọn ghế ngay!*`,
+        movieCard: bookingCards[0] || null,
+        movieCards: bookingCards,
+        quickReplies: showingForBooking.slice(0, 3).map((m) => `Lịch chiếu phim ${m.title} hôm nay`),
+        recommendedMovie: showingForBooking[0]?.title || '',
+      };
+    }
+
     return {
-      reply: `🎟️ Để gửi đúng **link đặt vé trực tiếp**, bạn vui lòng cho mình biết **tên bộ phim** và **khung giờ chiếu** bạn muốn xem nhé!\n\n📌 **Quy trình đặt vé nhanh tại D'AVENOR CINEMA:**\n1. Chọn phim và suất chiếu mong muốn.\n2. Chọn vị trí ghế trống trên sơ đồ phòng chiếu.\n3. Chọn thêm Combo bắp nước & nhập mã Voucher (nếu có).\n4. Thanh toán qua QR VNPay / MoMo / Thẻ ngân hàng và nhận mã vé QR điện tử.`,
+      reply: `🎟️ Để gửi đúng **link đặt vé trực tiếp**, bạn vui lòng cho mình biết **tên bộ phim** và **khung giờ chiếu** bạn muốn xem nhé!\n\n📌 **Quy trình đặt vé nhanh tại ${cinemaName}:**\n1. Chọn phim và suất chiếu mong muốn.\n2. Chọn vị trí ghế trống trên sơ đồ phòng chiếu.\n3. Chọn thêm Combo bắp nước & nhập mã Voucher (nếu có).\n4. Thanh toán qua VNPAY-QR / MoMo / Thẻ ngân hàng và nhận mã vé QR điện tử.`,
       movieCard: null,
+      movieCards: [],
       recommendedMovie: '',
     };
   }

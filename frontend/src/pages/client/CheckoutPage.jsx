@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import CheckoutCombos from '../../components/checkout/CheckoutCombos';
@@ -87,6 +87,7 @@ const CheckoutPage = () => {
     }
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const checkoutRequest = useRef(null);
   const [showQRModal, setShowQRModal] = useState(false);
 
   useEffect(() => {
@@ -101,6 +102,7 @@ const CheckoutPage = () => {
         const mapped = cleaned.map((c) => ({
           id: c.id || c._id,
           title: c.name,
+          category: c.category,
           badge: resolveConcessionBadge(c),
           desc: c.description || "Sản phẩm phục vụ nóng giòn tại quầy D'AVENOR Express.",
           price: c.price,
@@ -124,7 +126,9 @@ const CheckoutPage = () => {
 
   // Tính tiền combo từ danh mục động
   const comboTotal = concessions.reduce((sum, item) => {
-    return sum + (comboQuantities[item.id] || 0) * item.price;
+    const flavorExtra = ['COMBO', 'POPCORN'].includes(item.category)
+      ? popcornFlavors.find(flavor => flavor.id === selectedFlavor)?.extra ?? 0 : 0;
+    return sum + (comboQuantities[item.id] || 0) * (item.price + flavorExtra);
   }, 0);
 
   // Tổng tiền trước giảm
@@ -144,10 +148,10 @@ const CheckoutPage = () => {
       });
       if (res.data?.success) {
         setIsVoucherApplied(true);
-        setDiscountAmount(res.data.discountAmount || 20000);
+        setDiscountAmount(res.data.discountAmount ?? 0);
         alert(
           `✓ Áp dụng thành công mã ${voucherCode.toUpperCase()}: giảm ${(
-            res.data.discountAmount || 20000
+            res.data.discountAmount ?? 0
           ).toLocaleString('vi-VN')} đ`
         );
       } else {
@@ -159,39 +163,35 @@ const CheckoutPage = () => {
   };
 
   const handleInitiatePayment = () => {
-    if (paymentMethod === 'VNPAY' || paymentMethod === 'MOMO') {
-      setShowQRModal(true);
-    } else {
-      executeCheckout();
-    }
+    setShowQRModal(true);
   };
 
   const executeCheckout = async () => {
     setIsSubmitting(true);
     setShowQRModal(false);
     try {
-      const selectedCombosList = concessions
-        .filter((c) => (comboQuantities[c.id] || 0) > 0)
-        .map(
-          (c) =>
-            `${comboQuantities[c.id]}x ${c.title} (${
-              popcornFlavors.find((f) => f.id === selectedFlavor)?.name || 'Phô mai'
-            })`
-        );
-
       const payload = {
-        showtimeId: String(showtimeId || showtime?._id || showtime?.id || '6aecb21dd70710fc53a15c06'),
+        showtimeId: String(showtimeId || showtime?._id || showtime?.id || ''),
         seatNumbers: selectedSeats,
         customerName,
         customerPhone,
         customerEmail,
-        concessions: selectedCombosList.join(', ') || 'Không chọn combo',
-        totalAmount: grandTotal,
+        combos: concessions.filter(combo => comboQuantities[combo.id] > 0).map(combo => ({
+          id: combo.id, quantity: comboQuantities[combo.id],
+        })),
+        popcornFlavor: selectedFlavor,
+        voucherCode: isVoucherApplied ? voucherCode.trim() : undefined,
         paymentMethod,
       };
 
       try {
-        const res = await api.post('/bookings/checkout', payload);
+        const selection = JSON.stringify(payload);
+        if (checkoutRequest.current?.selection !== selection) {
+          checkoutRequest.current = { selection, key: crypto.randomUUID() };
+        }
+        const res = await api.post('/bookings/checkout', payload, {
+          headers: { 'Idempotency-Key': checkoutRequest.current.key },
+        });
         if (res.data?.success && res.data?.booking) {
           navigate('/booking-success', {
             state: { booking: res.data.booking },
@@ -358,7 +358,7 @@ const CheckoutPage = () => {
               subtotal={subtotal}
               grandTotal={grandTotal}
               voucherCode={voucherCode}
-              setVoucherCode={setVoucherCode}
+              setVoucherCode={value => { setVoucherCode(value); setIsVoucherApplied(false); }}
               isVoucherApplied={isVoucherApplied}
               discountAmount={discountAmount}
               onApplyVoucher={handleApplyVoucher}

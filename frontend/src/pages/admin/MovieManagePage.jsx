@@ -1,3 +1,4 @@
+import AdminSectionTabs from '../../components/admin/AdminSectionTabs';
 import React, { useState, useEffect } from 'react';
 import SidebarAdmin from '../../components/admin/SidebarAdmin';
 import TopbarAdmin from '../../components/admin/TopbarAdmin';
@@ -5,19 +6,21 @@ import MovieModal from '../../components/admin/MovieModal';
 import api from '../../services/api';
 
 const MovieManagePage = () => {
+  const [rooms, setRooms] = useState([]);
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMovie, setEditingMovie] = useState(null);
   const [selectedMovieForShowtime, setSelectedMovieForShowtime] = useState(null);
   const [showtimeFormData, setShowtimeFormData] = useState({
-    roomName: 'Phòng 01 - IMAX Laser',
+    roomId: '',
     startTime: '',
     price: 90000,
   });
 
   useEffect(() => {
     fetchMovies();
+    api.get('/admin/rooms').then(({ data }) => setRooms(Array.isArray(data) ? data : [])).catch(() => setRooms([]));
   }, []);
 
   const fetchMovies = async () => {
@@ -66,7 +69,7 @@ const MovieManagePage = () => {
   };
 
   const handleDeleteMovie = async (id) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa bộ phim này khỏi hệ thống không?')) {
+    if (window.confirm('Ngừng chiếu phim và khóa các suất sắp tới? Lịch sử vé vẫn được lưu.')) {
       try {
         await api.delete(`/admin/movies/${id}`);
         fetchMovies();
@@ -87,11 +90,11 @@ const MovieManagePage = () => {
     try {
       await api.post('/admin/showtimes', {
         movieId: selectedMovieForShowtime.id,
-        roomName: showtimeFormData.roomName,
-        startTime: new Date(showtimeFormData.startTime).toISOString(),
+        roomId: showtimeFormData.roomId,
+        startTime: showtimeFormData.startTime,
         price: parseFloat(showtimeFormData.price),
       });
-      alert(`Đã thêm suất chiếu thành công và tự động tạo 48 ghế ngồi cho phim "${selectedMovieForShowtime.title}"!`);
+      alert(`Đã thêm suất chiếu thành công cho phim "${selectedMovieForShowtime.title}"!`);
       setSelectedMovieForShowtime(null);
       fetchMovies();
     } catch (err) {
@@ -106,6 +109,7 @@ const MovieManagePage = () => {
       <div className="flex-1 flex flex-col min-w-0">
         <TopbarAdmin />
         <main className="p-6 space-y-6 flex-1 overflow-y-auto">
+          <AdminSectionTabs />
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-black">Quản Lý Danh Mục Phim & Suất Chiếu</h1>
@@ -247,14 +251,15 @@ const MovieManagePage = () => {
               <div>
                 <label className="block text-xs text-slate-400 mb-1 font-medium">Phòng chiếu</label>
                 <select
-                  value={showtimeFormData.roomName}
-                  onChange={(e) => setShowtimeFormData({ ...showtimeFormData, roomName: e.target.value })}
+                  required
+                  value={showtimeFormData.roomId}
+                  onChange={(e) => setShowtimeFormData({ ...showtimeFormData, roomId: e.target.value })}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-red-500"
                 >
-                  <option value="Phòng 01 - IMAX Laser">Phòng 01 - IMAX Laser</option>
-                  <option value="Phòng 02 - 2D Dolby Atmos">Phòng 02 - 2D Dolby Atmos</option>
-                  <option value="Phòng 03 - 2D Tiêu chuẩn">Phòng 03 - 2D Tiêu chuẩn</option>
-                  <option value="Rạp 05 (Tầng 3 - RealD 3D)">Rạp 05 (Tầng 3 - RealD 3D)</option>
+                  <option value="">Chọn phòng vật lý</option>
+                  {rooms.filter(room => room.status === 'ACTIVE').map(room =>
+                    <option key={room.id || room._id} value={room.id || room._id}>{room.name}</option>
+                  )}
                 </select>
               </div>
 

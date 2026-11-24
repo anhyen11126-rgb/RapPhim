@@ -10,28 +10,6 @@ const getStoredUser = () => {
   }
 };
 
-const getMyReviewIds = () => {
-  try {
-    return JSON.parse(localStorage.getItem('movietix_my_review_ids') || '[]');
-  } catch {
-    return [];
-  }
-};
-
-const saveMyReviewId = (id) => {
-  if (!id) return;
-  try {
-    const list = getMyReviewIds();
-    const idStr = String(id);
-    if (!list.includes(idStr)) {
-      list.push(idStr);
-      localStorage.setItem('movietix_my_review_ids', JSON.stringify(list));
-    }
-  } catch (err) {
-    console.warn('Không thể lưu id bình luận:', err);
-  }
-};
-
 const formatReviewDate = (val) => {
   if (!val) return '';
   if (typeof val === 'string' && (val.includes('trước') || val.includes('Vừa xong') || val.includes('hôm'))) {
@@ -73,46 +51,13 @@ const MovieStatsReviewsSection = ({ movie }) => {
     return () => window.removeEventListener('authChange', handleAuth);
   }, []);
 
-  const ratingScore = Number(movie.rating || 4.6).toFixed(1);
-  const ratingCountText = movie.ratingCount || '120 lượt đánh giá';
-
-  // Phân bổ tỷ lệ đánh giá sao (5 sao -> 1 sao)
-  const defaultBreakdown = {
-    fiveStar: 90,
-    fourStar: 20,
-    threeStar: 7,
-    twoStar: 2,
-    oneStar: 1,
-  };
-  const breakdown = movie.ratingBreakdown || defaultBreakdown;
-  const totalVotes =
-    (breakdown.fiveStar || 0) +
-    (breakdown.fourStar || 0) +
-    (breakdown.threeStar || 0) +
-    (breakdown.twoStar || 0) +
-    (breakdown.oneStar || 0) || 120;
-
-  // Danh sách bình luận khách hàng
-  const defaultReviews = [
-    {
-      _id: 'default-1',
-      userName: 'Nguyễn Văn A',
-      rating: 5,
-      comment: 'Hình ảnh đẹp, âm thanh sống động, nội dung rất cuốn hút.',
-      createdAt: '2 ngày trước',
-    },
-    {
-      _id: 'default-2',
-      userName: 'Trần Thị B',
-      rating: 4,
-      comment: 'Phim hay, kỹ xảo tốt nhưng thời lượng hơi dài.',
-      createdAt: '5 ngày trước',
-    },
-  ];
-
-  const [reviewsList, setReviewsList] = useState(
-    Array.isArray(movie.reviews) && movie.reviews.length > 0 ? movie.reviews : defaultReviews
-  );
+  const [reviewSummary, setReviewSummary] = useState(null);
+  const summary = reviewSummary || movie;
+  const ratingScore = summary.rating == null ? '—' : Number(summary.rating).toFixed(1);
+  const ratingCountText = summary.ratingCount || '0 lượt đánh giá';
+  const breakdown = summary.ratingBreakdown || {};
+  const totalVotes = Object.values(breakdown).reduce((sum, count) => sum + (count || 0), 0);
+  const reviewsList = summary.reviews || [];
 
   // Trạng thái thu gọn / mở rộng danh sách bình luận (mặc định chỉ hiện 3 bình luận tinh tế nhất)
   const [isExpanded, setIsExpanded] = useState(false);
@@ -124,11 +69,11 @@ const MovieStatsReviewsSection = ({ movie }) => {
   const hasMoreReviews = reviewsList.length > INITIAL_VISIBLE_COUNT;
 
   const starRows = [
-    { star: 5, label: '5 sao', count: breakdown.fiveStar || 90 },
-    { star: 4, label: '4 sao', count: breakdown.fourStar || 20 },
-    { star: 3, label: '3 sao', count: breakdown.threeStar || 7 },
-    { star: 2, label: '2 sao', count: breakdown.twoStar || 2 },
-    { star: 1, label: '1 sao', count: breakdown.oneStar || 1 },
+    { star: 5, label: '5 sao', count: breakdown.fiveStar || 0 },
+    { star: 4, label: '4 sao', count: breakdown.fourStar || 0 },
+    { star: 3, label: '3 sao', count: breakdown.threeStar || 0 },
+    { star: 2, label: '2 sao', count: breakdown.twoStar || 0 },
+    { star: 1, label: '1 sao', count: breakdown.oneStar || 0 },
   ];
 
   // Helper render sao vàng
@@ -150,94 +95,38 @@ const MovieStatsReviewsSection = ({ movie }) => {
    * CHỈ HIỂN THỊ NÚT XÓA nếu bình luận do chính người dùng hiện tại viết!
    * Người xem khác KHÔNG BAO GIỜ thấy nút xóa của người khác.
    */
-  const isMyReview = (rev) => {
-    if (!rev) return false;
-    const myIds = getMyReviewIds();
-    const idStr = String(rev._id || rev.id || '');
-    if (idStr && myIds.includes(idStr)) return true;
-
-    if (currentUser) {
-      const uId = currentUser.id || currentUser._id;
-      if (rev.userId && uId && String(rev.userId) === String(uId)) return true;
-      if (rev.userEmail && currentUser.email && rev.userEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
-      if (rev.userName && currentUser.name && rev.userName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) return true;
-    }
-    return false;
+  const isMyReview = review => {
+    const id = currentUser?.id || currentUser?._id;
+    return Boolean(id && review?.userId && String(review.userId) === String(id));
   };
 
-  // Xử lý gửi bình luận mới qua thanh bình luận phía dưới
-  const handleSubmitReview = async (e) => {
-    e.preventDefault();
-    const finalName = (currentUser?.name || reviewerName.trim() || 'Khán giả').trim();
-    if (!reviewerComment.trim()) return;
-
+  const handleSubmitReview = async event => {
+    event.preventDefault();
+    if (!reviewerComment.trim() || isSubmitting) return;
+    setSubmitSuccess('');
     try {
       setIsSubmitting(true);
-      const movieId = movie.id || movie._id;
-      const res = await api.post(`/movies/${movieId}/reviews`, {
-        userName: finalName,
-        rating: reviewerRating,
-        comment: reviewerComment.trim(),
-        userId: currentUser?.id || currentUser?._id,
-        userEmail: currentUser?.email,
+      const { data } = await api.post(`/movies/${movie.id || movie._id}/reviews`, {
+        rating: reviewerRating, comment: reviewerComment.trim(),
       });
-
-      const newRev = res.data?.review || {
-        _id: 'client-' + Date.now(),
-        userName: finalName,
-        rating: reviewerRating,
-        comment: reviewerComment.trim(),
-        createdAt: 'Vừa xong',
-      };
-
-      // Ghi nhớ ID bình luận này vào localStorage của trình duyệt hiện tại để chỉ cá nhân này được xóa
-      saveMyReviewId(newRev._id || newRev.id);
-
-      setReviewsList([newRev, ...reviewsList]);
-      setSubmitSuccess('Cảm ơn bạn! Đã đăng bình luận thành công.');
+      setReviewSummary(data);
+      setSubmitSuccess('Đã đăng bình luận.');
       setReviewerComment('');
-      setTimeout(() => setSubmitSuccess(''), 4000);
-    } catch (err) {
-      console.warn('Gửi bình luận offline fallback:', err.message);
-      const fallbackRev = {
-        _id: 'local-' + Date.now(),
-        userName: finalName,
-        rating: reviewerRating,
-        comment: reviewerComment.trim(),
-        createdAt: 'Vừa xong',
-      };
-      saveMyReviewId(fallbackRev._id);
-      setReviewsList([fallbackRev, ...reviewsList]);
-      setSubmitSuccess('Đã đăng bình luận của bạn.');
-      setReviewerComment('');
-      setTimeout(() => setSubmitSuccess(''), 4000);
+    } catch (error) {
+      setSubmitSuccess(error.response?.data?.message || 'Chưa đăng được bình luận.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Xử lý cá nhân tự xóa bình luận của mình
-  const handleDeleteReview = async (rev, idx) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bình luận của mình không?')) return;
-
+  const handleDeleteReview = async review => {
+    if (!window.confirm('Xóa bình luận của bạn?')) return;
     try {
-      const movieId = movie.id || movie._id;
-      const revId = rev._id || rev.id || 'by-content';
-      await api.delete(`/movies/${movieId}/reviews/${revId}`, {
-        data: {
-          comment: rev.comment,
-          userName: rev.userName,
-        },
-      });
-
-      setReviewsList((prev) => prev.filter((_, i) => i !== idx));
-      setSubmitSuccess('Đã xóa bình luận của bạn thành công.');
-      setTimeout(() => setSubmitSuccess(''), 3000);
-    } catch (err) {
-      console.warn('Lỗi khi xóa bình luận qua API, cập nhật tại giao diện:', err.message);
-      setReviewsList((prev) => prev.filter((_, i) => i !== idx));
-      setSubmitSuccess('Đã xóa bình luận của bạn.');
-      setTimeout(() => setSubmitSuccess(''), 3000);
+      const { data } = await api.delete(`/movies/${movie.id || movie._id}/reviews/${review._id}`);
+      setReviewSummary(data);
+      setSubmitSuccess('Đã xóa bình luận.');
+    } catch (error) {
+      setSubmitSuccess(error.response?.data?.message || 'Chưa xóa được bình luận.');
     }
   };
 
@@ -281,14 +170,14 @@ const MovieStatsReviewsSection = ({ movie }) => {
         <div className="flex items-center space-x-3">
           <span className="text-3xl sm:text-4xl font-black text-[#22c55e]">{ratingScore}/5</span>
           <div>
-            <div className="flex items-center space-x-1 text-sm">{renderStars(movie.rating || 4.6)}</div>
+            <div className="flex items-center space-x-1 text-sm">{renderStars(summary.rating || 0)}</div>
             <span className="text-xs text-slate-400 font-medium">{ratingCountText}</span>
           </div>
         </div>
 
         <div className="space-y-2 pt-1">
           {starRows.map((row) => {
-            const pct = totalVotes > 0 ? Math.round((row.count / totalVotes) * 100) : 0;
+            const pct = totalVotes > 0 ? Math.round((row.count / (totalVotes || 1)) * 100) : 0;
             return (
               <div key={row.star} className="flex items-center text-xs space-x-3">
                 <span className="w-10 text-slate-400 font-medium shrink-0">{row.label}</span>

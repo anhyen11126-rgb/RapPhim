@@ -549,6 +549,15 @@ const tests = [
       assert.ok(!res.reply.includes('Lật Mặt 7'), 'Không được trả phim tháng 11 khi khách hỏi tháng 12');
     },
   },
+  {
+    name: '17. Hỏi "mình muốn đặt vé" -> gợi ý ngay các phim đang chiếu kèm thẻ chọn giờ đặt vé',
+    run: async () => {
+      const res = await generateChatResponse('mình muốn đặt vé', [], undefined, baseOpts);
+      assert.equal(res.intent, INTENTS.BOOKING_GUIDE);
+      assert.ok(res.reply.includes('Lật Mặt 7'));
+      assert.ok(res.movieCards.length > 0, 'Phải trả về thẻ phim để khách chọn đặt vé ngay');
+    },
+  },
 ];
 
 let passed = 0;

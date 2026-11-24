@@ -15,6 +15,9 @@ const OverviewTab = ({ data, loading, onSelectMovie, onSelectShowtime }) => {
 
   return (
     <div className="space-y-6">
+      {data?.paymentCounts && <p className="rounded-lg border border-slate-700 p-3 text-sm text-slate-300">
+        Đơn đã xác minh {data.paymentCounts.VERIFIED ?? 0} · Mô phỏng {data.paymentCounts.SIMULATED ?? 0} · Chưa đối soát {data.paymentCounts.LEGACY_UNVERIFIED ?? 0}
+      </p>}
       {/* 1. DÃY 6 KPI CARDS CHỦ CHỐT */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {/* KPI 1: Tổng Doanh Thu Tháng */}

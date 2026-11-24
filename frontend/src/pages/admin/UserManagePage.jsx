@@ -1,3 +1,4 @@
+import AdminSectionTabs from '../../components/admin/AdminSectionTabs';
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import SidebarAdmin from '../../components/admin/SidebarAdmin';
@@ -79,6 +80,7 @@ const UserManagePage = () => {
       <div className="flex-1 flex flex-col min-w-0">
         <TopbarAdmin />
         <main className="p-6 flex-1 space-y-6 overflow-y-auto">
+          <AdminSectionTabs />
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
             <div>
@@ -242,7 +244,7 @@ const UserManagePage = () => {
                             {u.points || 0} pts
                           </td>
                           <td className="py-3 px-4 text-center font-bold text-white font-mono">
-                            {u.bookingCount || 0} vé
+                            {u.bookingCount || 0} đơn · {u.totalTickets || 0} vé
                           </td>
                           <td className="py-3 px-4 text-slate-400">{dateJoined}</td>
                           <td className="py-3 px-4 text-center whitespace-nowrap">
