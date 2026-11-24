@@ -405,7 +405,7 @@ const HomeQuickBooking = ({
         poster: activeMovie?.poster || activeMovie?.posterUrl,
         genre: activeMovie?.genre || 'Điện ảnh cao cấp',
         slug: activeMovie?.slug,
-        rating: activeMovie?.rating || '4.8',
+        rating: activeMovie?.rating || null,
         status: activeMovie?.status || 'NOW_SHOWING',
       },
       roomName,
@@ -540,9 +540,15 @@ const HomeQuickBooking = ({
                             >
                               {m.ageRating}
                             </span>
-                            <span className="text-[10px] text-[#83F5FF] font-bold flex items-center">
-                              ★ {m.rating || '4.8'}
-                            </span>
+                            {m.rating ? (
+                              <span className="text-[10px] text-[#83F5FF] font-bold flex items-center">
+                                ★ {Number(m.rating).toFixed(1)}
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-[#8E95B8] italic">
+                                Chưa có đánh giá
+                              </span>
+                            )}
                             <span className="text-[10px] text-[#BEC5E5]">• {m.duration || 120} phút</span>
                             {m.status === 'ENDED' && (
                               <span className="text-[8px] font-bold text-[#BEC5E5] bg-[#20204B] px-1 py-0.5 rounded border border-[#AA9BFF]/20">
@@ -559,14 +565,16 @@ const HomeQuickBooking = ({
                           </h5>
 
                           <div className="flex items-center gap-1 mt-1 flex-wrap">
-                            {['IMAX LASER', 'ATMOS', 'GOLD CLASS'].map((fmt, idx) => (
-                              <span
-                                key={idx}
-                                className="text-[9px] font-bold bg-[#20204B] text-[#83F5FF] px-1.5 py-0.5 rounded border border-[#42DFFF]/30"
-                              >
-                                {fmt}
-                              </span>
-                            ))}
+                            {(Array.isArray(m.formats) ? m.formats : (m.formats ? m.formats.split(/[,•|]+/) : [m.techFormat || '2D']))
+                              .slice(0, 3)
+                              .map((fmt, idx) => (
+                                <span
+                                  key={idx}
+                                  className="text-[9px] font-bold bg-[#20204B] text-[#83F5FF] px-1.5 py-0.5 rounded border border-[#42DFFF]/30 uppercase"
+                                >
+                                  {String(fmt).trim()}
+                                </span>
+                              ))}
                           </div>
                         </div>
 
@@ -740,7 +748,7 @@ const HomeQuickBooking = ({
                 <div className="absolute right-0 bottom-full sm:bottom-auto sm:top-full mb-2 sm:mb-0 sm:mt-2 w-[340px] sm:w-[580px] md:w-[680px] max-w-[95vw] bg-[#090D22]/98 backdrop-blur-2xl border border-[#42DFFF]/40 rounded-2xl p-3 sm:p-3.5 shadow-[0_20px_60px_rgba(5,8,20,0.98),0_0_35px_rgba(66,223,255,0.25)] z-50 animate-in fade-in zoom-in-95 duration-150">
                   <div className="space-y-2.5">
                     {!availableShowtimes.length && <p className="p-2 text-sm text-[#BEC5E5]">
-                      {schedule?.key !== showtimeKey && activeMovieId ? 'Đang tải suất chiếu…' : 'Chưa có suất mở bán cho ngày này.'}
+                      {schedule?.key !== showtimeKey && activeMovieId ? 'Đang tải suất chiếu…' : 'Hiện chưa có lịch chiếu. Vui lòng quay lại sau.'}
                     </p>}
                     {Object.values(showtimesByRoom).filter(group => group.slots.length).map((grp) => (
                       <div

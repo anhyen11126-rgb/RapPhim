@@ -1,0 +1,1366 @@
+{
+  "title": "Audit Log 194 Suất Chiếu Có Khách Đặt Vé (Bảo Vệ Tuyệt Đối)",
+  "exportTime": "2026-11-24T11:15:16.876Z",
+  "totalGroupCShowtimes": 194,
+  "guarantee": "Bảo vệ nguyên vẹn 100%, không bị hủy mềm, không xóa vé, không thay đổi ghế đã đặt",
+  "showtimes": [
+    {
+      "id": "6b01b7b4fe378d805c7c186f",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1900",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1871",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1901",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1990",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1991",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1870",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c18ff",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 5
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a20",
+      "title": "Mai",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a21",
+      "title": "Mai",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c198f",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a1f",
+      "title": "Mai",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b3f",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1aaf",
+      "title": "Oppenheimer",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ab0",
+      "title": "Oppenheimer",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ab1",
+      "title": "Oppenheimer",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b41",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bcf",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 5
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bd1",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bd0",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b40",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cef",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cf0",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cf1",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c60",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c5f",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 5
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c61",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1d7f",
+      "title": "Inside Out 2 (Những Mảnh Ghép Cảm Xúc 2)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1e0f",
+      "title": "Venom: Kèo Cuối (Venom: The Last Dance)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1e11",
+      "title": "Venom: Kèo Cuối (Venom: The Last Dance)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1d80",
+      "title": "Inside Out 2 (Những Mảnh Ghép Cảm Xúc 2)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 13
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1d81",
+      "title": "Inside Out 2 (Những Mảnh Ghép Cảm Xúc 2)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1e10",
+      "title": "Venom: Kèo Cuối (Venom: The Last Dance)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ea1",
+      "title": "Avatar: Dòng Chảy Của Nước (Avatar: The Way of Water)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1fc1",
+      "title": "Cô Dâu Hào Môn",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1f31",
+      "title": "Transformers One (Transformers Một)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1fbf",
+      "title": "Cô Dâu Hào Môn",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1e9f",
+      "title": "Avatar: Dòng Chảy Của Nước (Avatar: The Way of Water)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ea0",
+      "title": "Avatar: Dòng Chảy Của Nước (Avatar: The Way of Water)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1f2f",
+      "title": "Transformers One (Transformers Một)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1f30",
+      "title": "Transformers One (Transformers Một)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1fc0",
+      "title": "Cô Dâu Hào Môn",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c20df",
+      "title": "Joker: Điên Có Đôi (Joker: Folie à Deux)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c20e1",
+      "title": "Joker: Điên Có Đôi (Joker: Folie à Deux)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2051",
+      "title": "Mufasa: Vua Sư Tử (Mufasa: The Lion King)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c204f",
+      "title": "Mufasa: Vua Sư Tử (Mufasa: The Lion King)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2050",
+      "title": "Mufasa: Vua Sư Tử (Mufasa: The Lion King)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c20e0",
+      "title": "Joker: Điên Có Đôi (Joker: Folie à Deux)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c216f",
+      "title": "Captain America: Thế Giới Mới Dũng Cảm (Brave New World)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c21ff",
+      "title": "Dune: Hành Tinh Cát – Phần 2",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2201",
+      "title": "Dune: Hành Tinh Cát – Phần 2",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2170",
+      "title": "Captain America: Thế Giới Mới Dũng Cảm (Brave New World)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2171",
+      "title": "Captain America: Thế Giới Mới Dũng Cảm (Brave New World)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2200",
+      "title": "Dune: Hành Tinh Cát – Phần 2",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T02:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1902",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1873",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1904",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1874",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a24",
+      "title": "Mai",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1872",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 4
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1903",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1993",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a23",
+      "title": "Mai",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1992",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1994",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a22",
+      "title": "Mai",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b44",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ab3",
+      "title": "Oppenheimer",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ab4",
+      "title": "Oppenheimer",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b42",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ab2",
+      "title": "Oppenheimer",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b43",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bd2",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bd3",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bd4",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cf2",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c62",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cf4",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c63",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1d83",
+      "title": "Inside Out 2 (Những Mảnh Ghép Cảm Xúc 2)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1e12",
+      "title": "Venom: Kèo Cuối (Venom: The Last Dance)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c64",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cf3",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1e13",
+      "title": "Venom: Kèo Cuối (Venom: The Last Dance)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1d82",
+      "title": "Inside Out 2 (Những Mảnh Ghép Cảm Xúc 2)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1d84",
+      "title": "Inside Out 2 (Những Mảnh Ghép Cảm Xúc 2)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1e14",
+      "title": "Venom: Kèo Cuối (Venom: The Last Dance)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ea4",
+      "title": "Avatar: Dòng Chảy Của Nước (Avatar: The Way of Water)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1f33",
+      "title": "Transformers One (Transformers Một)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ea3",
+      "title": "Avatar: Dòng Chảy Của Nước (Avatar: The Way of Water)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1fc2",
+      "title": "Cô Dâu Hào Môn",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1fc3",
+      "title": "Cô Dâu Hào Môn",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1f32",
+      "title": "Transformers One (Transformers Một)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ea2",
+      "title": "Avatar: Dòng Chảy Của Nước (Avatar: The Way of Water)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1f34",
+      "title": "Transformers One (Transformers Một)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1fc4",
+      "title": "Cô Dâu Hào Môn",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2053",
+      "title": "Mufasa: Vua Sư Tử (Mufasa: The Lion King)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2054",
+      "title": "Mufasa: Vua Sư Tử (Mufasa: The Lion King)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c20e2",
+      "title": "Joker: Điên Có Đôi (Joker: Folie à Deux)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2052",
+      "title": "Mufasa: Vua Sư Tử (Mufasa: The Lion King)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 6
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c20e3",
+      "title": "Joker: Điên Có Đôi (Joker: Folie à Deux)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c20e4",
+      "title": "Joker: Điên Có Đôi (Joker: Folie à Deux)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2203",
+      "title": "Dune: Hành Tinh Cát – Phần 2",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2172",
+      "title": "Captain America: Thế Giới Mới Dũng Cảm (Brave New World)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2202",
+      "title": "Dune: Hành Tinh Cát – Phần 2",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2204",
+      "title": "Dune: Hành Tinh Cát – Phần 2",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2173",
+      "title": "Captain America: Thế Giới Mới Dũng Cảm (Brave New World)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2174",
+      "title": "Captain America: Thế Giới Mới Dũng Cảm (Brave New World)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T03:30:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1875",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 13
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1905",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1906",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 16
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1876",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1877",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1907",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 15
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a25",
+      "title": "Mai",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1995",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1997",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a26",
+      "title": "Mai",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a27",
+      "title": "Mai",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1996",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ab5",
+      "title": "Oppenheimer",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 14
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ab6",
+      "title": "Oppenheimer",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 16
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bd5",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bd6",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 13
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bd7",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 13
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b45",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ab7",
+      "title": "Oppenheimer",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b46",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b47",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c65",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c67",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cf5",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 14
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1d87",
+      "title": "Inside Out 2 (Những Mảnh Ghép Cảm Xúc 2)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1e16",
+      "title": "Venom: Kèo Cuối (Venom: The Last Dance)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c66",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cf6",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 14
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cf7",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1d85",
+      "title": "Inside Out 2 (Những Mảnh Ghép Cảm Xúc 2)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1d86",
+      "title": "Inside Out 2 (Những Mảnh Ghép Cảm Xúc 2)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1e17",
+      "title": "Venom: Kèo Cuối (Venom: The Last Dance)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1e15",
+      "title": "Venom: Kèo Cuối (Venom: The Last Dance)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1f35",
+      "title": "Transformers One (Transformers Một)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1f36",
+      "title": "Transformers One (Transformers Một)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1f37",
+      "title": "Transformers One (Transformers Một)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ea6",
+      "title": "Avatar: Dòng Chảy Của Nước (Avatar: The Way of Water)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ea5",
+      "title": "Avatar: Dòng Chảy Của Nước (Avatar: The Way of Water)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ea7",
+      "title": "Avatar: Dòng Chảy Của Nước (Avatar: The Way of Water)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 14
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1fc6",
+      "title": "Cô Dâu Hào Môn",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1fc5",
+      "title": "Cô Dâu Hào Môn",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1fc7",
+      "title": "Cô Dâu Hào Môn",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 9
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2057",
+      "title": "Mufasa: Vua Sư Tử (Mufasa: The Lion King)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c20e5",
+      "title": "Joker: Điên Có Đôi (Joker: Folie à Deux)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c20e6",
+      "title": "Joker: Điên Có Đôi (Joker: Folie à Deux)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2056",
+      "title": "Mufasa: Vua Sư Tử (Mufasa: The Lion King)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c20e7",
+      "title": "Joker: Điên Có Đôi (Joker: Folie à Deux)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2055",
+      "title": "Mufasa: Vua Sư Tử (Mufasa: The Lion King)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 8
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2177",
+      "title": "Captain America: Thế Giới Mới Dũng Cảm (Brave New World)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2206",
+      "title": "Dune: Hành Tinh Cát – Phần 2",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2207",
+      "title": "Dune: Hành Tinh Cát – Phần 2",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2175",
+      "title": "Captain America: Thế Giới Mới Dũng Cảm (Brave New World)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2176",
+      "title": "Captain America: Thế Giới Mới Dũng Cảm (Brave New World)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c2205",
+      "title": "Dune: Hành Tinh Cát – Phần 2",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T07:00:00.000Z",
+      "bookingsCount": 7
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1909",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 14
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1879",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 13
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c187a",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c190a",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1999",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 15
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a29",
+      "title": "Mai",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1878",
+      "title": "Spider-Man: No Way Home (Người Nhện: Không Còn Nhà)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 10
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1908",
+      "title": "Quật Mộ Trùng Ma (Exhuma)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 15
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a28",
+      "title": "Mai",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 15
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1998",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 13
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c199a",
+      "title": "Hành Trình Của Moana 2 (Moana 2)",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 15
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a2a",
+      "title": "Mai",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 15
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ab9",
+      "title": "Oppenheimer",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1aba",
+      "title": "Oppenheimer",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 14
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b48",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 13
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b49",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 16
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bd8",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bda",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1ab8",
+      "title": "Oppenheimer",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 17
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1b4a",
+      "title": "Deadpool & Wolverine",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 17
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1bd9",
+      "title": "Godzilla x Kong: Đế Chế Mới",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 13
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c68",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 12
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cf9",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 16
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cfa",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 11
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1d89",
+      "title": "Inside Out 2 (Những Mảnh Ghép Cảm Xúc 2)",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 13
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c69",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 05 - Dolby Atmos (VIP Sound 2)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 13
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1c6a",
+      "title": "Kung Fu Panda 4",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 15
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1cf8",
+      "title": "Lật Mặt 7: Một Điều Ước",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 13
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1d88",
+      "title": "Inside Out 2 (Những Mảnh Ghép Cảm Xúc 2)",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-21T09:30:00.000Z",
+      "bookingsCount": 14
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a60",
+      "title": "Mai",
+      "room": "Phòng 09 - Gold Class (Luxury Lounge 3)",
+      "startTime": "2026-11-24T09:30:00.000Z",
+      "bookingsCount": 2
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a64",
+      "title": "Mai",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-24T15:20:00.000Z",
+      "bookingsCount": 1
+    },
+    {
+      "id": "6b01b7b4fe378d805c7c1a67",
+      "title": "Mai",
+      "room": "Phòng 01 - IMAX Laser (Grand Hall 1)",
+      "startTime": "2026-11-25T02:30:00.000Z",
+      "bookingsCount": 1
+    }
+  ]
+}

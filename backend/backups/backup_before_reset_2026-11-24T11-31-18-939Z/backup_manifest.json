@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-11-24T11:31:18.941Z",
+  "databaseName": "movietix_db",
+  "host": "ac-omcsk0z-shard-00-01.hi1rrqr.mongodb.net",
+  "collections": {
+    "showtimes": 2691,
+    "showtimeseats": 92048,
+    "bookings": 29069
+  },
+  "totalDocuments": 123808
+}
