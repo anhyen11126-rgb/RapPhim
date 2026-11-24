@@ -16,11 +16,26 @@ const getStoredUser = () => {
 };
 
 const DEFAULT_WELCOME_TEMPLATE =
-  "Xin chào **{name}**! Tôi là trợ lý ảo D'AVENOR CINEMA tại Đà Nẵng. Tôi có thể giúp bạn tìm phim bom tấn, tra cứu lịch chiếu 2D / RealD 3D / IMAX, báo giá vé ưu đãi 45.000đ – 50.000đ hoặc gợi ý combo bắp nước & mã voucher giảm giá! 🍿 ✨";
+  "Xin chào **{name}**! Mình là trợ lý tư vấn của D'AVENOR CINEMA tại Đà Nẵng. Mình có thể giúp bạn xem phim đang chiếu, tra cứu suất chiếu theo khung giờ, kiểm tra ghế trống, báo giá vé và gợi ý combo bắp nước & ưu đãi! 🍿✨";
 
 const formatWelcomeMessage = (template, user) => {
   const displayName = user?.name ? user.name.trim() : 'bạn';
   return String(template || DEFAULT_WELCOME_TEMPLATE).replace(/\{name\}/gi, displayName);
+};
+
+const CHAT_STORAGE_KEYS = {
+  messages: 'davenor_chat_messages_v1',
+  context: 'davenor_chat_context_v1',
+  size: 'davenor_chat_size_v1',
+};
+
+const readSessionJson = (key, fallback = null) => {
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
 };
 
 const ChatWidget = () => {
@@ -31,6 +46,33 @@ const ChatWidget = () => {
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [currentUser, setCurrentUser] = useState(() => getStoredUser());
+  const [sessionContext, setSessionContext] = useState(() =>
+    readSessionJson(CHAT_STORAGE_KEYS.context, null)
+  );
+  const [sessionStartedTime] = useState(() =>
+    new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  );
+
+  // Kích thước thu phóng tự do của cửa sổ Chatbox (khôi phục từ sessionStorage nếu có)
+  const getDefaultChatSize = () => {
+    if (typeof window === 'undefined') return { width: 420, height: 630 };
+    return {
+      width: Math.min(window.innerWidth < 640 ? 360 : 420, window.innerWidth - 24),
+      height: Math.min(window.innerWidth < 640 ? 580 : 630, window.innerHeight - 24),
+    };
+  };
+
+  const [chatSize, setChatSize] = useState(() => {
+    const saved = readSessionJson(CHAT_STORAGE_KEYS.size, null);
+    if (saved && Number.isFinite(saved.width) && Number.isFinite(saved.height) && typeof window !== 'undefined') {
+      return {
+        width: Math.max(320, Math.min(saved.width, window.innerWidth - 24)),
+        height: Math.max(420, Math.min(saved.height, window.innerHeight - 24)),
+      };
+    }
+    return getDefaultChatSize();
+  });
+  const [isResizing, setIsResizing] = useState(false);
 
   // Vị trí kéo thả tự do của Trợ lý AI (null = vị trí mặc định ở góc dưới bên phải)
   const [position, setPosition] = useState(null);
@@ -46,18 +88,121 @@ const ChatWidget = () => {
   const containerRef = useRef(null);
   const justDraggedRef = useRef(false);
 
-  // Đưa Trợ lý AI trở về vị trí góc ban đầu
+  // Đưa Trợ lý AI trở về vị trí & kích thước mặc định ban đầu
   const handleResetToDefault = (e) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     setPosition(null);
+    setChatSize(getDefaultChatSize());
+  };
+
+  // Phóng to nhanh / thu về kích thước mặc định
+  const isExpanded =
+    typeof window !== 'undefined' &&
+    (chatSize.width >= Math.min(680, window.innerWidth - 48) ||
+      chatSize.height >= Math.min(760, window.innerHeight - 48));
+
+  const handleToggleExpand = () => {
+    if (typeof window === 'undefined') return;
+    if (isExpanded) {
+      setChatSize(getDefaultChatSize());
+    } else {
+      setChatSize({
+        width: Math.min(720, window.innerWidth - 32),
+        height: Math.min(820, window.innerHeight - 32),
+      });
+    }
+  };
+
+  // Kéo viền / góc để thu phóng tự do kích thước khung Chatbox (hỗ trợ cả chuột & cảm ứng)
+  const handleResizeStart = (direction) => (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startX = e.clientX ?? e.touches?.[0]?.clientX;
+    const startY = e.clientY ?? e.touches?.[0]?.clientY;
+    if (startX === undefined || startY === undefined) return;
+
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const startW = rect.width;
+    const startH = rect.height;
+    const startLeft = rect.left;
+    const startTop = rect.top;
+    const wasPositioned = Boolean(position);
+
+    const MIN_W = 320;
+    const MIN_H = 420;
+    const MAX_W = Math.max(MIN_W, window.innerWidth - 24);
+    const MAX_H = Math.max(MIN_H, window.innerHeight - 24);
+
+    setIsResizing(true);
+
+    const onMove = (moveEvt) => {
+      const curX = moveEvt.clientX ?? moveEvt.touches?.[0]?.clientX;
+      const curY = moveEvt.clientY ?? moveEvt.touches?.[0]?.clientY;
+      if (curX === undefined || curY === undefined) return;
+      if (moveEvt.cancelable) moveEvt.preventDefault();
+
+      const dx = curX - startX;
+      const dy = curY - startY;
+
+      let nextW = startW;
+      let nextH = startH;
+      let nextLeft = startLeft;
+      let nextTop = startTop;
+
+      if (direction.includes('e')) {
+        nextW = Math.max(MIN_W, Math.min(MAX_W, startW + dx));
+      }
+      if (direction.includes('w')) {
+        const clampedW = Math.max(MIN_W, Math.min(MAX_W, startW - dx));
+        nextLeft = startLeft + (startW - clampedW);
+        nextW = clampedW;
+      }
+      if (direction.includes('s')) {
+        nextH = Math.max(MIN_H, Math.min(MAX_H, startH + dy));
+      }
+      if (direction.includes('n')) {
+        const clampedH = Math.max(MIN_H, Math.min(MAX_H, startH - dy));
+        nextTop = startTop + (startH - clampedH);
+        nextH = clampedH;
+      }
+
+      setChatSize({ width: Math.round(nextW), height: Math.round(nextH) });
+
+      if (wasPositioned) {
+        const safeLeft = Math.max(12, Math.min(window.innerWidth - nextW - 12, nextLeft));
+        const safeTop = Math.max(12, Math.min(window.innerHeight - nextH - 12, nextTop));
+        setPosition({ x: Math.round(safeLeft), y: Math.round(safeTop) });
+      }
+    };
+
+    const onUp = () => {
+      setIsResizing(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
   };
 
   // Tự động căn chỉnh lại nếu màn hình thay đổi kích thước
   useEffect(() => {
     const handleResize = () => {
+      setChatSize((prev) => ({
+        width: Math.max(320, Math.min(prev.width, window.innerWidth - 24)),
+        height: Math.max(420, Math.min(prev.height, window.innerHeight - 24)),
+      }));
       setPosition((prev) => {
         if (!prev) return null;
         const el = containerRef.current;
@@ -150,8 +295,8 @@ const ChatWidget = () => {
         bottom: 'auto',
       };
     }
-    const chatWidth = typeof window !== 'undefined' && window.innerWidth < 640 ? 360 : 420;
-    const chatHeight = isMinimized ? 64 : typeof window !== 'undefined' && window.innerWidth < 640 ? 580 : 630;
+    const chatWidth = chatSize.width;
+    const chatHeight = isMinimized ? 64 : chatSize.height;
 
     let left = position.x;
     if (left + chatWidth > window.innerWidth - 12) {
@@ -180,33 +325,72 @@ const ChatWidget = () => {
     isEnabled: true,
     quickChips: [
       {
-        label: '🎬 Top phim tuần này',
-        query: "Cho tôi xem top phim bom tấn hay nhất đang chiếu tại D'AVENOR CINEMA",
+        label: '🎬 Phim đang chiếu',
+        query: 'Các bộ phim đang chiếu hiện tại?',
       },
       {
-        label: '👓 Suất chiếu 3D (45k-50k)',
-        query: 'Hôm nay phòng chiếu 3D (Rạp 05) có những suất chiếu nào lúc 21h-22h và giá vé bao nhiêu?',
+        label: '🕒 Suất chiếu tối nay',
+        query: 'Tối nay có những suất chiếu nào?',
       },
       {
-        label: '🎟️ Giá vé & IMAX tối nay',
-        query: 'Tối nay sau 19h có suất chiếu IMAX nào đẹp và giá vé các hạng ghế là bao nhiêu?',
+        label: '🎟️ Giá vé & IMAX',
+        query: 'Tối nay có suất chiếu IMAX nào và giá vé bao nhiêu?',
       },
       {
-        label: '🍿 Combo bắp nước & Ưu đãi',
-        query: 'Cho mình xem bảng giá Combo bắp nước và các mã Voucher khuyến mãi đang áp dụng nhé!',
+        label: '🍿 Combo & Ưu đãi',
+        query: 'Hôm nay có ưu đãi và combo bắp nước gì?',
+      },
+      {
+        label: '🎫 Vé của tôi',
+        query: 'Kiểm tra vé của tôi',
       },
     ],
   });
 
-  // Lịch sử tin nhắn khởi tạo đồng bộ theo cấu hình DB & tên tài khoản đăng nhập
-  const [messages, setMessages] = useState(() => [
-    {
-      id: 1,
-      sender: 'bot',
-      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      text: formatWelcomeMessage(DEFAULT_WELCOME_TEMPLATE, getStoredUser()),
-    },
-  ]);
+  // Lịch sử tin nhắn khởi tạo từ sessionStorage (để F5 không mất mạch trò chuyện) hoặc lời chào mặc định
+  const [messages, setMessages] = useState(() => {
+    const saved = readSessionJson(CHAT_STORAGE_KEYS.messages, null);
+    if (Array.isArray(saved) && saved.length > 0) {
+      return saved;
+    }
+    return [
+      {
+        id: 1,
+        sender: 'bot',
+        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        text: formatWelcomeMessage(DEFAULT_WELCOME_TEMPLATE, getStoredUser()),
+      },
+    ];
+  });
+
+  // Đồng bộ lịch sử chat, ngữ cảnh hội thoại và kích cỡ khung chat vào sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CHAT_STORAGE_KEYS.messages, JSON.stringify(messages.slice(-30)));
+    } catch {
+      // Bỏ qua nếu trình duyệt chặn storage hoặc đầy bộ nhớ
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    try {
+      if (sessionContext) {
+        sessionStorage.setItem(CHAT_STORAGE_KEYS.context, JSON.stringify(sessionContext));
+      } else {
+        sessionStorage.removeItem(CHAT_STORAGE_KEYS.context);
+      }
+    } catch {
+      // Bỏ qua lỗi storage
+    }
+  }, [sessionContext]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CHAT_STORAGE_KEYS.size, JSON.stringify(chatSize));
+    } catch {
+      // Bỏ qua lỗi storage
+    }
+  }, [chatSize]);
 
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -228,13 +412,15 @@ const ChatWidget = () => {
       try {
         const res = await api.get('/ai/config');
         if (mounted && res.data) {
+          const incomingChips = Array.isArray(res.data.quickChips) ? res.data.quickChips : [];
+          const hasStaleLegacyChip = incomingChips.some((c) =>
+            /45k-50k|rạp\s*05|21h-22h/i.test(`${c?.label || ''} ${c?.query || ''}`)
+          );
           setBotConfig((prev) => ({
             ...prev,
             ...res.data,
             quickChips:
-              Array.isArray(res.data.quickChips) && res.data.quickChips.length > 0
-                ? res.data.quickChips
-                : prev.quickChips,
+              incomingChips.length > 0 && !hasStaleLegacyChip ? incomingChips : prev.quickChips,
           }));
           const userNow = getStoredUser();
           setMessages((prev) => {
@@ -314,9 +500,18 @@ const ChatWidget = () => {
         message: textToSend,
         userName: activeUser?.name || 'Khách vãng lai',
         userEmail: activeUser?.email || '',
-        history: messages.slice(-4).map((m) => ({
+        sessionContext,
+        history: messages.slice(-10).map((m) => ({
           role: m.sender === 'user' ? 'user' : 'model',
           text: m.text,
+          movieCard: m.movieCard || null,
+          movieCards: Array.isArray(m.movieCards)
+            ? m.movieCards.map((c) => ({
+                movieId: c.movieId,
+                title: c.title,
+                showtimeId: c.showtimeId,
+              }))
+            : [],
         })),
       });
 
@@ -327,6 +522,11 @@ const ChatWidget = () => {
         : movieCard
           ? [movieCard]
           : [];
+      const quickReplies = Array.isArray(res.data.quickReplies) ? res.data.quickReplies : [];
+
+      if (res.data.sessionContext && typeof res.data.sessionContext === 'object') {
+        setSessionContext(res.data.sessionContext);
+      }
 
       setMessages((prev) => [
         ...prev,
@@ -337,6 +537,7 @@ const ChatWidget = () => {
           text: botReply,
           movieCard: movieCard,
           movieCards: movieCards,
+          quickReplies,
         },
       ]);
     } catch (err) {
@@ -392,8 +593,15 @@ const ChatWidget = () => {
     }
   };
 
-  // Làm mới cuộc trò chuyện
+  // Làm mới cuộc trò chuyện (xóa lịch sử & ngữ cảnh đã lưu trong phiên)
   const handleResetChat = () => {
+    setSessionContext(null);
+    try {
+      sessionStorage.removeItem(CHAT_STORAGE_KEYS.messages);
+      sessionStorage.removeItem(CHAT_STORAGE_KEYS.context);
+    } catch {
+      // Bỏ qua lỗi storage
+    }
     setMessages([
       {
         id: Date.now(),
@@ -474,7 +682,7 @@ const ChatWidget = () => {
       ref={containerRef}
       style={getContainerStyle()}
       className={`fixed z-50 select-none ${!position ? 'bottom-6 right-6' : ''} ${
-        isDragging ? 'transition-none' : 'transition-all duration-300 ease-out'
+        isDragging || isResizing ? 'transition-none' : 'transition-all duration-300 ease-out'
       }`}
     >
       {/* 1. NÚT TRÒ CHUYỆN NỔI (KHI ĐANG ĐÓNG) */}
@@ -514,12 +722,76 @@ const ChatWidget = () => {
         </button>
       )}
 
-      {/* 2. CỬA SỔ CHATBOX ĐỈNH CAO */}
+      {/* 2. CỬA SỔ CHATBOX ĐỈNH CAO (HỖ TRỢ THU PHÓNG TÙY Ý KÍCH CỠ) */}
       {isOpen && (
         <div
-          className={`w-[360px] sm:w-[420px] bg-[#0B1026]/98 backdrop-blur-2xl border border-[#AA9BFF]/30 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.85),0_0_25px_rgba(66,223,255,0.15)] flex flex-col overflow-hidden transition-all duration-300 ${isMinimized ? 'h-[64px]' : 'h-[580px] sm:h-[630px]'
-            }`}
+          style={{
+            width: `${chatSize.width}px`,
+            height: isMinimized ? '64px' : `${chatSize.height}px`,
+            maxWidth: 'calc(100vw - 24px)',
+            maxHeight: 'calc(100vh - 24px)',
+          }}
+          className={`relative bg-[#0B1026]/98 backdrop-blur-2xl border border-[#AA9BFF]/30 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.85),0_0_25px_rgba(66,223,255,0.15)] flex flex-col overflow-hidden ${
+            isResizing ? 'transition-none ring-2 ring-[#42DFFF]/50' : 'transition-all duration-200'
+          }`}
         >
+          {/* Các vùng kéo thu phóng kích thước 4 cạnh & 4 góc */}
+          {!isMinimized && (
+            <>
+              <div
+                onMouseDown={handleResizeStart('n')}
+                onTouchStart={handleResizeStart('n')}
+                className="absolute top-0 left-4 right-4 h-2 cursor-ns-resize z-30"
+                title="Kéo để thay đổi chiều cao"
+              />
+              <div
+                onMouseDown={handleResizeStart('s')}
+                onTouchStart={handleResizeStart('s')}
+                className="absolute bottom-0 left-4 right-4 h-2 cursor-ns-resize z-30"
+                title="Kéo để thay đổi chiều cao"
+              />
+              <div
+                onMouseDown={handleResizeStart('w')}
+                onTouchStart={handleResizeStart('w')}
+                className="absolute top-4 bottom-4 left-0 w-2 cursor-ew-resize z-30"
+                title="Kéo để thay đổi chiều rộng"
+              />
+              <div
+                onMouseDown={handleResizeStart('e')}
+                onTouchStart={handleResizeStart('e')}
+                className="absolute top-4 bottom-4 right-0 w-2 cursor-ew-resize z-30"
+                title="Kéo để thay đổi chiều rộng"
+              />
+              <div
+                onMouseDown={handleResizeStart('nw')}
+                onTouchStart={handleResizeStart('nw')}
+                className="absolute top-0 left-0 w-4 h-4 cursor-nwse-resize z-40 group flex items-center justify-center"
+                title="Kéo góc để thu phóng khung chat"
+              >
+                <span className="w-2 h-2 border-t-2 border-l-2 border-[#42DFFF]/50 group-hover:border-[#42DFFF] rounded-tl-sm transition-colors" />
+              </div>
+              <div
+                onMouseDown={handleResizeStart('ne')}
+                onTouchStart={handleResizeStart('ne')}
+                className="absolute top-0 right-0 w-4 h-4 cursor-nesw-resize z-40"
+                title="Kéo góc để thu phóng khung chat"
+              />
+              <div
+                onMouseDown={handleResizeStart('sw')}
+                onTouchStart={handleResizeStart('sw')}
+                className="absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize z-40"
+                title="Kéo góc để thu phóng khung chat"
+              />
+              <div
+                onMouseDown={handleResizeStart('se')}
+                onTouchStart={handleResizeStart('se')}
+                className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize z-40 group flex items-center justify-center"
+                title="Kéo góc để thu phóng khung chat"
+              >
+                <span className="w-2 h-2 border-b-2 border-r-2 border-[#42DFFF]/40 group-hover:border-[#42DFFF] rounded-br-sm transition-colors" />
+              </div>
+            </>
+          )}
           {/* HEADER CHATBOX (Hỗ trợ kéo di chuyển cửa sổ & nhấp đúp để về chỗ cũ) */}
           <div
             onMouseDown={handleDragStart}
@@ -568,6 +840,29 @@ const ChatWidget = () => {
 
               <button
                 type="button"
+                onClick={handleToggleExpand}
+                className="p-1.5 hover:bg-slate-800 rounded-lg hover:text-white transition-colors cursor-pointer"
+                title={isExpanded ? 'Thu về kích thước mặc định' : 'Phóng to khung chat'}
+              >
+                {isExpanded ? (
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="4 14 10 14 10 20" />
+                    <polyline points="20 10 14 10 14 4" />
+                    <line x1="14" y1="10" x2="21" y2="3" />
+                    <line x1="3" y1="21" x2="10" y2="14" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 3 21 3 21 9" />
+                    <polyline points="9 21 3 21 3 15" />
+                    <line x1="21" y1="3" x2="14" y2="10" />
+                    <line x1="3" y1="21" x2="10" y2="14" />
+                  </svg>
+                )}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => {
                   setIsOpen(false);
                   setIsMinimized(false);
@@ -607,7 +902,7 @@ const ChatWidget = () => {
                 {/* Mốc thời gian trung tâm */}
                 <div className="text-center">
                   <span className="text-[11px] font-medium text-[#BEC5E5] bg-[#11152F] px-3 py-1 rounded-full border border-[#AA9BFF]/20">
-                    Hôm nay, 18:42
+                    Hôm nay, {sessionStartedTime}
                   </span>
                 </div>
 
@@ -635,9 +930,10 @@ const ChatWidget = () => {
                             ? [msg.movieCard]
                             : [];
                       const hasCards = cardsToRender.length > 0;
+                      const isWideGrid = chatSize.width >= 580 && cardsToRender.length > 1;
 
                       return (
-                        <div className="max-w-[85%]">
+                        <div className={isWideGrid ? 'max-w-[92%] w-full' : 'max-w-[85%]'}>
                           <div
                             className={`p-3.5 shadow-md ${msg.sender === 'user'
                                 ? 'bg-gradient-to-r from-[#F4A5FF] via-[#A855F7] via-[#42DFFF] to-[#83F5FF] text-[#0B1026] rounded-2xl rounded-tr-xs shadow-[0_0_16px_rgba(168,85,247,0.35)] font-bold'
@@ -658,9 +954,9 @@ const ChatWidget = () => {
 
                             {renderMessageContent(msg.text, hasCards)}
 
-                            {/* Danh sách Thẻ Phim Tương Tác cho TẤT CẢ phim tìm được */}
+                            {/* Danh sách Thẻ Phim Tương Tác (tự động dàn 2 cột khi khung chat rộng >= 580px) */}
                             {hasCards && (
-                              <div className="space-y-2 mt-3">
+                              <div className={isWideGrid ? 'grid grid-cols-2 gap-2.5 mt-3' : 'space-y-2 mt-3'}>
                                 {cardsToRender.map((card, cIdx) => {
                                   const slots =
                                     Array.isArray(card.showtimes) && card.showtimes.length > 0
@@ -784,6 +1080,21 @@ const ChatWidget = () => {
                                 })}
                               </div>
                             )}
+                            {/* Gợi ý bước tiếp theo theo ngữ cảnh (quickReplies từ Backend) */}
+                            {msg.sender === 'bot' && Array.isArray(msg.quickReplies) && msg.quickReplies.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-[#AA9BFF]/15">
+                                {msg.quickReplies.map((qr, qIdx) => (
+                                  <button
+                                    key={qIdx}
+                                    type="button"
+                                    onClick={() => handleChipClick(qr)}
+                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#20204B] hover:bg-[#2a2a60] text-[#83F5FF] border border-[#42DFFF]/30 transition-colors cursor-pointer"
+                                  >
+                                    {qr}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
 
                           {/* Thời gian & Trạng thái đã xem */}
@@ -858,9 +1169,9 @@ const ChatWidget = () => {
                   {/* Nút cộng tác vụ bổ sung (+) */}
                   <button
                     type="button"
-                    onClick={() => setInput('Gợi ý cho tôi các ghế VIP đẹp nhất phòng chiếu IMAX')}
+                    onClick={() => setInput('Các bộ phim đang chiếu hiện tại?')}
                     className="w-6 h-6 rounded-lg text-[#BEC5E5] hover:text-[#F8F7FF] hover:bg-[#20204B] flex items-center justify-center text-sm font-bold mr-2 transition-colors cursor-pointer"
-                    title="Gợi ý câu hỏi"
+                    title="Gợi ý câu hỏi nhanh"
                   >
                     ⊕
                   </button>
@@ -869,7 +1180,7 @@ const ChatWidget = () => {
                   <input
                     ref={inputRef}
                     type="text"
-                    placeholder="Đặt trước 2 vé ghế F6 F7 luôn nhé!..."
+                    placeholder="Hỏi phim đang chiếu, suất tối nay, ghế trống, vé của tôi..."
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     className="flex-1 bg-transparent text-xs sm:text-[13px] text-[#F8F7FF] placeholder-[#BEC5E5]/50 focus:outline-none"
