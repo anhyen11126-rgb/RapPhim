@@ -16,6 +16,7 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Showtime',
       required: true,
+      index: true,
     },
     customerName: {
       type: String,

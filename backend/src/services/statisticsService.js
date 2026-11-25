@@ -419,7 +419,7 @@ class StatisticsService {
       { $group: { _id: { $ifNull: ['$paymentStatus', 'LEGACY_UNVERIFIED'] }, count: { $sum: 1 } } },
     ]);
     const paymentCounts = Object.fromEntries(summaryRows.map(entry => [entry._id, entry.count]));
-    const profitKnown = currentBookings.some(order => ['VERIFIED', 'SIMULATED'].includes(order.paymentStatus)) && currentExpenses.length > 0;
+    const profitKnown = currentBookings.some(order => ['VERIFIED', 'SIMULATED'].includes(order.paymentStatus));
 
     return {
       timeRangeLabel: label,
@@ -839,7 +839,7 @@ class StatisticsService {
         tickets: d.tickets,
       }));
 
-    const profitKnown = bookings.some(order => ['VERIFIED', 'SIMULATED'].includes(order.paymentStatus)) && expenses.length > 0;
+    const profitKnown = bookings.some(order => ['VERIFIED', 'SIMULATED'].includes(order.paymentStatus));
 
     return {
       timeRangeLabel: label,

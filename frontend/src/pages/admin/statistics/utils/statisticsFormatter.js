@@ -20,13 +20,15 @@ export const formatExactCurrency = (val = 0) => {
  */
 export const formatCompactCurrency = (val = 0) => {
   const num = Number(val || 0);
-  if (num >= 1000000000) {
-    const b = (num / 1000000000).toFixed(2).replace(/\.00$/, '').replace('.', ',');
-    return `${b} tỷ ₫`;
+  const sign = num < 0 ? '-' : '';
+  const abs = Math.abs(num);
+  if (abs >= 1000000000) {
+    const b = (abs / 1000000000).toFixed(2).replace(/\.00$/, '').replace('.', ',');
+    return `${sign}${b} tỷ ₫`;
   }
-  if (num >= 1000000) {
-    const m = (num / 1000000).toFixed(1).replace(/\.0$/, '').replace('.', ',');
-    return `${m} tr ₫`;
+  if (abs >= 1000000) {
+    const m = (abs / 1000000).toFixed(1).replace(/\.0$/, '').replace('.', ',');
+    return `${sign}${m} tr ₫`;
   }
   return formatExactCurrency(num);
 };

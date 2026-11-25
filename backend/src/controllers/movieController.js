@@ -221,6 +221,8 @@ export const getMovieSchedule = async (req, res) => {
       ? [] : await Showtime.find({
       movieId: movie._id,
       startTime: { $gte: start, $lt: new Date(start.getTime() + dayMs) },
+      cancelledAt: null,
+      isLocked: { $ne: true },
     }).populate('roomId', 'name roomType formatFeature totalSeats')
       .populate('cinemaId', 'name address')
       .sort({ startTime: 1 }).lean();

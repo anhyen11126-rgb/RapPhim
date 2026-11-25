@@ -34,6 +34,10 @@ const showtimeSchema = new mongoose.Schema(
     },
     endTime: Date,
     cancelledAt: Date,
+    cancelReason: { type: String, default: '' },
+    batchId: { type: String, default: null, index: true },
+    creationSource: { type: String, enum: ['MANUAL', 'RECURRING', 'BULK'], default: 'MANUAL' },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     bookingRevision: { type: Number, default: 0, select: false },
     cleaningMinutes: { type: Number, min: 0 },
     price: {

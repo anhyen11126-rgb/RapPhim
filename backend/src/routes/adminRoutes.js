@@ -1,3 +1,9 @@
+import {
+  previewBulkDeleteShowtimes,
+  commitBulkDeleteShowtimes,
+  queryShowtimesByCondition,
+  deleteShowtimeSafe,
+} from '../controllers/bulkShowtimeController.js';
 import express from 'express';
 import {
   adminLogin,
@@ -87,7 +93,10 @@ router.put('/showtimes/:id/toggle-lock', authenticateAdmin, toggleShowtimeLock);
 router.get('/showtimes/:id/bookings', authenticateAdmin, getShowtimeBookings);
 router.post('/showtimes', authenticateAdmin, createShowtime);
 router.put('/showtimes/:id', authenticateAdmin, updateShowtime);
-router.delete('/showtimes/:id', authenticateAdmin, deleteShowtime);
+router.post('/showtimes/bulk-delete/preview', authenticateAdmin, previewBulkDeleteShowtimes);
+router.post('/showtimes/bulk-delete/commit', authenticateAdmin, commitBulkDeleteShowtimes);
+router.post('/showtimes/query-condition', authenticateAdmin, queryShowtimesByCondition);
+router.delete('/showtimes/:id', authenticateAdmin, deleteShowtimeSafe);
 
 // Quản lý Bảng giá vé (Cấu hình động từ MongoDB)
 router.get('/pricing', authenticateAdmin, getAdminPricingConfig);

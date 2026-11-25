@@ -258,7 +258,7 @@ export const deleteMovie = async (req, res) => {
 
 class ScheduleConflict extends Error {}
 
-async function scheduleInRoom({ room, movie, start, price, pricing, session }) {
+async function scheduleInRoom({ room, movie, start, price, pricing, session, formatFeature: fmtOverride, batchId, creationSource, createdBy }) {
   const duration = Number(movie.duration);
   const cleaningMinutes = 15;
   if (!Number.isFinite(duration) || duration <= 0) throw new ScheduleConflict('Phim chưa có thời lượng hợp lệ.');
@@ -313,8 +313,11 @@ async function scheduleInRoom({ room, movie, start, price, pricing, session }) {
   }, pricing);
   const [showtime] = await Showtime.create([{
     movieId: movie._id, cinemaId: room.cinemaId, roomId: room._id, roomName: room.name,
-    formatFeature: room.formatFeature, startTime: start, endTime, cleaningMinutes,
+    formatFeature: fmtOverride ?? room.formatFeature, startTime: start, endTime, cleaningMinutes,
     price: price ?? calculated.priceStandard,
+    batchId: batchId || null,
+    creationSource: creationSource || 'MANUAL',
+    createdBy: createdBy || null,
   }], { session });
   await ShowtimeSeat.insertMany(seatTemplates.map(({ row, col, seatNumber, type }) => ({
     roomId: room._id, showtimeId: showtime._id, row, col, seatNumber, type, status: 'AVAILABLE',
@@ -896,6 +899,8 @@ export const batchScheduleShowtimes = async (req, res) => {
       });
     }
 
+    const batchId = 'BATCH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+    const createdSlotIds = [];
     const totalCreatedShowtimes = await mongoose.connection.transaction(async session => {
       let count = 0;
       for (const [index, roomId] of uniqueRooms.entries()) {
@@ -905,14 +910,24 @@ export const batchScheduleShowtimes = async (req, res) => {
           for (const time of uniqueTimes) {
             const startsAt = new Date(businessDate(new Date(date)) + 'T' + time + ':00+07:00');
             if (startsAt <= new Date()) continue;
-            await scheduleInRoom({ room, movie, start: startsAt, pricing, session });
+            const created = await scheduleInRoom({
+              room, movie, start: startsAt, pricing, session,
+              batchId, creationSource: 'BULK', createdBy: req.user?._id || null,
+            });
+            if (created?._id) createdSlotIds.push(created._id.toString());
             count++;
           }
         }
       }
       return count;
     });
-    return res.json({ success: true, totalCreatedShowtimes, message: 'Đã tạo ' + totalCreatedShowtimes + ' suất chiếu.' });
+    return res.json({
+      success: true,
+      batchId,
+      totalCreatedShowtimes,
+      createdSlotIds,
+      message: 'Đã tạo ' + totalCreatedShowtimes + ' suất chiếu.',
+    });
   } catch (error) {
     if (error instanceof ScheduleConflict) return res.status(409).json({ message: error.message });
     console.error('Batch scheduling failed:', error.name);
@@ -2052,6 +2067,7 @@ const _recurringRequestCache = new Set();
 export const commitRecurringShowtimes = async (req, res) => {
   try {
     const { confirmedSlots, requestId } = req.body;
+    const batchId = 'BATCH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
 
     if (!Array.isArray(confirmedSlots) || confirmedSlots.length === 0)
       return res.status(400).json({ message: 'Danh sách suất chiếu xác nhận trống.' });
@@ -2101,6 +2117,9 @@ export const commitRecurringShowtimes = async (req, res) => {
             price: price == null ? undefined : Number(price),
             pricing, session,
             formatFeature: (typeof slotFormat === 'string' && slotFormat.trim()) ? slotFormat.trim() : undefined,
+            batchId,
+            creationSource: 'RECURRING',
+            createdBy: req.user?._id || null,
           });
         });
 
@@ -2126,6 +2145,9 @@ export const commitRecurringShowtimes = async (req, res) => {
       message: allOk
         ? `Đã tạo thành công ${created.length} suất chiếu.`
         : `Tạo ${created.length}/${confirmedSlots.length} suất chiếu. ${conflicts.length} xung đột, ${failed.length} lỗi.`,
+      batchId,
+      requestedCount: confirmedSlots.length,
+      successCount: created.length,
       created,
       conflicts,
       failed,

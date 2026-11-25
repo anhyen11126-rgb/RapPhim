@@ -136,7 +136,7 @@ export const isValidShowtimeForBooking = (showtime, movieId = null, nowDate = ne
 
   // Kiểm tra trạng thái mở bán
   const stStatus = String(showtime.status || 'OPEN').toUpperCase();
-  if (showtime.isLocked || stStatus === 'CLOSED' || stStatus === 'CANCELLED' || stStatus === 'INACTIVE') {
+  if (showtime.isLocked || showtime.cancelledAt || stStatus === 'CLOSED' || stStatus === 'CANCELLED' || stStatus === 'INACTIVE') {
     return false;
   }
 
@@ -578,8 +578,10 @@ export const fetchCinemaContextOptimized = async (options = {}) => {
         ? await Showtime.find({
             movieId: { $in: movieIds },
             startTime: { $gt: nowDate },
+            cancelledAt: null,
+            isLocked: { $ne: true },
           })
-            .select('movieId cinemaId roomId roomName formatFeature startTime price')
+            .select('movieId cinemaId roomId roomName formatFeature startTime price isLocked cancelledAt')
             .populate('roomId', 'name roomType formatFeature totalSeats')
             .sort({ startTime: 1 })
             .lean()
