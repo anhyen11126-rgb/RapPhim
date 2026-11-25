@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 
 const require = createRequire(import.meta.url);
@@ -13,7 +14,7 @@ const BACKEND_PORT = 5058;
 const FRONTEND_PORT = 4175;
 const API_BASE = `http://127.0.0.1:${BACKEND_PORT}`;
 const UI_BASE = `http://localhost:${FRONTEND_PORT}`;
-const SHOT_DIR = new URL('../../docs/acceptance-screenshots', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1');
+const SHOT_DIR = fileURLToPath(new URL('../../docs/acceptance-screenshots', import.meta.url));
 
 mkdirSync(SHOT_DIR, { recursive: true });
 
