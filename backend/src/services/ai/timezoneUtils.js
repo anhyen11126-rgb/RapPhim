@@ -99,14 +99,34 @@ export const getRelativeDayLabel = (targetDate, nowDate = new Date()) => {
  * Trích xuất yêu cầu ngày chiếu từ câu hỏi người dùng (hôm nay, ngày mai, ngày kia, hoặc DD/MM[/YYYY])
  */
 export const parseVietnameseDateFromText = (text = '', nowDate = new Date()) => {
-  const lower = String(text || '').toLowerCase().trim();
-  const noTone = stripTones(lower);
+  const lower = String(text || '')
+    .toLowerCase()
+    .replace(/\bchiếu\s+này\b/gi, 'chieu_this')
+    .trim();
+  const noTone = stripTones(lower).replace(/\b(suat|lich)\s+chieu\s+nay\b/gi, '$1 chieu_this');
   const nowParts = getVNDateParts(nowDate);
   if (!nowParts) return null;
 
+  // 1b. Hôm qua / ngày hôm qua (-1 ngày) -> đánh dấu ngày đã qua
+  if (/\b(hom\s+qua|ngay\s+hom\s+qua|toi\s+qua|dem\s+qua|yesterday|last\s+night)\b/i.test(noTone)) {
+    const target = new Date(nowDate.getTime() - 24 * 60 * 60 * 1000);
+    const parts = getVNDateParts(target);
+    const bounds = getVNDayBounds(parts.year, parts.month, parts.day);
+    return {
+      type: 'YESTERDAY',
+      isPastDate: true,
+      dateKey: parts.dateKey,
+      displayDate: parts.displayDate,
+      displayShortDate: parts.displayShortDate,
+      label: `hôm qua (${parts.displayShortDate})`,
+      labelEn: `yesterday (${parts.displayShortDate})`,
+      ...bounds,
+    };
+  }
+
   // 1. Kiểm tra định dạng ngày cụ thể DD/MM/YYYY hoặc DD-MM-YYYY hoặc DD/MM
   const explicitDateMatch = noTone.match(
-    /\b(?:ngay\s*)?(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/i
+    /\b(?:ngay\s*|on\s*)?(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/i
   );
   if (explicitDateMatch) {
     const day = Number(explicitDateMatch[1]);
@@ -118,60 +138,69 @@ export const parseVietnameseDateFromText = (text = '', nowDate = new Date()) => 
       const target = createVNDate(year, month, day, 12, 0, 0);
       const parts = getVNDateParts(target);
       const bounds = getVNDayBounds(parts.year, parts.month, parts.day);
+      const isPastDate = parts.dateKey < nowParts.dateKey;
       return {
         type: 'SPECIFIC_DATE',
+        isPastDate,
         dateKey: parts.dateKey,
         displayDate: parts.displayDate,
         displayShortDate: parts.displayShortDate,
         label: getRelativeDayLabel(target, nowDate),
+        labelEn: parts.dateKey === nowParts.dateKey ? `today (${parts.displayShortDate})` : `on ${parts.displayDate}`,
         ...bounds,
       };
     }
   }
 
   // 2. Ngày kia / ngày mốt (+2 ngày)
-  if (/\b(ngay\s+kia|ngay\s+mot|hom\s+kia)\b/i.test(noTone)) {
+  if (/\b(ngay\s+kia|ngay\s+mot|hom\s+kia|day\s+after\s+tomorrow)\b/i.test(noTone)) {
     const target = new Date(nowDate.getTime() + 2 * 24 * 60 * 60 * 1000);
     const parts = getVNDateParts(target);
     const bounds = getVNDayBounds(parts.year, parts.month, parts.day);
     return {
       type: 'DAY_AFTER',
+      isPastDate: false,
       dateKey: parts.dateKey,
       displayDate: parts.displayDate,
       displayShortDate: parts.displayShortDate,
       label: `ngày kia (${parts.displayShortDate})`,
+      labelEn: `the day after tomorrow (${parts.displayShortDate})`,
       ...bounds,
     };
   }
 
   // 3. Ngày mai / tối mai / sáng mai / chiều mai / trưa mai (+1 ngày)
-  if (/\b(ngay\s+mai|toi\s+mai|sang\s+mai|chieu\s+mai|trua\s+mai|dem\s+mai|hom\s+sau)\b/i.test(noTone)) {
+  if (/\b(ngay\s+mai|toi\s+mai|sang\s+mai|chieu\s+mai|trua\s+mai|dem\s+mai|hom\s+sau|tomorrow)\b/i.test(noTone)) {
     const target = new Date(nowDate.getTime() + 24 * 60 * 60 * 1000);
     const parts = getVNDateParts(target);
     const bounds = getVNDayBounds(parts.year, parts.month, parts.day);
     return {
       type: 'TOMORROW',
+      isPastDate: false,
       dateKey: parts.dateKey,
       displayDate: parts.displayDate,
       displayShortDate: parts.displayShortDate,
       label: `ngày mai (${parts.displayShortDate})`,
+      labelEn: `tomorrow (${parts.displayShortDate})`,
       ...bounds,
     };
   }
 
-  // 4. Hôm nay / tối nay / chiều nay / sáng nay / trưa nay / đêm nay / bây giờ
+  // 4. Hôm nay / tối nay / chiều nay / sáng nay / trưa nay / đêm nay / bây giờ / today / tonight
   if (
-    /\b(hom\s+nay|toi\s+nay|chieu\s+nay|sang\s+nay|trua\s+nay|dem\s+nay|bay\s+gio|hien\s+tai)\b/i.test(
+    /\b(hom\s+nay|toi\s+nay|chieu\s+nay|sang\s+nay|trua\s+nay|dem\s+nay|bay\s+gio|hien\s+tai|today|tonight|this\s+evening|this\s+afternoon|this\s+morning)\b/i.test(
       noTone
     )
   ) {
     const bounds = getVNDayBounds(nowParts.year, nowParts.month, nowParts.day);
     return {
       type: 'TODAY',
+      isPastDate: false,
       dateKey: nowParts.dateKey,
       displayDate: nowParts.displayDate,
       displayShortDate: nowParts.displayShortDate,
       label: `hôm nay (${nowParts.displayShortDate})`,
+      labelEn: `today (${nowParts.displayShortDate})`,
       ...bounds,
     };
   }
@@ -183,8 +212,10 @@ export const parseVietnameseDateFromText = (text = '', nowDate = new Date()) => 
  * Trích xuất bộ lọc khung giờ từ câu hỏi người dùng
  */
 export const parseTimeFilterFromText = (text = '') => {
-  const lower = String(text || '').toLowerCase();
-  const noTone = stripTones(lower);
+  const lower = String(text || '')
+    .toLowerCase()
+    .replace(/\bchiếu\s+này\b/gi, 'chieu_this');
+  const noTone = stripTones(lower).replace(/\b(suat|lich)\s+chieu\s+nay\b/gi, '$1 chieu_this');
 
   // Khoảng giờ: "từ 21h đến 22h", "21h-22h", "21h - 22h"
   const rangeMatch = noTone.match(
@@ -270,41 +301,80 @@ export const parseTimeFilterFromText = (text = '') => {
     }
   }
 
+  // Giờ cụ thể tiếng Anh dạng "7pm", "7:30pm", "at 8 pm", "after 7pm"
+  const ampmAfterMatch = noTone.match(/\bafter\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+  if (ampmAfterMatch) {
+    let h = Number(ampmAfterMatch[1]);
+    const m = ampmAfterMatch[2] ? Number(ampmAfterMatch[2]) : 0;
+    const mer = ampmAfterMatch[3].toLowerCase();
+    if (mer === 'pm' && h < 12) h += 12;
+    if (mer === 'am' && h === 12) h = 0;
+    return {
+      type: 'AFTER',
+      minMinutes: h * 60 + m,
+      maxMinutes: 23 * 60 + 59,
+      label: `sau ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+      labelEn: `after ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+    };
+  }
+
+  const ampmExactMatch = noTone.match(/\b(?:at\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+  if (ampmExactMatch) {
+    let h = Number(ampmExactMatch[1]);
+    const m = ampmExactMatch[2] ? Number(ampmExactMatch[2]) : 0;
+    const mer = ampmExactMatch[3].toLowerCase();
+    if (mer === 'pm' && h < 12) h += 12;
+    if (mer === 'am' && h === 12) h = 0;
+    const exactTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    return {
+      type: ampmExactMatch[2] ? 'EXACT' : 'HOUR',
+      exactTime,
+      minMinutes: h * 60 + (ampmExactMatch[2] ? m : 0),
+      maxMinutes: h * 60 + (ampmExactMatch[2] ? m : 59),
+      label: `lúc ${exactTime}`,
+      labelEn: `at ${exactTime}`,
+    };
+  }
+
   // Buổi trong ngày
-  if (/\b(suat\s+khuya|dem\s+khuya|sau\s+22h)\b/i.test(noTone)) {
+  if (/\b(suat\s+khuya|dem\s+khuya|sau\s+22h|late\s+night)\b/i.test(noTone)) {
     return {
       type: 'PERIOD',
       period: 'LATE_NIGHT',
       minMinutes: 22 * 60,
       maxMinutes: 23 * 60 + 59,
       label: 'suất khuya (từ 22:00)',
+      labelEn: 'late night (from 22:00)',
     };
   }
-  if (/\b(buoi\s+toi|toi\s+nay|toi\s+mai)\b/i.test(noTone)) {
+  if (/\b(buoi\s+toi|toi\s+nay|toi\s+mai|tonight|this\s+evening|tomorrow\s+night|tomorrow\s+evening|in\s+the\s+evening)\b/i.test(noTone)) {
     return {
       type: 'PERIOD',
       period: 'EVENING',
       minMinutes: 17 * 60,
       maxMinutes: 23 * 60 + 59,
       label: 'buổi tối (từ 17:00)',
+      labelEn: 'evening (from 17:00)',
     };
   }
-  if (/\b(buoi\s+chieu|chieu\s+nay|chieu\s+mai)\b/i.test(noTone)) {
+  if (/\b(buoi\s+chieu|chieu\s+nay|chieu\s+mai|this\s+afternoon|tomorrow\s+afternoon|in\s+the\s+afternoon)\b/i.test(noTone)) {
     return {
       type: 'PERIOD',
       period: 'AFTERNOON',
       minMinutes: 12 * 60,
       maxMinutes: 17 * 60 + 59,
       label: 'buổi chiều (12:00 - 17:59)',
+      labelEn: 'afternoon (12:00 - 17:59)',
     };
   }
-  if (/\b(buoi\s+sang|sang\s+nay|sang\s+mai)\b/i.test(noTone)) {
+  if (/\b(buoi\s+sang|sang\s+nay|sang\s+mai|this\s+morning|tomorrow\s+morning|in\s+the\s+morning)\b/i.test(noTone)) {
     return {
       type: 'PERIOD',
       period: 'MORNING',
       minMinutes: 6 * 60,
       maxMinutes: 11 * 60 + 59,
       label: 'buổi sáng (trước 12:00)',
+      labelEn: 'morning (before 12:00)',
     };
   }
 

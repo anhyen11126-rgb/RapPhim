@@ -55,7 +55,8 @@ export const chatWithAI = async (req, res) => {
     console.error('[AiController] Lỗi khi xử lý hội thoại AI:', error.message);
     res.status(500).json({
       success: false,
-      message: 'Hệ thống Trợ lý AI đang bận, vui lòng thử lại sau giây lát.',
+      reply: 'Hiện tại mình chưa thể tải được thông tin từ hệ thống. Bạn vui lòng thử lại sau ít phút nhé!',
+      message: 'Hiện tại mình chưa thể tải được thông tin từ hệ thống. Bạn vui lòng thử lại sau ít phút nhé!',
     });
   }
 };
@@ -77,7 +78,7 @@ export const getPublicAiConfig = async (req, res) => {
       botVersion: config.botVersion,
       welcomeMessage: config.welcomeMessage,
       isEnabled: config.isEnabled,
-      quickChips: config.quickChips,
+      quickChips: [],
     });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi lấy cấu hình Chatbot AI', error: error.message });

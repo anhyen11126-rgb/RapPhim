@@ -5,6 +5,8 @@ import Showtime from '../../models/Showtime.js';
 import ShowtimeSeat from '../../models/ShowtimeSeat.js';
 import Booking from '../../models/Booking.js';
 import Cinema from '../../models/Cinema.js';
+import Room from '../../models/Room.js';
+import Faq from '../../models/Faq.js';
 import Concession from '../../models/Concession.js';
 import Promotion from '../../models/Promotion.js';
 import { ensurePricingConfig } from '../pricingConfigService.js';
@@ -228,10 +230,13 @@ export const buildNormalizedCinemaContext = ({
   seatsByShowtimeId = new Map(),
   bookedCountByShowtimeId = new Map(),
   cinemas = [],
+  rooms = [],
+  systemFaqs = [],
   concessions = [],
   promotions = [],
   pricingConfig = null,
   nowDate = new Date(),
+  dbError = false,
 }) => {
   const cinemaMap = new Map();
   for (const c of cinemas) {
@@ -270,6 +275,7 @@ export const buildNormalizedCinemaContext = ({
     const bookedFallbackCount = Number(bookedCountByShowtimeId.get(stId)) || 0;
 
     let availableSeats = 0;
+    let holdingSeats = 0;
     let totalSeats = roomTotalSeats;
     let seatsInitialized = false;
     let rawSeats = [];
@@ -283,6 +289,7 @@ export const buildNormalizedCinemaContext = ({
         totalSeats = seatsInitialized ? rawSeats.length : roomTotalSeats;
         if (seatsInitialized) {
           availableSeats = 0;
+          holdingSeats = 0;
           for (const s of rawSeats) {
             if (isSeatAvailableAt(s, nowDate)) {
               availableSeats += 1;
@@ -290,6 +297,8 @@ export const buildNormalizedCinemaContext = ({
               if (availableByTier[tier] !== undefined) {
                 availableByTier[tier] += 1;
               }
+            } else if (String(s?.status || '').toUpperCase() === 'HOLDING') {
+              holdingSeats += 1;
             }
           }
         } else {
@@ -304,6 +313,7 @@ export const buildNormalizedCinemaContext = ({
         if (seatsInitialized) {
           // Giữ nguyên 0 nếu availableCount === 0! Không bao giờ fallback || 42
           availableSeats = Math.max(0, Number(seatInfo.availableCount) || 0);
+          holdingSeats = Math.max(0, Number(seatInfo.holdingCount) || 0);
           availableByTier = {
             STANDARD: Number(seatInfo.availableStandard) || 0,
             VIP: Number(seatInfo.availableVip) || 0,
@@ -327,6 +337,8 @@ export const buildNormalizedCinemaContext = ({
       availableSeats = Math.max(0, totalSeats - bookedFallbackCount);
       availableByTier = { STANDARD: 48, VIP: 36, SWEETBOX: 4 };
     }
+
+    const bookedSeats = Math.max(0, totalSeats - availableSeats - holdingSeats);
 
     // 2.3. Tính giá vé chuẩn từ Database & cấu hình giá Admin
     const pricing = calculateShowtimePrices(st, pricingConfig);
@@ -352,12 +364,14 @@ export const buildNormalizedCinemaContext = ({
       hour: vnParts ? vnParts.hour : 0,
       minute: vnParts ? vnParts.minute : 0,
       dayMinutes: vnParts ? vnParts.hour * 60 + vnParts.minute : 0,
-      roomName: st.roomName || 'Phòng 01 - 2D',
+      roomId: st.roomId?._id ? String(st.roomId._id) : st.roomId ? String(st.roomId) : null,
+      roomName: st.roomId?.name || st.roomName || 'Phòng 01 - 2D',
+      roomType: st.roomId?.roomType || st.roomType || '',
       cinemaName: cinemaDoc?.name || st.cinemaName || "D'AVENOR Thanh Khê Plaza",
       cinemaAddress: cinemaDoc?.address || '',
       format: pricing.format,
       roomTypeLabel: pricing.roomTypeLabel,
-      formatFeature: st.formatFeature || pricing.roomTypeLabel,
+      formatFeature: st.roomId?.formatFeature || st.formatFeature || pricing.roomTypeLabel,
       price: pricing.priceStandard,
       priceStandard: pricing.priceStandard,
       priceVip: pricing.priceVip,
@@ -366,6 +380,8 @@ export const buildNormalizedCinemaContext = ({
       priceVipFormatted: formatVND(pricing.priceVip),
       priceSweetboxFormatted: formatVND(pricing.priceSweetbox),
       availableSeats,
+      bookedSeats,
+      holdingSeats,
       totalSeats,
       seatsInitialized,
       availableByTier,
@@ -384,8 +400,10 @@ export const buildNormalizedCinemaContext = ({
     showtimesByMovieId.get(movieIdStr).push(normalizedShowtime);
   }
 
-  // Chuẩn hóa danh sách phim kèm các suất chiếu thực tế từ MongoDB
-  const moviesWithDetails = movies.map((m) => {
+  // Chuẩn hóa danh sách phim kèm các suất chiếu thực tế từ MongoDB (Loại bỏ hoàn toàn phim đã ngừng chiếu ENDED)
+  const moviesWithDetails = movies
+    .filter((m) => m && String(m.status || 'NOW_SHOWING').toUpperCase() !== 'ENDED')
+    .map((m) => {
     const movieIdStr = String(m._id || m.id || '');
     const movieShowtimes = (showtimesByMovieId.get(movieIdStr) || []).sort(
       (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
@@ -472,12 +490,73 @@ export const buildNormalizedCinemaContext = ({
   const primaryCinema =
     normalizedCinemas.find((c) => c.isFlagship) || normalizedCinemas[0] || FALLBACK_PRIMARY_CINEMA;
 
+  // Chuẩn hóa danh sách phòng chiếu thực tế từ MongoDB (Room collection)
+  const normalizedRooms = Array.isArray(rooms)
+    ? rooms
+        .filter((r) => r && r.name)
+        .map((r) => ({
+          _id: String(r._id || r.id || ''),
+          cinemaId: r.cinemaId ? String(r.cinemaId) : String(primaryCinema._id || ''),
+          roomNumber: Number(r.roomNumber) || 0,
+          name: r.name,
+          shortName: r.shortName || r.name,
+          roomType: r.roomType || '2D Tiêu chuẩn',
+          formatFeature: r.formatFeature || '',
+          totalSeats: Number(r.totalSeats) > 0 ? Number(r.totalSeats) : 88,
+          status: String(r.status || 'ACTIVE').toUpperCase(),
+        }))
+        .sort((a, b) => a.roomNumber - b.roomNumber)
+    : [];
+
+  const roomTypeMap = new Map();
+  for (const room of normalizedRooms) {
+    const typeKey = room.roomType;
+    if (!roomTypeMap.has(typeKey)) {
+      roomTypeMap.set(typeKey, {
+        roomType: typeKey,
+        totalCount: 0,
+        activeCount: 0,
+        totalSeatsPerRoom: room.totalSeats,
+        sampleFeature: room.formatFeature || '',
+        roomNames: [],
+      });
+    }
+    const entry = roomTypeMap.get(typeKey);
+    entry.totalCount += 1;
+    if (room.status === 'ACTIVE') entry.activeCount += 1;
+    if (!entry.sampleFeature && room.formatFeature) entry.sampleFeature = room.formatFeature;
+    entry.roomNames.push(room.name);
+  }
+
+  const roomSummary = {
+    totalRooms: normalizedRooms.length,
+    activeRooms: normalizedRooms.filter((r) => r.status === 'ACTIVE').length,
+    maintenanceRooms: normalizedRooms.filter((r) => r.status === 'MAINTENANCE').length,
+    roomTypes: [...roomTypeMap.values()],
+  };
+
+  const normalizedSystemFaqs = Array.isArray(systemFaqs)
+    ? systemFaqs
+        .filter((f) => f && f.question && f.answer)
+        .map((f) => ({
+          _id: String(f._id || ''),
+          question: String(f.question).trim(),
+          answer: String(f.answer).trim(),
+          category: String(f.category || 'GENERAL').toUpperCase(),
+        }))
+    : [];
+
   return {
     nowIso: nowDate.toISOString(),
     nowVN: getVNDateParts(nowDate),
+    dbError: Boolean(dbError),
     primaryCinema,
     todayDailyDeal: getDailyDealForDate(nowDate),
     cinemas: normalizedCinemas,
+    rooms: normalizedRooms,
+    roomSummary,
+    systemFaqs: normalizedSystemFaqs,
+    pricingConfig,
     movies: moviesWithDetails,
     concessions: normalizedConcessions,
     promotions: validPromotions,
@@ -500,27 +579,33 @@ const fetchStaticMetadataCached = async (bypassCache = false) => {
     return staticMetadataCache.data;
   }
 
-  const [cinemas, concessions, promotions, pricingConfig] = await Promise.all([
+  const [cinemas, rooms, systemFaqs, concessions, promotions, pricingConfig] = await Promise.all([
     Cinema.find({})
       .select('name address city district openingHours hotline parking tags isFlagship')
+      .lean(),
+    Room.find({})
+      .select('cinemaId roomNumber name shortName roomType formatFeature totalSeats status')
+      .sort({ roomNumber: 1 })
+      .lean(),
+    Faq.find({})
+      .select('question answer category order')
+      .sort({ order: 1 })
       .lean()
       .catch(() => []),
     Concession.find({})
       .select('name price description category badge isActive')
       .sort({ price: 1 })
-      .lean()
-      .catch(() => []),
+      .lean(),
     Promotion.find({ $or: [{ isActive: true }, { status: 'ACTIVE' }] })
       .select(
         'title code type badgeText badgeTop discountValue discountPercent discountAmount minOrderValue description conditions category startDate endDate expiryDate status isActive'
       )
       .sort({ order: 1, createdAt: -1 })
-      .lean()
-      .catch(() => []),
+      .lean(),
     ensurePricingConfig().catch(() => null),
   ]);
 
-  const payload = { cinemas, concessions, promotions, pricingConfig };
+  const payload = { cinemas, rooms, systemFaqs, concessions, promotions, pricingConfig };
   staticMetadataCache = {
     expiresAt: nowMs + STATIC_METADATA_TTL_MS,
     data: payload,
@@ -548,9 +633,12 @@ export const fetchCinemaContextOptimized = async (options = {}) => {
       showtimes: [],
       seatsByShowtimeId: new Map(),
       cinemas: [],
+      rooms: [],
+      systemFaqs: [],
       concessions: [],
       promotions: [],
       nowDate,
+      dbError: true,
     });
   }
 
@@ -561,11 +649,11 @@ export const fetchCinemaContextOptimized = async (options = {}) => {
     }
 
     // 1. Đọc song song Movies (realtime) + Metadata ít đổi (cached 45s)
-    const [movies, { cinemas, concessions, promotions, pricingConfig }] = await Promise.all([
+    const [movies, { cinemas, rooms, systemFaqs, concessions, promotions, pricingConfig }] = await Promise.all([
       Movie.find(movieQuery)
         .select('title genre duration rating releaseDate status ageRating posterUrl description director cast')
         .sort({ rating: -1 })
-        .limit(40)
+        .limit(60)
         .lean(),
       fetchStaticMetadataCached(bypassCache),
     ]);
@@ -642,6 +730,11 @@ export const fetchCinemaContextOptimized = async (options = {}) => {
               _id: '$showtimeId',
               totalInitialized: { $sum: 1 },
               availableCount: { $sum: '$isAvailable' },
+              holdingCount: {
+                $sum: {
+                  $cond: [{ $and: [{ $eq: ['$status', 'HOLDING'] }, { $eq: ['$isAvailable', 0] }] }, 1, 0],
+                },
+              },
               availableStandard: {
                 $sum: {
                   $cond: [{ $and: [{ $eq: ['$type', 'STANDARD'] }, { $eq: ['$isAvailable', 1] }] }, 1, 0],
@@ -712,10 +805,13 @@ export const fetchCinemaContextOptimized = async (options = {}) => {
       seatsByShowtimeId,
       bookedCountByShowtimeId,
       cinemas,
+      rooms,
+      systemFaqs,
       concessions,
       promotions,
       pricingConfig,
       nowDate,
+      dbError: false,
     });
   } catch (error) {
     console.error('[CinemaContextService] Lỗi truy vấn dữ liệu MongoDB:', error.message);
@@ -724,9 +820,12 @@ export const fetchCinemaContextOptimized = async (options = {}) => {
       showtimes: [],
       seatsByShowtimeId: new Map(),
       cinemas: [],
+      rooms: [],
+      systemFaqs: [],
       concessions: [],
       promotions: [],
       nowDate,
+      dbError: true,
     });
   }
 };

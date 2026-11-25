@@ -28,13 +28,25 @@ export const matchFaqRule = (message = '', faqs = [], intent = INTENTS.UNKNOWN, 
   const transactionalIntents = [
     INTENTS.SHOWTIME_SEARCH,
     INTENTS.SHOWTIME_3D,
+    INTENTS.ROOM_INFO,
+    INTENTS.CINEMA_LOCATION,
     INTENTS.SEAT_AVAILABILITY,
     INTENTS.MOVIE_RECOMMENDATION,
     INTENTS.MOVIE_SEARCH,
     INTENTS.MOVIE_DETAIL,
+    INTENTS.PROMOTION_VOUCHER,
+    INTENTS.CONCESSION_COMBO,
   ];
 
-  if (hasTransactionalEntities || transactionalIntents.includes(intent)) {
+  if (
+    hasTransactionalEntities ||
+    entities.language === 'en' ||
+    entities.policySubType ||
+    entities.cinemaSubQuery ||
+    entities.roomSubQuery ||
+    entities.promoSubType ||
+    transactionalIntents.includes(intent)
+  ) {
     return null;
   }
 
@@ -46,6 +58,8 @@ export const matchFaqRule = (message = '', faqs = [], intent = INTENTS.UNKNOWN, 
 
   for (const rule of faqs) {
     if (!rule || rule.isActive === false || !rule.keywords || !rule.answer) continue;
+    // Bỏ qua FAQ cũ nếu chứa nhiều chi nhánh không tồn tại trong hệ thống thực tế
+    if (/Vincom Ngô Quyền|Hải Châu Center|Landmark 81/i.test(rule.answer)) continue;
 
     const rawKeywords = String(rule.keywords)
       .split(',')

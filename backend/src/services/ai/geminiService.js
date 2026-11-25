@@ -11,7 +11,17 @@ const GEMINI_TIMEOUT_MS = 8500;
  * giúp tiết kiệm token, tăng tốc độ phản hồi và tránh nhiễu thông tin.
  */
 export const buildSelectivePromptContext = (contextData, intent, entities = {}) => {
-  const { movies = [], cinemas = [], concessions = [], promotions = [], nowVN } = contextData;
+  const {
+    movies = [],
+    cinemas = [],
+    rooms = [],
+    roomSummary = null,
+    systemFaqs = [],
+    concessions = [],
+    promotions = [],
+    nowVN,
+  } = contextData;
+  const primaryCinema = contextData.primaryCinema || cinemas[0];
   const sections = [];
 
   sections.push(
@@ -22,14 +32,30 @@ export const buildSelectivePromptContext = (contextData, intent, entities = {}) 
     }`
   );
 
-  // Chỉ đính kèm thông tin cụm rạp khi cần thiết
-  if ([INTENTS.CINEMA_LOCATION, INTENTS.GENERAL_CHAT, INTENTS.BOOKING_GUIDE].includes(intent)) {
-    const cinemaLines = cinemas
-      .map((c) => `- ${c.name}: ${c.address}`)
+  // Chỉ đính kèm đúng 1 cụm rạp đang sử dụng
+  if (primaryCinema && [INTENTS.CINEMA_LOCATION, INTENTS.GENERAL_CHAT, INTENTS.BOOKING_GUIDE, INTENTS.CUSTOMER_SUPPORT, INTENTS.UNKNOWN].includes(intent)) {
+    sections.push(
+      `THÔNG TIN RẠP CHIẾU PHIM ĐANG HOẠT ĐỘNG:\n- Tên rạp: ${primaryCinema.name}\n- Địa chỉ: ${primaryCinema.address}\n- Giờ mở cửa: ${primaryCinema.openingHours}\n- Hotline: ${primaryCinema.hotline}`
+    );
+  }
+
+  // Đính kèm thông tin phòng chiếu thực tế từ MongoDB
+  if (rooms.length > 0 && [INTENTS.ROOM_INFO, INTENTS.UNKNOWN].includes(intent)) {
+    const typeLines = (roomSummary?.roomTypes || [])
+      .map((rt) => `- Loại phòng ${rt.roomType}: ${rt.totalCount} phòng (${rt.activeCount} đang hoạt động, ${rt.totalSeatsPerRoom} ghế/phòng) — ${rt.sampleFeature}`)
       .join('\n');
-    if (cinemaLines) {
-      sections.push(`HỆ THỐNG CỤM RẠP D'AVENOR ĐÀ NẴNG:\n${cinemaLines}`);
-    }
+    sections.push(
+      `DỮ LIỆU PHÒNG CHIẾU THỰC TẾ (TỔNG CỘNG ${roomSummary?.totalRooms || rooms.length} PHÒNG):\n${typeLines}`
+    );
+  }
+
+  // Đính kèm FAQ chính sách hệ thống nếu có
+  if (systemFaqs.length > 0 && [INTENTS.CUSTOMER_SUPPORT, INTENTS.PROMOTION_VOUCHER, INTENTS.UNKNOWN].includes(intent)) {
+    const faqLines = systemFaqs
+      .slice(0, 6)
+      .map((f) => `- Hỏi: ${f.question}\n  Đáp: ${f.answer}`)
+      .join('\n');
+    sections.push(`CHÍNH SÁCH HỆ THỐNG RẠP:\n${faqLines}`);
   }
 
   // Lọc danh sách phim liên quan
@@ -131,7 +157,8 @@ export const buildSystemInstruction = (
   botConfig,
   userInfo,
   selectiveContextText,
-  contextData = {}
+  contextData = {},
+  language = 'vi'
 ) => {
   return buildSystemPrompt({
     botConfig,
@@ -139,13 +166,14 @@ export const buildSystemInstruction = (
     selectiveContextText,
     primaryCinema: contextData?.primaryCinema,
     nowVN: contextData?.nowVN,
+    language,
   });
 };
 
 /**
  * Hậu kiểm (Post-validation) câu trả lời từ Gemini:
  * - Xóa bỏ mọi link `/booking/seat/<id>` nếu `<id>` không nằm trong danh sách `validBookingLinks` thực tế.
- * - Ngăn rò rỉ API key hoặc thông tin nhạy cảm.
+ * - Ngăn rò rỉ API key, chuỗi kết nối MongoDB hoặc thông tin nhạy cảm.
  */
 export const validateAndSanitizeAiReply = (rawReply = '', contextData = {}) => {
   if (!rawReply || typeof rawReply !== 'string') return '';
@@ -168,13 +196,15 @@ export const validateAndSanitizeAiReply = (rawReply = '', contextData = {}) => {
       if (validLinks.has(cleanUrl)) {
         return `[${label}](${cleanUrl})`;
       }
-      // Nếu Gemini tự chế link không hợp lệ hoặc link của suất đã hết ghế -> loại bỏ link
       return '';
     }
   );
 
-  // Ẩn nếu vô tình chứa chuỗi giống Google API Key (AIza...)
-  sanitized = sanitized.replace(/AIza[0-9A-Za-z\-_]{25,}/g, '[REDACTED]');
+  // Ẩn tuyệt đối nếu vô tình chứa chuỗi giống API Key, MongoDB URI hoặc biến bí mật
+  sanitized = sanitized
+    .replace(/AIza[0-9A-Za-z\-_]{20,}/g, '[REDACTED]')
+    .replace(/mongodb(?:\+srv)?:\/\/[^\s"'`]+/gi, '[REDACTED]')
+    .replace(/(?:GEMINI_API_KEY|JWT_SECRET|MONGODB_URI)\s*=\s*[^\s]+/gi, '[REDACTED]');
 
   return sanitized.trim();
 };
@@ -216,7 +246,8 @@ export const callGeminiWithGuardrails = async ({
     botConfig,
     userInfo,
     selectiveContextText,
-    contextData
+    contextData,
+    entities?.language || 'vi'
   );
 
   // Chuyển đổi lịch sử hội thoại sang chuẩn Gemini (tối đa 10 lượt gần nhất, đảm bảo bắt đầu bằng role 'user')

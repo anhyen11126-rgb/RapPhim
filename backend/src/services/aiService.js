@@ -22,6 +22,8 @@ import {
   INTENTS,
   MAX_USER_MESSAGE_LENGTH,
   validateAndSanitizeInput,
+  detectMessageLanguage,
+  classifySecurityThreat,
   detectPromptInjection,
   matchMovieFromText,
   extractEntities,
@@ -51,6 +53,11 @@ import {
   buildBookingLookupReply,
 } from './ai/bookingLookupService.js';
 import {
+  shouldHandleSmartBookingFlow,
+  handleSmartBookingTurn,
+  createSupportHandoffTicketIfPossible,
+} from './ai/smartBookingService.js';
+import {
   buildSelectivePromptContext,
   buildSystemInstruction,
   validateAndSanitizeAiReply,
@@ -66,9 +73,6 @@ const DEFAULT_CONFIG_FALLBACK = {
   quickChips: [],
 };
 
-/**
- * Đảm bảo luôn có 1 bản ghi cấu hình AI mặc định trong Database
- */
 export const ensureAiConfig = async () => {
   if (mongoose.connection.readyState !== 1) {
     return DEFAULT_CONFIG_FALLBACK;
@@ -85,9 +89,6 @@ export const ensureAiConfig = async () => {
   }
 };
 
-/**
- * Lưu lịch sử chat vào Database để Admin theo dõi & huấn luyện (Non-blocking, an toàn tuyệt đối)
- */
 const saveChatLogSafe = async ({
   userName,
   userEmail,
@@ -114,22 +115,33 @@ const saveChatLogSafe = async ({
   }
 };
 
-/**
- * Lấy toàn bộ ngữ cảnh thực tế từ MongoDB (Phim, Suất chiếu, Ghế trống, Combo, Khuyến mãi)
- * - Đã loại bỏ hoàn toàn logic tự tạo suất chiếu 3D giả
- * - Đã sửa lỗi `availableSeatsCount || 42`
- * - Đã loại bỏ N+1 queries bằng batch query & aggregation
- * - Đã lọc bỏ các suất chiếu đã qua (`startTime <= now`)
- */
 export const getCinemaCurrentContext = async (options = {}) => {
   return fetchCinemaContextOptimized(options);
 };
 
 /**
+ * Xây dựng thông báo từ chối bảo mật đúng chuẩn Mục 10.1, 10.2 và 10.3 (hỗ trợ tiếng Việt & tiếng Anh)
+ */
+const buildSecurityRefusalMessage = (threatType, lang = 'vi') => {
+  const isEn = lang === 'en';
+  if (threatType === 'API_KEY') {
+    return isEn
+      ? 'Sorry, I cannot provide API Keys, passwords, or internal system configuration details. I can help you check movies, showtimes, and book tickets!'
+      : 'Xin lỗi, mình không thể cung cấp API Key, mật khẩu hoặc thông tin cấu hình nội bộ của hệ thống. Mình có thể hỗ trợ bạn tra cứu phim, lịch chiếu và đặt vé xem phim nhé!';
+  }
+  if (threatType === 'MONGODB_DATA') {
+    return isEn
+      ? 'Sorry, I cannot retrieve or disclose personal data of other customers or internal database records. I can only assist with information related to your own account and transactions.'
+      : 'Xin lỗi, mình không thể truy xuất hoặc tiết lộ dữ liệu cá nhân của khách hàng khác. Mình chỉ có thể hỗ trợ các thông tin liên quan đến tài khoản và giao dịch của chính bạn.';
+  }
+  return isEn
+    ? 'Sorry, I cannot ignore system rules, change my role, or reveal internal instructions. I can assist you with movies, showtimes, seat availability, and ticket bookings!'
+    : 'Xin lỗi, mình không thể bỏ qua quy tắc hệ thống, thay đổi vai trò hoặc tiết lộ hướng dẫn nội bộ. Mình có thể hỗ trợ bạn tra cứu phim, lịch chiếu và đặt vé xem phim nhé!';
+};
+
+/**
  * Xử lý hội thoại AI chính:
- * Kết hợp Security Guard + Intent/Entity Detection + Multi-turn Context + Database Verification + Gemini AI
- * Giữ nguyên cấu trúc API Response tương thích 100% với Frontend:
- * `{ success, reply, intent, source, movieCard }`
+ * Bảo mật 3 lớp + Nhận diện Song ngữ + Đa lượt (Multi-turn) + Đặt vé 6 bước + Đồng bộ MongoDB thực tế + Gemini Guardrails
  */
 export const generateChatResponse = async (
   userMessage,
@@ -139,6 +151,8 @@ export const generateChatResponse = async (
 ) => {
   const nowDate = options.nowDate instanceof Date ? options.nowDate : new Date();
   const skipLog = Boolean(options.skipLog);
+  const prevSession =
+    options.sessionContext && typeof options.sessionContext === 'object' ? options.sessionContext : {};
 
   // 1. Validate & Sanitize dữ liệu đầu vào
   const { cleanMessage, isTooLong, safeHistory, safeUserInfo } = validateAndSanitizeInput(
@@ -147,21 +161,28 @@ export const generateChatResponse = async (
     userInfo
   );
 
+  const detectedLang = detectMessageLanguage(cleanMessage, prevSession.activeLanguage || 'vi');
+
   if (!cleanMessage) {
     return {
       success: true,
-      reply: 'Bạn vui lòng nhập nội dung câu hỏi để mình có thể hỗ trợ tra cứu lịch chiếu, giá vé hoặc ghế trống nhé!',
+      reply:
+        detectedLang === 'en'
+          ? 'Please enter your question so I can help you check movies, showtimes, or seat availability!'
+          : 'Bạn vui lòng nhập nội dung câu hỏi để mình hỗ trợ tra cứu phim, lịch chiếu hoặc ghế trống nhé!',
       intent: INTENTS.UNKNOWN,
       source: 'INPUT_VALIDATION',
       movieCard: null,
       movieCards: [],
+      quickReplies: [],
+      sessionContext: options.sessionContext || null,
     };
   }
 
-  // 2. Chặn tấn công Prompt Injection ngay từ đầu
-  if (detectPromptInjection(cleanMessage)) {
-    const safeRefusal =
-      "Xin lỗi bạn, tôi chỉ có thể hỗ trợ tư vấn phim, lịch chiếu, giá vé, ghế trống, combo bắp nước và khuyến mãi hợp lệ theo đúng dữ liệu của **D'AVENOR CINEMA**. Tôi không thể bỏ qua quy tắc hệ thống, tiết lộ cấu hình nội bộ hoặc tạo dữ liệu giao dịch giả.";
+  // 2. Chặn tấn công Bảo mật (Mục 10.1 API Key, 10.2 MongoDB Data, 10.3 Prompt Injection) ngay từ đầu
+  const securityThreat = classifySecurityThreat(cleanMessage);
+  if (securityThreat) {
+    const safeRefusal = buildSecurityRefusalMessage(securityThreat, detectedLang);
 
     await saveChatLogSafe({
       userName: safeUserInfo.userName,
@@ -181,6 +202,8 @@ export const generateChatResponse = async (
       source: 'SECURITY_GUARD',
       movieCard: null,
       movieCards: [],
+      quickReplies: [],
+      sessionContext: prevSession,
     };
   }
 
@@ -189,7 +212,9 @@ export const generateChatResponse = async (
 
   if (botConfig && botConfig.isEnabled === false) {
     const maintenanceReply =
-      "Hiện tại Trợ lý AI D'AVENOR đang tạm bảo trì để nâng cấp dữ liệu lịch chiếu. Bạn vui lòng đặt vé trực tiếp tại trang chủ hoặc liên hệ Hotline **1900 8899** nhé!";
+      detectedLang === 'en'
+        ? "D'AVENOR AI Assistant is temporarily under maintenance. Please book tickets directly on our website or call **1900 8899**!"
+        : "Hiện tại Trợ lý AI D'AVENOR đang tạm bảo trì. Bạn vui lòng đặt vé trực tiếp trên website hoặc liên hệ Hotline **1900 8899** nhé!";
     return {
       success: true,
       reply: maintenanceReply,
@@ -202,9 +227,10 @@ export const generateChatResponse = async (
     };
   }
 
-  // 4. Lấy ngữ cảnh dữ liệu rạp chiếu thực tế
+  // 4. Lấy ngữ cảnh dữ liệu rạp chiếu thực tế từ MongoDB
   const needsDetailedSeats =
-    /\b(liền\s+nhau|cạnh\s+nhau|sát\s+nhau|ghế\s+trống|còn\s+ghế|còn\s+\d+\s+ghế|sơ\s+đồ\s+ghế)\b/i.test(
+    Boolean(prevSession.bookingFlow?.active) ||
+    /\b(liền\s+nhau|cạnh\s+nhau|sát\s+nhau|lien\s+nhau|canh\s+nhau|ghế\s+trống|ghe\s+trong|còn\s+ghế|con\s+ghe|còn\s+\d+\s+ghế|sơ\s+đồ\s+ghế|so\s+do\s+ghe|adjacent|next\s+to\s+each\s+other|side\s+by\s+side|together|contiguous|available\s+seats?|how\s+many\s+seats?|seat\s+map|muốn\s+đặt|muon\s+dat|want\s+to\s+book)\b/i.test(
       cleanMessage
     );
 
@@ -220,7 +246,25 @@ export const generateChatResponse = async (
     });
   }
 
-  // 5. Nhận diện Intent + Trích xuất Entities + Giải quyết ngữ cảnh nhiều lượt (Multi-turn + sessionContext)
+  // Mục 12 & 15: Xử lý lỗi API hoặc trường hợp MongoDB không phản hồi (không tự tạo kết quả giả)
+  if (contextData.dbError) {
+    const dbErrReply =
+      detectedLang === 'en'
+        ? 'I am unable to load information from the system right now. Please try again in a few minutes!'
+        : 'Hiện tại mình chưa thể tải được thông tin từ hệ thống. Bạn vui lòng thử lại sau ít phút nhé!';
+    return {
+      success: true,
+      reply: dbErrReply,
+      intent: INTENTS.UNKNOWN,
+      source: 'DB_UNAVAILABLE',
+      movieCard: null,
+      movieCards: [],
+      quickReplies: [],
+      sessionContext: prevSession,
+    };
+  }
+
+  // 5. Nhận diện Intent + Trích xuất Entities + Giải quyết ngữ cảnh nhiều lượt
   const rawEntities = extractEntities(
     cleanMessage,
     contextData.movies,
@@ -238,16 +282,19 @@ export const generateChatResponse = async (
     options.sessionContext || null
   );
 
-  // 5b. Xử lý tra cứu đơn đặt vé cá nhân (Bắt buộc xác thực JWT, không bao giờ gửi sang LLM)
-  if (intent === INTENTS.BOOKING_LOOKUP) {
-    const authUser =
-      options.mockAuthUser !== undefined
-        ? options.mockAuthUser
-        : await extractAuthenticatedUserFromHeader(options.authHeader || '');
+  // Xác thực người dùng từ JWT Backend (Mục 10.4: Không tin vào tự khai Admin/khách hàng từ client)
+  const authUser =
+    options.mockAuthUser !== undefined
+      ? options.mockAuthUser
+      : await extractAuthenticatedUserFromHeader(options.authHeader || '');
 
+  // 5b. Xử lý tra cứu đơn đặt vé & lịch sử đặt vé (Mục 8.1, 8.2, 8.3 — Bắt buộc xác thực JWT, không gửi sang LLM)
+  if (intent === INTENTS.BOOKING_LOOKUP) {
     const lookupResult = await lookupUserBookings({
       authUser,
       bookingCode: entities.bookingCode,
+      mode: entities.bookingLookupMode || 'HISTORY',
+      userMessage: cleanMessage,
       nowDate,
       mockBookings: options.mockBookings || null,
     });
@@ -257,6 +304,7 @@ export const generateChatResponse = async (
       bookingCode: entities.bookingCode,
       authUser,
       primaryCinema: contextData.primaryCinema,
+      language: entities.language || detectedLang,
     });
 
     await saveChatLogSafe({
@@ -277,12 +325,58 @@ export const generateChatResponse = async (
       source: 'BOOKING_AUTH_LOOKUP',
       movieCard: null,
       movieCards: [],
-      quickReplies: bookingResponse.quickReplies || [],
-      sessionContext: options.sessionContext || null,
+      quickReplies: [],
+      sessionContext: {
+        ...prevSession,
+        activeLanguage: entities.language || detectedLang,
+      },
     };
   }
 
-  // 6. Kiểm tra FAQ do Admin huấn luyện (chỉ khớp khi độ tin cậy cao và không đè lên truy vấn giao dịch động)
+  // 5c. Xử lý Quy trình đặt vé thông minh 6 bước (Mục 7)
+  if (shouldHandleSmartBookingFlow({ intent, entities, sessionContext: prevSession })) {
+    const flowResult = await handleSmartBookingTurn({
+      userMessage: cleanMessage,
+      entities,
+      contextData,
+      sessionContext: prevSession,
+      authUser,
+      nowDate,
+      mockBookingExecutor: options.mockBookingExecutor || null,
+    });
+
+    const nextFlowSession = {
+      ...prevSession,
+      activeLanguage: entities.language || detectedLang,
+      activeMovieId: flowResult.bookingFlow?.movieId || null,
+      activeShowtimeId: flowResult.bookingFlow?.showtimeId || null,
+      bookingFlow: flowResult.bookingFlow,
+    };
+
+    await saveChatLogSafe({
+      userName: safeUserInfo.userName,
+      userEmail: safeUserInfo.userEmail,
+      userMessage: cleanMessage,
+      botReply: flowResult.reply,
+      intent: INTENTS.BOOKING_GUIDE,
+      source: 'SMART_BOOKING_FLOW',
+      recommendedMovie: flowResult.bookingFlow?.movieTitle || '',
+      skipLog,
+    });
+
+    return {
+      success: true,
+      reply: flowResult.reply,
+      intent: INTENTS.BOOKING_GUIDE,
+      source: 'SMART_BOOKING_FLOW',
+      movieCard: flowResult.movieCard || null,
+      movieCards: flowResult.movieCards || [],
+      quickReplies: [],
+      sessionContext: nextFlowSession,
+    };
+  }
+
+  // 6. Kiểm tra FAQ do Admin huấn luyện (chỉ khớp khi độ tin cậy cao và không đè lên truy vấn động)
   const matchedFaq = matchFaqRule(cleanMessage, botConfig?.faqs || [], intent, entities);
   if (matchedFaq) {
     await saveChatLogSafe({
@@ -303,7 +397,22 @@ export const generateChatResponse = async (
       source: 'ADMIN_FAQ_TRAINING',
       movieCard: null,
       movieCards: [],
+      quickReplies: [],
+      sessionContext: {
+        ...prevSession,
+        activeLanguage: entities.language || detectedLang,
+      },
     };
+  }
+
+  // 6b. Nếu khách yêu cầu gặp nhân viên hỗ trợ (Mục 9.5) và đã đăng nhập -> tạo phiếu chuyển tiếp hội thoại thật
+  let handoffTicket = null;
+  if (intent === INTENTS.CUSTOMER_SUPPORT && entities.policySubType === 'LIVE_AGENT') {
+    handoffTicket = await createSupportHandoffTicketIfPossible({
+      authUser,
+      userMessage: cleanMessage,
+      safeHistory,
+    });
   }
 
   // 7. Xây dựng câu trả lời xác thực từ Database
@@ -314,6 +423,7 @@ export const generateChatResponse = async (
     contextData,
     userInfo: safeUserInfo,
     nowDate,
+    handoffTicket,
   });
 
   const resolvedMovieCards =
@@ -323,12 +433,6 @@ export const generateChatResponse = async (
         ? [dbVerified.movieCard]
         : [];
 
-  const resolvedQuickReplies = Array.isArray(dbVerified.quickReplies)
-    ? dbVerified.quickReplies.slice(0, 3)
-    : [];
-
-  // Cập nhật sessionContext mới nhất để Frontend gửi lại ở lượt tiếp theo (nhớ ngữ cảnh đa lượt)
-  const prevSession = options.sessionContext && typeof options.sessionContext === 'object' ? options.sessionContext : {};
   const nextMovieIds =
     resolvedMovieCards.length > 0
       ? resolvedMovieCards.map((c) => c.movieId).filter(Boolean)
@@ -336,20 +440,35 @@ export const generateChatResponse = async (
         ? prevSession.lastMovieIds
         : [];
 
+  // Chỉ lưu activeMovieId / activeShowtimeId khi lượt hội thoại thực sự xoay quanh ĐÚNG 1 bộ phim cụ thể!
+  // Nếu là câu hỏi chung toàn rạp (isGeneralScopeQuery) hoặc trả về danh sách nhiều phim -> reset về null để tránh nhiễm ngữ cảnh sang câu sau.
+  const isSingleMovieTurn =
+    !entities.isGeneralScopeQuery &&
+    intent !== INTENTS.MOVIE_SEARCH &&
+    intent !== INTENTS.MOVIE_RECOMMENDATION &&
+    (Boolean(entities.matchedMovie) || resolvedMovieCards.length === 1);
+
+  const nextActiveMovieId = isSingleMovieTurn
+    ? String(entities.matchedMovie?._id || resolvedMovieCards[0]?.movieId || '') || null
+    : null;
+
+  const nextActiveShowtimeId = isSingleMovieTurn
+    ? dbVerified.movieCard?.showtimeId || entities.contextShowtimeId || null
+    : null;
+
   const nextSessionContext = {
-    activeMovieId:
-      entities.matchedMovie?._id ||
-      dbVerified.movieCard?.movieId ||
-      (intent === INTENTS.MOVIE_SEARCH ? null : prevSession.activeMovieId || null),
+    activeLanguage: entities.language || detectedLang,
+    activeMovieId: nextActiveMovieId,
     activeCinema: entities.cinemaLocation || prevSession.activeCinema || null,
-    activeDateFilter: entities.dateFilter || (intent === INTENTS.MOVIE_SEARCH ? null : prevSession.activeDateFilter || null),
-    activeTimeFilter: entities.timeFilter || null,
-    activeFormat: entities.format || null,
-    activeShowtimeId: dbVerified.movieCard?.showtimeId || entities.contextShowtimeId || prevSession.activeShowtimeId || null,
+    activeDateFilter: isSingleMovieTurn ? entities.dateFilter || prevSession.activeDateFilter || null : null,
+    activeTimeFilter: isSingleMovieTurn ? entities.timeFilter || null : null,
+    activeFormat: isSingleMovieTurn ? entities.format || null : null,
+    activeShowtimeId: nextActiveShowtimeId,
     lastMovieIds: nextMovieIds,
+    bookingFlow: null,
   };
 
-  // 8. Kết hợp Gemini AI khi câu hỏi mở (UNKNOWN) hoặc khi có customGeminiCaller cần diễn đạt tự nhiên
+  // 8. Kết hợp Gemini AI khi câu hỏi mở (UNKNOWN) hoặc khi có customGeminiCaller
   const shouldInvokeGemini =
     typeof options.customGeminiCaller === 'function' ||
     (intent === INTENTS.UNKNOWN &&
@@ -389,7 +508,7 @@ export const generateChatResponse = async (
           source: 'GEMINI_RAG',
           movieCard: dbVerified.movieCard,
           movieCards: resolvedMovieCards,
-          quickReplies: resolvedQuickReplies,
+          quickReplies: [],
           sessionContext: nextSessionContext,
         };
       }
@@ -397,7 +516,6 @@ export const generateChatResponse = async (
       console.warn('[AiService] Lỗi gọi Gemini, chuyển sang Database Fallback:', geminiErr.message);
     }
 
-    // Khi Gemini lỗi / timeout / trả về rỗng -> Dùng kết quả xác thực từ Database (DATABASE_FALLBACK)
     await saveChatLogSafe({
       userName: safeUserInfo.userName,
       userEmail: safeUserInfo.userEmail,
@@ -416,14 +534,16 @@ export const generateChatResponse = async (
       source: 'DATABASE_FALLBACK',
       movieCard: dbVerified.movieCard,
       movieCards: resolvedMovieCards,
-      quickReplies: resolvedQuickReplies,
+      quickReplies: [],
       sessionContext: nextSessionContext,
     };
   }
 
   // 9. Trả về phản hồi xác thực trực tiếp từ Database
   const lengthNotice = isTooLong
-    ? '\n\n*(Lưu ý: Tin nhắn của bạn khá dài nên hệ thống đã tóm lược phần nội dung chính để xử lý nhanh nhất)*'
+    ? detectedLang === 'en'
+      ? '\n\n*(Note: Your message was quite long, so the system summarized the key part for fast processing)*'
+      : '\n\n*(Lưu ý: Tin nhắn của bạn khá dài nên hệ thống đã tóm lược phần nội dung chính để xử lý nhanh nhất)*'
     : '';
   const finalReply = `${dbVerified.reply}${lengthNotice}`;
 
@@ -445,7 +565,7 @@ export const generateChatResponse = async (
     source: 'DATABASE_RAG',
     movieCard: dbVerified.movieCard,
     movieCards: resolvedMovieCards,
-    quickReplies: resolvedQuickReplies,
+    quickReplies: [],
     sessionContext: nextSessionContext,
   };
 };
@@ -466,6 +586,8 @@ export {
   resolveDisplayPrice,
   calculateTicketQuote,
   validateAndSanitizeInput,
+  detectMessageLanguage,
+  classifySecurityThreat,
   detectPromptInjection,
   matchMovieFromText,
   extractEntities,

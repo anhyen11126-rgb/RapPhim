@@ -16,7 +16,7 @@ const getStoredUser = () => {
 };
 
 const DEFAULT_WELCOME_TEMPLATE =
-  "Xin chào **{name}**! Mình là trợ lý tư vấn của D'AVENOR CINEMA tại Đà Nẵng. Mình có thể giúp bạn xem phim đang chiếu, tra cứu suất chiếu theo khung giờ, kiểm tra ghế trống, báo giá vé và gợi ý combo bắp nước & ưu đãi! 🍿✨";
+  "Xin chào **{name}**! Mình là trợ lý tư vấn của D'AVENOR Thanh Khê Plaza. Bạn cần mình hỗ trợ tư vấn phim, xem lịch chiếu, kiểm tra ghế trống, đặt vé hay giải đáp chính sách rạp ạ?";
 
 const formatWelcomeMessage = (template, user) => {
   const displayName = user?.name ? user.name.trim() : 'bạn';
@@ -24,8 +24,8 @@ const formatWelcomeMessage = (template, user) => {
 };
 
 const CHAT_STORAGE_KEYS = {
-  messages: 'davenor_chat_messages_v1',
-  context: 'davenor_chat_context_v1',
+  messages: 'davenor_chat_messages_v2',
+  context: 'davenor_chat_context_v2',
   size: 'davenor_chat_size_v1',
 };
 
@@ -323,28 +323,6 @@ const ChatWidget = () => {
     botVersion: 'Concierge v3.0',
     welcomeMessage: DEFAULT_WELCOME_TEMPLATE,
     isEnabled: true,
-    quickChips: [
-      {
-        label: '🎬 Phim đang chiếu',
-        query: 'Các bộ phim đang chiếu hiện tại?',
-      },
-      {
-        label: '🕒 Suất chiếu tối nay',
-        query: 'Tối nay có những suất chiếu nào?',
-      },
-      {
-        label: '🎟️ Giá vé & IMAX',
-        query: 'Tối nay có suất chiếu IMAX nào và giá vé bao nhiêu?',
-      },
-      {
-        label: '🍿 Combo & Ưu đãi',
-        query: 'Hôm nay có ưu đãi và combo bắp nước gì?',
-      },
-      {
-        label: '🎫 Vé của tôi',
-        query: 'Kiểm tra vé của tôi',
-      },
-    ],
   });
 
   // Lịch sử tin nhắn khởi tạo từ sessionStorage (để F5 không mất mạch trò chuyện) hoặc lời chào mặc định
@@ -412,15 +390,12 @@ const ChatWidget = () => {
       try {
         const res = await api.get('/ai/config');
         if (mounted && res.data) {
-          const incomingChips = Array.isArray(res.data.quickChips) ? res.data.quickChips : [];
-          const hasStaleLegacyChip = incomingChips.some((c) =>
-            /45k-50k|rạp\s*05|21h-22h/i.test(`${c?.label || ''} ${c?.query || ''}`)
-          );
           setBotConfig((prev) => ({
             ...prev,
-            ...res.data,
-            quickChips:
-              incomingChips.length > 0 && !hasStaleLegacyChip ? incomingChips : prev.quickChips,
+            botName: res.data.botName || prev.botName,
+            botVersion: res.data.botVersion || prev.botVersion,
+            welcomeMessage: res.data.welcomeMessage || prev.welcomeMessage,
+            isEnabled: res.data.isEnabled !== undefined ? res.data.isEnabled : prev.isEnabled,
           }));
           const userNow = getStoredUser();
           setMessages((prev) => {
@@ -473,8 +448,6 @@ const ChatWidget = () => {
     }
   }, [messages, isOpen, isMinimized]);
 
-  const quickChips = botConfig.quickChips;
-
   const handleSend = async (e, customText = null) => {
     if (e) e.preventDefault();
     const textToSend = customText || input.trim();
@@ -515,14 +488,13 @@ const ChatWidget = () => {
         })),
       });
 
-      const botReply = res.data.reply || 'Tôi đã tiếp nhận yêu cầu của bạn.';
+      const botReply = res.data.reply || 'Mình đã tiếp nhận yêu cầu của bạn.';
       const movieCard = res.data.movieCard || null;
       const movieCards = Array.isArray(res.data.movieCards)
         ? res.data.movieCards
         : movieCard
           ? [movieCard]
           : [];
-      const quickReplies = Array.isArray(res.data.quickReplies) ? res.data.quickReplies : [];
 
       if (res.data.sessionContext && typeof res.data.sessionContext === 'object') {
         setSessionContext(res.data.sessionContext);
@@ -537,13 +509,14 @@ const ChatWidget = () => {
           text: botReply,
           movieCard: movieCard,
           movieCards: movieCards,
-          quickReplies,
         },
       ]);
     } catch (err) {
       console.error('Lỗi gọi AI Chatbot:', err);
       const fallbackText =
-        'Rất tiếc, hiện tại kết nối đến Trợ lý AI đang gián đoạn tạm thời. Bạn vui lòng thử lại sau giây lát hoặc tra cứu trực tiếp tại mục Lịch chiếu trên website nhé!';
+        err.response?.data?.reply ||
+        err.response?.data?.message ||
+        'Hiện tại mình chưa thể tải được thông tin từ hệ thống. Bạn vui lòng thử lại sau ít phút nhé!';
 
       setMessages((prev) => [
         ...prev,
@@ -553,6 +526,7 @@ const ChatWidget = () => {
           time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
           text: fallbackText,
           movieCard: null,
+          movieCards: [],
         },
       ]);
     } finally {
@@ -560,14 +534,10 @@ const ChatWidget = () => {
     }
   };
 
-  const handleChipClick = (query) => {
-    handleSend(null, query);
-  };
-
-  // Giả lập hoặc kích hoạt nhận diện giọng nói Speech-to-Text
+  // Kích hoạt nhận diện giọng nói Speech-to-Text (không tự điền câu hỏi mẫu giả)
   const handleToggleVoice = () => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      setInput('Hôm nay phòng chiếu 3D (Rạp 05) có những suất chiếu nào lúc 21h-22h và giá vé bao nhiêu?');
+      inputRef.current?.focus();
       return;
     }
 
@@ -589,7 +559,7 @@ const ChatWidget = () => {
         recognition.start();
       }
     } catch {
-      setInput('Hôm nay phòng chiếu 3D (Rạp 05) có những suất chiếu nào lúc 21h-22h và giá vé bao nhiêu?');
+      setIsListening(false);
     }
   };
 
@@ -820,7 +790,7 @@ const ChatWidget = () => {
                 </div>
                 <p className="text-[11px] text-[#BEC5E5] flex items-center space-x-1 mt-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
-                  <span>Trực tuyến • Đồng bộ Database Đà Nẵng</span>
+                  <span>Trực tuyến • Đồng bộ dữ liệu thời gian thực</span>
                 </p>
               </div>
             </div>
@@ -1080,21 +1050,6 @@ const ChatWidget = () => {
                                 })}
                               </div>
                             )}
-                            {/* Gợi ý bước tiếp theo theo ngữ cảnh (quickReplies từ Backend) */}
-                            {msg.sender === 'bot' && Array.isArray(msg.quickReplies) && msg.quickReplies.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-[#AA9BFF]/15">
-                                {msg.quickReplies.map((qr, qIdx) => (
-                                  <button
-                                    key={qIdx}
-                                    type="button"
-                                    onClick={() => handleChipClick(qr)}
-                                    className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#20204B] hover:bg-[#2a2a60] text-[#83F5FF] border border-[#42DFFF]/30 transition-colors cursor-pointer"
-                                  >
-                                    {qr}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
                           </div>
 
                           {/* Thời gian & Trạng thái đã xem */}
@@ -1139,48 +1094,17 @@ const ChatWidget = () => {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* HÀNG CÁC NÚT GỢI Ý NHANH (QUICK SUGGESTION CHIPS) */}
-              <div
-                onWheel={(e) => {
-                  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-                    e.currentTarget.scrollLeft += e.deltaY;
-                  }
-                }}
-                className="px-3 pt-2 pb-2 bg-[#0B1026] border-t border-[#AA9BFF]/20 flex items-center gap-2 overflow-x-auto scrollbar-sleek-x scroll-smooth"
-              >
-                {quickChips.map((chip, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleChipClick(chip.query)}
-                    className="shrink-0 bg-[#11152F] hover:bg-[#20204B] border border-[#AA9BFF]/25 hover:border-[#42DFFF]/60 text-[#BEC5E5] hover:text-[#F8F7FF] text-[11px] font-semibold px-3 py-1 rounded-full transition-all cursor-pointer whitespace-nowrap shadow-sm hover:scale-[1.02]"
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* KHU VỰC NHẬP TIN NHẮN (INPUT BOX) */}
+              {/* KHU VỰC NHẬP TIN NHẮN (INPUT BOX — Đã tắt hoàn toàn Quick Suggestion Chips tự động) */}
               <div className="p-3 bg-[#11152F] border-t border-[#AA9BFF]/20">
                 <form
                   onSubmit={handleSend}
                   className="bg-[#0B1026] border border-[#AA9BFF]/30 rounded-2xl flex items-center px-3 py-1.5 focus-within:border-[#42DFFF] focus-within:shadow-[0_0_15px_rgba(66,223,255,0.25)] transition-all"
                 >
-                  {/* Nút cộng tác vụ bổ sung (+) */}
-                  <button
-                    type="button"
-                    onClick={() => setInput('Các bộ phim đang chiếu hiện tại?')}
-                    className="w-6 h-6 rounded-lg text-[#BEC5E5] hover:text-[#F8F7FF] hover:bg-[#20204B] flex items-center justify-center text-sm font-bold mr-2 transition-colors cursor-pointer"
-                    title="Gợi ý câu hỏi nhanh"
-                  >
-                    ⊕
-                  </button>
-
                   {/* Input văn bản */}
                   <input
                     ref={inputRef}
                     type="text"
-                    placeholder="Hỏi phim đang chiếu, suất tối nay, ghế trống, vé của tôi..."
+                    placeholder="Nhập câu hỏi của bạn (Tiếng Việt / English)..."
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     className="flex-1 bg-transparent text-xs sm:text-[13px] text-[#F8F7FF] placeholder-[#BEC5E5]/50 focus:outline-none"
