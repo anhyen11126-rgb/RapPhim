@@ -7,6 +7,8 @@ const SeatGrid = ({
   roomType = 'IMAX',
   rows,
   bookedSeats = [],
+  holdingOtherSeats = [],
+  holdingSelfSeats = [],
   selectedSeats = [],
   onSeatClick,
 }) => {
@@ -23,6 +25,8 @@ const SeatGrid = ({
     <div key={id} className={type === 'SWEETBOX' ? 'flex min-w-11 justify-center rounded-md border border-purple-400/30' : undefined}>
       <Seat seatId={seatNumber} number={col}
         isBooked={bookedSeats.includes(seatNumber)}
+        isHoldingOther={holdingOtherSeats.includes(seatNumber)}
+        isHoldingSelf={holdingSelfSeats.includes(seatNumber)}
         isSelected={selectedSeats.includes(seatNumber)}
         isVip={type !== 'STANDARD'} isPremium={type !== 'STANDARD'}
         onClick={onSeatClick}

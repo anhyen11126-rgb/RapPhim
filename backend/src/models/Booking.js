@@ -112,6 +112,10 @@ const bookingSchema = new mongoose.Schema(
   }
 );
 
+bookingSchema.index({ showtimeId: 1, status: 1, paymentStatus: 1, createdAt: -1 });
+bookingSchema.index({ status: 1, paymentStatus: 1, createdAt: -1 });
+bookingSchema.index({ userId: 1, createdAt: -1 });
+
 // Virtual relationship tới Showtime
 bookingSchema.virtual('showtime', {
   ref: 'Showtime',

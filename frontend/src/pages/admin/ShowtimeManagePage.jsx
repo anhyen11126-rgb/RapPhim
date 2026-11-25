@@ -22,6 +22,8 @@ import {
   calculateDynamicPrices,
   loadPricingConfig,
   DEFAULT_PRICING_CONFIG,
+  ROOM_TYPES_ENUM,
+  resolveCanonicalRoomType,
 } from '../../utils/pricing';
 
 const ShowtimeManagePage = () => {
@@ -133,10 +135,21 @@ const ShowtimeManagePage = () => {
     loadData();
   }, [viewDate]);
 
-  const resolveSuggestedPrice = (roomName, startTime, cfg = pricingConfig) => {
+  const resolveSuggestedPrice = (roomOrName, startTime, cfg = pricingConfig) => {
+    const matchedRoom =
+      typeof roomOrName === 'object' && roomOrName !== null
+        ? roomOrName
+        : rooms.find(
+            (rm) =>
+              rm.name === roomOrName ||
+              String(rm.id || rm._id) === String(formData.roomId)
+          );
+
     return calculateDynamicPrices(
       {
-        roomName,
+        room: matchedRoom || undefined,
+        roomType: matchedRoom?.roomType || resolveCanonicalRoomType(roomOrName),
+        roomName: typeof roomOrName === 'string' ? roomOrName : matchedRoom?.name,
         startTime: startTime || new Date().toISOString(),
         useConfigMatrix: true,
       },
@@ -252,7 +265,8 @@ const ShowtimeManagePage = () => {
   };
 
   const getRoomTypeTheme = (roomType = '') => {
-    if (roomType.includes('IMAX')) {
+    const canonical = resolveCanonicalRoomType(roomType);
+    if (canonical === ROOM_TYPES_ENUM.IMAX_LASER) {
       return {
         textColor: 'text-[#22D3EE]',
         bgColor: 'bg-[#22D3EE]/10',
@@ -261,7 +275,7 @@ const ShowtimeManagePage = () => {
         name: 'IMAX Laser'
       };
     }
-    if (roomType.includes('Atmos')) {
+    if (canonical === ROOM_TYPES_ENUM.DOLBY_ATMOS) {
       return {
         textColor: 'text-[#A78BFA]',
         bgColor: 'bg-[#A78BFA]/10',
@@ -270,7 +284,7 @@ const ShowtimeManagePage = () => {
         name: 'Dolby Atmos'
       };
     }
-    if (roomType.includes('Gold')) {
+    if (canonical === ROOM_TYPES_ENUM.GOLD_CLASS) {
       return {
         textColor: 'text-[#E5C07B]',
         bgColor: 'bg-[#E5C07B]/10',
@@ -290,14 +304,14 @@ const ShowtimeManagePage = () => {
 
   const getCompatibleFormats = (movie, room) => {
     if (!room) return ['2D Tiêu chuẩn'];
-    const rType = room.roomType || '';
-    if (rType.includes('IMAX')) {
+    const canonical = resolveCanonicalRoomType(room);
+    if (canonical === ROOM_TYPES_ENUM.IMAX_LASER) {
       return ['2D IMAX Laser', '3D IMAX Laser'];
     }
-    if (rType.includes('Atmos')) {
+    if (canonical === ROOM_TYPES_ENUM.DOLBY_ATMOS) {
       return ['2D Dolby Atmos', '3D Dolby Atmos'];
     }
-    if (rType.includes('Gold')) {
+    if (canonical === ROOM_TYPES_ENUM.GOLD_CLASS) {
       return ['2D Gold Class VIP Lounge'];
     }
     return ['2D Tiêu chuẩn'];
@@ -767,11 +781,11 @@ const ShowtimeManagePage = () => {
     }
   };
 
-  // Lọc showtimes
+  // Lọc showtimes theo enum room.roomType
   const filteredShowtimes = useMemo(() => {
     return showtimes.filter((st) => {
       const mId = String(st.movieId?._id || st.movieId || '');
-      const rType = st.roomId?.roomType || (st.roomName?.includes('IMAX') ? 'IMAX Laser' : st.roomName?.includes('Atmos') ? 'Dolby Atmos' : st.roomName?.includes('Gold') ? 'Gold Class' : '');
+      const rType = resolveCanonicalRoomType(st);
 
       const matchMovie = filterMovieId === 'ALL' || mId === String(filterMovieId);
       const matchRoomType = filterRoomType === 'ALL' || rType === filterRoomType;
@@ -927,7 +941,7 @@ const ShowtimeManagePage = () => {
       };
 
       entry.showtimes.forEach(st => {
-        const rType = st.roomId?.roomType || (st.roomName?.includes('IMAX') ? 'IMAX Laser' : st.roomName?.includes('Atmos') ? 'Dolby Atmos' : 'Gold Class');
+        const rType = resolveCanonicalRoomType(st);
         if (byType[rType]) {
           byType[rType].push(st);
         } else {

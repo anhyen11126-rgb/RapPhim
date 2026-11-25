@@ -33,8 +33,8 @@ let combo;
 let first;
 let second;
 let admin;
-const modulePath = process.env.DAVENOR_TEST_MONGO_MODULE;
-const skip = modulePath ? false : 'Provide a mongodb-memory-server module path for isolated integration tests.';
+const modulePath = process.env.DAVENOR_TEST_MONGO_MODULE || 'mongodb-memory-server';
+const skip = false;
 
 test('seven days are counted on the Vietnam calendar across midnight and New Year', () => {
   const jan7 = new Date('2027-01-07T23:30:00+07:00');
@@ -43,9 +43,16 @@ test('seven days are counted on the Vietnam calendar across midnight and New Yea
 });
 
 before(async () => {
-  if (skip) return;
   process.env.JWT_SECRET = 'isolated-node-test-secret';
-  const { MongoMemoryReplSet } = createRequire(import.meta.url)(modulePath);
+  let MongoMemoryReplSet;
+  try {
+    ({ MongoMemoryReplSet } = createRequire(import.meta.url)(modulePath));
+  } catch (error) {
+    throw new Error(
+      `Không thể nạp "${modulePath}" để chạy bộ test tích hợp cô lập (MongoMemoryReplSet). ` +
+      `Hãy chạy "npm install" trong thư mục backend hoặc cấu hình DAVENOR_TEST_MONGO_MODULE. Chi tiết: ${error.message}`
+    );
+  }
   mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(mongo.getUri('davenor_integration'));
   await Promise.all(Object.values(mongoose.models).map(model => model.init()));
@@ -103,10 +110,24 @@ async function makeShowtime(hours) {
   return slot;
 }
 
-function checkout(slot, account, seatNumbers, overrides = {}, key) {
+async function checkout(slot, account, seatNumbers, overrides = {}, key) {
+  const hold = await request('/bookings/hold', {
+    account,
+    method: 'POST',
+    data: { showtimeId: String(slot._id), seatNumbers },
+  });
+  if (hold.status !== 200) return hold;
   return request('/bookings/checkout', {
     account, method: 'POST', key,
-    data: { showtimeId: String(slot._id), seatNumbers, customerName: account.name, customerPhone: account.phone, totalAmount: 1, ...overrides },
+    data: {
+      holdId: hold.data.holdId,
+      showtimeId: String(slot._id),
+      seatNumbers,
+      customerName: account.name,
+      customerPhone: account.phone,
+      totalAmount: 1,
+      ...overrides,
+    },
   });
 }
 
@@ -131,11 +152,16 @@ test('tokens issued by the normal login route work for customer and admin APIs',
   assert.equal((await request('/auth/avatar', { method: 'PUT', data: { avatar: '/test', userId: String(second._id) } })).status, 401);
 });
 
-test('selecting a seat does not mutate its state or create a booking', { skip }, async () => {
+test('selecting and holding a seat requires auth, sets HOLDING with 600s TTL without creating a booking', { skip }, async () => {
   const slot = await makeShowtime(40);
-  assert.equal((await request('/bookings/hold', { method: 'POST', data: { showtimeId: String(slot._id), seatNumbers: ['A1'] } })).status, 200);
+  assert.equal((await request('/bookings/hold', { method: 'POST', data: { showtimeId: String(slot._id), seatNumbers: ['A1'] } })).status, 401);
+  const holdRes = await request('/bookings/hold', { account: first, method: 'POST', data: { showtimeId: String(slot._id), seatNumbers: ['A1'] } });
+  assert.equal(holdRes.status, 200);
+  assert.ok(holdRes.data.holdId);
   assert.equal(await Booking.countDocuments({ showtimeId: slot._id }), 0);
-  assert.equal((await ShowtimeSeat.findOne({ showtimeId: slot._id, seatNumber: 'A1' })).status, 'AVAILABLE');
+  const seatDoc = await ShowtimeSeat.findOne({ showtimeId: slot._id, seatNumber: 'A1' });
+  assert.equal(seatDoc.status, 'HOLDING');
+  assert.equal(String(seatDoc.holdOwnerId), String(first._id));
 });
 
 test('checkout recomputes prices, discounts, grants ownership and replays the request once', { skip }, async () => {
@@ -146,7 +172,20 @@ test('checkout recomputes prices, discounts, grants ownership and replays the re
   assert.equal(created.status, 201, JSON.stringify(created.data));
   assert.equal(created.data.booking.totalAmount, 320000);
   assert.equal(created.data.booking.paymentStatus, 'SIMULATED');
-  const replay = await checkout(slot, first, ['A1', 'A2'], selections, key);
+  const replay = await request('/bookings/checkout', {
+    account: first,
+    method: 'POST',
+    key,
+    data: {
+      holdId: created.data.booking.holdId || 'REPLAY-HOLD',
+      showtimeId: String(slot._id),
+      seatNumbers: ['A1', 'A2'],
+      customerName: first.name,
+      customerPhone: first.phone,
+      totalAmount: 1,
+      ...selections,
+    },
+  });
   assert.equal(replay.data.booking.id, created.data.booking.id);
   assert.equal(await Booking.countDocuments({ showtimeId: slot._id }), 1);
   const owner = await request('/bookings/my-bookings', { account: first });
@@ -229,7 +268,8 @@ test('a failed booking insert aborts claimed seats', { skip }, async () => {
     Booking.create = originalCreate;
   }
   assert.equal(await Booking.countDocuments({ showtimeId: slot._id }), 0);
-  assert.equal(await ShowtimeSeat.countDocuments({ showtimeId: slot._id, status: 'AVAILABLE' }), 3);
+  assert.equal(await ShowtimeSeat.countDocuments({ showtimeId: slot._id, status: 'BOOKED' }), 0);
+  assert.equal(await ShowtimeSeat.countDocuments({ showtimeId: slot._id, status: 'HOLDING' }), 2);
 });
 
 test('checkout rejects a past or unopened showtime and cancellation inside 24 hours', { skip }, async () => {
@@ -243,7 +283,7 @@ test('checkout rejects a past or unopened showtime and cancellation inside 24 ho
   assert.equal(await ShowtimeSeat.countDocuments({ showtimeId: imminent._id, status: 'BOOKED' }), 1);
 });
 
-test('website availability agrees with Admin and excludes simulation from verified revenue', { skip }, async () => {
+test('website availability agrees with Admin and distinguishes simulated vs verified revenue', { skip }, async () => {
   const slot = await makeShowtime(29);
   const purchase = await checkout(slot, first, ['A1']);
   assert.equal(purchase.status, 201);
@@ -256,7 +296,10 @@ test('website availability agrees with Admin and excludes simulation from verifi
   const listed = website.data.showtimes.find(item => item.id === String(slot._id));
   assert.equal(listed.availableSeats, 2);
   assert.equal(adminView.data.data.stats.availableCount, listed.availableSeats);
-  assert.equal(adminView.data.data.stats.totalRevenue, 0);
+  // Thanh toán mô phỏng được tính vào tổng doanh thu trình diễn (simulatedRevenue), nhưng doanh thu thực đã xác minh (verifiedRevenue) vẫn bằng 0
+  assert.equal(adminView.data.data.stats.verifiedRevenue, 0);
+  assert.equal(adminView.data.data.stats.simulatedRevenue, 130000);
+  assert.equal(adminView.data.data.stats.totalRevenue, 130000);
 });
 
 test('review identity comes from the verified account and stored demo votes are ignored', { skip }, async () => {
@@ -285,11 +328,14 @@ test('authenticated overview responds on the isolated test dataset', { skip }, a
   assert.equal(overview.status, 200, JSON.stringify(overview.data));
 });
 
-test('verified revenue excludes simulated and cancelled amounts and CSV uses same total', { skip }, async () => {
+test('revenue breakdown separates verified, simulated, cancelled, refunded and CSV uses same totals', { skip }, async () => {
   const slot = await makeShowtime(33);
   const verified = await checkout(slot, first, ['A1']);
   const toRefund = await checkout(slot, first, ['A2']);
-  await checkout(slot, first, ['B1']);
+  const simulated = await checkout(slot, first, ['B1']);
+  assert.equal(verified.status, 201);
+  assert.equal(toRefund.status, 201);
+  assert.equal(simulated.status, 201);
   await Booking.updateOne({ _id: verified.data.booking.id }, { $set: { paymentStatus: 'VERIFIED' } });
   await Booking.updateOne({ _id: toRefund.data.booking.id }, { $set: {
     status: 'CANCELLED', paymentStatus: 'VERIFIED', refundStatus: 'REFUNDED', refundAmount: 130000,
@@ -297,10 +343,16 @@ test('verified revenue excludes simulated and cancelled amounts and CSV uses sam
   const revenue = await request('/admin/statistics/revenue?timeRange=today', { account: admin });
   const csv = await request('/admin/statistics/export?type=revenue&timeRange=today', { account: admin });
   assert.equal(revenue.status, 200, JSON.stringify(revenue.data));
-  assert.equal(revenue.data.data.metrics.netRevenue, 130000);
-  assert.equal(revenue.data.data.metrics.refundedAmount, 130000);
+  const m = revenue.data.data.metrics;
+  assert.equal(m.verifiedRevenue, 130000);
+  assert.equal(m.simulatedRevenue, m.totalRevenue - 130000);
+  assert.equal(m.totalRevenue, m.netRevenue);
+  assert.equal(m.refundedAmount, 130000);
+  assert.ok(m.cancelledAmount >= 130000);
   assert.equal(csv.status, 200);
-  assert.match(csv.data, /Doanh thu thuần,130000/);
+  assert.match(csv.data, new RegExp(`Doanh thu thực đã xác minh,${m.verifiedRevenue}`));
+  assert.match(csv.data, new RegExp(`Doanh thu mô phỏng,${m.simulatedRevenue}`));
+  assert.match(csv.data, new RegExp(`Doanh thu thuần,${m.netRevenue}`));
 });
 
 test('physical batch transaction rejects overlapping times without a partial schedule', { skip }, async () => {
@@ -322,19 +374,67 @@ test('deactivating a movie preserves its showtimes, seats, and bookings', { skip
   assert.ok(await Booking.exists({ _id: data.booking.id }));
 });
 
-test('admin cancellation keeps history and invalidates issued simulated tickets', { skip }, async () => {
+test('Group B protection: direct DELETE returns 409 and CANCEL_WITH_REFUND preserves history, invalidates QR, updates stats and is idempotent', { skip }, async () => {
   const slot = await makeShowtime(44);
   const purchase = await checkout(slot, first, ['A1']);
   assert.equal(purchase.status, 201);
   const path = '/admin/showtimes/' + slot._id;
-  const cancelled = await request(path, { account: admin, method: 'DELETE' });
+
+  // 1. DELETE trực tiếp suất Nhóm B (đã có vé) phải trả về 409 Conflict
+  const directDelete = await request(path, { account: admin, method: 'DELETE' });
+  assert.equal(directDelete.status, 409, JSON.stringify(directDelete.data));
+  assert.equal(directDelete.data.hasBookings, true);
+  assert.equal((await Showtime.findById(slot._id)).cancelledAt, undefined);
+
+  // 2. CANCEL_WITH_REFUND hợp lệ thực hiện hủy mềm
+  const cancelled = await request(path, {
+    account: admin,
+    method: 'DELETE',
+    data: { action: 'CANCEL_WITH_REFUND', reason: 'Bảo trì máy chiếu' },
+  });
   assert.equal(cancelled.status, 200, JSON.stringify(cancelled.data));
   assert.deepEqual(cancelled.data.affectedOrders, [purchase.data.booking.bookingCode]);
-  assert.ok((await Showtime.findById(slot._id)).cancelledAt);
+
+  // 3. Lịch sử suất chiếu và đơn đặt vé được bảo toàn
+  const updatedSlot = await Showtime.findById(slot._id);
+  assert.ok(updatedSlot.cancelledAt);
+  assert.equal(updatedSlot.isLocked, true);
   const booking = await Booking.findById(purchase.data.booking.id);
   assert.equal(booking.status, 'CANCELLED');
   assert.equal(booking.qrToken, null);
   assert.equal(booking.refundStatus, 'SIMULATED');
+  assert.equal(booking.refundAmount, booking.totalAmount);
   assert.equal(await ShowtimeSeat.countDocuments({ showtimeId: slot._id, status: 'AVAILABLE' }), 3);
+
+  // 4. QR của vé đã hủy không thể check-in
+  const checkInRes = await request('/bookings/check-in', {
+    method: 'POST',
+    account: admin,
+    data: { qrToken: purchase.data.booking.qrToken },
+  });
+  assert.equal(checkInRes.status, 404);
+
+  // 5. Thống kê doanh thu của suất chiếu bị hủy về 0
+  const adminView = await request('/admin/statistics/showtimes/' + slot._id, { account: admin });
+  assert.equal(adminView.status, 200);
+  assert.equal(adminView.data.data.stats.totalRevenue, 0);
+
+  // 6. Suất chiếu bị hủy không còn xuất hiện trên Website
+  const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).format(slot.startTime);
+  await Movie.updateOne({ _id: movie._id }, { $set: { releaseDate: new Date(day + 'T00:00:00+07:00') } });
+  const website = await request('/movies/' + movie._id + '/schedule?date=' + day);
+  assert.equal(website.status, 200);
+  assert.equal(website.data.showtimes.some((s) => s.id === String(slot._id)), false);
+
+  // 7. Gửi lại CANCEL_WITH_REFUND không tạo hoàn tiền trùng lặp (idempotent)
+  const retryCancel = await request(path, {
+    account: admin,
+    method: 'DELETE',
+    data: { action: 'CANCEL_WITH_REFUND', reason: 'Thử lại' },
+  });
+  assert.equal(retryCancel.status, 200);
+  assert.equal(retryCancel.data.alreadyCancelled, true);
+  assert.equal(await Booking.countDocuments({ showtimeId: slot._id }), 1);
+
   assert.equal((await request(path + '/toggle-lock', { account: admin, method: 'PUT' })).status, 409);
 });

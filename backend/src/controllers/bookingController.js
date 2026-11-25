@@ -30,10 +30,79 @@ async function assertSellableShowtime(showtime, session) {
   if (result.modifiedCount !== 1) throw new BookingConflict('Suất chiếu vừa thay đổi. Vui lòng tải lại.');
 }
 
-async function claimSeats(showtimeId, seatNumbers, bookingId, session) {
+const HOLD_DURATION_SECONDS = 600; // 10 phút
+
+async function claimSeats(showtimeId, seatNumbers, bookingId, session, holdOptions = {}) {
+  const { holdId, userId, now = new Date() } = holdOptions;
+
+  if (holdId) {
+    // Kiểm tra đúng phiên giữ ghế của người sở hữu, chưa hết hạn và khớp danh sách ghế
+    const heldSeats = await ShowtimeSeat.find({
+      showtimeId,
+      holdId,
+      holdOwnerId: userId,
+      status: 'HOLDING',
+      holdExpiresAt: { $gt: now },
+    })
+      .select('seatNumber')
+      .session(session)
+      .lean();
+
+    const heldSet = new Set(heldSeats.map((s) => s.seatNumber));
+    const exactMatch =
+      heldSeats.length === seatNumbers.length && seatNumbers.every((code) => heldSet.has(code));
+
+    if (!exactMatch) {
+      throw new BookingConflict('Phiên giữ ghế không hợp lệ, đã hết hạn hoặc không khớp danh sách ghế.');
+    }
+
+    const result = await ShowtimeSeat.updateMany(
+      {
+        showtimeId,
+        seatNumber: { $in: seatNumbers },
+        status: 'HOLDING',
+        holdId,
+        holdOwnerId: userId,
+        holdExpiresAt: { $gt: now },
+      },
+      {
+        $set: {
+          status: 'BOOKED',
+          bookingId,
+          holdId: null,
+          holdOwnerId: null,
+          holdCreatedAt: null,
+          holdExpiresAt: null,
+        },
+      },
+      { session }
+    );
+    if (result.modifiedCount !== seatNumbers.length) {
+      throw new BookingConflict('Phiên giữ ghế vừa hết hạn hoặc thay đổi. Vui lòng chọn lại.');
+    }
+    return;
+  }
+
+  // Tương thích ngược khi chưa truyền holdId: chỉ cho phép ghế AVAILABLE hoặc HOLDING đã hết hạn
   const result = await ShowtimeSeat.updateMany(
-    { showtimeId, seatNumber: { $in: seatNumbers }, status: 'AVAILABLE' },
-    { $set: { status: 'BOOKED', bookingId, holdExpiresAt: null } },
+    {
+      showtimeId,
+      seatNumber: { $in: seatNumbers },
+      $or: [
+        { status: 'AVAILABLE' },
+        { status: 'HOLDING', holdExpiresAt: { $lte: now } },
+      ],
+    },
+    {
+      $set: {
+        status: 'BOOKED',
+        bookingId,
+        holdId: null,
+        holdOwnerId: null,
+        holdCreatedAt: null,
+        holdExpiresAt: null,
+      },
+    },
     { session }
   );
   if (result.modifiedCount !== seatNumbers.length) {
@@ -65,16 +134,229 @@ export const holdSeats = async (req, res) => {
   try {
     const { showtimeId, seatNumbers } = req.body;
 
-    if (!showtimeId || !Array.isArray(seatNumbers) || seatNumbers.length === 0) {
-      return res.status(400).json({ message: 'Dữ liệu chọn ghế không hợp lệ' });
+    if (
+      !mongoose.isObjectIdOrHexString(showtimeId) ||
+      !Array.isArray(seatNumbers) ||
+      seatNumbers.length === 0 ||
+      !seatNumbers.every((s) => typeof s === 'string' && s.trim())
+    ) {
+      return res.status(400).json({ success: false, message: 'Dữ liệu chọn ghế không hợp lệ' });
     }
 
-    res.json({
+    const normalizedSeats = [...new Set(seatNumbers.map((s) => normalizeSeatCode(s)))];
+    const targetShowtime = await Showtime.findById(showtimeId);
+    if (!targetShowtime) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy suất chiếu yêu cầu.' });
+    }
+    if (targetShowtime.cancelledAt) {
+      return res.status(409).json({ success: false, message: 'Suất chiếu này đã bị hủy.' });
+    }
+    if (targetShowtime.isLocked) {
+      return res.status(403).json({ success: false, message: 'Suất chiếu này hiện đang tạm khóa.' });
+    }
+
+    const now = new Date();
+    const showtimeStart = new Date(targetShowtime.startTime);
+    if (opensMoreThanSevenDaysAhead(showtimeStart, now)) {
+      return res.status(400).json({ success: false, message: 'Suất chiếu chưa mở bán (tối đa 7 ngày).' });
+    }
+    if (showtimeStart.getTime() <= now.getTime()) {
+      return res.status(400).json({ success: false, message: 'Suất chiếu đã bắt đầu hoặc đã qua.' });
+    }
+
+    const activeRoom = targetShowtime.roomId
+      ? await Room.exists({ _id: targetShowtime.roomId, status: 'ACTIVE' })
+      : null;
+    if (!activeRoom) {
+      return res.status(409).json({ success: false, message: 'Suất chiếu chưa có phòng hoạt động.' });
+    }
+
+    const existingCount = await ShowtimeSeat.countDocuments({
+      showtimeId: targetShowtime._id,
+      seatNumber: { $in: normalizedSeats },
+    });
+    if (existingCount !== normalizedSeats.length) {
+      return res.status(400).json({ success: false, message: 'Một số ghế không tồn tại trong suất chiếu.' });
+    }
+
+    const holdResult = await mongoose.connection.transaction(async (session) => {
+      await assertSellableShowtime(targetShowtime, session);
+
+      // Kiểm tra nếu chính user này đang giữ đúng nhóm ghế này và còn hạn -> trả về phiên cũ, KHÔNG gia hạn vô hạn
+      const currentOwned = await ShowtimeSeat.find({
+        showtimeId: targetShowtime._id,
+        seatNumber: { $in: normalizedSeats },
+        status: 'HOLDING',
+        holdOwnerId: req.user._id,
+        holdExpiresAt: { $gt: now },
+      })
+        .select('holdId holdExpiresAt')
+        .session(session)
+        .lean();
+
+      if (
+        currentOwned.length === normalizedSeats.length &&
+        currentOwned[0]?.holdId &&
+        currentOwned.every((s) => s.holdId === currentOwned[0].holdId)
+      ) {
+        return {
+          holdId: currentOwned[0].holdId,
+          expiresAt: currentOwned[0].holdExpiresAt,
+          reused: true,
+        };
+      }
+
+      const holdId = 'HOLD-' + randomBytes(12).toString('hex').toUpperCase();
+      const expiresAt = new Date(now.getTime() + HOLD_DURATION_SECONDS * 1000);
+
+      const updateRes = await ShowtimeSeat.updateMany(
+        {
+          showtimeId: targetShowtime._id,
+          seatNumber: { $in: normalizedSeats },
+          $or: [
+            { status: 'AVAILABLE' },
+            { status: 'HOLDING', holdExpiresAt: { $lte: now } },
+          ],
+        },
+        {
+          $set: {
+            status: 'HOLDING',
+            holdId,
+            holdOwnerId: req.user._id,
+            holdCreatedAt: now,
+            holdExpiresAt: expiresAt,
+          },
+        },
+        { session }
+      );
+
+      if (updateRes.modifiedCount !== normalizedSeats.length) {
+        throw new BookingConflict('Một số ghế đã được khách hàng khác giữ hoặc đặt. Vui lòng chọn lại.');
+      }
+
+      return { holdId, expiresAt, reused: false };
+    });
+
+    return res.json({
       success: true,
-      message: 'Đã ghi nhận ghế chọn trên giao diện',
+      holdId: holdResult.holdId,
+      showtimeId: String(targetShowtime._id),
+      seatNumbers: normalizedSeats,
+      expiresAt: new Date(holdResult.expiresAt).toISOString(),
+      serverTime: now.toISOString(),
+      reused: holdResult.reused,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Lỗi khi chọn ghế', error: error.message });
+    return bookingWriteError(res, error);
+  }
+};
+
+export const getHoldSession = async (req, res) => {
+  try {
+    const { holdId } = req.params;
+    if (!holdId || typeof holdId !== 'string' || !holdId.trim()) {
+      return res.status(400).json({ success: false, message: 'Mã phiên giữ ghế không hợp lệ.' });
+    }
+
+    const now = new Date();
+    const seats = await ShowtimeSeat.find({ holdId: holdId.trim(), status: 'HOLDING' })
+      .select('showtimeId seatNumber row col type holdOwnerId holdCreatedAt holdExpiresAt')
+      .lean();
+
+    if (!seats.length) {
+      return res.status(404).json({ success: false, code: 'HOLD_NOT_FOUND', message: 'Phiên giữ ghế không tồn tại hoặc đã kết thúc.' });
+    }
+
+    const isOwner = seats.every((s) => String(s.holdOwnerId) === String(req.user._id));
+    if (!isOwner) {
+      return res.status(403).json({ success: false, code: 'HOLD_FORBIDDEN', message: 'Bạn không có quyền truy cập phiên giữ ghế này.' });
+    }
+
+    const expiresAt = seats[0].holdExpiresAt ? new Date(seats[0].holdExpiresAt) : null;
+    if (!expiresAt || expiresAt.getTime() <= now.getTime()) {
+      return res.status(410).json({
+        success: false,
+        code: 'HOLD_EXPIRED',
+        showtimeId: String(seats[0].showtimeId),
+        message: 'Phiên giữ ghế đã hết hạn. Vui lòng chọn lại ghế.',
+      });
+    }
+
+    const showtime = await Showtime.findById(seats[0].showtimeId)
+      .populate('movieId')
+      .populate('cinemaId')
+      .populate('roomId')
+      .lean();
+
+    if (!showtime || showtime.cancelledAt || showtime.isLocked) {
+      return res.status(409).json({
+        success: false,
+        code: 'SHOWTIME_UNAVAILABLE',
+        showtimeId: String(seats[0].showtimeId),
+        message: 'Suất chiếu này hiện đã bị khóa hoặc hủy.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      holdId: holdId.trim(),
+      showtimeId: String(seats[0].showtimeId),
+      seatNumbers: seats.map((s) => normalizeSeatCode(s.seatNumber)),
+      expiresAt: expiresAt.toISOString(),
+      serverTime: now.toISOString(),
+      showtime: {
+        ...showtime,
+        id: showtime._id.toString(),
+        movie: showtime.movieId ? { ...showtime.movieId, id: showtime.movieId._id.toString() } : null,
+        cinema: showtime.cinemaId ? { ...showtime.cinemaId, id: showtime.cinemaId._id.toString() } : null,
+        room: showtime.roomId ? { ...showtime.roomId, id: showtime.roomId._id.toString() } : null,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Lỗi khi kiểm tra phiên giữ ghế', error: error.message });
+  }
+};
+
+export const releaseHoldSeats = async (req, res) => {
+  try {
+    const { holdId } = req.params;
+    if (!holdId || typeof holdId !== 'string' || !holdId.trim()) {
+      return res.status(400).json({ success: false, message: 'Mã giữ ghế không hợp lệ.' });
+    }
+
+    const seatsWithHold = await ShowtimeSeat.find({ holdId: holdId.trim(), status: 'HOLDING' })
+      .select('holdOwnerId')
+      .lean();
+
+    if (!seatsWithHold.length) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy phiên giữ ghế đang hoạt động.' });
+    }
+
+    const isOwner = seatsWithHold.every((s) => String(s.holdOwnerId) === String(req.user._id));
+    if (!isOwner) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền hủy phiên giữ ghế này.' });
+    }
+
+    const released = await ShowtimeSeat.updateMany(
+      { holdId: holdId.trim(), holdOwnerId: req.user._id, status: 'HOLDING' },
+      {
+        $set: {
+          status: 'AVAILABLE',
+          holdId: null,
+          holdOwnerId: null,
+          holdCreatedAt: null,
+          holdExpiresAt: null,
+        },
+      }
+    );
+
+    return res.json({
+      success: true,
+      releasedCount: released.modifiedCount,
+      message: 'Đã giải phóng ghế giữ thành công.',
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Lỗi khi giải phóng ghế giữ', error: error.message });
   }
 };
 
@@ -93,7 +375,15 @@ export const checkoutBooking = async (req, res) => {
       popcornFlavor = 'cheese',
       voucherCode,
       paymentMethod = 'MOMO',
+      holdId,
     } = req.body;
+
+    if (typeof holdId !== 'string' || !holdId.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng giữ ghế hợp lệ trước khi thực hiện thanh toán.',
+      });
+    }
 
     if (
       !mongoose.isObjectIdOrHexString(showtimeId) ||
@@ -154,7 +444,12 @@ export const checkoutBooking = async (req, res) => {
       });
     }
 
-    if (!targetShowtime.roomId || !await Room.exists({ _id: targetShowtime.roomId, status: 'ACTIVE' })) {
+    const activeRoom = targetShowtime.roomId
+      ? await Room.findOne({ _id: targetShowtime.roomId, status: 'ACTIVE' })
+          .select('name roomType formatFeature')
+          .lean()
+      : null;
+    if (!activeRoom) {
       return res.status(409).json({ success: false, message: 'Suất chiếu chưa có phòng được xác nhận.' });
     }
     const stId = targetShowtime._id;
@@ -168,7 +463,10 @@ export const checkoutBooking = async (req, res) => {
     if (seatDocs.length !== normalizedSeats.length || comboDocs.length !== combos.length) {
       return res.status(400).json({ success: false, message: 'Ghế hoặc combo không hợp lệ.' });
     }
-    const prices = calculatePricesFromConfig(targetShowtime, pricingConfig);
+    const prices = calculatePricesFromConfig(
+      { ...targetShowtime.toObject(), room: activeRoom, roomType: activeRoom.roomType },
+      pricingConfig
+    );
     const ticketPrices = { STANDARD: prices.priceStandard, VIP: prices.priceVip, SWEETBOX: prices.priceSweetbox };
     const ticketLines = seatDocs.map(seat => ({ seatNumber: seat.seatNumber, price: ticketPrices[seat.type] }));
     const comboLines = comboDocs.map(combo => {
@@ -214,7 +512,11 @@ export const checkoutBooking = async (req, res) => {
         }
       }
       await assertSellableShowtime(targetShowtime, session);
-      await claimSeats(stId, normalizedSeats, tempBookingId, session);
+      await claimSeats(stId, normalizedSeats, tempBookingId, session, {
+        holdId: typeof holdId === 'string' && holdId.trim() ? holdId.trim() : null,
+        userId: req.user._id,
+        now,
+      });
       const [created] = await Booking.create([{
         _id: tempBookingId,
         bookingCode,
@@ -466,7 +768,12 @@ export const exchangeBooking = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy suất chiếu mới yêu cầu.' });
     }
 
-    if (targetShowtime.isLocked || !targetShowtime.roomId || !await Room.exists({ _id: targetShowtime.roomId, status: 'ACTIVE' })) {
+    const activeTargetRoom = targetShowtime.roomId
+      ? await Room.findOne({ _id: targetShowtime.roomId, status: 'ACTIVE' })
+          .select('name roomType formatFeature')
+          .lean()
+      : null;
+    if (targetShowtime.isLocked || !activeTargetRoom) {
       return res.status(409).json({ success: false, message: 'Suất mới chưa đủ điều kiện mở bán.' });
     }
 
@@ -481,7 +788,10 @@ export const exchangeBooking = async (req, res) => {
     // Chuẩn hóa danh sách ghế mới
     const normalizedNewSeats = [...new Set(newSeatNumbers.map((s) => normalizeSeatCode(s)))];
 
-    const prices = calculatePricesFromConfig(targetShowtime, await ensurePricingConfig());
+    const prices = calculatePricesFromConfig(
+      { ...targetShowtime.toObject(), room: activeTargetRoom, roomType: activeTargetRoom.roomType },
+      await ensurePricingConfig()
+    );
     const ticketPrices = { STANDARD: prices.priceStandard, VIP: prices.priceVip, SWEETBOX: prices.priceSweetbox };
     const newSeats = await ShowtimeSeat.find({
       showtimeId: targetShowtime._id, seatNumber: { $in: normalizedNewSeats },

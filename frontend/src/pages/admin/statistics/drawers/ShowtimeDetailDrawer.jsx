@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Trash2 } from 'lucide-react';
 import statisticsApi from '../services/statisticsApi';
 import { formatCurrency, formatNumber, formatPercent } from '../utils/statisticsFormatter';
+import { SEAT_LAYOUT_CONFIG } from '../../../../components/seat-booking/seatLayout';
 
 const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
   const [data, setData] = useState(null);
@@ -9,28 +10,57 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
 
   useEffect(() => {
     if (!showtimeId) return;
+    let activeController = null;
+    let isInFlight = false;
+    let requestSeq = 0;
+    let isDisposed = false;
+
     const fetchDetail = async (isSilent = false) => {
+      if (isDisposed || (isSilent && (isInFlight || document.hidden))) return;
+      isInFlight = true;
+      const mySeq = ++requestSeq;
+      const controller = new AbortController();
+      activeController = controller;
+
       try {
         if (!isSilent) setLoading(true);
-        const res = await statisticsApi.getShowtimeDetail(showtimeId);
+        const res = await statisticsApi.getShowtimeDetail(showtimeId, { signal: controller.signal });
+        if (isDisposed || controller.signal.aborted || mySeq !== requestSeq) return;
         if (res.data?.data) {
           setData(res.data.data);
         }
       } catch (err) {
-        console.error('Lỗi nạp chi tiết suất chiếu:', err);
+        if (!controller.signal.aborted && err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+          console.error('Lỗi nạp chi tiết suất chiếu:', err);
+        }
       } finally {
-        if (!isSilent) setLoading(false);
+        isInFlight = false;
+        if (!isSilent && !isDisposed && !controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchDetail(false);
 
-    // Tự động đồng bộ liên tục thời gian thực mỗi 4 giây cho Admin
+    // Tự động đồng bộ thời gian thực mỗi 4 giây khi Drawer mở & tab đang hiển thị
     const syncInterval = setInterval(() => {
       fetchDetail(true);
     }, 4000);
 
-    return () => clearInterval(syncInterval);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchDetail(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      isDisposed = true;
+      if (activeController) activeController.abort();
+      clearInterval(syncInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [showtimeId]);
 
   if (!showtimeId) return null;
@@ -126,6 +156,14 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
                   {data.stats.availableCount} ghế
                 </span>
               </div>
+              {data.stats.holdingCount > 0 && (
+                <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl">
+                  <span className="text-[11px] text-amber-300 block">Đang giữ tạm (10p)</span>
+                  <span className="text-sm sm:text-base font-bold text-amber-300 block mt-1">
+                    {data.stats.holdingCount} ghế
+                  </span>
+                </div>
+              )}
               <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                 <span className="text-[11px] text-slate-400 block">Tỷ lệ lấp đầy</span>
                 <span className="text-sm sm:text-base font-bold text-amber-400 block mt-1">
@@ -143,17 +181,21 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
                 </span>
               </div>
 
-              {/* Các hàng ghế A -> H */}
+              {/* Các hàng ghế A -> H (8 hàng x 11 ghế = 88 ghế, lối đi giữa cột 6 và cột 7) */}
               <div className="space-y-2 max-w-xl mx-auto select-none">
                 {data.seatMatrix.map((r) => {
-                  const isRowH = r.row === 'H';
+                  const aisleAfterCol = data.showtime?.aisleAfterCol || SEAT_LAYOUT_CONFIG.aisleAfterCol;
                   return (
                     <div key={r.row} className="flex items-center justify-center space-x-2">
                       <span className="w-5 text-right font-mono font-bold text-xs text-slate-400">{r.row}</span>
                       <div className="flex items-center justify-center gap-1.5 flex-wrap">
                         {r.seats.map((s, idx) => {
                           const isBooked = s.status === 'BOOKED';
-                          const isAisleBreak = (isRowH && idx === 2) || (!isRowH && idx === 6);
+                          const isHolding = s.status === 'HOLDING';
+                          const isAisleBreak =
+                            idx > 0
+                              ? Number(r.seats[idx - 1]?.col) <= aisleAfterCol && Number(s.col) > aisleAfterCol
+                              : false;
 
                           return (
                             <React.Fragment key={s.code}>
@@ -163,10 +205,12 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
                                 </div>
                               )}
                               <div
-                                title={`${s.code} (${s.type}) - ${isBooked ? 'Đã đặt' : 'Còn trống'}`}
+                                title={`${s.code} (${s.type}) - ${isBooked ? 'Đã đặt' : isHolding ? 'Đang giữ tạm (10p)' : 'Còn trống'}`}
                                 className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md text-[9px] font-bold flex items-center justify-center pointer-events-none transition-all ${
                                   isBooked
                                     ? 'bg-red-600 text-white border border-red-500 shadow-sm shadow-red-600/30'
+                                    : isHolding
+                                    ? 'bg-amber-500/25 text-amber-300 border border-amber-400/60 shadow-sm shadow-amber-500/20'
                                     : s.type === 'VIP'
                                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                                     : s.type === 'SWEETBOX'
@@ -191,6 +235,10 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
                 <span className="flex items-center space-x-1.5">
                   <span className="w-3 h-3 rounded bg-red-600 border border-red-500"></span>
                   <span>Đã đặt ({data.stats.bookedCount})</span>
+                </span>
+                <span className="flex items-center space-x-1.5">
+                  <span className="w-3 h-3 rounded bg-amber-500/25 border border-amber-400/60"></span>
+                  <span>Đang giữ tạm ({data.stats.holdingCount || 0})</span>
                 </span>
                 <span className="flex items-center space-x-1.5">
                   <span className="w-3 h-3 rounded bg-[var(--bg-surface)] border border-slate-700 text-slate-300"></span>

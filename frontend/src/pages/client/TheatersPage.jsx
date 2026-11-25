@@ -2,14 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import { FALLBACK_CINEMAS } from '../../constants/cinemas';
-import { calculateDynamicPrices, loadPricingConfig, DEFAULT_PRICING_CONFIG } from '../../utils/pricing';
+import {
+  calculateDynamicPrices,
+  loadPricingConfig,
+  DEFAULT_PRICING_CONFIG,
+  ROOM_TYPES_ENUM,
+  resolveCanonicalRoomType,
+} from '../../utils/pricing';
 
-const TECH_FILTERS = ['Tất cả', 'IMAX Laser', 'Dolby Atmos', 'RealD 3D'];
+const TECH_FILTERS = ['Tất cả', 'IMAX Laser', 'Dolby Atmos', 'Gold Class', 'RealD 3D'];
 
 const PRICE_MATRIX_FORMATS = [
-  { key: '2D', label: '2D Dolby Atmos / Tiêu chuẩn', roomName: 'Rạp 03 - 2D Dolby' },
-  { key: '3D', label: 'RealD 3D High Frame Rate', roomName: 'Rạp 05 - RealD 3D' },
-  { key: 'IMAX', label: 'IMAX Laser Grand Hall', roomName: 'Phòng IMAX 01' },
+  { key: '2D', label: '2D Dolby Atmos / Tiêu chuẩn', roomType: 'Dolby Atmos', roomName: 'Phòng 04 - Dolby Atmos' },
+  { key: '3D', label: 'RealD 3D High Frame Rate', roomType: 'RealD 3D', roomName: 'Phòng RealD 3D' },
+  { key: 'IMAX', label: 'IMAX Laser Grand Hall', roomType: 'IMAX Laser', roomName: 'Phòng 01 - IMAX Laser' },
+  { key: 'GOLD_CLASS', label: 'VIP Gold Class Lounge', roomType: 'Gold Class', roomName: 'Phòng 07 - Gold Class' },
 ];
 
 const PRICE_TIME_SLOTS = [
@@ -188,29 +195,54 @@ const TheatersPage = () => {
     return () => request.abort();
   }, [selectedCinemaId, activeDateIndex, customDate]);
 
-  // Điều hướng sang màn hình chọn ghế với showtimeId thật từ DB
-  const handleSelectShowtime = (showtimeId) => {
-    navigate(`/booking/seat/${showtimeId}`);
+  // Điều hướng sang màn hình chọn ghế với showtimeId thật từ DB kèm slotInfo hiển thị tức thì
+  const handleSelectShowtime = (showtimeId, movie = null, room = null, st = null) => {
+    const selectedDateIso = customDate || dates[activeDateIndex]?.isoDate || new Date().toISOString().slice(0, 10);
+    const slotInfo = movie && room && st
+      ? {
+          id: showtimeId,
+          _id: showtimeId,
+          movie: {
+            id: movie.id || movie._id,
+            _id: movie._id || movie.id,
+            title: movie.title,
+            posterUrl: movie.posterUrl,
+            duration: movie.duration,
+            genre: movie.genre,
+            ageRating: movie.ageRating,
+          },
+          roomName: room.name,
+          roomType: resolveCanonicalRoomType(room),
+          format: room.feature || resolveCanonicalRoomType(room),
+          time: st.time,
+          date: selectedDateIso,
+          price: st.price,
+          cinemaName: cinemaDetails?.name || "D'AVENOR Thanh Khê Plaza",
+        }
+      : undefined;
+
+    navigate(`/booking/seat/${showtimeId}`, slotInfo ? { state: { slotInfo } } : undefined);
   };
 
-  // Hàm kiểm tra phòng chiếu có khớp với công nghệ đã chọn hay không
+  // Kiểm tra phòng chiếu có khớp với công nghệ đã chọn dựa trên enum room.roomType kết hợp định dạng phim
   const isRoomMatchingTech = (room, tech) => {
     if (!tech || tech === 'Tất cả') return true;
-    const name = (room.name || '').toLowerCase();
+    const canonicalType = resolveCanonicalRoomType(room);
     const feature = (room.feature || '').toLowerCase();
-    const combined = `${name} ${feature}`;
 
-    if (tech === 'IMAX Laser') {
-      return combined.includes('imax');
+    if (tech === ROOM_TYPES_ENUM.IMAX_LASER) {
+      return canonicalType === ROOM_TYPES_ENUM.IMAX_LASER;
     }
-    if (tech === 'RealD 3D') {
-      return (combined.includes('3d') || combined.includes('reald')) && !combined.includes('imax');
+    if (tech === ROOM_TYPES_ENUM.DOLBY_ATMOS) {
+      return canonicalType === ROOM_TYPES_ENUM.DOLBY_ATMOS;
     }
-    if (tech === 'Dolby Atmos') {
-      if (combined.includes('imax') || combined.includes('3d')) return false;
-      return combined.includes('dolby') || combined.includes('atmos') || combined.includes('2d');
+    if (tech === ROOM_TYPES_ENUM.GOLD_CLASS) {
+      return canonicalType === ROOM_TYPES_ENUM.GOLD_CLASS;
     }
-    return combined.includes(tech.toLowerCase());
+    if (tech === ROOM_TYPES_ENUM.REALD_3D) {
+      return canonicalType === ROOM_TYPES_ENUM.REALD_3D || /\b3d\b/i.test(feature) || feature.includes('reald');
+    }
+    return canonicalType.toLowerCase() === tech.toLowerCase();
   };
 
   // Danh sách phim và phòng chiếu sau khi lọc theo công nghệ đã chọn
@@ -624,7 +656,7 @@ const TheatersPage = () => {
                                 {room.showtimes.map((st) => (
                                   <button
                                     key={st.id}
-                                    onClick={() => handleSelectShowtime(st.id)}
+                                    onClick={() => handleSelectShowtime(st.id, movie, room, st)}
                                     className="group relative bg-[var(--bg-secondary)] hover:bg-gradient-to-r hover:from-[#A855F7] hover:to-[#42DFFF] border border-[#AA9BFF]/30 hover:border-[#42DFFF] px-3.5 py-2 rounded-xl text-left transition-all duration-200 shadow-sm"
                                   >
                                     <div className="flex items-baseline space-x-2">

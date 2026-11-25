@@ -5,6 +5,11 @@ import Showtime from '../models/Showtime.js';
 import Booking from '../models/Booking.js';
 import Cinema from '../models/Cinema.js';
 import ShowtimeSeat from '../models/ShowtimeSeat.js';
+import {
+  ACTIVE_CINEMA_ROOM_TYPES,
+  ROOM_TYPES_ENUM,
+  resolveCanonicalRoomType,
+} from '../utils/roomLayoutConfig.js';
 
 let hasSyncedMovieFormats = false;
 
@@ -113,15 +118,15 @@ export const getMovies = async (req, res) => {
     // Lấy thêm firstShowtimeId và danh sách showtimes thực tế cho từng phim
     const moviesWithShowtimes = await Promise.all(
       movies.map(async (m) => {
-        const showtimes = await Showtime.find({ movieId: m._id })
+        const showtimes = await Showtime.find({ movieId: m._id, cancelledAt: null })
           .sort({ startTime: 1 })
-          .select('_id startTime roomName formatFeature price')
+          .select('_id startTime roomId roomName formatFeature price')
+          .populate('roomId', 'name roomType formatFeature totalSeats')
           .lean();
 
-        // Chỉ chấp nhận 3 phòng chuẩn duy nhất: Phòng IMAX Laser, Phòng Dolby Atmos, Phòng Gold Class
-        const validRooms = ['Phòng IMAX Laser', 'Phòng Dolby Atmos', 'Phòng Gold Class'];
+        // Nhận diện chuẩn theo enum room.roomType của 3 loại phòng: IMAX Laser, Dolby Atmos, Gold Class
         const cleanShowtimes = showtimes.filter((st) =>
-          validRooms.some((vr) => (st.roomName || '').includes(vr.replace('Phòng ', '')))
+          ACTIVE_CINEMA_ROOM_TYPES.includes(resolveCanonicalRoomType(st))
         );
 
         const formattedShowtimes = cleanShowtimes.map((st) => {
@@ -131,12 +136,15 @@ export const getMovies = async (req, res) => {
             minute: '2-digit',
           });
           const dateStr = startTimeDate.toISOString().slice(0, 10);
+          const canonicalRoomType = resolveCanonicalRoomType(st);
           return {
             id: st._id.toString(),
             date: dateStr,
             time: timeStr,
-            roomName: st.roomName || 'Phòng IMAX Laser',
-            format: st.formatFeature || 'IMAX Laser 2D',
+            roomId: st.roomId?._id?.toString() || null,
+            roomName: st.roomId?.name || st.roomName || 'Phòng IMAX Laser',
+            roomType: canonicalRoomType,
+            format: st.formatFeature || st.roomId?.formatFeature || canonicalRoomType,
             price: st.price || 150000,
           };
         });
@@ -154,15 +162,14 @@ export const getMovies = async (req, res) => {
           const pB = getPriority(b.time);
           if (pA !== pB) return pA - pB;
 
-          const roomOrder = ['IMAX', 'Atmos', 'Gold'];
-          const rA = roomOrder.findIndex((ro) => (a.roomName || '').includes(ro));
-          const rB = roomOrder.findIndex((ro) => (b.roomName || '').includes(ro));
+          const rA = ACTIVE_CINEMA_ROOM_TYPES.indexOf(a.roomType);
+          const rB = ACTIVE_CINEMA_ROOM_TYPES.indexOf(b.roomType);
           return (rA === -1 ? 99 : rA) - (rB === -1 ? 99 : rB);
         });
 
-        // Tìm suất 19:30 Phòng IMAX Laser làm firstShowtimeId
+        // Tìm suất 19:30 thuộc công nghệ IMAX Laser làm firstShowtimeId
         const primeImax = formattedShowtimes.find(
-          (st) => st.time === '19:30' && (st.roomName || '').includes('IMAX')
+          (st) => st.time === '19:30' && st.roomType === ROOM_TYPES_ENUM.IMAX_LASER
         );
         const resolvedFirstId = primeImax ? primeImax.id : (formattedShowtimes[0]?.id || null);
 

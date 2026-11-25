@@ -10,12 +10,14 @@ const GoldClassSeat = ({
   seatId,
   number,
   isBooked,
+  isHoldingOther,
+  isHoldingSelf,
   isSelected,
   isVip, // Hàng E, F, G, H là khu vực VIP Premium với viền vàng ánh kim
   onClick,
 }) => {
   const handleClick = () => {
-    if (!isBooked && onClick) {
+    if (!isBooked && !isHoldingOther && onClick) {
       onClick(seatId);
     }
   };
@@ -47,6 +49,33 @@ const GoldClassSeat = ({
             className="text-[12px] font-black fill-[#E2E8F0] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
           >
             ✕
+          </text>
+        </svg>
+      </div>
+    );
+  }
+
+  // 1b. TRẠNG THÁI: GHẾ ĐANG ĐƯỢC KHÁCH KHÁC GIỮ (HOLDING_OTHER)
+  if (isHoldingOther) {
+    return (
+      <div
+        className="relative w-[31px] h-7 sm:w-[35px] sm:h-8 md:w-[37px] md:h-[31px] flex items-center justify-center select-none cursor-not-allowed opacity-90 shrink-0"
+        title={`Ghế Sofa VIP ${seatId} - Đang được khách khác giữ`}
+      >
+        <svg viewBox="0 0 44 38" className="w-full h-full">
+          <rect x="11" y="2" width="22" height="8" rx="3" fill="#2A1E0C" stroke="#F59E0B" strokeWidth="1.2" />
+          <rect x="2" y="8" width="8" height="26" rx="3.5" fill="#1F1609" stroke="#F59E0B" strokeWidth="1.2" />
+          <rect x="34" y="8" width="8" height="26" rx="3.5" fill="#1F1609" stroke="#F59E0B" strokeWidth="1.2" />
+          <rect x="11" y="11" width="22" height="21" rx="3.5" fill="#171005" stroke="#B45309" strokeWidth="1.1" />
+          <rect x="13" y="32" width="18" height="3" rx="1.5" fill="#10141D" />
+          <text
+            x="22"
+            y="21"
+            textAnchor="middle"
+            dominantBaseline="central"
+            className="text-[11px] font-black fill-[#FCD34D]"
+          >
+            ⏳
           </text>
         </svg>
       </div>

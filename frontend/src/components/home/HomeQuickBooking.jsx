@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { cinemaDate, monthLabel, releaseMonth } from '../../utils/cinemaCalendar';
+import { resolveRoomThemeKey } from '../../utils/pricing';
 
 const getAgeBadgeStyle = (ageRating) => {
   switch (ageRating) {
@@ -318,10 +319,10 @@ const HomeQuickBooking = ({
     };
 
     availableShowtimes.forEach((st) => {
-      const room = (st.roomType || '').toLowerCase();
-      if (room.includes('gold')) {
+      const themeKey = resolveRoomThemeKey(st);
+      if (themeKey === 'GOLD') {
         groups.GOLD.slots.push(st);
-      } else if (room.includes('atmos')) {
+      } else if (themeKey === 'ATMOS') {
         groups.ATMOS.slots.push(st);
       } else {
         groups.IMAX.slots.push(st);

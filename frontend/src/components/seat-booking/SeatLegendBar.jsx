@@ -13,8 +13,10 @@ const SeatLegendBar = ({
   roomType = 'IMAX', // 'IMAX' | 'ATMOS' | 'GOLD'
   seats = [],
   bookedSeats = [],
+  holdingSeats = [],
   selectedSeats = [],
   totalAmount = 0,
+  isSubmitting = false,
   onProceed,
 }) => {
   const isImax = roomType === 'IMAX';
@@ -24,11 +26,13 @@ const SeatLegendBar = ({
   // Tính toán số lượng ghế thực tế thời gian thực
   const totalSeats = seats.length;
   const bookedCount = bookedSeats.length;
+  const holdingCount = holdingSeats.length;
   const selectedCount = selectedSeats.length;
-  const availableCount = Math.max(0, totalSeats - bookedCount - selectedCount);
+  const availableCount = Math.max(0, totalSeats - bookedCount - holdingCount - selectedCount);
   const occupancyRate = totalSeats > 0 ? ((bookedCount / totalSeats) * 100).toFixed(1) : '0.0';
 
-  const isAvailable = ({ seatNumber }) => !bookedSeats.includes(seatNumber) && !selectedSeats.includes(seatNumber);
+  const isAvailable = ({ seatNumber }) =>
+    !bookedSeats.includes(seatNumber) && !holdingSeats.includes(seatNumber) && !selectedSeats.includes(seatNumber);
   const availableVipCount = seats.filter((seat) => seat.type !== 'STANDARD' && isAvailable(seat)).length;
   const availableStandardCount = availableCount - availableVipCount;
 
@@ -194,6 +198,15 @@ const SeatLegendBar = ({
             <span className="text-slate-300 font-semibold">Ghế đã đặt</span>
             <span className="px-1.5 py-0.2 rounded-full bg-slate-700/80 border border-slate-600 text-slate-200 font-black text-[10px] leading-tight">
               {bookedCount}
+            </span>
+          </div>
+
+          {/* E. GHẾ ĐANG GIỮ (HOLDING - VÀNG HỔ PHÁCH) */}
+          <div className="flex items-center space-x-1.5" title="Ghế đang được giữ tạm thời trong 10 phút">
+            <span className="w-4 h-4 rounded border border-amber-500/70 bg-amber-500/15 flex items-center justify-center text-[9px]">⏳</span>
+            <span className="text-amber-300 font-semibold">Đang giữ</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 font-black text-[10px] leading-tight">
+              {holdingCount}
             </span>
           </div>
         </div>

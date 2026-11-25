@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import { createSeatLayout } from '../../components/seat-booking/seatLayout';
@@ -6,8 +6,14 @@ import SeatGrid from '../../components/seat-booking/SeatGrid';
 import MovieInfoSidebar from '../../components/seat-booking/MovieInfoSidebar';
 import SeatLegendBar from '../../components/seat-booking/SeatLegendBar';
 import SmartSeatRecommender from '../../components/seat-booking/SmartSeatRecommender';
-import Theater3DExperience from '../../components/seat-booking/Theater3DExperience';
-import { calculateDynamicPrices, loadPricingConfig, DEFAULT_PRICING_CONFIG } from '../../utils/pricing';
+const Theater3DExperience = lazy(() => import('../../components/seat-booking/Theater3DExperience'));
+import {
+  calculateDynamicPrices,
+  loadPricingConfig,
+  DEFAULT_PRICING_CONFIG,
+  resolveCanonicalRoomType,
+  resolveRoomThemeKey,
+} from '../../utils/pricing';
 
 const SeatSelectionPage = () => {
   const { showtimeId } = useParams();
@@ -20,6 +26,9 @@ const SeatSelectionPage = () => {
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [inventory, setInventory] = useState('[]');
   const [bookedSeats, setBookedSeats] = useState([]);
+  const [holdingOtherSeats, setHoldingOtherSeats] = useState([]);
+  const [holdingSelfSeats, setHoldingSelfSeats] = useState([]);
+  const [isHoldingSubmitting, setIsHoldingSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [pricingConfig, setPricingConfig] = useState(DEFAULT_PRICING_CONFIG);
@@ -29,11 +38,21 @@ const SeatSelectionPage = () => {
   const [saleStatus, setSaleStatus] = useState('OPEN_FOR_SALE');
   const [saleMessage, setSaleMessage] = useState('');
 
-  // Ref giữ danh sách ghế đang chọn mới nhất phục vụ kiểm tra xung đột trong interval
+  // Ref giữ danh sách ghế đang chọn & trạng thái polling mới nhất
   const selectedSeatsRef = useRef(selectedSeats);
+  const inFlightRef = useRef(false);
+  const requestSeqRef = useRef(0);
+  const bookedSeatsRef = useRef(bookedSeats);
+  const holdingOtherSeatsRef = useRef(holdingOtherSeats);
   useEffect(() => {
     selectedSeatsRef.current = selectedSeats;
   }, [selectedSeats]);
+  useEffect(() => {
+    bookedSeatsRef.current = bookedSeats;
+  }, [bookedSeats]);
+  useEffect(() => {
+    holdingOtherSeatsRef.current = holdingOtherSeats;
+  }, [holdingOtherSeats]);
 
   useEffect(() => {
     loadPricingConfig().then((cfg) => {
@@ -41,38 +60,65 @@ const SeatSelectionPage = () => {
     });
   }, []);
 
-  // Lần đầu tải và tự động đồng bộ thời gian thực liên tục (Auto-polling mỗi 3 giây)
+  // Lần đầu tải đầy đủ và tự động đồng bộ nhẹ (?lite=1) mỗi 3 giây (tạm dừng khi ẩn tab)
   useEffect(() => {
     const request = new AbortController();
+    inFlightRef.current = false;
+    requestSeqRef.current += 1;
+    setShowtime(slotInfo || null);
     setSelectedSeats([]);
     setInventory('[]');
     setBookedSeats([]);
+    setHoldingOtherSeats([]);
+    setHoldingSelfSeats([]);
     setIs3DMode(false);
     fetchSeats(false, request.signal);
 
-    const syncInterval = setInterval(() => fetchSeats(true, request.signal), 3000);
+    const syncInterval = setInterval(() => {
+      if (!document.hidden && !inFlightRef.current) {
+        fetchSeats(true, request.signal);
+      }
+    }, 3000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && !inFlightRef.current && !request.signal.aborted) {
+        fetchSeats(true, request.signal);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       request.abort();
       clearInterval(syncInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [showtimeId, slotInfo?.date]);
 
+  const arraysEqual = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
   const fetchSeats = async (isSilent, signal) => {
+    if (isSilent && (inFlightRef.current || document.hidden)) return;
+    inFlightRef.current = true;
+    const mySeq = ++requestSeqRef.current;
+
     try {
       if (!isSilent) {
         setLoading(true);
         setErrorMsg('');
       }
-      const dateParam = slotInfo?.date ? `?date=${encodeURIComponent(slotInfo.date)}` : '';
-      const res = await api.get(`/showtimes/${showtimeId}/seats${dateParam}`, { signal });
-      if (signal.aborted) return;
+      const queryParts = [];
+      if (slotInfo?.date) queryParts.push(`date=${encodeURIComponent(slotInfo.date)}`);
+      if (isSilent) queryParts.push('lite=1');
+      const queryStr = queryParts.length ? `?${queryParts.join('&')}` : '';
+      const res = await api.get(`/showtimes/${showtimeId}/seats${queryStr}`, { signal });
+      if (signal.aborted || mySeq !== requestSeqRef.current) return;
 
       if (res.data?.saleStatus) {
-        setSaleStatus(res.data.saleStatus);
-        setSaleMessage(res.data.saleMessage || '');
+        setSaleStatus((prev) => (prev === res.data.saleStatus ? prev : res.data.saleStatus));
+        setSaleMessage((prev) => (prev === (res.data.saleMessage || '') ? prev : res.data.saleMessage || ''));
       }
 
-      if (res.data?.showtime) {
+      if (!isSilent && res.data?.showtime) {
         // Hợp nhất dữ liệu suất chiếu thực tế từ DB và slot được người dùng chọn
         setShowtime({
           ...res.data.showtime,
@@ -84,14 +130,11 @@ const SeatSelectionPage = () => {
           _id: res.data.showtime._id || res.data.showtime.id,
           movie: slotInfo?.movie || res.data.showtime.movie,
           format: slotInfo?.format || res.data.showtime.format || res.data.showtime.formatFeature || 'IMAX Laser 2D',
-          roomName: slotInfo?.roomName || res.data.showtime.roomName || 'Phòng IMAX Laser',
-          roomType: slotInfo?.roomType || (
-            (slotInfo?.roomName || res.data.showtime.roomName || '').toLowerCase().includes('atmos')
-              ? 'ATMOS'
-              : (slotInfo?.roomName || res.data.showtime.roomName || '').toLowerCase().includes('gold')
-              ? 'GOLD'
-              : 'IMAX'
-          ),
+          roomName: res.data.showtime.room?.name || slotInfo?.roomName || res.data.showtime.roomName || 'Phòng IMAX Laser',
+          roomType:
+            resolveCanonicalRoomType(res.data.showtime) ||
+            resolveCanonicalRoomType(slotInfo) ||
+            'IMAX Laser',
           time: slotInfo?.time || res.data.showtime.time,
           date: slotInfo?.date || res.data.showtime.date || res.data.showtime.startTime || new Date().toISOString().slice(0, 10),
           price: slotInfo?.price || res.data.showtime.price,
@@ -102,42 +145,55 @@ const SeatSelectionPage = () => {
       }
 
       if (Array.isArray(res.data?.seats)) {
-        const layoutSeats = res.data.seats
-          .map(({ id, seatNumber, row, col, type }) => ({ id, seatNumber, row, col, type }))
-          .sort((a, b) => a.row.localeCompare(b.row) || a.col - b.col || a.id.localeCompare(b.id));
-        setInventory(JSON.stringify(layoutSeats));
-        // Chỉ lấy những ghế thực tế đã được thanh toán (BOOKED) trong Database
+        if (!isSilent) {
+          const layoutSeats = res.data.seats
+            .map(({ id, seatNumber, row, col, type }) => ({ id, seatNumber, row, col, type }))
+            .sort((a, b) => a.row.localeCompare(b.row) || a.col - b.col || a.id.localeCompare(b.id));
+          const serialized = JSON.stringify(layoutSeats);
+          setInventory((prev) => (prev === serialized ? prev : serialized));
+        }
+        // Phân biệt rõ: BOOKED | HOLDING_OTHER | HOLDING_SELF
         const latestBooked = res.data.seats
-          .filter((s) => s.status !== 'AVAILABLE')
+          .filter((s) => s.status === 'BOOKED')
+          .map((s) => s.seatNumber);
+        const latestHoldingOther = res.data.seats
+          .filter((s) => s.status === 'HOLDING' && !s.isHeldByMe)
+          .map((s) => s.seatNumber);
+        const latestHoldingSelf = res.data.seats
+          .filter((s) => s.status === 'HOLDING' && s.isHeldByMe)
           .map((s) => s.seatNumber);
 
+        const unavailableForSelect = new Set([...latestBooked, ...latestHoldingOther]);
+
         if (!isSilent && Array.isArray(draftSeats)) {
-          const available = new Set(res.data.seats.filter(seat => seat.status === 'AVAILABLE').map(seat => seat.seatNumber));
-          const restored = draftSeats.filter(code => available.has(code));
+          const restored = draftSeats.filter((code) => !unavailableForSelect.has(code));
           setSelectedSeats(restored);
           selectedSeatsRef.current = restored;
         }
 
         // PHÁT HIỆN XUNG ĐỘT THỜI GIAN THỰC:
-        // Nếu ghế mà khách này đang chọn vừa có khách khác mua thành công
+        // Nếu ghế mà khách này đang chọn vừa có khách khác giữ hoặc mua thành công
         const currentSelected = selectedSeatsRef.current || [];
-        const conflictedSeats = currentSelected.filter((s) => latestBooked.includes(s));
+        const conflictedSeats = currentSelected.filter((s) => unavailableForSelect.has(s));
 
         if (conflictedSeats.length > 0) {
-          // Gỡ bỏ ghế bị người khác mua khỏi lựa chọn hiện tại
-          setSelectedSeats((prev) => prev.filter((s) => !latestBooked.includes(s)));
+          setSelectedSeats((prev) => prev.filter((s) => !unavailableForSelect.has(s)));
           setConflictToast(
-            `Ghế [${conflictedSeats.join(', ')}] không còn khả dụng. Sơ đồ ghế đã được tự động cập nhật.`
+            `Ghế [${conflictedSeats.join(', ')}] vừa được khách khác giữ hoặc đặt. Sơ đồ ghế đã được tự động cập nhật.`
           );
           setTimeout(() => setConflictToast(null), 6000);
         }
 
-        setBookedSeats(latestBooked);
+        setBookedSeats((prev) => (arraysEqual(prev, latestBooked) ? prev : latestBooked));
+        setHoldingOtherSeats((prev) => (arraysEqual(prev, latestHoldingOther) ? prev : latestHoldingOther));
+        setHoldingSelfSeats((prev) => (arraysEqual(prev, latestHoldingSelf) ? prev : latestHoldingSelf));
       } else if (!isSilent) {
         setBookedSeats([]);
+        setHoldingOtherSeats([]);
+        setHoldingSelfSeats([]);
       }
     } catch (err) {
-      if (signal.aborted) return;
+      if (signal.aborted || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
       console.warn('Lỗi tải dữ liệu suất chiếu từ DB:', err);
       if (!isSilent) {
         if (slotInfo) {
@@ -149,6 +205,7 @@ const SeatSelectionPage = () => {
         }
       }
     } finally {
+      inFlightRef.current = false;
       if (!isSilent && !signal.aborted) {
         setLoading(false);
       }
@@ -194,9 +251,8 @@ const SeatSelectionPage = () => {
     return String(rawDate);
   };
 
-  // Nhận diện chuẩn loại phòng chiếu: 'IMAX' | 'ATMOS' | 'GOLD'
-  const roomTechnology = (showtime?.room?.roomType || showtime?.roomType || showtime?.roomName || '').toLowerCase();
-  const currentRoomType = roomTechnology.includes('atmos') ? 'ATMOS' : roomTechnology.includes('gold') ? 'GOLD' : 'IMAX';
+  // Nhận diện chuẩn loại công nghệ phòng chiếu từ enum room.roomType: 'IMAX' | 'ATMOS' | 'GOLD'
+  const currentRoomType = resolveRoomThemeKey(showtime);
   const seats = useMemo(() => JSON.parse(inventory), [inventory]);
   const rows = useMemo(() => createSeatLayout(seats, currentRoomType), [seats, currentRoomType]);
   const seatsByCode = useMemo(() => new Map(seats.map((seat) => [seat.seatNumber, seat])), [seats]);
@@ -212,19 +268,28 @@ const SeatSelectionPage = () => {
     roomTypeLabel,
   } = calculateDynamicPrices(showtime, pricingConfig);
 
-  const handleSeatClick = (code) => {
-    if (!seatsByCode.has(code) || bookedSeats.includes(code)) return;
-    setSelectedSeats((current) => current.includes(code)
-      ? current.filter((seat) => seat !== code)
-      : [...current, code]);
-  };
+  const handleSeatClick = useCallback((code) => {
+    if (
+      !seatsByCode.has(code) ||
+      bookedSeatsRef.current.includes(code) ||
+      holdingOtherSeatsRef.current.includes(code)
+    ) {
+      return;
+    }
+    setSelectedSeats((current) =>
+      current.includes(code)
+        ? current.filter((seat) => seat !== code)
+        : [...current, code]
+    );
+  }, [seatsByCode]);
 
   const calculateTotal = () => {
     const priceByType = { STANDARD: PRICE_STANDARD, VIP: PRICE_VIP, SWEETBOX: PRICE_SWEETBOX };
     return selectedSeats.reduce((total, code) => total + (priceByType[seatsByCode.get(code)?.type] ?? 0), 0);
   };
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
+    if (isHoldingSubmitting) return;
     if (selectedSeats.length === 0) {
       alert('Vui lòng chọn ít nhất 1 ghế để tiếp tục!');
       return;
@@ -232,34 +297,62 @@ const SeatSelectionPage = () => {
 
     const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     if (!token) {
-      navigate('/login', { state: { from: location.pathname + location.search } });
+      navigate('/login', { state: { from: location.pathname + location.search, draftSeats: selectedSeats } });
       return;
     }
-    const targetShowtimeId = showtime?._id?.toString() || showtime?.id || showtimeId;
 
-    navigate(location.pathname + location.search + location.hash, {
-      replace: true,
-      state: { ...location.state, draftSeats: selectedSeats },
-    });
-    navigate('/checkout', {
-      state: {
+    const targetShowtimeId = showtime?._id?.toString() || showtime?.id || showtimeId;
+    setIsHoldingSubmitting(true);
+    try {
+      const holdRes = await api.post('/bookings/hold', {
         showtimeId: targetShowtimeId,
-        returnToSeatHistory: true,
-        showtime: {
-          ...showtime,
-          id: targetShowtimeId,
-          format: showtime?.format || roomTypeLabel,
-          cinemaName: showtime?.cinemaName || showtime?.cinema?.name || "D'AVENOR Thanh Khê Plaza",
+        seatNumbers: selectedSeats,
+      });
+
+      const { holdId, expiresAt, serverTime, seatNumbers } = holdRes.data || {};
+      if (!holdId || !expiresAt) {
+        throw new Error('Không nhận được mã phiên giữ ghế từ máy chủ.');
+      }
+
+      sessionStorage.setItem(
+        'davenor_active_hold',
+        JSON.stringify({ holdId, showtimeId: targetShowtimeId, seatNumbers, expiresAt, serverTime })
+      );
+
+      navigate(location.pathname + location.search + location.hash, {
+        replace: true,
+        state: { ...location.state, draftSeats: selectedSeats },
+      });
+      navigate('/checkout', {
+        state: {
+          holdId,
+          expiresAt,
+          serverTime,
+          showtimeId: targetShowtimeId,
+          returnToSeatHistory: true,
+          showtime: {
+            ...showtime,
+            id: targetShowtimeId,
+            format: showtime?.format || roomTypeLabel,
+            cinemaName: showtime?.cinemaName || showtime?.cinema?.name || "D'AVENOR Thanh Khê Plaza",
+          },
+          selectedSeats: seatNumbers || selectedSeats,
+          seatTotal: calculateTotal(),
+          ticketPrices: {
+            standard: PRICE_STANDARD,
+            vip: PRICE_VIP,
+            sweetbox: PRICE_SWEETBOX,
+          },
         },
-        selectedSeats,
-        seatTotal: calculateTotal(),
-        ticketPrices: {
-          standard: PRICE_STANDARD,
-          vip: PRICE_VIP,
-          sweetbox: PRICE_SWEETBOX,
-        },
-      },
-    });
+      });
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Không thể giữ ghế lúc này. Vui lòng thử lại!';
+      setConflictToast(msg);
+      setTimeout(() => setConflictToast(null), 6000);
+      fetchSeats(true, new AbortController().signal);
+    } finally {
+      setIsHoldingSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -504,20 +597,28 @@ const SeatSelectionPage = () => {
       {/* 2. KHU VỰC CHÍNH (SIDEBAR TRÁI + SƠ ĐỒ 88 GHẾ PHẢI) */}
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-2 relative z-10">
         {is3DMode && rows.length ? (
-          <Theater3DExperience
-            key={activeShowtimeId}
-            roomType={currentRoomType}
-            roomId={activeRoomId}
-            showtimeId={activeShowtimeId}
-            rows={rows}
-            initialSeatId={initialSeatId}
-            bookedSeats={bookedSeats}
-            selectedSeats={selectedSeats}
-            total={calculateTotal()}
-            onSeatClick={handleSeatClick}
-            onConfirm={handleProceed}
-            onClose={() => setIs3DMode(false)}
-          />
+          <Suspense
+            fallback={
+              <div className="min-h-[420px] flex items-center justify-center rounded-2xl border border-cyan-500/20 bg-slate-950/60 text-cyan-200 text-sm">
+                Đang khởi tạo không gian phòng chiếu 3D...
+              </div>
+            }
+          >
+            <Theater3DExperience
+              key={activeShowtimeId}
+              roomType={currentRoomType}
+              roomId={activeRoomId}
+              showtimeId={activeShowtimeId}
+              rows={rows}
+              initialSeatId={initialSeatId}
+              bookedSeats={bookedSeats}
+              selectedSeats={selectedSeats}
+              total={calculateTotal()}
+              onSeatClick={handleSeatClick}
+              onConfirm={handleProceed}
+              onClose={() => setIs3DMode(false)}
+            />
+          </Suspense>
         ) : (
           <div className="flex flex-col lg:flex-row items-start gap-6 lg:gap-8 justify-center">
             <MovieInfoSidebar movie={showtime?.movie} showtime={showtime} roomType={currentRoomType} />
@@ -526,6 +627,7 @@ const SeatSelectionPage = () => {
                 <SmartSeatRecommender
                   showtimeId={activeShowtimeId || showtimeId}
                   roomType={currentRoomType}
+                  seats={seats}
                   selectedSeats={selectedSeats}
                   bookedSeats={bookedSeats}
                   onSelectSeats={(codes) => setSelectedSeats(codes.filter((code) =>
@@ -546,6 +648,7 @@ const SeatSelectionPage = () => {
               <div className={`w-full backdrop-blur-2xl border rounded-2xl p-4 sm:p-6 ${roomTheme.gridCardBg}`}>
                 {errorMsg && <p role="alert" className="mb-3 text-center text-sm text-amber-200">{errorMsg}</p>}
                 <SeatGrid roomType={currentRoomType} rows={rows} bookedSeats={bookedSeats}
+                  holdingOtherSeats={holdingOtherSeats} holdingSelfSeats={holdingSelfSeats}
                   selectedSeats={selectedSeats} onSeatClick={handleSeatClick} />
               </div>
             </div>
@@ -564,8 +667,10 @@ const SeatSelectionPage = () => {
         seats={seats}
         roomType={currentRoomType}
         bookedSeats={bookedSeats}
+        holdingSeats={[...new Set([...holdingOtherSeats, ...holdingSelfSeats])]}
         selectedSeats={selectedSeats}
         totalAmount={calculateTotal()}
+        isSubmitting={isHoldingSubmitting}
         onProceed={handleProceed}
       />}
     </div>

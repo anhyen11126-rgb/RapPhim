@@ -469,6 +469,17 @@ export const deleteShowtimeSafe = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy suất chiếu cần xóa hoặc suất đã bị xóa.' });
     }
 
+    // Nếu suất chiếu đã được hủy trước đó -> trả về idempotent, không tạo hoàn tiền trùng lặp và không xóa cứng lịch sử
+    if (slot.cancelledAt) {
+      return res.json({
+        success: true,
+        alreadyCancelled: true,
+        deletedCompletely: false,
+        affectedOrdersCount: 0,
+        message: 'Suất chiếu này đã được hủy trước đó.',
+      });
+    }
+
     // Kiểm tra các đơn đặt vé gắn với suất chiếu này
     const orders = await Booking.find({
       showtimeId: slot._id,
@@ -476,8 +487,21 @@ export const deleteShowtimeSafe = async (req, res) => {
     }).lean();
 
     // TRƯỜNG HỢP 1: Suất chiếu chưa có bất kỳ đơn đặt vé nào (0 vé)
-    // -> Bọc Transaction thực hiện Hard delete an toàn tuyệt đối
+    // -> Kiểm tra xem có khách đang giữ ghế HOLDING còn hạn không trước khi cho phép xóa cứng
     if (!orders || orders.length === 0) {
+      const activeHoldingCount = await ShowtimeSeat.countDocuments({
+        showtimeId: slot._id,
+        status: 'HOLDING',
+        holdExpiresAt: { $gt: new Date() },
+      });
+      if (activeHoldingCount > 0) {
+        return res.status(409).json({
+          message: `Không thể xóa hoàn toàn: Suất chiếu đang có ${activeHoldingCount} ghế được khách giữ tạm thời.`,
+          hasActiveHolds: true,
+          holdingCount: activeHoldingCount,
+        });
+      }
+
       await mongoose.connection.transaction(async (session) => {
         if (slot.roomId) {
           await lockRoomForDelete(slot.roomId, session);
@@ -519,12 +543,25 @@ export const deleteShowtimeSafe = async (req, res) => {
       });
     }
 
+    // Nếu suất chiếu đã được hủy trước đó -> trả về idempotent, không tạo hoàn tiền trùng lặp
+    if (slot.cancelledAt) {
+      return res.json({
+        success: true,
+        alreadyCancelled: true,
+        deletedCompletely: false,
+        affectedOrdersCount: 0,
+        message: 'Suất chiếu này đã được hủy trước đó.',
+      });
+    }
+
     // Nếu Admin xác nhận Hủy suất chiếu & hoàn tiền
     if (orders.some(order => order.isCheckedIn)) {
       return res.status(409).json({
         message: 'Không thể hủy suất chiếu: Đã có vé được check-in vào phòng chiếu.',
       });
     }
+
+    const affectedOrderCodes = orders.map((o) => o.bookingCode);
 
     await mongoose.connection.transaction(async (session) => {
       await Showtime.findByIdAndUpdate(slot._id, {
@@ -535,16 +572,34 @@ export const deleteShowtimeSafe = async (req, res) => {
         },
       }, { session });
 
-      const orderIds = orders.map(o => o._id);
-      await Booking.updateMany(
-        { _id: { $in: orderIds } },
-        { $set: { status: 'CANCELLED', refundStatus: 'SIMULATED' } },
-        { session }
-      );
+      for (const order of orders) {
+        const nextRefundStatus = order.paymentStatus === 'VERIFIED' ? 'PENDING' : 'SIMULATED';
+        await Booking.updateOne(
+          { _id: order._id, status: { $in: ['PAID', 'EXCHANGED', 'PENDING'] } },
+          {
+            $set: {
+              status: 'CANCELLED',
+              qrToken: null,
+              refundStatus: nextRefundStatus,
+              refundAmount: order.totalAmount || 0,
+            },
+          },
+          { session }
+        );
+      }
 
       await ShowtimeSeat.updateMany(
         { showtimeId: slot._id },
-        { $set: { status: 'AVAILABLE', bookingId: null } },
+        {
+          $set: {
+            status: 'AVAILABLE',
+            bookingId: null,
+            holdId: null,
+            holdOwnerId: null,
+            holdCreatedAt: null,
+            holdExpiresAt: null,
+          },
+        },
         { session }
       );
     });
@@ -563,6 +618,7 @@ export const deleteShowtimeSafe = async (req, res) => {
       success: true,
       deletedCompletely: false,
       affectedOrdersCount: orders.length,
+      affectedOrders: affectedOrderCodes,
       message: `Đã hủy suất chiếu thành công. Có ${orders.length} đơn đặt vé bị ảnh hưởng đã được chuyển sang trạng thái hủy và ghi nhận hoàn tiền.`,
     });
   } catch (error) {

@@ -1,4 +1,5 @@
 import { getVNDateParts } from './timezoneUtils.js';
+import { resolvePricingFormatKey } from '../../utils/roomLayoutConfig.js';
 
 /**
  * Định dạng số tiền sang chuỗi VNĐ chuẩn (VD: 95000 -> "95.000đ")
@@ -10,19 +11,9 @@ export const formatVND = (amount) => {
 };
 
 /**
- * Xác định định dạng phòng chiếu chuẩn từ roomName, roomType và formatFeature thực tế trong DB
+ * Xác định khóa bảng giá & định dạng suất chiếu chuẩn từ enum `room.roomType` và `formatFeature` trong DB
  */
-export const detectShowtimeFormat = (showtime = {}) => {
-  const roomName = String(showtime.roomName || showtime.room?.name || '').toLowerCase();
-  const roomType = String(showtime.roomType || showtime.room?.type || '').toLowerCase();
-  const formatFeature = String(showtime.formatFeature || showtime.format || '').toLowerCase();
-  const combined = `${roomName} ${roomType} ${formatFeature}`;
-
-  if (combined.includes('imax')) return 'IMAX';
-  if (combined.includes('gold class') || combined.includes('gold_class')) return 'GOLD_CLASS';
-  if (combined.includes('3d')) return '3D';
-  return '2D';
-};
+export const detectShowtimeFormat = (showtime = {}) => resolvePricingFormatKey(showtime);
 
 /**
  * Nhãn hiển thị định dạng phòng chiếu

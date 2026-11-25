@@ -23,6 +23,11 @@ import {
   calculatePricesFromConfig,
   syncDatabaseWithPricingConfig,
 } from '../services/pricingConfigService.js';
+import {
+  ROOM_TYPES_ENUM,
+  SEAT_GRID_CONFIG,
+  resolveCanonicalRoomType,
+} from '../utils/roomLayoutConfig.js';
 import { ensureCleanConcessions, resolveConcessionVisuals } from './concessionController.js';
 import { ensureCleanPromotions, resolvePromotionVisuals } from './promotionController.js';
 import { resolveCinemaImage, DEFAULT_CINEMA_BANNER } from './cinemaController.js';
@@ -297,12 +302,11 @@ async function scheduleInRoom({ room, movie, start, price, pricing, session, for
       .select('row col seatNumber type').session(session).lean();
   }
 
-  // Nếu phòng chưa có template lịch sử (như các phòng 04, 06, 07, 08), sinh ma trận 88 ghế chuẩn
+  // Nếu phòng chưa có template lịch sử (như các phòng 04, 06, 07, 08), sinh ma trận 88 ghế chuẩn từ SEAT_GRID_CONFIG
   if (!seatTemplates.length) {
-    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    for (const r of rows) {
+    for (const r of SEAT_GRID_CONFIG.rows) {
       const type = ['E', 'F', 'G'].includes(r) ? 'VIP' : (r === 'H' ? 'SWEETBOX' : 'STANDARD');
-      for (let c = 1; c <= 11; c++) {
+      for (let c = 1; c <= SEAT_GRID_CONFIG.colsPerRow; c++) {
         seatTemplates.push({ row: r, col: c, seatNumber: `${r}${c}`, type });
       }
     }
@@ -593,13 +597,10 @@ export const getAdminShowtimes = async (req, res) => {
       });
     }
 
-    // Lọc theo roomType nếu có yêu cầu
+    // Lọc theo roomType chuẩn enum nếu có yêu cầu
     let filteredList = validIntersectingShowtimes;
     if (roomType && roomType !== 'ALL') {
-      filteredList = validIntersectingShowtimes.filter(st => {
-        const type = st.roomId?.roomType || (st.roomName?.includes('IMAX') ? 'IMAX Laser' : st.roomName?.includes('Atmos') ? 'Dolby Atmos' : st.roomName?.includes('Gold') ? 'Gold Class' : '');
-        return type === roomType;
-      });
+      filteredList = validIntersectingShowtimes.filter((st) => resolveCanonicalRoomType(st) === roomType);
     }
 
     const showtimeIds = filteredList.map((st) => st._id);
@@ -1537,32 +1538,36 @@ const getMovieAcronym = (title = '') => {
   return acronym || 'SHOW';
 };
 
-const detectShowtimeFormat = (roomName = '', formatFeature = '') => {
-  const combined = `${roomName} ${formatFeature}`.toLowerCase();
-  if (combined.includes('imax')) {
+const detectShowtimeFormat = (roomOrName = '', formatFeature = '') => {
+  const canonicalType = resolveCanonicalRoomType(
+    typeof roomOrName === 'string' ? { roomName: roomOrName } : roomOrName
+  );
+  const featText = String(formatFeature || '').toLowerCase();
+
+  if (canonicalType === ROOM_TYPES_ENUM.IMAX_LASER) {
     return {
       category: 'IMAX Laser',
-      badge: 'IMAX 3D Laser',
+      badge: /\b3d\b/i.test(featText) ? 'IMAX 3D Laser' : 'IMAX Laser',
       color: 'from-amber-500/20 to-amber-600/30 text-amber-300 border-amber-500/40',
     };
   }
-  if (combined.includes('reald') || combined.includes('3d')) {
-    return {
-      category: '3D Digital',
-      badge: combined.includes('lồng tiếng') ? '3D Lồng tiếng' : 'RealD 3D',
-      color: 'from-cyan-500/20 to-cyan-600/30 text-cyan-300 border-cyan-500/40',
-    };
-  }
-  if (combined.includes('vip') || combined.includes('gold') || combined.includes('bed') || combined.includes('recliner')) {
+  if (canonicalType === ROOM_TYPES_ENUM.GOLD_CLASS) {
     return {
       category: 'VIP Gold Class',
-      badge: combined.includes('bed') ? 'VIP Bed Recliner' : 'VIP Gold Class',
+      badge: featText.includes('bed') ? 'VIP Bed Recliner' : 'VIP Gold Class',
       color: 'from-purple-500/20 to-purple-600/30 text-purple-300 border-purple-500/40',
+    };
+  }
+  if (canonicalType === ROOM_TYPES_ENUM.REALD_3D || /\b3d\b/i.test(featText)) {
+    return {
+      category: '3D Digital',
+      badge: featText.includes('lồng tiếng') ? '3D Lồng tiếng' : 'RealD 3D',
+      color: 'from-cyan-500/20 to-cyan-600/30 text-cyan-300 border-cyan-500/40',
     };
   }
   return {
     category: '2D Atmos',
-    badge: combined.includes('atmos') ? '2D Atmos' : '2D Tiêu chuẩn',
+    badge: canonicalType === ROOM_TYPES_ENUM.DOLBY_ATMOS || featText.includes('atmos') ? '2D Atmos' : '2D Tiêu chuẩn',
     color: 'from-blue-500/20 to-blue-600/30 text-blue-300 border-blue-500/40',
   };
 };

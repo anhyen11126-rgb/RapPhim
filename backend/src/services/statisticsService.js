@@ -620,6 +620,8 @@ class StatisticsService {
     ]);
 
     let grossRevenue = 0;
+    let verifiedRevenueTotal = 0;
+    let simulatedRevenueTotal = 0;
     let ticketRevenue = 0;
     let concessionRevenue = 0;
     let totalTickets = 0;
@@ -630,7 +632,10 @@ class StatisticsService {
     const movieRevenueMap = {};
 
     bookings.forEach((b) => {
-      grossRevenue += verifiedRevenue(b);
+      const amount = verifiedRevenue(b);
+      grossRevenue += amount;
+      if (b.paymentStatus === 'VERIFIED') verifiedRevenueTotal += amount;
+      else if (b.paymentStatus === 'SIMULATED') simulatedRevenueTotal += amount;
       const seatsCount = countSeatsFromString(b.seats);
       totalTickets += seatsCount;
 
@@ -719,7 +724,9 @@ class StatisticsService {
     });
 
     const refundedAmount = cancelledBookings.reduce((sum, b) => sum + verifiedRefund(b), 0);
-    const netRevenue = grossRevenue;
+    const cancelledAmount = cancelledBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+    const totalRevenue = verifiedRevenueTotal + simulatedRevenueTotal;
+    const netRevenue = totalRevenue;
     const aov = bookings.length > 0 ? Math.round(netRevenue / bookings.length) : 0;
 
     // Chi phí & Lợi nhuận toàn kỳ
@@ -850,6 +857,10 @@ class StatisticsService {
         profitKnown,
         grossRevenue,
         grossFormatted: formatCurrency(grossRevenue),
+        verifiedRevenue: verifiedRevenueTotal,
+        simulatedRevenue: simulatedRevenueTotal,
+        totalRevenue,
+        cancelledAmount,
         netRevenue,
         netFormatted: formatCurrency(netRevenue),
         ticketRevenue,
@@ -1351,6 +1362,7 @@ class StatisticsService {
     const showtime = await Showtime.findById(showtimeId)
       .populate('movieId')
       .populate('cinemaId')
+      .populate('roomId', 'name shortName roomType formatFeature totalSeats')
       .lean();
 
     if (!showtime) {
@@ -1362,19 +1374,35 @@ class StatisticsService {
       .lean();
 
     const totalRevenue = bookings.reduce((sum, booking) => sum + verifiedRevenue(booking), 0);
+    const verifiedRevenueTotal = bookings.reduce(
+      (sum, booking) => sum + (booking.paymentStatus === 'VERIFIED' ? booking.totalAmount || 0 : 0),
+      0
+    );
+    const simulatedRevenueTotal = bookings.reduce(
+      (sum, booking) => sum + (booking.paymentStatus === 'SIMULATED' ? booking.totalAmount || 0 : 0),
+      0
+    );
 
     const dbSeats = await ShowtimeSeat.find({ showtimeId: showtime._id }).lean();
+    const now = new Date();
     const rows = new Map();
     for (const seat of dbSeats.sort((left, right) => left.row.localeCompare(right.row) || left.col - right.col)) {
       if (!rows.has(seat.row)) rows.set(seat.row, { row: seat.row, type: seat.type, seats: [] });
+      const effectiveStatus =
+        seat.status === 'HOLDING' && (!seat.holdExpiresAt || new Date(seat.holdExpiresAt) <= now)
+          ? 'AVAILABLE'
+          : seat.status;
       rows.get(seat.row).seats.push({
-        code: seat.seatNumber, row: seat.row, col: seat.col, type: seat.type, status: seat.status,
+        code: seat.seatNumber, row: seat.row, col: seat.col, type: seat.type, status: effectiveStatus,
       });
     }
     const seatMatrix = [...rows.values()];
     const totalRoomSeats = dbSeats.length || null;
     const bookedCount = totalRoomSeats ? dbSeats.filter(seat => seat.status === 'BOOKED').length : null;
-    const availableCount = totalRoomSeats ? dbSeats.filter(seat => seat.status === 'AVAILABLE').length : null;
+    const holdingCount = totalRoomSeats
+      ? dbSeats.filter(seat => seat.status === 'HOLDING' && seat.holdExpiresAt && new Date(seat.holdExpiresAt) > now).length
+      : 0;
+    const availableCount = totalRoomSeats ? Math.max(0, totalRoomSeats - bookedCount - holdingCount) : null;
     const occupancyRate = totalRoomSeats ? Number(((bookedCount / totalRoomSeats) * 100).toFixed(1)) : null;
 
     return {
@@ -1383,18 +1411,23 @@ class StatisticsService {
         movieTitle: showtime.movieId?.title,
         moviePoster: showtime.movieId?.posterUrl || showtime.movieId?.poster,
         cinemaName: showtime.cinemaId?.name,
-        roomName: showtime.roomName,
+        roomId: showtime.roomId?._id || null,
+        roomName: showtime.roomId?.name || showtime.roomName,
+        roomType: showtime.roomId?.roomType || null,
+        aisleAfterCol: 6,
         startTime: showtime.startTime,
         price: showtime.price,
-        format: showtime.formatFeature || '2D Tiêu chuẩn',
+        format: showtime.formatFeature || showtime.roomId?.formatFeature || '2D Tiêu chuẩn',
       },
       stats: {
         totalSeats: totalRoomSeats,
         bookedCount,
         availableCount,
-        holdingCount: 0,
+        holdingCount,
         occupancyRate,
         totalRevenue,
+        verifiedRevenue: verifiedRevenueTotal,
+        simulatedRevenue: simulatedRevenueTotal,
         revenueFormatted: formatCurrency(totalRevenue),
       },
       seatMatrix,
@@ -1556,8 +1589,12 @@ class StatisticsService {
       csvContent += `Khoảng thời gian: ${label} (${start.toLocaleDateString('vi-VN')} - ${end.toLocaleDateString('vi-VN')})\n`;
       csvContent += `Thời điểm xuất: ${nowStr}\n\n`;
       csvContent += `CHỈ SỐ TÀI CHÍNH TỔNG QUAN\n`;
+      csvContent += `Doanh thu thực đã xác minh,${data.metrics.verifiedRevenue}\n`;
+      csvContent += `Doanh thu mô phỏng,${data.metrics.simulatedRevenue}\n`;
+      csvContent += `Tổng doanh thu hợp lệ,${data.metrics.totalRevenue}\n`;
       csvContent += `Tổng doanh thu trước hoàn tiền,${data.metrics.grossRevenue}\n`;
       csvContent += `Tổng số tiền đã hoàn,${data.metrics.refundedAmount}\n`;
+      csvContent += `Giá trị đơn đã hủy,${data.metrics.cancelledAmount}\n`;
       csvContent += `Doanh thu thuần,${data.metrics.netRevenue}\n`;
       csvContent += `Doanh thu vé xem phim,${data.metrics.ticketRevenue}\n`;
       csvContent += `Doanh thu bắp nước,${data.metrics.concessionRevenue}\n`;

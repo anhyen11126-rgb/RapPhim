@@ -16,7 +16,7 @@ export const statisticsApi = {
 
   // 4. Thống kê Suất chiếu
   getShowtimes: (params = {}, signal) => api.get('/admin/statistics/showtimes', { params, signal }),
-  getShowtimeDetail: (id) => api.get(`/admin/statistics/showtimes/${id}`),
+  getShowtimeDetail: (id, config = {}) => api.get(`/admin/statistics/showtimes/${id}`, config),
 
   // 5. Thống kê Khách hàng
   getCustomers: (params = {}) => api.get('/admin/statistics/customers', { params }),

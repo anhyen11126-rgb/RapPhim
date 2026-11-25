@@ -9,6 +9,7 @@ import {
   calculatePricesFromConfig,
   detectFormatKey,
 } from '../services/pricingConfigService.js';
+import { resolveCanonicalRoomType } from '../utils/roomLayoutConfig.js';
 
 export const DEFAULT_CINEMA_BANNER = '/images/cinemas/davenor-flagship-cinema.jpg';
 
@@ -283,26 +284,17 @@ export const getCinemaShowtimes = async (req, res) => {
       endOfDay = new Date(localStart.getTime() + 86400000 - 1);
     }
 
-    // Truy vấn các suất chiếu của rạp này từ Database
-    let showtimes = await Showtime.find({
+    // Truy vấn các suất chiếu thực tế của rạp từ Database (API GET tuyệt đối không tự động seed/ghi dữ liệu)
+    const showtimes = await Showtime.find({
       cinemaId: cinema._id,
       startTime: { $gte: startOfDay, $lte: endOfDay },
+      cancelledAt: null,
+      isLocked: { $ne: true },
     })
       .sort({ startTime: 1 })
       .populate('movieId')
+      .populate('roomId', 'name shortName roomType formatFeature totalSeats')
       .lean();
-
-    // Nếu chưa có suất chiếu trong Database cho ngày này, tự động khởi tạo và LƯU TRỰC TIẾP vào MongoDB Atlas
-    if (!published && showtimes.length === 0) {
-      await autoSeedCinemaShowtimes(cinema, startOfDay);
-      showtimes = await Showtime.find({
-        cinemaId: cinema._id,
-        startTime: { $gte: startOfDay, $lte: endOfDay },
-      })
-        .sort({ startTime: 1 })
-        .populate('movieId')
-        .lean();
-    }
 
     const pricingConfig = published
       ? await TicketPricingConfig.findOne({ configKey: 'MAIN_PRICING_CONFIG' }).lean()
@@ -345,10 +337,16 @@ export const getCinemaShowtimes = async (req, res) => {
       });
 
       const movieEntry = moviesMap.get(movieIdStr);
-      const roomName = st.roomName || 'Phòng 01 - Tiêu chuẩn';
+      const roomName = st.roomId?.name || st.roomName || 'Phòng 01 - Tiêu chuẩn';
+      const canonicalRoomType = resolveCanonicalRoomType(st);
 
       if (!movieEntry.roomsMap.has(roomName)) {
-        const fmtKey = detectFormatKey({ roomName, formatFeature: st.formatFeature });
+        const fmtKey = detectFormatKey({
+          roomId: st.roomId,
+          roomType: canonicalRoomType,
+          roomName,
+          formatFeature: st.formatFeature,
+        });
         const rule = pricingConfig?.formats?.[fmtKey];
         const dayOfWeek = new Date(st.startTime).getDay();
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
@@ -359,12 +357,15 @@ export const getCinemaShowtimes = async (req, res) => {
         const minP = dayVals.length ? Math.min(...dayVals) : st.price || 45000;
         const maxP = dayVals.length ? Math.max(...dayVals) : st.price || 65000;
         const dayTypeText = isWeekend ? 'cuối tuần' : 'ngày thường';
-        const fmtPrefix = fmtKey === '3D' ? '3D ' : fmtKey === 'IMAX' ? 'IMAX ' : '';
+        const fmtPrefix =
+          fmtKey === '3D' ? '3D ' : fmtKey === 'IMAX' ? 'IMAX ' : fmtKey === 'GOLD_CLASS' ? 'Gold Class ' : '';
         const priceRangeLabel = `Giá vé ${fmtPrefix}${dayTypeText} dao động: ${minP.toLocaleString('vi-VN')}đ - ${maxP.toLocaleString('vi-VN')}đ`;
 
         movieEntry.roomsMap.set(roomName, {
+          roomId: st.roomId?._id?.toString() || null,
           name: roomName,
-          feature: st.formatFeature || 'Âm thanh vòm Dolby Atmos',
+          roomType: canonicalRoomType,
+          feature: st.formatFeature || st.roomId?.formatFeature || 'Âm thanh vòm Dolby Atmos',
           priceText: priceRangeLabel,
           showtimes: [],
         });

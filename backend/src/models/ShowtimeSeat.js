@@ -40,6 +40,21 @@ const showtimeSeatSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    holdId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    holdOwnerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+    holdCreatedAt: {
+      type: Date,
+      default: null,
+    },
     bookingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking',
@@ -67,6 +82,7 @@ const showtimeSeatSchema = new mongoose.Schema(
 
 // Đảm bảo trong 1 suất chiếu, số ghế là duy nhất
 showtimeSeatSchema.index({ showtimeId: 1, seatNumber: 1 }, { unique: true });
+showtimeSeatSchema.index({ showtimeId: 1, row: 1, col: 1 });
 showtimeSeatSchema.index({ showtimeId: 1, status: 1, holdExpiresAt: 1 });
 
 const ShowtimeSeat = mongoose.models.ShowtimeSeat || mongoose.model('ShowtimeSeat', showtimeSeatSchema);

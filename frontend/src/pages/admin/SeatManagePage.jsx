@@ -79,7 +79,7 @@ const SeatManagePage = () => {
               className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 flex items-center space-x-2 transition-all cursor-pointer"
             >
               <span>📽️</span>
-              <span>8 Phòng Chiếu & Sức Chứa</span>
+              <span>9 Phòng Chiếu & Sức Chứa (88 Ghế/Phòng)</span>
             </Link>
             <button
               type="button"
