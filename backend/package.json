@@ -9,7 +9,7 @@
     "dev": "nodemon src/server.js",
     "db:seed": "node scripts/seedMongo.js",
     "db:seed:danang": "node scripts/seedAllDaNangShowtimes.js",
-    "test": "node --test test/booking-and-admin.test.js test/seat-holding.test.js test/phase05-performance-sync.test.js test/phase06-acceptance.test.js",
+    "test": "node --test test/booking-and-admin.test.js test/seat-holding.test.js test/phase05-performance-sync.test.js test/phase06-acceptance.test.js test/group02-qb09-fixes.test.js test/group03-search-detail-review.test.js test/bulk-delete-and-lifecycle.test.js",
     "test:all": "node scripts/testAll.js"
   },
   "dependencies": {

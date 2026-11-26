@@ -8,6 +8,10 @@ import {
   resolveCanonicalRoomType,
   resolveRowAisleSplitCol,
 } from '../utils/roomLayoutConfig.js';
+import {
+  ensurePricingConfig,
+  calculatePricesFromConfig,
+} from '../services/pricingConfigService.js';
 
 /**
  * Chuẩn hóa mã ghế (ví dụ: "A01" -> "A1", "H04" -> "H4", "c4" -> "C4")
@@ -175,24 +179,52 @@ export const getShowtimeSeats = async (req, res) => {
       });
     }
 
+    const canonicalRoomType = resolveCanonicalRoomType(targetShowtime);
+    const pricingConfig = await ensurePricingConfig();
+    const calculatedPrices = calculatePricesFromConfig(
+      {
+        ...targetShowtime,
+        room: targetShowtime.roomId,
+        roomId: targetShowtime.roomId,
+        roomType: canonicalRoomType,
+        roomName: targetShowtime.roomId?.name || targetShowtime.roomName,
+      },
+      pricingConfig
+    );
+    const priceByType = {
+      STANDARD: calculatedPrices.priceStandard,
+      VIP: calculatedPrices.priceVip,
+      SWEETBOX: calculatedPrices.priceSweetbox,
+    };
+
     const seats = rawSeats.map((s) => {
       const status = effectiveStatus(s);
       const isHeldByMe = Boolean(
         status === 'HOLDING' && currentUserId && s.holdOwnerId && String(s.holdOwnerId) === currentUserId
       );
+      const seatType = String(s.type || 'STANDARD').toUpperCase();
       return {
         id: s._id.toString(),
         seatNumber: normalizeSeatCode(s.seatNumber),
         row: s.row,
         col: s.col,
-        type: s.type,
+        type: seatType,
         status,
         ...(isHeldByMe ? { isHeldByMe: true } : {}),
-        price: s.price,
+        price: priceByType[seatType] ?? calculatedPrices.priceStandard,
       };
     });
 
     const showtimeData = targetShowtime;
+    const ticketPrices = {
+      standard: calculatedPrices.priceStandard,
+      vip: calculatedPrices.priceVip,
+      sweetbox: calculatedPrices.priceSweetbox,
+      vipSurcharge: calculatedPrices.vipSurcharge,
+      sweetboxExtra: calculatedPrices.sweetboxExtra,
+      formatKey: calculatedPrices.format,
+      roomTypeLabel: calculatedPrices.roomTypeLabel,
+    };
 
     res.set('Cache-Control', 'no-store');
     res.json({
@@ -206,10 +238,13 @@ export const getShowtimeSeats = async (req, res) => {
       occupancyRate,
       saleStatus,
       saleMessage,
+      ticketPrices,
       showtime: {
         ...showtimeData,
         id: showtimeData._id.toString(),
-        roomType: resolveCanonicalRoomType(showtimeData),
+        price: calculatedPrices.priceStandard,
+        roomType: canonicalRoomType,
+        ticketPrices,
         movie: showtimeData.movieId
           ? { ...showtimeData.movieId, id: showtimeData.movieId._id.toString() }
           : null,

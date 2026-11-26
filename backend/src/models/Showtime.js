@@ -39,7 +39,14 @@ const showtimeSchema = new mongoose.Schema(
     creationSource: { type: String, enum: ['MANUAL', 'RECURRING', 'BULK'], default: 'MANUAL' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     bookingRevision: { type: Number, default: 0, select: false },
-    cleaningMinutes: { type: Number, min: 0 },
+    cleaningMinutes: { type: Number, min: 0, max: 60, default: 20 },
+    cleaningEndTime: { type: Date, default: null, index: true },
+    lifecycleStatus: {
+      type: String,
+      enum: ['UPCOMING', 'NOW_SHOWING', 'CLEANING', 'COMPLETED', 'CANCELLED'],
+      default: 'UPCOMING',
+      index: true,
+    },
     price: {
       type: Number,
       required: true,
@@ -71,6 +78,7 @@ const showtimeSchema = new mongoose.Schema(
 
 showtimeSchema.index({ movieId: 1, startTime: 1 });
 showtimeSchema.index({ roomId: 1, startTime: 1, cancelledAt: 1 });
+showtimeSchema.index({ roomId: 1, lifecycleStatus: 1, startTime: 1, endTime: 1 });
 
 // Virtual relationship tới Movie
 showtimeSchema.virtual('movie', {

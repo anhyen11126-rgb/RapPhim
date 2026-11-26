@@ -119,26 +119,50 @@ const SeatSelectionPage = () => {
       }
 
       if (!isSilent && res.data?.showtime) {
-        // Hợp nhất dữ liệu suất chiếu thực tế từ DB và slot được người dùng chọn
+        // Ưu tiên tuyệt đối dữ liệu suất chiếu, loại phòng và giá vé thực tế trả về từ Backend DB
+        const dbShowtime = res.data.showtime;
+        const dbTicketPrices = res.data.ticketPrices || dbShowtime.ticketPrices || slotInfo?.ticketPrices || null;
         setShowtime({
-          ...res.data.showtime,
           ...(slotInfo || {}),
-          room: res.data.showtime.room,
-          roomId: res.data.showtime.roomId,
+          ...dbShowtime,
+          room: dbShowtime.room || slotInfo?.room,
+          roomId: dbShowtime.roomId || slotInfo?.roomId,
           seatRoomId: res.data.roomId,
-          id: res.data.showtime.id || res.data.showtime._id,
-          _id: res.data.showtime._id || res.data.showtime.id,
-          movie: slotInfo?.movie || res.data.showtime.movie,
-          format: slotInfo?.format || res.data.showtime.format || res.data.showtime.formatFeature || 'IMAX Laser 2D',
-          roomName: res.data.showtime.room?.name || slotInfo?.roomName || res.data.showtime.roomName || 'Phòng IMAX Laser',
+          id: dbShowtime.id || dbShowtime._id,
+          _id: dbShowtime._id || dbShowtime.id,
+          movie: dbShowtime.movie || slotInfo?.movie,
+          format:
+            dbShowtime.format ||
+            dbShowtime.formatFeature ||
+            slotInfo?.format ||
+            resolveCanonicalRoomType(dbShowtime) ||
+            'IMAX Laser',
+          roomName:
+            dbShowtime.room?.name ||
+            dbShowtime.roomName ||
+            slotInfo?.roomName ||
+            'Phòng IMAX Laser',
           roomType:
-            resolveCanonicalRoomType(res.data.showtime) ||
+            resolveCanonicalRoomType(dbShowtime) ||
             resolveCanonicalRoomType(slotInfo) ||
             'IMAX Laser',
-          time: slotInfo?.time || res.data.showtime.time,
-          date: slotInfo?.date || res.data.showtime.date || res.data.showtime.startTime || new Date().toISOString().slice(0, 10),
-          price: slotInfo?.price || res.data.showtime.price,
-          cinemaName: slotInfo?.cinemaName || res.data.showtime.cinema?.name || "D'AVENOR Thanh Khê Plaza",
+          time:
+            dbShowtime.time ||
+            (dbShowtime.startTime
+              ? new Date(dbShowtime.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+              : slotInfo?.time),
+          date:
+            dbShowtime.startTime ||
+            dbShowtime.date ||
+            slotInfo?.date ||
+            new Date().toISOString().slice(0, 10),
+          price: dbTicketPrices?.standard ?? dbShowtime.price ?? slotInfo?.price,
+          ticketPrices: dbTicketPrices,
+          cinemaName:
+            dbShowtime.cinema?.name ||
+            dbShowtime.cinemaName ||
+            slotInfo?.cinemaName ||
+            "D'AVENOR Thanh Khê Plaza",
         });
       } else if (slotInfo && !isSilent) {
         setShowtime(slotInfo);
@@ -147,7 +171,7 @@ const SeatSelectionPage = () => {
       if (Array.isArray(res.data?.seats)) {
         if (!isSilent) {
           const layoutSeats = res.data.seats
-            .map(({ id, seatNumber, row, col, type }) => ({ id, seatNumber, row, col, type }))
+            .map(({ id, seatNumber, row, col, type, price }) => ({ id, seatNumber, row, col, type, price }))
             .sort((a, b) => a.row.localeCompare(b.row) || a.col - b.col || a.id.localeCompare(b.id));
           const serialized = JSON.stringify(layoutSeats);
           setInventory((prev) => (prev === serialized ? prev : serialized));
@@ -259,14 +283,14 @@ const SeatSelectionPage = () => {
   const activeShowtimeId = showtime?._id || showtime?.id;
   const activeRoomId = showtime?.room?.id || showtime?.roomId || showtime?.seatRoomId;
 
-  // Tính giá vé động theo ngày trong tuần, khung giờ và quy định cụ thể của từng loại ghế
-  const {
-    priceStandard: PRICE_STANDARD,
-    priceVip: PRICE_VIP,
-    priceSweetbox: PRICE_SWEETBOX,
-    timeSlotLabel,
-    roomTypeLabel,
-  } = calculateDynamicPrices(showtime, pricingConfig);
+  // Ưu tiên bảng giá chính thức do Backend trả về cho đúng suất chiếu & loại phòng này
+  const dynamicCalculated = calculateDynamicPrices(showtime, pricingConfig);
+  const serverTicketPrices = showtime?.ticketPrices;
+  const PRICE_STANDARD = Number(serverTicketPrices?.standard) > 0 ? Number(serverTicketPrices.standard) : dynamicCalculated.priceStandard;
+  const PRICE_VIP = Number(serverTicketPrices?.vip) > 0 ? Number(serverTicketPrices.vip) : dynamicCalculated.priceVip;
+  const PRICE_SWEETBOX = Number(serverTicketPrices?.sweetbox) > 0 ? Number(serverTicketPrices.sweetbox) : dynamicCalculated.priceSweetbox;
+  const timeSlotLabel = dynamicCalculated.timeSlotLabel;
+  const roomTypeLabel = serverTicketPrices?.roomTypeLabel || dynamicCalculated.roomTypeLabel;
 
   const handleSeatClick = useCallback((code) => {
     if (
@@ -285,7 +309,12 @@ const SeatSelectionPage = () => {
 
   const calculateTotal = () => {
     const priceByType = { STANDARD: PRICE_STANDARD, VIP: PRICE_VIP, SWEETBOX: PRICE_SWEETBOX };
-    return selectedSeats.reduce((total, code) => total + (priceByType[seatsByCode.get(code)?.type] ?? 0), 0);
+    return selectedSeats.reduce((total, code) => {
+      const seatObj = seatsByCode.get(code);
+      if (!seatObj) return total;
+      const unitPrice = priceByType[seatObj.type] ?? seatObj.price ?? PRICE_STANDARD;
+      return total + unitPrice;
+    }, 0);
   };
 
   const handleProceed = async () => {
@@ -670,6 +699,9 @@ const SeatSelectionPage = () => {
         holdingSeats={[...new Set([...holdingOtherSeats, ...holdingSelfSeats])]}
         selectedSeats={selectedSeats}
         totalAmount={calculateTotal()}
+        priceStandard={PRICE_STANDARD}
+        priceVip={PRICE_VIP}
+        priceSweetbox={PRICE_SWEETBOX}
         isSubmitting={isHoldingSubmitting}
         onProceed={handleProceed}
       />}

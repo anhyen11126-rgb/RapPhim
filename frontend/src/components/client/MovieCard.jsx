@@ -91,11 +91,13 @@ const MovieCard = ({ movie }) => {
           </span>
         </div>
 
-        {/* Rating Badge */}
-        <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center space-x-1 shadow whitespace-nowrap">
-          <span className="text-amber-400 text-xs">★</span>
-          <span className="text-white text-xs font-bold">{movie?.rating || '4.8'}</span>
-        </div>
+        {/* Rating Badge (đồng bộ 100% từ điểm đánh giá thật) */}
+        {movie?.rating != null && Number.isFinite(Number(movie.rating)) && (
+          <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center space-x-1 shadow whitespace-nowrap">
+            <span className="text-amber-400 text-xs">★</span>
+            <span className="text-white text-xs font-bold">{Number(movie.rating).toFixed(1)}</span>
+          </div>
+        )}
       </Link>
 
       {/* Info Body */}

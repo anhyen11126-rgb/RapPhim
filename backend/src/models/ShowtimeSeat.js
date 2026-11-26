@@ -84,6 +84,7 @@ const showtimeSeatSchema = new mongoose.Schema(
 showtimeSeatSchema.index({ showtimeId: 1, seatNumber: 1 }, { unique: true });
 showtimeSeatSchema.index({ showtimeId: 1, row: 1, col: 1 });
 showtimeSeatSchema.index({ showtimeId: 1, status: 1, holdExpiresAt: 1 });
+showtimeSeatSchema.index({ roomId: 1, showtimeId: 1 });
 
 const ShowtimeSeat = mongoose.models.ShowtimeSeat || mongoose.model('ShowtimeSeat', showtimeSeatSchema);
 export default ShowtimeSeat;

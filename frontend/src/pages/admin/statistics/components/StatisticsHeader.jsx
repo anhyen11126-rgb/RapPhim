@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 const StatisticsHeader = ({
   lastUpdated,
+  hasError = false,
   onRefresh,
   onExport,
   isRefreshing = false,
@@ -22,18 +23,27 @@ const StatisticsHeader = ({
           Thống kê & Báo cáo
         </h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Theo dõi doanh thu, vé bán, công suất phòng chiếu và hiệu quả kinh doanh rạp.
+          Theo dõi doanh thu, vé bán, công suất 9 phòng chiếu vật lý (792 ghế) và lợi nhuận từng bộ phim.
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
-        {/* Thời gian cập nhật gần nhất */}
-        <div className="flex items-center space-x-2 bg-[var(--bg-secondary)] border border-[var(--border-default)] px-3 py-1.5 rounded-xl text-xs text-slate-300">
-          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-          <span>Cập nhật: <strong className="text-white font-medium">{lastUpdated || 'Vừa xong'}</strong></span>
-        </div>
+        {/* Thời gian cập nhật gần nhất - Chỉ hiển thị khi API tải thành công, không hiển thị "Vừa xong" khi API lỗi */}
+        {lastUpdated && !hasError ? (
+          <div className="flex items-center space-x-2 bg-[var(--bg-secondary)] border border-[var(--border-default)] px-3 py-1.5 rounded-xl text-xs text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>
+              Cập nhật: <strong className="text-white font-medium">{lastUpdated}</strong>
+            </span>
+          </div>
+        ) : hasError ? (
+          <div className="flex items-center space-x-2 bg-rose-950/60 border border-rose-500/40 px-3 py-1.5 rounded-xl text-xs text-rose-300">
+            <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+            <span>Chưa đồng bộ được dữ liệu</span>
+          </div>
+        ) : null}
 
-        {/* Nút Làm mới dữ liệu (Neutral dark style) */}
+        {/* Nút Làm mới dữ liệu */}
         <button
           type="button"
           onClick={onRefresh}
@@ -42,7 +52,7 @@ const StatisticsHeader = ({
           title="Làm mới dữ liệu từ hệ thống"
         >
           <svg
-            className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-red-400' : 'text-slate-400'}`}
+            className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-cyan-400' : 'text-slate-400'}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -57,7 +67,7 @@ const StatisticsHeader = ({
           <span>{isRefreshing ? 'Đang nạp...' : 'Làm mới'}</span>
         </button>
 
-        {/* Nút Xuất báo cáo (Brand red style) */}
+        {/* Nút Xuất báo cáo */}
         <div className="relative">
           <button
             type="button"
@@ -74,31 +84,47 @@ const StatisticsHeader = ({
               />
             </svg>
             <span>{isExporting ? 'Đang xuất...' : 'Xuất báo cáo'}</span>
-            <svg className="w-3 h-3 text-red-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3 text-violet-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
             </svg>
           </button>
 
           {showExportMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-[var(--bg-secondary)] border border-slate-700 rounded-2xl shadow-2xl py-1.5 z-30 animate-fadeIn text-xs">
+            <div className="absolute right-0 mt-2 w-64 bg-[var(--bg-secondary)] border border-slate-700 rounded-2xl shadow-2xl py-1.5 z-30 animate-fadeIn text-xs">
               <div className="px-3 py-1.5 font-bold text-slate-400 border-b border-[var(--border-default)] text-[10px] uppercase tracking-wider">
-                Chọn mẫu báo cáo (Excel/CSV)
+                Chọn mẫu báo cáo (Excel/CSV UTF-8)
               </div>
               <button
                 type="button"
-                onClick={() => handleSelectExport('revenue')}
-                className="w-full text-left px-3.5 py-2.5 hover:bg-[var(--bg-surface)] text-slate-200 flex items-center justify-between"
+                onClick={() => handleSelectExport('overview')}
+                className="w-full text-left px-3.5 py-2.5 hover:bg-[var(--bg-surface)] text-slate-200 flex items-center justify-between cursor-pointer"
               >
-                <span>Báo cáo Doanh thu & Dòng tiền</span>
-                <span className="text-[10px] text-slate-400 font-semibold">CSV</span>
+                <span>Báo cáo Tổng hợp tháng & 9 phòng</span>
+                <span className="text-[10px] text-cyan-400 font-semibold">CSV</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectExport('revenue')}
+                className="w-full text-left px-3.5 py-2.5 hover:bg-[var(--bg-surface)] text-slate-200 flex items-center justify-between cursor-pointer"
+              >
+                <span>Báo cáo Doanh thu, Chi phí & Lợi nhuận</span>
+                <span className="text-[10px] text-emerald-400 font-semibold">CSV</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleSelectExport('movies')}
-                className="w-full text-left px-3.5 py-2.5 hover:bg-[var(--bg-surface)] text-slate-200 flex items-center justify-between"
+                className="w-full text-left px-3.5 py-2.5 hover:bg-[var(--bg-surface)] text-slate-200 flex items-center justify-between cursor-pointer"
               >
-                <span>Báo cáo Hiệu suất Phim</span>
-                <span className="text-[10px] text-slate-400 font-semibold">CSV</span>
+                <span>Báo cáo Tỷ lệ bán vé & Lợi nhuận Phim</span>
+                <span className="text-[10px] text-violet-400 font-semibold">CSV</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectExport('showtimes')}
+                className="w-full text-left px-3.5 py-2.5 hover:bg-[var(--bg-surface)] text-slate-200 flex items-center justify-between cursor-pointer"
+              >
+                <span>Báo cáo Chi tiết Suất chiếu</span>
+                <span className="text-[10px] text-amber-400 font-semibold">CSV</span>
               </button>
             </div>
           )}

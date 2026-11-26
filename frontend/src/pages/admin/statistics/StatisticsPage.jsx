@@ -24,28 +24,39 @@ const StatisticsPage = () => {
   const activeReport = activeTab === 'efficiency' ? efficiency : activeTab;
 
   const [filters, setFilters] = useState(() => {
-    const parts = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: 'numeric' })
-      .formatToParts(new Date());
+    const parts = new Intl.DateTimeFormat('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: 'numeric',
+    }).formatToParts(new Date());
     return {
-    timeRange: 'by_month',
-    month: Number(parts.find(part => part.type === 'month').value),
-    year: Number(parts.find(part => part.type === 'year').value),
-    customStart: '',
-    customEnd: '',
-    movieId: 'ALL',
+      timeRange: 'by_month',
+      month: Number(parts.find((part) => part.type === 'month').value),
+      year: Number(parts.find((part) => part.type === 'year').value),
+      customStart: '',
+      customEnd: '',
+      movieId: 'ALL',
+      roomId: 'ALL',
+      roomType: 'ALL',
+      room: 'ALL',
+      sortBy: 'ticketsSold',
+      sortOrder: 'desc',
+      status: 'ALL',
+      page: 1,
     };
   });
 
-  // Dữ liệu cho 4 Tabs chính
+  // Dữ liệu cho các Tabs chính
   const [overviewData, setOverviewData] = useState(null);
   const [revenueData, setRevenueData] = useState(null);
   const [moviesData, setMoviesData] = useState(null);
   const [showtimesData, setShowtimesData] = useState(null);
 
-  // Danh mục phim để chọn trên thanh lọc
+  // Danh mục phim & 9 phòng chiếu cho thanh lọc
   const [moviesList, setMoviesList] = useState([]);
+  const [roomsList, setRoomsList] = useState([]);
 
-  // Trạng thái tải dữ liệu
+  // Trạng thái tải dữ liệu (Phân biệt rõ 4 trạng thái: Loading, Success, Empty, Error)
   const request = useRef(null);
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -58,14 +69,25 @@ const StatisticsPage = () => {
   const [selectedMovieId, setSelectedMovieId] = useState(null);
   const [selectedShowtimeId, setSelectedShowtimeId] = useState(null);
 
-  // 1. Nạp danh mục phim cho bộ lọc
+  // 1. Nạp danh mục phim & phòng chiếu cho bộ lọc
   useEffect(() => {
     const fetchDropdownOptions = async () => {
       try {
-        const moviesRes = await statisticsApi.getFilterMovies();
+        const [moviesRes, roomsRes] = await Promise.all([
+          statisticsApi.getFilterMovies(),
+          statisticsApi.getRooms(),
+        ]);
         if (Array.isArray(moviesRes.data)) setMoviesList(moviesRes.data);
+        const roomsArr = Array.isArray(roomsRes.data)
+          ? roomsRes.data
+          : Array.isArray(roomsRes.data?.data)
+          ? roomsRes.data.data
+          : Array.isArray(roomsRes.data?.rooms)
+          ? roomsRes.data.rooms
+          : [];
+        if (roomsArr.length > 0) setRoomsList(roomsArr);
       } catch (err) {
-        console.warn('Lỗi nạp danh mục phim bộ lọc:', err.message);
+        console.warn('Lỗi nạp danh mục bộ lọc:', err.message);
       }
     };
     fetchDropdownOptions();
@@ -100,9 +122,20 @@ const StatisticsPage = () => {
 
         if (controller.signal.aborted) return;
         const now = new Date();
-        setLastUpdated(now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        setLastUpdated(
+          now.toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          })
+        );
       } catch (err) {
-        if (!controller.signal.aborted) setLoadError('Không tải được báo cáo.');
+        if (!controller.signal.aborted && err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+          const msg =
+            err?.response?.data?.message ||
+            'Không tải được báo cáo từ máy chủ thống kê. Vui lòng kiểm tra kết nối và thử lại.';
+          setLoadError(msg);
+        }
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false);
@@ -127,7 +160,10 @@ const StatisticsPage = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Bao_Cao_${exportType.toUpperCase()}_${new Date().toISOString().slice(0, 10)}.csv`);
+      link.setAttribute(
+        'download',
+        `Bao_Cao_${exportType.toUpperCase()}_${new Date().toISOString().slice(0, 10)}.csv`
+      );
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -143,6 +179,8 @@ const StatisticsPage = () => {
     }
   };
 
+  const currentSortValue = `${filters.sortBy || 'ticketsSold'}:${filters.sortOrder || 'desc'}`;
+
   return (
     <div className="flex bg-[var(--bg-main)] min-h-screen text-slate-200 font-sans">
       {/* Sidebar Admin bên trái */}
@@ -156,6 +194,7 @@ const StatisticsPage = () => {
           {/* 1. Header Trang Thống Kê & Báo Cáo */}
           <StatisticsHeader
             lastUpdated={lastUpdated}
+            hasError={Boolean(loadError)}
             onRefresh={() => fetchTabData(true)}
             onExport={handleExportReport}
             isRefreshing={isRefreshing}
@@ -167,21 +206,22 @@ const StatisticsPage = () => {
           {notification && (
             <div className="p-3 bg-[var(--bg-secondary)] border border-slate-700 rounded-2xl text-xs font-semibold text-emerald-300 shadow-lg animate-fadeIn flex items-center justify-between">
               <span>{notification}</span>
-              <button onClick={() => setNotification('')} className="text-slate-400 hover:text-white">
+              <button onClick={() => setNotification('')} className="text-slate-400 hover:text-white cursor-pointer">
                 ✕
               </button>
             </div>
           )}
 
-          {/* 2. Global Filter Bar dùng chung: 2 bộ lọc Thời gian & Phim */}
+          {/* 2. Global Filter Bar dùng chung: Thời gian, Phim, Loại phòng, Phòng vật lý */}
           <StatisticsFilter
             filters={filters}
             onChange={(newFilters) => setFilters(newFilters)}
             movies={moviesList}
-            showMovieFilter={activeTab !== 'movies'}
+            rooms={roomsList}
+            showMovieFilter={activeReport !== 'movies'}
           />
 
-          {/* 3. Dãy 4 Tabs điều hướng chính: Tổng quan, Doanh thu & Chi phí, Phim & Lợi nhuận, Suất chiếu */}
+          {/* 3. Dãy 3 Tabs điều hướng chính: Tổng hợp, Doanh thu & Chi phí, Hiệu suất */}
           <div className="flex items-center gap-2 border-b border-[var(--border-default)] pb-3 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800">
             {TABS.map((tab) => {
               const isActive = activeTab === tab.id;
@@ -205,37 +245,67 @@ const StatisticsPage = () => {
 
           {/* 4. Nội dung chi tiết của Tab đang chọn */}
           <div className="transition-all duration-300">
-            {loadError && <p className="text-rose-300" role="alert">{loadError}{' '}
-              <button onClick={() => fetchTabData(true)} className="text-cyan-300">Thử lại</button>
-            </p>}
             {activeTab === 'overview' && (
               <OverviewTab
                 data={overviewData}
                 loading={loading}
+                error={loadError}
+                onRetry={() => fetchTabData(true)}
                 onSelectMovie={(id) => setSelectedMovieId(id)}
                 onSelectShowtime={(id) => setSelectedShowtimeId(id)}
+                onOpenExpenseManager={() => setActiveTab('revenue')}
               />
             )}
 
             {activeTab === 'revenue' && (
-              <RevenueTab data={revenueData} loading={loading} />
+              <RevenueTab
+                data={revenueData}
+                loading={loading}
+                error={loadError}
+                onRetry={() => fetchTabData(true)}
+                filters={filters}
+                moviesList={moviesList}
+                roomsList={roomsList}
+                onSelectMovie={(id) => setSelectedMovieId(id)}
+                onExpenseMutated={() => fetchTabData(true)}
+              />
             )}
 
-            {activeTab === 'efficiency' && <div className="mb-4 flex flex-wrap gap-2">
-              {[['movies', 'Phim'], ['showtimes', 'Suất chiếu']].map(([key, label]) => (
-                <button type="button" key={key} aria-pressed={efficiency === key}
-                  onClick={() => { setEfficiency(key); setFilters(current => ({ ...current, page: 1, search: '', room: 'ALL' })); }}
-                  className="rounded-lg border border-slate-700 px-3 py-2 text-sm aria-pressed:border-cyan-400 aria-pressed:text-cyan-300">{label}</button>
-              ))}
-            </div>}
+            {activeTab === 'efficiency' && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {[
+                  ['movies', 'Hiệu suất Phim & Lợi nhuận'],
+                  ['showtimes', 'Chi tiết Suất chiếu & 88 Ghế'],
+                ].map(([key, label]) => (
+                  <button
+                    type="button"
+                    key={key}
+                    aria-pressed={efficiency === key}
+                    onClick={() => {
+                      setEfficiency(key);
+                      setFilters((current) => ({ ...current, page: 1, search: '' }));
+                    }}
+                    className="rounded-xl border border-slate-700 px-3.5 py-2 text-xs sm:text-sm font-bold cursor-pointer transition-all aria-pressed:border-cyan-400 aria-pressed:bg-cyan-500/10 aria-pressed:text-cyan-300"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {activeReport === 'movies' && (
               <MoviesTab
                 moviesData={moviesData}
                 loading={loading}
+                error={loadError}
+                onRetry={() => fetchTabData(true)}
                 onSelectMovie={(id) => setSelectedMovieId(id)}
                 onPageChange={(p) => setFilters({ ...filters, page: p })}
                 onSearch={(term) => setFilters({ ...filters, search: term, page: 1 })}
+                currentSort={currentSortValue}
+                onSortChange={(sortBy, sortOrder) =>
+                  setFilters({ ...filters, sortBy, sortOrder, page: 1 })
+                }
               />
             )}
 
@@ -243,10 +313,21 @@ const StatisticsPage = () => {
               <ShowtimesTab
                 showtimesData={showtimesData}
                 loading={loading}
+                error={loadError}
+                onRetry={() => fetchTabData(true)}
                 onSelectShowtime={(id) => setSelectedShowtimeId(id)}
                 onPageChange={(p) => setFilters({ ...filters, page: p })}
                 onSearch={(term) => setFilters({ ...filters, search: term, page: 1 })}
-                onRoomFilter={(room) => setFilters({ ...filters, room, page: 1 })}
+                onRoomFilter={(roomVal) =>
+                  setFilters({
+                    ...filters,
+                    room: roomVal,
+                    roomId: roomVal,
+                    page: 1,
+                  })
+                }
+                currentStatus={filters.status || 'ALL'}
+                onStatusFilter={(st) => setFilters({ ...filters, status: st, page: 1 })}
               />
             )}
           </div>
@@ -255,12 +336,20 @@ const StatisticsPage = () => {
 
       {/* Slide-out Drawer: Chi tiết phim khi Admin click */}
       {selectedMovieId && (
-        <MovieDetailDrawer movieId={selectedMovieId} onClose={() => setSelectedMovieId(null)} />
+        <MovieDetailDrawer
+          movieId={selectedMovieId}
+          filters={filters}
+          onClose={() => setSelectedMovieId(null)}
+          onSelectShowtime={(stId) => setSelectedShowtimeId(stId)}
+        />
       )}
 
       {/* Slide-out Drawer: Chi tiết suất chiếu & Sơ đồ 88 ghế thực tế khi Admin click */}
       {selectedShowtimeId && (
-        <ShowtimeDetailDrawer showtimeId={selectedShowtimeId} onClose={() => setSelectedShowtimeId(null)} />
+        <ShowtimeDetailDrawer
+          showtimeId={selectedShowtimeId}
+          onClose={() => setSelectedShowtimeId(null)}
+        />
       )}
     </div>
   );

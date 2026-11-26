@@ -5,6 +5,7 @@ const CheckoutOrderSummary = ({
   showtime,
   selectedSeats,
   seatTotal,
+  ticketLines = [],
   concessions,
   comboQuantities,
   popcornFlavors,
@@ -76,16 +77,31 @@ const CheckoutOrderSummary = ({
         {/* Chi tiết từng mục */}
         <div className="py-4 space-y-2.5 border-b border-[#AA9BFF]/15 text-xs">
           {/* Vé ghế */}
-          <div className="flex items-center justify-between">
-            <span className="text-[#BEC5E5] flex items-center gap-1.5">
-              <span>💺</span>
-              <span>
-                Ghế: <strong>{selectedSeats.join(', ')}</strong>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[#BEC5E5] flex items-center gap-1.5">
+                <span>💺</span>
+                <span>
+                  Ghế: <strong>{selectedSeats.join(', ')}</strong>
+                </span>
               </span>
-            </span>
-            <span className="font-bold text-white">
-              {seatTotal.toLocaleString('vi-VN')} đ
-            </span>
+              <span className="font-bold text-white">
+                {seatTotal.toLocaleString('vi-VN')} đ
+              </span>
+            </div>
+            {Array.isArray(ticketLines) && ticketLines.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pl-5 text-[11px] text-[#BEC5E5]/80">
+                {ticketLines.map((line) => (
+                  <span
+                    key={line.seatNumber}
+                    className="px-2 py-0.5 rounded-md bg-[var(--bg-main)]/80 border border-[#AA9BFF]/20"
+                  >
+                    {line.seatNumber} ({line.type === 'VIP' ? 'VIP' : line.type === 'SWEETBOX' ? 'Sweetbox' : 'Thường'}):{' '}
+                    <strong className="text-white">{Number(line.price || 0).toLocaleString('vi-VN')}đ</strong>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Các combo đã chọn */}

@@ -20,10 +20,13 @@ export const ACTIVE_CINEMA_ROOM_TYPES = Object.freeze([
 
 export const SEAT_GRID_CONFIG = Object.freeze({
   rows: Object.freeze(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']),
-  colsPerRow: 11,
+  colsPerRow: 12,
+  rowColsMap: Object.freeze({ A: 12, B: 12, C: 12, D: 12, E: 12, F: 12, G: 12, H: 4 }),
   aisleAfterCol: 6,
+  rowHCols: 4,
+  rowHAisleAfterCol: 2,
   totalSeats: 88,
-  tierCounts: Object.freeze({ STANDARD: 44, VIP: 33, SWEETBOX: 11 }),
+  tierCounts: Object.freeze({ STANDARD: 48, VIP: 36, SWEETBOX: 4 }),
   rowBaseScores: Object.freeze({
     A: 35,
     B: 60,
@@ -35,6 +38,21 @@ export const SEAT_GRID_CONFIG = Object.freeze({
     H: 78,
   }),
 });
+
+export const getRowSeatCount = (rowLabel) =>
+  SEAT_GRID_CONFIG.rowColsMap[String(rowLabel || '').toUpperCase()] ?? SEAT_GRID_CONFIG.colsPerRow;
+
+export const buildStandard88SeatTemplates = () => {
+  const templates = [];
+  for (const r of SEAT_GRID_CONFIG.rows) {
+    const type = ['E', 'F', 'G'].includes(r) ? 'VIP' : r === 'H' ? 'SWEETBOX' : 'STANDARD';
+    const cols = getRowSeatCount(r);
+    for (let c = 1; c <= cols; c++) {
+      templates.push({ row: r, col: c, seatNumber: `${r}${c}`, type });
+    }
+  }
+  return templates;
+};
 
 const ENUM_LOOKUP = new Map([
   ['imax laser', ROOM_TYPES_ENUM.IMAX_LASER],
@@ -80,13 +98,28 @@ export const resolveCanonicalRoomType = (input) => {
       ? input.toLowerCase()
       : `${input.room?.name || ''} ${typeof input.roomId === 'object' ? input.roomId?.name || '' : ''} ${input.roomName || ''} ${input.name || ''}`.toLowerCase();
 
-  if (fallbackText.includes('imax')) return ROOM_TYPES_ENUM.IMAX_LASER;
-  if (fallbackText.includes('gold class') || fallbackText.includes('gold_class') || fallbackText.includes('gold') || fallbackText.includes('lounge')) {
+  if (fallbackText.includes('imax')) {
+    return ROOM_TYPES_ENUM.IMAX_LASER;
+  }
+  if (
+    fallbackText.includes('gold class') ||
+    fallbackText.includes('gold_class') ||
+    fallbackText.includes('gold') ||
+    fallbackText.includes('lounge')
+  ) {
     return ROOM_TYPES_ENUM.GOLD_CLASS;
   }
-  if (fallbackText.includes('atmos') || fallbackText.includes('dolby')) return ROOM_TYPES_ENUM.DOLBY_ATMOS;
+  if (fallbackText.includes('atmos') || fallbackText.includes('dolby')) {
+    return ROOM_TYPES_ENUM.DOLBY_ATMOS;
+  }
   if (fallbackText.includes('reald') || fallbackText.includes('3d')) return ROOM_TYPES_ENUM.REALD_3D;
   if (fallbackText.includes('4dx')) return ROOM_TYPES_ENUM.SOUND_4DX;
+  if (fallbackText.includes('2d standard') || fallbackText.includes('2d tiêu chuẩn')) {
+    return ROOM_TYPES_ENUM.STANDARD_2D;
+  }
+  if (/\b(phòng|phong|p)\s*0?[123]\b/i.test(fallbackText)) return ROOM_TYPES_ENUM.IMAX_LASER;
+  if (/\b(phòng|phong|p)\s*0?[456]\b/i.test(fallbackText)) return ROOM_TYPES_ENUM.DOLBY_ATMOS;
+  if (/\b(phòng|phong|p)\s*0?[789]\b/i.test(fallbackText)) return ROOM_TYPES_ENUM.GOLD_CLASS;
   if (fallbackText.trim()) return ROOM_TYPES_ENUM.STANDARD_2D;
 
   return '';
@@ -150,6 +183,9 @@ export const resolvePricingFormatKey = (roomOrShowtime = {}) => {
 export const resolveRowAisleSplitCol = (orderedRowSeats = []) => {
   if (!Array.isArray(orderedRowSeats) || orderedRowSeats.length === 0) {
     return SEAT_GRID_CONFIG.aisleAfterCol;
+  }
+  if (orderedRowSeats.length <= 6) {
+    return orderedRowSeats[Math.ceil(orderedRowSeats.length / 2) - 1].col;
   }
   const maxCol = orderedRowSeats[orderedRowSeats.length - 1]?.col ?? 0;
   if (maxCol >= 7 && maxCol <= 12) {

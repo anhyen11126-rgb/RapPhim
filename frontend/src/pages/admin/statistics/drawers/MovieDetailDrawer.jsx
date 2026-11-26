@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import statisticsApi from '../services/statisticsApi';
 import { formatCurrency, formatNumber, formatPercent } from '../utils/statisticsFormatter';
 
-const MovieDetailDrawer = ({ movieId, onClose }) => {
+const MovieDetailDrawer = ({ movieId, filters = {}, onClose, onSelectShowtime }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -11,7 +11,13 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
     const fetchDetail = async () => {
       try {
         setLoading(true);
-        const res = await statisticsApi.getMovieDetail(movieId);
+        const res = await statisticsApi.getMovieDetail(movieId, {
+          timeRange: filters.timeRange,
+          month: filters.month,
+          year: filters.year,
+          customStart: filters.customStart,
+          customEnd: filters.customEnd,
+        });
         if (res.data?.data) {
           setData(res.data.data);
         }
@@ -22,7 +28,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
       }
     };
     fetchDetail();
-  }, [movieId]);
+  }, [movieId, filters.timeRange, filters.month, filters.year, filters.customStart, filters.customEnd]);
 
   if (!movieId) return null;
 
@@ -32,14 +38,14 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
       <div className="absolute inset-0" onClick={onClose}></div>
 
       {/* Slide-out Drawer Panel */}
-      <div className="relative w-full max-w-2xl bg-[var(--bg-secondary)] border-l border-[var(--border-default)] h-full overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl z-10 text-slate-200">
+      <div className="relative w-full max-w-3xl bg-[var(--bg-secondary)] border-l border-[var(--border-default)] h-full overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl z-10 text-slate-200">
         {/* Header */}
         <div className="flex items-start justify-between border-b border-[var(--border-default)] pb-4">
           <div>
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-bold text-red-500 uppercase tracking-wider">Hồ sơ phân tích tài chính & suất chiếu</span>
-              <span className="text-slate-600">•</span>
-              <span className="text-xs text-slate-400">Dữ liệu thực tế</span>
+              <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
+                Hồ sơ phân tích hiệu suất bán vé, suất chiếu & lợi nhuận phim
+              </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-white mt-1">
               {data?.movie?.title || 'Chi tiết phim'}
@@ -56,8 +62,8 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
 
         {loading ? (
           <div className="py-24 flex flex-col items-center justify-center space-y-3">
-            <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-xs text-slate-400">Đang tải phân tích tác phẩm...</p>
+            <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-xs text-slate-400">Đang tải phân tích tác phẩm & danh sách suất chiếu...</p>
           </div>
         ) : !data ? (
           <div className="py-12 text-center text-slate-400 text-xs">
@@ -77,7 +83,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
               />
               <div className="space-y-1.5 flex-1 min-w-0 text-xs">
                 <div className="flex items-center space-x-2">
-                  <span className="bg-red-600/20 text-red-400 border border-red-500/40 text-[10px] font-bold px-2 py-0.5 rounded">
+                  <span className="bg-violet-600/20 text-violet-300 border border-violet-500/40 text-[10px] font-bold px-2 py-0.5 rounded">
                     {data.movie.ageRating}
                   </span>
                   <span className="text-amber-400 font-bold">★ {data.movie.rating}</span>
@@ -102,12 +108,12 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
               </div>
             </div>
 
-            {/* Dãy Chỉ số Hiệu Suất Bán Vé & Công Suất */}
+            {/* 1. Dãy Chỉ số Hiệu Suất Bán Vé & Công Suất */}
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5">
-                1. Hiệu suất bán vé & Ghế ngồi
+                1. Hiệu suất bán vé & Công suất ghế ngồi
               </h4>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                 <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                   <span className="text-[11px] text-slate-400 block">Số suất chiếu</span>
                   <span className="text-sm font-bold text-white block mt-1">
@@ -115,8 +121,14 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                   </span>
                 </div>
                 <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
+                  <span className="text-[11px] text-slate-400 block">Tổng ghế mở bán</span>
+                  <span className="text-sm font-bold text-slate-200 block mt-1">
+                    {formatNumber(data.stats.totalSeats)} ghế
+                  </span>
+                </div>
+                <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                   <span className="text-[11px] text-slate-400 block">Vé đã bán</span>
-                  <span className="text-sm font-bold text-white block mt-1">
+                  <span className="text-sm font-bold text-cyan-300 block mt-1">
                     {formatNumber(data.stats.totalTickets)} vé
                   </span>
                 </div>
@@ -127,7 +139,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                   </span>
                 </div>
                 <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
-                  <span className="text-[11px] text-slate-400 block">Tỷ lệ bán vé TB</span>
+                  <span className="text-[11px] text-slate-400 block">Tỷ lệ lấp đầy</span>
                   <span className="text-sm font-bold text-amber-400 block mt-1">
                     {formatPercent(data.stats.avgOccupancy)}
                   </span>
@@ -135,20 +147,25 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
               </div>
             </div>
 
-            {/* Dãy Chỉ số Tài chính: Doanh Thu, Chi Phí & Lợi Nhuận (Yêu cầu 3 của giảng viên) */}
+            {/* 2. Dãy Chỉ số Tài chính: Doanh Thu, Chi Phí & Lợi Nhuận */}
             <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/80 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
                   2. Báo cáo Tài chính & Lợi nhuận phim
                 </h4>
                 <span
                   className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
-                    data.stats.profitStatus === 'PROFIT'
+                    !data.stats.hasExpenseData
+                      ? 'bg-amber-950/80 text-amber-300 border-amber-500/40'
+                      : data.stats.profitStatus === 'PROFIT'
                       ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/40'
                       : 'bg-rose-950/80 text-rose-400 border-rose-500/40'
                   }`}
                 >
-                  {data.stats.profitStatusLabel || (data.stats.profit >= 0 ? 'Có lãi' : 'Bị lỗ')} (Biên LN {data.stats.profitMargin}%)
+                  {data.stats.profitStatusLabel}
+                  {data.stats.hasExpenseData && data.stats.profitMargin != null
+                    ? ` (Biên LN ${data.stats.profitMargin}%${data.stats.roi != null ? ` • ROI ${data.stats.roi}%` : ''})`
+                    : ''}
                 </span>
               </div>
 
@@ -166,7 +183,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                   </strong>
                 </div>
                 <div className="bg-slate-950/60 border border-[var(--border-default)] p-2.5 rounded-xl">
-                  <span className="text-[10px] text-slate-400 block">Chi phí phân bổ</span>
+                  <span className="text-[10px] text-slate-400 block">Chi phí vận hành phân bổ</span>
                   <strong className="text-amber-300 text-xs block mt-0.5">
                     {data.stats.allocatedExpensesFormatted || '0 đ'}
                   </strong>
@@ -174,21 +191,21 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                 <div className="bg-slate-950/60 border border-[var(--border-default)] p-2.5 rounded-xl">
                   <span className="text-[10px] text-slate-400 block">Lợi nhuận thuần</span>
                   <strong
-                    className={`text-xs block mt-0.5 ${
-                      data.stats.profit >= 0 ? 'text-emerald-400 font-black' : 'text-rose-400 font-black'
+                    className={`text-xs block mt-0.5 font-black ${
+                      !data.stats.hasExpenseData
+                        ? 'text-amber-300'
+                        : (data.stats.profit || 0) >= 0
+                        ? 'text-emerald-400'
+                        : 'text-rose-400'
                     }`}
                   >
                     {data.stats.profitFormatted}
                   </strong>
                 </div>
               </div>
-
-              <div className="text-[11px] text-slate-400 pt-1 border-t border-[var(--border-default)]/80 leading-relaxed">
-                💡 Chi phí trực tiếp bao gồm phí bản quyền nhà phát hành (~46%) và marketing phim. Chi phí phân bổ là phần chi phí vận hành chung của rạp chia theo tỷ lệ doanh thu.
-              </div>
             </div>
 
-            {/* Danh sách các chứng từ / khoản chi thực tế của phim */}
+            {/* 3. Danh sách các chứng từ / khoản chi trực tiếp của phim */}
             {data.expensesList && data.expensesList.length > 0 && (
               <div className="space-y-2.5">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -206,6 +223,7 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
                             {exp.costCode}
                           </span>
                           <span className="font-bold text-white">{exp.title}</span>
+                          <span className="text-[10px] text-cyan-300">({exp.categoryLabel})</span>
                         </div>
                         <div className="text-[11px] text-slate-400 mt-0.5">
                           Ngày: {new Date(exp.date).toLocaleDateString('vi-VN')} • {exp.notes || 'Không có ghi chú'}
@@ -220,67 +238,67 @@ const MovieDetailDrawer = ({ movieId, onClose }) => {
               </div>
             )}
 
-            {/* Danh sách suất chiếu của phim */}
+            {/* 4. Danh sách từng suất chiếu của phim (MỤC VI.4: Ngày, Giờ, Phòng, Tổng ghế, Đã bán, Chưa bán, Lấp đầy, Doanh thu) */}
             <div className="space-y-2.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                4. Lịch chiếu tại rạp ({data.showtimesList?.length || 0} suất)
-              </h4>
-              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin scrollbar-thumb-slate-800">
-                {(data.showtimesList || []).map((st) => (
-                  <div
-                    key={st.id}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--bg-surface)]/40 border border-[var(--border-default)] text-xs"
-                  >
-                    <div>
-                      <span className="font-semibold text-white">{st.roomName}</span>
-                      <span className="text-slate-400 ml-2">({st.cinemaName})</span>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <span className="text-slate-300">
-                        {new Date(st.startTime).toLocaleString('vi-VN', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          day: '2-digit',
-                          month: '2-digit',
-                        })}
-                      </span>
-                      <span className="text-emerald-400 font-bold">{formatCurrency(st.price)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Phân bố đánh giá sao */}
-            <div className="bg-[var(--bg-surface)]/40 border border-[var(--border-default)] p-4 rounded-2xl space-y-3">
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-                <span>Phân bố đánh giá khán giả</span>
-                <span className="text-amber-400">Điểm trung bình: {data.movie.rating} / 5.0</span>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  4. Chi tiết từng suất chiếu của phim ({data.showtimesList?.length || 0} suất)
+                </h4>
+                <span className="text-[11px] text-slate-400">
+                  Suất cháy vé: <strong className="text-amber-400">{data.stats.soldOutShowtimesCount || 0}</strong>
+                </span>
               </div>
 
-              <div className="space-y-1.5 text-xs">
-                {[5, 4, 3, 2, 1].map((star) => {
-                  const keyMap = { 5: 'fiveStar', 4: 'fourStar', 3: 'threeStar', 2: 'twoStar', 1: 'oneStar' };
-                  const count = data.ratingBreakdown[keyMap[star]] || 0;
-                  const totalCount =
-                    Object.values(data.ratingBreakdown).reduce((a, b) => a + b, 0) || 100;
-                  const pct = Math.round((count / totalCount) * 100);
-
-                  return (
-                    <div key={star} className="flex items-center space-x-2">
-                      <span className="w-8 font-semibold text-slate-400">{star} ★</span>
-                      <div className="flex-1 h-2 bg-[var(--bg-surface)] rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-amber-400 rounded-full transition-all"
-                          style={{ width: `${pct}%` }}
-                        ></div>
-                      </div>
-                      <span className="w-12 text-right text-slate-400 text-[11px]">
-                        {count} ({pct}%)
-                      </span>
-                    </div>
-                  );
-                })}
+              <div className="max-h-72 overflow-y-auto rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)]/20">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead className="bg-[var(--bg-surface)] text-slate-400 font-bold uppercase text-[10px] sticky top-0">
+                    <tr>
+                      <th className="py-2.5 px-3">Ngày & Giờ</th>
+                      <th className="py-2.5 px-3">Phòng chiếu</th>
+                      <th className="py-2.5 px-2 text-center">Tổng ghế</th>
+                      <th className="py-2.5 px-2 text-center">Đã bán</th>
+                      <th className="py-2.5 px-2 text-center">Còn trống</th>
+                      <th className="py-2.5 px-2.5 text-center">Lấp đầy</th>
+                      <th className="py-2.5 px-3 text-right">Doanh thu</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/70">
+                    {(data.showtimesList || []).map((st) => (
+                      <tr
+                        key={st.id}
+                        onClick={() => {
+                          if (onSelectShowtime) {
+                            onClose();
+                            onSelectShowtime(st.id);
+                          }
+                        }}
+                        className="hover:bg-[var(--bg-surface)]/60 cursor-pointer transition-colors"
+                      >
+                        <td className="py-2 px-3 font-mono text-white">
+                          {new Date(st.startTime).toLocaleString('vi-VN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                          })}
+                        </td>
+                        <td className="py-2 px-3">
+                          <span className="font-semibold text-slate-200">{st.roomName}</span>
+                        </td>
+                        <td className="py-2 px-2 text-center text-slate-400">{st.totalSeats || 88}</td>
+                        <td className="py-2 px-2 text-center font-bold text-cyan-300">{st.soldSeats || 0}</td>
+                        <td className="py-2 px-2 text-center text-slate-400">{st.unsoldSeats ?? 88}</td>
+                        <td className="py-2 px-2.5 text-center font-bold text-amber-400">
+                          {st.occupancyRate || 0}%
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-emerald-400">
+                          {st.revenueFormatted || formatCurrency(st.revenue || 0)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

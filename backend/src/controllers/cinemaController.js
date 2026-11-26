@@ -9,7 +9,8 @@ import {
   calculatePricesFromConfig,
   detectFormatKey,
 } from '../services/pricingConfigService.js';
-import { resolveCanonicalRoomType } from '../utils/roomLayoutConfig.js';
+import { ACTIVE_CINEMA_ROOM_TYPES, resolveCanonicalRoomType } from '../utils/roomLayoutConfig.js';
+import { computeShowtimeLifecycle } from '../services/showtimeLifecycleService.js';
 
 export const DEFAULT_CINEMA_BANNER = '/images/cinemas/davenor-flagship-cinema.jpg';
 
@@ -56,7 +57,7 @@ export const getCinemas = async (req, res) => {
       filter.district = { $regex: new RegExp(district.trim(), 'i') };
     }
 
-    if (tech && tech !== 'Tất cả') {
+    if (tech && tech !== 'Tất cả' && !ACTIVE_CINEMA_ROOM_TYPES.includes(tech)) {
       filter.tags = tech;
     }
 
@@ -70,8 +71,19 @@ export const getCinemas = async (req, res) => {
 
     const cinemas = await Cinema.find(filter).sort({ isFlagship: -1, createdAt: 1 }).lean();
 
-    const formatted = cinemas.map((c) => ({
+    // Khử trùng lặp theo tên cụm rạp (ưu tiên cụm rạp Flagship chính nếu DB còn bản ghi dư)
+    const seenNames = new Set();
+    const uniqueCinemas = [];
+    for (const c of cinemas) {
+      const key = `${(c.name || '').trim().toLowerCase()}|${(c.city || '').trim().toLowerCase()}`;
+      if (seenNames.has(key)) continue;
+      seenNames.add(key);
+      uniqueCinemas.push(c);
+    }
+
+    const formatted = uniqueCinemas.map((c) => ({
       ...c,
+      tags: [...ACTIVE_CINEMA_ROOM_TYPES],
       image: resolveCinemaImage(c.image),
       id: c._id.toString(),
     }));
@@ -284,21 +296,96 @@ export const getCinemaShowtimes = async (req, res) => {
       endOfDay = new Date(localStart.getTime() + 86400000 - 1);
     }
 
-    // Truy vấn các suất chiếu thực tế của rạp từ Database (API GET tuyệt đối không tự động seed/ghi dữ liệu)
-    const showtimes = await Showtime.find({
-      cinemaId: cinema._id,
-      startTime: { $gte: startOfDay, $lte: endOfDay },
-      cancelledAt: null,
-      isLocked: { $ne: true },
-    })
-      .sort({ startTime: 1 })
-      .populate('movieId')
-      .populate('roomId', 'name shortName roomType formatFeature totalSeats')
-      .lean();
+    // Truy vấn song song suất chiếu, cấu hình giá và phim trong tháng (loại bỏ 2*N truy vấn tuần tự)
+    const monthQueryPromise =
+      published && date
+        ? (() => {
+            const monthStart = new Date(date.slice(0, 7) + '-01T00:00:00+07:00');
+            const nextMonth = new Date(monthStart.getTime() + 32 * 86400000);
+            const nextKey = nextMonth.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 7);
+            return Movie.find({
+              releaseDate: { $gte: monthStart, $lt: new Date(nextKey + '-01T00:00:00+07:00') },
+            })
+              .select('title releaseDate')
+              .sort({ releaseDate: 1, title: 1 })
+              .lean();
+          })()
+        : Promise.resolve(undefined);
 
-    const pricingConfig = published
-      ? await TicketPricingConfig.findOne({ configKey: 'MAIN_PRICING_CONFIG' }).lean()
-      : await ensurePricingConfig();
+    const [rawShowtimes, pricingConfig, monthMovies] = await Promise.all([
+      Showtime.find({
+        cinemaId: cinema._id,
+        startTime: { $gte: startOfDay, $lte: endOfDay },
+        cancelledAt: null,
+        isLocked: { $ne: true },
+      })
+        .sort({ startTime: 1 })
+        .select('_id movieId roomId roomName formatFeature startTime endTime cleaningMinutes cleaningEndTime lifecycleStatus price')
+        .populate('movieId', 'title slug ageRating posterUrl poster duration genre releaseDate')
+        .populate('roomId', 'name shortName roomType formatFeature totalSeats')
+        .lean(),
+      published
+        ? TicketPricingConfig.findOne({ configKey: 'MAIN_PRICING_CONFIG' }).lean()
+        : ensurePricingConfig(),
+      monthQueryPromise,
+    ]);
+
+    const now = new Date();
+    const completedUpdateIds = [];
+    const showtimes = rawShowtimes.filter((st) => {
+      const lifecycle = computeShowtimeLifecycle(st, now);
+      if (lifecycle.lifecycleStatus === 'COMPLETED' && st.lifecycleStatus !== 'COMPLETED') {
+        completedUpdateIds.push(st._id);
+      }
+      // Các suất đã qua giờ bắt đầu (NOW_SHOWING, CLEANING, COMPLETED) không còn mở bán vé cho khách hàng
+      return lifecycle.lifecycleStatus === 'UPCOMING';
+    });
+
+    if (completedUpdateIds.length > 0) {
+      Showtime.updateMany(
+        { _id: { $in: completedUpdateIds } },
+        { $set: { lifecycleStatus: 'COMPLETED' } }
+      ).catch(() => {});
+    }
+
+    // Gom đếm ghế trống (tính cả HOLDING đã hết hạn) bằng 1 truy vấn aggregate duy nhất thay vì 2*N countDocuments
+    const showtimeIds = showtimes.map((st) => st._id);
+    const seatCountsRaw = showtimeIds.length
+      ? await ShowtimeSeat.aggregate([
+          { $match: { showtimeId: { $in: showtimeIds } } },
+          {
+            $group: {
+              _id: '$showtimeId',
+              total: { $sum: 1 },
+              available: {
+                $sum: {
+                  $cond: [
+                    {
+                      $or: [
+                        { $eq: ['$status', 'AVAILABLE'] },
+                        {
+                          $and: [
+                            { $eq: ['$status', 'HOLDING'] },
+                            {
+                              $or: [
+                                { $eq: ['$holdExpiresAt', null] },
+                                { $lte: ['$holdExpiresAt', now] },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        ])
+      : [];
+    const seatCountsMap = new Map(seatCountsRaw.map((row) => [String(row._id), row]));
 
     // Nhóm các suất chiếu theo từng Phim
     const moviesMap = new Map();
@@ -326,47 +413,31 @@ export const getCinemaShowtimes = async (req, res) => {
         });
       }
 
-      // Đếm số ghế trống thực tế trong DB
-      const availableSeatsCount = await ShowtimeSeat.countDocuments({
-        showtimeId: st._id,
-        status: 'AVAILABLE',
-      });
-
-      const totalSeatsCount = await ShowtimeSeat.countDocuments({
-        showtimeId: st._id,
-      });
+      const seatStat = seatCountsMap.get(String(st._id));
+      const availableSeatsCount = seatStat?.available ?? 0;
+      const totalSeatsCount = seatStat?.total ?? st.roomId?.totalSeats ?? 88;
 
       const movieEntry = moviesMap.get(movieIdStr);
       const roomName = st.roomId?.name || st.roomName || 'Phòng 01 - Tiêu chuẩn';
       const canonicalRoomType = resolveCanonicalRoomType(st);
-
-      if (!movieEntry.roomsMap.has(roomName)) {
-        const fmtKey = detectFormatKey({
+      const stPrices = calculatePricesFromConfig(
+        {
+          ...st,
+          room: st.roomId,
           roomId: st.roomId,
           roomType: canonicalRoomType,
           roomName,
-          formatFeature: st.formatFeature,
-        });
-        const rule = pricingConfig?.formats?.[fmtKey];
-        const dayOfWeek = new Date(st.startTime).getDay();
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
-        const dayRates = isWeekend ? rule?.weekend : rule?.weekday;
-        const dayVals = [dayRates?.before17, dayRates?.goldenHour, dayRates?.lateNight].filter(
-          (v) => Number.isFinite(Number(v)) && Number(v) > 0
-        );
-        const minP = dayVals.length ? Math.min(...dayVals) : st.price || 45000;
-        const maxP = dayVals.length ? Math.max(...dayVals) : st.price || 65000;
-        const dayTypeText = isWeekend ? 'cuối tuần' : 'ngày thường';
-        const fmtPrefix =
-          fmtKey === '3D' ? '3D ' : fmtKey === 'IMAX' ? 'IMAX ' : fmtKey === 'GOLD_CLASS' ? 'Gold Class ' : '';
-        const priceRangeLabel = `Giá vé ${fmtPrefix}${dayTypeText} dao động: ${minP.toLocaleString('vi-VN')}đ - ${maxP.toLocaleString('vi-VN')}đ`;
+        },
+        pricingConfig
+      );
 
+      if (!movieEntry.roomsMap.has(roomName)) {
         movieEntry.roomsMap.set(roomName, {
           roomId: st.roomId?._id?.toString() || null,
           name: roomName,
           roomType: canonicalRoomType,
           feature: st.formatFeature || st.roomId?.formatFeature || 'Âm thanh vòm Dolby Atmos',
-          priceText: priceRangeLabel,
+          priceText: '',
           showtimes: [],
         });
       }
@@ -379,7 +450,10 @@ export const getCinemaShowtimes = async (req, res) => {
       movieEntry.roomsMap.get(roomName).showtimes.push({
         id: st._id.toString(),
         time: timeStr,
-        price: st.price,
+        price: stPrices.priceStandard,
+        priceStandard: stPrices.priceStandard,
+        priceVip: stPrices.priceVip,
+        priceSweetbox: stPrices.priceSweetbox,
         availableSeats: availableSeatsCount,
         totalSeats: totalSeatsCount,
         seatText: `còn ${availableSeatsCount} chỗ`,
@@ -387,29 +461,45 @@ export const getCinemaShowtimes = async (req, res) => {
       });
     }
 
-    // Chuyển cấu trúc Map thành Array cho Frontend render
-    const formattedMovies = Array.from(moviesMap.values()).map((m) => ({
-      id: m.id,
-      title: m.title,
-      originalTitle: m.originalTitle,
-      ageRating: m.ageRating,
-      poster: m.poster,
-      duration: m.duration,
-      genre: m.genre,
-      ratingPercent: m.ratingPercent,
-      rooms: Array.from(m.roomsMap.values()),
-    }));
+    // Chuyển cấu trúc Map thành Array cho Frontend render (đồng bộ mô tả khoảng giá thực tế của các suất trong phòng)
+    const formattedMovies = Array.from(moviesMap.values()).map((m) => {
+      const rooms = Array.from(m.roomsMap.values()).map((room) => {
+        const stdPrices = room.showtimes.map((s) => s.priceStandard).filter(Number.isFinite);
+        const vipPrices = room.showtimes.map((s) => s.priceVip).filter(Number.isFinite);
+        const minStd = stdPrices.length ? Math.min(...stdPrices) : 45000;
+        const maxStd = stdPrices.length ? Math.max(...stdPrices) : minStd;
+        const minVip = vipPrices.length ? Math.min(...vipPrices) : minStd + 20000;
+        const maxVip = vipPrices.length ? Math.max(...vipPrices) : minVip;
 
-    let monthMovies;
-    if (published && date) {
-      const monthStart = new Date(date.slice(0, 7) + '-01T00:00:00+07:00');
-      const nextMonth = new Date(monthStart.getTime() + 32 * 86400000);
-      const nextKey = nextMonth.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 7);
-      monthMovies = await Movie.find({
-        releaseDate: { $gte: monthStart, $lt: new Date(nextKey + '-01T00:00:00+07:00') },
-      }).select('title releaseDate').sort({ releaseDate: 1, title: 1 }).lean();
-    }
+        const stdText =
+          minStd === maxStd
+            ? `${minStd.toLocaleString('vi-VN')}đ`
+            : `${minStd.toLocaleString('vi-VN')}đ - ${maxStd.toLocaleString('vi-VN')}đ`;
+        const vipText =
+          minVip === maxVip
+            ? `${minVip.toLocaleString('vi-VN')}đ`
+            : `${minVip.toLocaleString('vi-VN')}đ - ${maxVip.toLocaleString('vi-VN')}đ`;
 
+        return {
+          ...room,
+          priceText: `Tiêu chuẩn: ${stdText} • VIP: ${vipText}`,
+        };
+      });
+
+      return {
+        id: m.id,
+        title: m.title,
+        originalTitle: m.originalTitle,
+        ageRating: m.ageRating,
+        poster: m.poster,
+        duration: m.duration,
+        genre: m.genre,
+        ratingPercent: m.ratingPercent,
+        rooms,
+      };
+    });
+
+    res.set('Cache-Control', 'no-store');
     res.json({
       cinema: {
         ...cinema,

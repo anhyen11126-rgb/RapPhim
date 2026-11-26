@@ -6,6 +6,7 @@ import Room from '../models/Room.js';
 import Movie from '../models/Movie.js';
 import AuditLog from '../models/AuditLog.js';
 import { businessDate } from '../services/bookingPolicy.js';
+import { computeShowtimeLifecycle } from '../services/showtimeLifecycleService.js';
 
 // Cache in-memory cho Preview token (15 phút TTL)
 const _bulkPreviewCache = new Map();
@@ -104,13 +105,12 @@ export const previewBulkDeleteShowtimes = async (req, res) => {
       const roomType = st.roomId?.roomType || 'Tiêu chuẩn';
       const bks = bookingsBySt.get(stId) || [];
       const seats = activeSeatsBySt.get(stId) || [];
+      const lifecycle = computeShowtimeLifecycle(st, now);
 
       // Kiểm tra các điều kiện an toàn nghiêm ngặt
       let blockReason = null;
 
-      if (stStart <= now) {
-        blockReason = 'Suất chiếu đã bắt đầu hoặc đã qua thời gian chiếu.';
-      } else if (st.cancelledAt) {
+      if (st.cancelledAt) {
         blockReason = 'Suất chiếu đã bị hủy trước đó.';
       } else if (bks.some(b => b.isCheckedIn)) {
         blockReason = 'Đã có vé check-in vào phòng chiếu.';
@@ -123,6 +123,10 @@ export const previewBulkDeleteShowtimes = async (req, res) => {
         blockReason = 'Dữ liệu ghế ghi nhận trạng thái đã đặt.';
       } else if (seats.some(s => s.status === 'HOLDING' && (!s.holdExpiresAt || new Date(s.holdExpiresAt) > now))) {
         blockReason = 'Có ghế đang được khách hàng giữ chỗ trong phiên đặt vé.';
+      } else if (lifecycle.lifecycleStatus === 'NOW_SHOWING') {
+        blockReason = 'Suất chiếu đang diễn ra trong phòng chiếu.';
+      } else if (lifecycle.lifecycleStatus === 'CLEANING') {
+        blockReason = 'Phòng chiếu đang trong thời gian vệ sinh sau suất chiếu.';
       }
 
       const slotItem = {
@@ -136,7 +140,9 @@ export const previewBulkDeleteShowtimes = async (req, res) => {
         roomType,
         formatFeature: st.formatFeature || '',
         startTime: st.startTime,
-        endTime: st.endTime,
+        endTime: lifecycle.endTime,
+        cleaningEndTime: lifecycle.cleaningEndTime,
+        lifecycleStatus: lifecycle.lifecycleStatus,
         price: st.price,
         totalSeats: st.roomId?.totalSeats || 88,
         batchId: st.batchId || null,
@@ -162,7 +168,7 @@ export const previewBulkDeleteShowtimes = async (req, res) => {
     const expiresAt = Date.now() + 15 * 60 * 1000; // 15 phút hiệu lực
 
     _bulkPreviewCache.set(previewId, {
-      adminId: req.user?._id?.toString() || 'ADMIN',
+      adminId: (req.admin?._id || req.user?._id)?.toString() || 'ADMIN',
       eligibleIds: eligibleSlots.map(s => s.id),
       blockedIds: blockedSlots.map(s => s.id),
       createdAt: Date.now(),
@@ -257,14 +263,22 @@ export const commitBulkDeleteShowtimes = async (req, res) => {
 
       try {
         const slotResult = await mongoose.connection.transaction(async (session) => {
+          const txNow = new Date();
           // 1. Tái xác minh suất chiếu ngay tại thời điểm ghi
-          const slot = await Showtime.findById(id).populate('movieId', 'title').session(session);
+          const slot = await Showtime.findById(id).populate('movieId', 'title duration').session(session);
           if (!slot) {
             return { skipped: true, reason: 'Suất chiếu không còn tồn tại hoặc đã được xóa.' };
           }
 
-          if (slot.cancelledAt || new Date(slot.startTime) <= new Date()) {
-            return { skipped: true, reason: 'Suất chiếu đã bắt đầu hoặc đã bị hủy.' };
+          const lifecycle = computeShowtimeLifecycle(slot, txNow);
+          if (slot.cancelledAt) {
+            return { skipped: true, reason: 'Suất chiếu đã bị hủy trước đó.' };
+          }
+          if (lifecycle.lifecycleStatus === 'NOW_SHOWING') {
+            return { skipped: true, reason: 'Suất chiếu đang diễn ra trong phòng chiếu.' };
+          }
+          if (lifecycle.lifecycleStatus === 'CLEANING') {
+            return { skipped: true, reason: 'Phòng chiếu đang trong thời gian vệ sinh sau suất chiếu.' };
           }
 
           // 2. Tái xác minh Booking ngay trong Transaction
@@ -273,13 +287,19 @@ export const commitBulkDeleteShowtimes = async (req, res) => {
             return { skipped: true, reason: 'Suất chiếu vừa phát sinh đơn đặt vé, đã được bỏ qua để bảo vệ khách hàng.' };
           }
 
-          // 3. Tái xác minh ghế
-          const bookedSeatCount = await ShowtimeSeat.countDocuments({
+          // 3. Tái xác minh ghế BOOKED hoặc HOLDING còn hiệu lực
+          const activeSeatCount = await ShowtimeSeat.countDocuments({
             showtimeId: slot._id,
-            status: 'BOOKED',
+            $or: [
+              { status: 'BOOKED' },
+              {
+                status: 'HOLDING',
+                $or: [{ holdExpiresAt: null }, { holdExpiresAt: { $gt: txNow } }],
+              },
+            ],
           }).session(session);
-          if (bookedSeatCount > 0) {
-            return { skipped: true, reason: 'Ghế phòng chiếu vừa được khách hàng đặt, bỏ qua để bảo vệ khách hàng.' };
+          if (activeSeatCount > 0) {
+            return { skipped: true, reason: 'Ghế phòng chiếu vừa được khách hàng đặt hoặc đang giữ chỗ, bỏ qua để bảo vệ khách hàng.' };
           }
 
           // 4. Khóa phòng chiếu ghi nhận revision
@@ -328,8 +348,8 @@ export const commitBulkDeleteShowtimes = async (req, res) => {
 
     // Ghi nhật ký thao tác bền vững vào AuditLog (phục vụ đối soát và Idempotency)
     const auditRecord = await AuditLog.create({
-      adminId: req.user?._id || null,
-      adminEmail: req.user?.email || 'admin@davenor.vn',
+      adminId: req.admin?._id || req.user?._id || null,
+      adminEmail: req.admin?.email || req.user?.email || 'admin@davenor.vn',
       actionType: batchId ? 'UNDO_BATCH' : 'BULK_DELETE',
       requestId: requestId.trim(),
       batchId: batchId || null,
@@ -568,6 +588,7 @@ export const deleteShowtimeSafe = async (req, res) => {
         $set: {
           isLocked: true,
           cancelledAt: new Date(),
+          lifecycleStatus: 'CANCELLED',
           cancelReason: reason || 'Hủy bởi Admin quản lý rạp',
         },
       }, { session });

@@ -5,7 +5,7 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
   if (loading) {
     return (
       <div className="h-64 flex items-center justify-center bg-[var(--bg-secondary)]/60 rounded-2xl border border-[var(--border-default)]">
-        <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -13,8 +13,25 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
   const booked = occupancy.booked || 0;
   const available = occupancy.available || 0;
   const holding = occupancy.holding || 0;
-  const total = occupancy.totalSellable || (booked + available + holding);
-  const rate = occupancy.rate ?? (total > 0 ? Number(((booked / total) * 100).toFixed(1)) : 0);
+  const total = occupancy.totalSellable ?? 0;
+  const rate = occupancy.rate ?? (total > 0 ? Number(((booked / total) * 100).toFixed(2)) : 0);
+
+  const roomCount = occupancy.roomCount || 9;
+  const seatsPerRoom = occupancy.seatsPerRoom || 88;
+  const totalPhysicalSeats = occupancy.totalPhysicalSeats || roomCount * seatsPerRoom;
+  const activeShowtimesCount = occupancy.activeShowtimesCount || 0;
+
+  if (total === 0 && activeShowtimesCount === 0) {
+    return (
+      <div className="h-64 flex flex-col items-center justify-center bg-[var(--bg-secondary)]/60 rounded-2xl border border-[var(--border-default)] text-slate-400 text-xs p-4 text-center">
+        <span className="text-2xl mb-2">🪑</span>
+        <span className="font-semibold text-slate-300">Chưa có suất chiếu mở bán trong kỳ được chọn</span>
+        <span className="text-[11px] text-slate-500 mt-1">
+          Sức chứa vật lý cụm rạp: {roomCount} phòng × {seatsPerRoom} ghế = {formatNumber(totalPhysicalSeats)} ghế
+        </span>
+      </div>
+    );
+  }
 
   // Tính toán góc SVG vòng tròn Donut
   const radius = 68;
@@ -52,12 +69,12 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
               className="transition-all duration-700"
             />
           )}
-          {/* Vòng Ghế đã đặt (Màu đỏ D'AVENOR) */}
+          {/* Vòng Ghế đã bán (Màu Cyan/Emerald) */}
           <circle
             cx="80"
             cy="80"
             r={radius}
-            stroke="#dc2626"
+            stroke="#22d3ee"
             strokeWidth="16"
             fill="transparent"
             strokeDasharray={circumference}
@@ -72,50 +89,60 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
           <span className="text-2xl sm:text-3xl font-black text-white leading-none">
             {formatPercent(rate)}
           </span>
-          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mt-1">
+          <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-300 mt-1">
             Lấp đầy
           </span>
         </div>
       </div>
 
       {/* Legend và chi tiết số lượng ghế */}
-      <div className="space-y-3 text-xs w-full sm:w-auto">
-        <div className="flex items-center justify-between sm:space-x-8">
+      <div className="space-y-2.5 text-xs w-full sm:w-auto">
+        <div className="flex items-center justify-between sm:space-x-6">
           <div className="flex items-center space-x-2">
-            <span className="w-3 h-3 rounded-full bg-red-600"></span>
-            <span className="text-slate-300 font-medium">Ghế đã đặt:</span>
+            <span className="w-3 h-3 rounded-full bg-cyan-400"></span>
+            <span className="text-slate-300 font-medium">Ghế đã bán:</span>
           </div>
           <div className="text-right">
-            <strong className="text-white font-bold">{formatNumber(booked)}</strong>
-            <span className="text-slate-500 text-[11px] ml-1">({formatPercent((booked / (total || 1)) * 100)})</span>
+            <strong className="text-cyan-300 font-bold">{formatNumber(booked)}</strong>
+            <span className="text-slate-500 text-[11px] ml-1">
+              ({formatPercent(total > 0 ? (booked / total) * 100 : 0)})
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center justify-between sm:space-x-8">
+        <div className="flex items-center justify-between sm:space-x-6">
           <div className="flex items-center space-x-2">
-            <span className="w-3 h-3 rounded-full bg-slate-700"></span>
-            <span className="text-slate-300 font-medium">Ghế chưa đặt:</span>
+            <span className="w-3 h-3 rounded-full bg-slate-600"></span>
+            <span className="text-slate-300 font-medium">Ghế không bán được (Đã chiếu):</span>
           </div>
           <div className="text-right">
-            <strong className="text-emerald-400 font-bold">{formatNumber(available)}</strong>
-            <span className="text-slate-500 text-[11px] ml-1">({formatPercent((available / (total || 1)) * 100)})</span>
+            <strong className="text-slate-300 font-bold">
+              {formatNumber(occupancy.completedUnsoldSeats ?? 0)}
+            </strong>
           </div>
         </div>
 
-        <div className="flex items-center justify-between sm:space-x-8">
+        <div className="flex items-center justify-between sm:space-x-6">
           <div className="flex items-center space-x-2">
-            <span className="w-3 h-3 rounded-full bg-amber-500"></span>
-            <span className="text-slate-300 font-medium">Đang giữ chỗ:</span>
+            <span className="w-3 h-3 rounded-full bg-emerald-400"></span>
+            <span className="text-slate-300 font-medium">Ghế còn trống (Sắp chiếu):</span>
           </div>
           <div className="text-right">
-            <strong className="text-amber-400 font-bold">{formatNumber(holding)}</strong>
-            <span className="text-slate-500 text-[11px] ml-1">({formatPercent((holding / (total || 1)) * 100)})</span>
+            <strong className="text-emerald-400 font-bold">
+              {formatNumber(occupancy.upcomingAvailableSeats ?? available)}
+            </strong>
           </div>
         </div>
 
-        <div className="pt-2 border-t border-[var(--border-default)] flex items-center justify-between text-[11px] text-slate-400">
-          <span>Tổng ghế toàn rạp:</span>
-          <span className="font-bold text-white">{formatNumber(total || 704)} ghế</span>
+        <div className="pt-2 border-t border-[var(--border-default)] space-y-1 text-[11px] text-slate-400">
+          <div className="flex items-center justify-between">
+            <span>Tổng ghế mở bán trong kỳ ({formatNumber(activeShowtimesCount)} suất):</span>
+            <span className="font-bold text-white">{formatNumber(total)} ghế</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Cấu hình rạp vật lý ({roomCount} phòng × {seatsPerRoom} ghế):</span>
+            <span className="font-bold text-cyan-300">{formatNumber(totalPhysicalSeats)} ghế</span>
+          </div>
         </div>
       </div>
     </div>

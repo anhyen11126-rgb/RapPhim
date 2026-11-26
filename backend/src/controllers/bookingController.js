@@ -297,16 +297,54 @@ export const getHoldSession = async (req, res) => {
       });
     }
 
+    const pricingConfig = await ensurePricingConfig();
+    const calculatedPrices = calculatePricesFromConfig(
+      {
+        ...showtime,
+        room: showtime.roomId,
+        roomId: showtime.roomId,
+        roomType: showtime.roomId?.roomType,
+        roomName: showtime.roomId?.name || showtime.roomName,
+      },
+      pricingConfig
+    );
+    const priceByType = {
+      STANDARD: calculatedPrices.priceStandard,
+      VIP: calculatedPrices.priceVip,
+      SWEETBOX: calculatedPrices.priceSweetbox,
+    };
+    const ticketLines = seats.map((s) => {
+      const seatType = String(s.type || 'STANDARD').toUpperCase();
+      return {
+        seatNumber: normalizeSeatCode(s.seatNumber),
+        type: seatType,
+        price: priceByType[seatType] ?? calculatedPrices.priceStandard,
+      };
+    });
+    const seatTotal = ticketLines.reduce((sum, item) => sum + item.price, 0);
+    const ticketPrices = {
+      standard: calculatedPrices.priceStandard,
+      vip: calculatedPrices.priceVip,
+      sweetbox: calculatedPrices.priceSweetbox,
+    };
+
     return res.json({
       success: true,
       holdId: holdId.trim(),
       showtimeId: String(seats[0].showtimeId),
-      seatNumbers: seats.map((s) => normalizeSeatCode(s.seatNumber)),
+      seatNumbers: ticketLines.map((s) => s.seatNumber),
+      seatTotal,
+      ticketPrices,
+      ticketLines,
       expiresAt: expiresAt.toISOString(),
       serverTime: now.toISOString(),
       showtime: {
         ...showtime,
         id: showtime._id.toString(),
+        price: calculatedPrices.priceStandard,
+        roomName: showtime.roomId?.name || showtime.roomName,
+        roomType: showtime.roomId?.roomType,
+        ticketPrices,
         movie: showtime.movieId ? { ...showtime.movieId, id: showtime.movieId._id.toString() } : null,
         cinema: showtime.cinemaId ? { ...showtime.cinemaId, id: showtime.cinemaId._id.toString() } : null,
         room: showtime.roomId ? { ...showtime.roomId, id: showtime.roomId._id.toString() } : null,

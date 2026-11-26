@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-import { SEAT_LAYOUT_CONFIG, resolveRowAisleSplitCol } from './seatLayout';
+import { SEAT_LAYOUT_CONFIG, getRowSeatCount, resolveRowAisleSplitCol } from './seatLayout';
 
 const PREFERENCE_OPTIONS = [
   { id: 'CENTER', label: 'Điểm ngọt trung tâm', icon: '🎯', desc: 'Góc nhìn & âm thanh chuẩn điện ảnh' },
@@ -105,7 +105,7 @@ const SmartSeatRecommender = ({
       Array.isArray(seats) && seats.length > 0
         ? seats
         : SEAT_LAYOUT_CONFIG.rows.flatMap((row) =>
-            Array.from({ length: SEAT_LAYOUT_CONFIG.colsPerRow }, (_, idx) => ({
+            Array.from({ length: getRowSeatCount(row) }, (_, idx) => ({
               row,
               col: idx + 1,
               seatNumber: `${row}${idx + 1}`,

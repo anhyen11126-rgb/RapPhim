@@ -61,8 +61,8 @@ export const findContiguousAvailableSeats = (
 
   if (availableSeats.length < count) return [];
 
-  // Nếu dữ liệu ghế thuộc cấu hình phòng chiếu thực tế (11 cột), áp dụng biên lối đi giữa cột 6 và cột 7
-  const hasFullTheaterColumns = seats.some((s) => Number(s?.col) >= SEAT_GRID_CONFIG.colsPerRow);
+  // Nếu dữ liệu ghế thuộc cấu hình phòng chiếu thực tế (11–12 cột), áp dụng biên lối đi giữa cho từng hàng (A–G: sau cột 6; H 4 ghế: sau cột 2)
+  const hasFullTheaterColumns = seats.some((s) => Number(s?.col) >= 11);
   const aisleAfterCol = hasFullTheaterColumns ? SEAT_GRID_CONFIG.aisleAfterCol : null;
 
   // Nhóm theo từng hàng ghế (A, B, C, D, E, F, G, H)
@@ -97,13 +97,19 @@ export const findContiguousAvailableSeats = (
   for (const row of sortedRows) {
     const rowSeats = byRow.get(row).sort((a, b) => a.col - b.col);
     if (rowSeats.length < count) continue;
+    const rowAisleSplit =
+      aisleAfterCol !== null
+        ? row === 'H' && rowSeats.every((s) => s.col <= (SEAT_GRID_CONFIG.rowHCols || 4))
+          ? SEAT_GRID_CONFIG.rowHAisleAfterCol || 2
+          : aisleAfterCol
+        : null;
 
     // Duyệt cửa sổ trượt để tìm dãy ghế có số cột liên tiếp và KHÔNG cắt ngang lối đi giữa
     let streak = [rowSeats[0]];
     for (let i = 1; i < rowSeats.length; i++) {
       const prevCol = rowSeats[i - 1].col;
       const currCol = rowSeats[i].col;
-      const crossesAisle = aisleAfterCol !== null && prevCol <= aisleAfterCol && currCol > aisleAfterCol;
+      const crossesAisle = rowAisleSplit !== null && prevCol <= rowAisleSplit && currCol > rowAisleSplit;
 
       if (currCol === prevCol + 1 && !crossesAisle) {
         streak.push(rowSeats[i]);

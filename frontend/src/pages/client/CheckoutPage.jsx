@@ -32,7 +32,13 @@ const CheckoutPage = () => {
   const [selectedSeats, setSelectedSeats] = useState(
     stateData.selectedSeats?.length > 0 ? stateData.selectedSeats : savedHold?.seatNumbers || []
   );
-  const seatTotal = typeof stateData.seatTotal === 'number' ? stateData.seatTotal : 0;
+  const [seatTotal, setSeatTotal] = useState(
+    typeof stateData.seatTotal === 'number' ? stateData.seatTotal : 0
+  );
+  const [ticketLines, setTicketLines] = useState(
+    Array.isArray(stateData.ticketLines) ? stateData.ticketLines : []
+  );
+  const [priceSyncNotice, setPriceSyncNotice] = useState('');
 
   // Trạng thái xác thực phiên giữ ghế & đồng hồ đếm ngược 10 phút từ serverTime + expiresAt
   const [holdStatus, setHoldStatus] = useState('VERIFYING'); // 'VERIFYING' | 'ACTIVE' | 'EXPIRED' | 'INVALID'
@@ -64,6 +70,15 @@ const CheckoutPage = () => {
         setShowtimeId(data.showtimeId);
         if (data.showtime) setShowtime(data.showtime);
         if (Array.isArray(data.seatNumbers)) setSelectedSeats(data.seatNumbers);
+        if (Array.isArray(data.ticketLines)) setTicketLines(data.ticketLines);
+        if (typeof data.seatTotal === 'number' && data.seatTotal > 0) {
+          if (typeof stateData.seatTotal === 'number' && stateData.seatTotal > 0 && stateData.seatTotal !== data.seatTotal) {
+            setPriceSyncNotice(
+              `Giá vé của suất chiếu vừa được cập nhật theo cấu hình chính thức (${data.seatTotal.toLocaleString('vi-VN')} đ). Vui lòng kiểm tra lại tổng tiền trước khi xác nhận thanh toán.`
+            );
+          }
+          setSeatTotal(data.seatTotal);
+        }
         const expMs = new Date(data.expiresAt).getTime();
         const srvMs = new Date(data.serverTime).getTime();
         setExpiresAtMs(expMs);
@@ -372,10 +387,15 @@ const CheckoutPage = () => {
                 <span className="text-slate-600">•</span>
                 <span className="flex items-center gap-1 text-slate-300 font-medium">
                   <span className="text-amber-400">🕒</span>
-                  <span>Hôm nay 19:15</span>
+                  <span>
+                    {showtime?.time ||
+                      (showtime?.startTime
+                        ? new Date(showtime.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                        : '19:30')}
+                  </span>
                 </span>
                 <span className="text-slate-600">•</span>
-                <span>166 phút</span>
+                <span>{showtime?.movie?.duration ? `${showtime.movie.duration} phút` : '120 phút'}</span>
               </div>
             </div>
           </div>
@@ -465,10 +485,16 @@ const CheckoutPage = () => {
 
           {/* CỘT PHẢI (4-5 CỘT): TÓM TẮT ĐƠN HÀNG, PHƯƠNG THỨC THANH TOÁN */}
           <div className="lg:col-span-5 xl:col-span-4 space-y-6 lg:sticky lg:top-24">
+            {priceSyncNotice && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-400/50 text-amber-200 text-xs font-medium leading-relaxed">
+                ⚠️ {priceSyncNotice}
+              </div>
+            )}
             <CheckoutOrderSummary
               showtime={showtime}
               selectedSeats={selectedSeats}
               seatTotal={seatTotal}
+              ticketLines={ticketLines}
               concessions={concessions}
               comboQuantities={comboQuantities}
               popcornFlavors={popcornFlavors}

@@ -51,6 +51,8 @@ const MovieDetailPage = () => {
 
   const [movie, setMovie] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errorState, setErrorState] = useState(null); // { type: 'NOT_FOUND'|'INVALID_ID'|'NETWORK'|'SERVER', title, message }
+  const [retryCount, setRetryCount] = useState(0);
 
   // Modal Trailer & Trạng thái yêu thích
   const [isTrailerModalOpen, setIsTrailerModalOpen] = useState(false);
@@ -60,12 +62,59 @@ const MovieDetailPage = () => {
     const request = new AbortController();
     setLoading(true);
     setMovie(null);
-    api.get('/movies/' + encodeURIComponent(id), { params: { schedule: 'read-only' }, signal: request.signal })
-      .then(({ data }) => setMovie(data))
-      .catch(() => {})
-      .finally(() => { if (!request.signal.aborted) setLoading(false); });
+    setErrorState(null);
+
+    api.get('/movies/' + encodeURIComponent(id || ''), {
+      params: { schedule: 'read-only' },
+      signal: request.signal,
+    })
+      .then(({ data }) => {
+        if (request.signal.aborted) return;
+        if (!data || (!data.id && !data._id)) {
+          setErrorState({
+            type: 'NOT_FOUND',
+            title: 'Không tìm thấy bộ phim này',
+            message: 'Bộ phim có thể đã ngừng chiếu, bị ẩn hoặc đường dẫn không còn tồn tại.',
+          });
+          return;
+        }
+        setMovie(data);
+      })
+      .catch((err) => {
+        if (request.signal.aborted || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
+        const status = err?.response?.status;
+        if (!err?.response) {
+          setErrorState({
+            type: 'NETWORK',
+            title: 'Không thể kết nối tới máy chủ',
+            message: 'Vui lòng kiểm tra kết nối mạng của bạn và thử tải lại trang.',
+          });
+        } else if (status === 400) {
+          setErrorState({
+            type: 'INVALID_ID',
+            title: 'Mã phim không hợp lệ',
+            message: 'Đường dẫn phim không đúng định dạng. Vui lòng chọn phim từ danh sách.',
+          });
+        } else if (status === 404) {
+          setErrorState({
+            type: 'NOT_FOUND',
+            title: 'Không tìm thấy thông tin bộ phim này',
+            message: 'Phim không tồn tại trong hệ thống hoặc đã bị gỡ khỏi lịch chiếu.',
+          });
+        } else {
+          setErrorState({
+            type: 'SERVER',
+            title: 'Đã có lỗi khi tải dữ liệu phim',
+            message: 'Hệ thống đang tạm gián đoạn. Vui lòng thử lại sau ít phút.',
+          });
+        }
+      })
+      .finally(() => {
+        if (!request.signal.aborted) setLoading(false);
+      });
+
     return () => request.abort();
-  }, [id]);
+  }, [id, retryCount]);
 
   const scrollToBooking = () => {
     const el = document.getElementById('showtimes-section');
@@ -77,7 +126,7 @@ const MovieDetailPage = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--bg-main)] flex flex-col items-center justify-center text-slate-400 py-32 space-y-4">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-4 border-[#42DFFF] border-t-transparent rounded-full animate-spin"></div>
         <p className="text-sm font-semibold tracking-wide text-slate-300">Đang nạp dữ liệu phim điện ảnh...</p>
       </div>
     );
@@ -85,15 +134,39 @@ const MovieDetailPage = () => {
 
   if (!movie) {
     return (
-      <div className="min-h-screen bg-[var(--bg-main)] flex flex-col items-center justify-center text-slate-400 py-32 space-y-4">
-        <span className="text-4xl">🎬</span>
-        <p className="text-xl font-bold text-white">Không tìm thấy thông tin bộ phim này.</p>
-        <Link
-          to="/"
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow"
-        >
-          Quay lại Trang chủ
-        </Link>
+      <div className="min-h-screen bg-[var(--bg-main)] flex flex-col items-center justify-center text-slate-300 px-4 py-32">
+        <div className="max-w-md w-full bg-[#11152F]/90 border border-[#AA9BFF]/30 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
+          <span className="text-5xl block">🎬</span>
+          <h1 className="text-xl font-black text-white">
+            {errorState?.title || 'Không tìm thấy thông tin bộ phim này.'}
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+            {errorState?.message || 'Bộ phim không tồn tại hoặc đã ngừng chiếu tại D’AVENOR CINEMA.'}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            {(errorState?.type === 'NETWORK' || errorState?.type === 'SERVER') && (
+              <button
+                type="button"
+                onClick={() => setRetryCount((c) => c + 1)}
+                className="px-4 py-2.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-[#83F5FF] border border-[#42DFFF]/40 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Thử lại
+              </button>
+            )}
+            <Link
+              to="/theaters"
+              className="px-4 py-2.5 bg-[#171936] hover:bg-[#20204B] text-[#E9D5FF] border border-[#AA9BFF]/35 rounded-xl text-xs font-bold transition-all"
+            >
+              Quay lại danh sách phim
+            </Link>
+            <Link
+              to="/"
+              className="px-4 py-2.5 cinema-action text-[#0B1026] rounded-xl text-xs font-black transition-all shadow"
+            >
+              Về trang chủ
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -134,8 +207,21 @@ const MovieDetailPage = () => {
 
             {/* THỐNG KÊ DOANH THU, VÉ, GHẾ & ĐÁNH GIÁ RIÊNG TỪNG BỘ PHIM */}
             <MovieStatsReviewsSection
+              key={movie.id || movie._id || id}
               movie={movie}
               onScrollToBooking={scrollToBooking}
+              onRatingSync={(data) =>
+                setMovie((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        rating: data.rating,
+                        ratingCount: data.ratingCount,
+                        ratingBreakdown: data.ratingBreakdown,
+                      }
+                    : prev
+                )
+              }
             />
           </div>
         </div>

@@ -32,7 +32,7 @@ export const getMovies = async (req, res) => {
 
 export const getMovieDetail = async (req, res) => {
   try {
-    const data = await statisticsService.getMovieDetailStats(req.params.id);
+    const data = await statisticsService.getMovieDetailStats(req.params.id, req.query);
     res.json({ success: true, data });
   } catch (error) {
     console.error('Lỗi lấy chi tiết thống kê phim:', error);

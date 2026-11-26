@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Trash2 } from 'lucide-react';
 import statisticsApi from '../services/statisticsApi';
 import { formatCurrency, formatNumber, formatPercent } from '../utils/statisticsFormatter';
-import { SEAT_LAYOUT_CONFIG } from '../../../../components/seat-booking/seatLayout';
+import { SEAT_LAYOUT_CONFIG, resolveRowAisleSplitCol } from '../../../../components/seat-booking/seatLayout';
 
 const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
   const [data, setData] = useState(null);
@@ -181,50 +181,46 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
                 </span>
               </div>
 
-              {/* Các hàng ghế A -> H (8 hàng x 11 ghế = 88 ghế, lối đi giữa cột 6 và cột 7) */}
+              {/* Các hàng ghế A -> H (A–G: 12 ghế 6+6, H: 4 ghế 2+2 = 88 ghế, lối đi AISLE chính giữa) */}
               <div className="space-y-2 max-w-xl mx-auto select-none">
                 {data.seatMatrix.map((r) => {
-                  const aisleAfterCol = data.showtime?.aisleAfterCol || SEAT_LAYOUT_CONFIG.aisleAfterCol;
-                  return (
-                    <div key={r.row} className="flex items-center justify-center space-x-2">
-                      <span className="w-5 text-right font-mono font-bold text-xs text-slate-400">{r.row}</span>
-                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                        {r.seats.map((s, idx) => {
-                          const isBooked = s.status === 'BOOKED';
-                          const isHolding = s.status === 'HOLDING';
-                          const isAisleBreak =
-                            idx > 0
-                              ? Number(r.seats[idx - 1]?.col) <= aisleAfterCol && Number(s.col) > aisleAfterCol
-                              : false;
-
-                          return (
-                            <React.Fragment key={s.code}>
-                              {isAisleBreak && (
-                                <div className="w-6 flex items-center justify-center select-none text-[8px] font-black text-slate-500 tracking-wider">
-                                  AISLE
-                                </div>
-                              )}
-                              <div
-                                title={`${s.code} (${s.type}) - ${isBooked ? 'Đã đặt' : isHolding ? 'Đang giữ tạm (10p)' : 'Còn trống'}`}
-                                className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md text-[9px] font-bold flex items-center justify-center pointer-events-none transition-all ${
-                                  isBooked
-                                    ? 'bg-red-600 text-white border border-red-500 shadow-sm shadow-red-600/30'
-                                    : isHolding
-                                    ? 'bg-amber-500/25 text-amber-300 border border-amber-400/60 shadow-sm shadow-amber-500/20'
-                                    : s.type === 'VIP'
-                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                    : s.type === 'SWEETBOX'
-                                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                                    : 'bg-[var(--bg-surface)] text-slate-300 border border-slate-700'
-                                }`}
-                              >
-                                {s.code}
-                              </div>
-                            </React.Fragment>
-                          );
-                        })}
+                  const ordered = (r.seats || []).slice().sort((a, b) => Number(a.col) - Number(b.col));
+                  const aisleAfterCol = resolveRowAisleSplitCol(ordered);
+                  const leftSeats = ordered.filter((s) => Number(s.col) <= aisleAfterCol);
+                  const rightSeats = ordered.filter((s) => Number(s.col) > aisleAfterCol);
+                  const renderAdminSeat = (s) => {
+                    const isBooked = s.status === 'BOOKED';
+                    const isHolding = s.status === 'HOLDING';
+                    return (
+                      <div
+                        key={s.code}
+                        title={`${s.code} (${s.type}) - ${isBooked ? 'Đã đặt' : isHolding ? 'Đang giữ tạm (10p)' : 'Còn trống'}`}
+                        className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md text-[9px] font-bold flex items-center justify-center pointer-events-none transition-all ${
+                          isBooked
+                            ? 'bg-red-600 text-white border border-red-500 shadow-sm shadow-red-600/30'
+                            : isHolding
+                            ? 'bg-amber-500/25 text-amber-300 border border-amber-400/60 shadow-sm shadow-amber-500/20'
+                            : s.type === 'VIP'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : s.type === 'SWEETBOX'
+                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                            : 'bg-[var(--bg-surface)] text-slate-300 border border-slate-700'
+                        }`}
+                      >
+                        {s.code}
                       </div>
-                      <span className="w-5 text-left font-mono font-bold text-xs text-slate-400">{r.row}</span>
+                    );
+                  };
+
+                  return (
+                    <div key={r.row} className="grid grid-cols-[1.25rem_1fr_2.25rem_1fr_1.25rem] items-center gap-1.5">
+                      <span className="text-right font-mono font-bold text-xs text-slate-400">{r.row}</span>
+                      <div className="flex items-center justify-end gap-1.5">{leftSeats.map(renderAdminSeat)}</div>
+                      <div className="flex items-center justify-center select-none text-[8px] font-black text-slate-500 tracking-wider">
+                        AISLE
+                      </div>
+                      <div className="flex items-center justify-start gap-1.5">{rightSeats.map(renderAdminSeat)}</div>
+                      <span className="text-left font-mono font-bold text-xs text-slate-400">{r.row}</span>
                     </div>
                   );
                 })}
