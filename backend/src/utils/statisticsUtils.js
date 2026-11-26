@@ -58,6 +58,16 @@ export const getVietnamDate = (date = new Date()) => {
 
 /**
  * Phân tích khoảng thời gian lọc (Global Time Range) theo múi giờ Asia/Ho_Chi_Minh (+07:00)
+ * Hỗ trợ đầy đủ các tùy chọn:
+ * - today: Hôm nay (00:00:00 -> 23:59:59.999)
+ * - 7_days: 7 ngày gần nhất
+ * - 30_days: 30 ngày gần nhất
+ * - this_month: Tháng này
+ * - last_month: Tháng trước
+ * - by_month: Tháng/năm cụ thể (ví dụ month=11, year=2026)
+ * - this_year: Năm nay
+ * - custom: Khoảng ngày tùy chọn (customStart -> customEnd)
+ *
  * Lưu ý quan trọng (Mục 6):
  * - Với tháng đã qua (ví dụ Tháng 10/2026): hiển thị đầy đủ từ 01/10 đến 31/10.
  * - Với tháng hiện tại (ví dụ Tháng 11/2026, hôm nay là 26/11/2026):
@@ -297,6 +307,7 @@ export const parseDateFilter = (
 
 /**
  * Tính tỷ lệ tăng trưởng so với kỳ trước (%)
+ * Nếu kỳ trước không có dữ liệu (= 0), trả về null để UI hiển thị N/A thay vì chia cho 0 hoặc 100% ảo.
  */
 export const calculateGrowth = (current = 0, previous = 0) => {
   if (previous === null || previous === undefined || Number(previous) === 0) {

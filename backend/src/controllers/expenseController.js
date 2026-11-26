@@ -165,6 +165,7 @@ export const createExpense = async (req, res) => {
     const month = reqMonth ? Number(reqMonth) : vnParts.month;
     const year = reqYear ? Number(reqYear) : vnParts.year;
 
+    // Tạo mã chi phí tự động không trùng lặp: CP-YYYYMM-XXXX
     const count = await Expense.countDocuments({ month, year });
     const randSuffix = String(Date.now()).slice(-3);
     const costCode = `CP-${year}${String(month).padStart(2, '0')}-${String(count + 1).padStart(3, '0')}${randSuffix}`;

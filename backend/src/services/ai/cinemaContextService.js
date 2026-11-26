@@ -13,6 +13,10 @@ import { ensurePricingConfig } from '../pricingConfigService.js';
 import { getVNDateParts, getRelativeDayLabel } from './timezoneUtils.js';
 import { calculateShowtimePrices, formatVND } from './pricingService.js';
 import { getDailyDealForDate } from './dailyPromotionService.js';
+import {
+  SEAT_GRID_CONFIG,
+  resolveCanonicalRoomType,
+} from '../../utils/roomLayoutConfig.js';
 
 /**
  * Kiểm tra một ghế trong ShowtimeSeat có thực sự đang trống tại thời điểm `nowDate` hay không.
@@ -59,6 +63,10 @@ export const findContiguousAvailableSeats = (
 
   if (availableSeats.length < count) return [];
 
+  // Nếu dữ liệu ghế thuộc cấu hình phòng chiếu thực tế (11–12 cột), áp dụng biên lối đi giữa cho từng hàng (A–G: sau cột 6; H 4 ghế: sau cột 2)
+  const hasFullTheaterColumns = seats.some((s) => Number(s?.col) >= 11);
+  const aisleAfterCol = hasFullTheaterColumns ? SEAT_GRID_CONFIG.aisleAfterCol : null;
+
   // Nhóm theo từng hàng ghế (A, B, C, D, E, F, G, H)
   const byRow = new Map();
   for (const s of availableSeats) {
@@ -91,11 +99,21 @@ export const findContiguousAvailableSeats = (
   for (const row of sortedRows) {
     const rowSeats = byRow.get(row).sort((a, b) => a.col - b.col);
     if (rowSeats.length < count) continue;
+    const rowAisleSplit =
+      aisleAfterCol !== null
+        ? row === 'H' && rowSeats.every((s) => s.col <= (SEAT_GRID_CONFIG.rowHCols || 4))
+          ? SEAT_GRID_CONFIG.rowHAisleAfterCol || 2
+          : aisleAfterCol
+        : null;
 
-    // Duyệt cửa sổ trượt để tìm dãy ghế có số cột liên tiếp (col[i+1] - col[i] === 1)
+    // Duyệt cửa sổ trượt để tìm dãy ghế có số cột liên tiếp và KHÔNG cắt ngang lối đi giữa
     let streak = [rowSeats[0]];
     for (let i = 1; i < rowSeats.length; i++) {
-      if (rowSeats[i].col === rowSeats[i - 1].col + 1) {
+      const prevCol = rowSeats[i - 1].col;
+      const currCol = rowSeats[i].col;
+      const crossesAisle = rowAisleSplit !== null && prevCol <= rowAisleSplit && currCol > rowAisleSplit;
+
+      if (currCol === prevCol + 1 && !crossesAisle) {
         streak.push(rowSeats[i]);
       } else {
         if (streak.length >= count) {
@@ -304,7 +322,7 @@ export const buildNormalizedCinemaContext = ({
         } else {
           // Chưa khởi tạo bản ghi ShowtimeSeat -> tính đúng bằng totalSeats - số ghế đã đặt trong Booking (đồng bộ 88/88)
           availableSeats = Math.max(0, totalSeats - bookedFallbackCount);
-          availableByTier = { STANDARD: 48, VIP: 36, SWEETBOX: 4 };
+          availableByTier = { ...SEAT_GRID_CONFIG.tierCounts };
         }
       } else if (typeof seatInfo === 'object') {
         // Trường hợp truyền kết quả aggregation { totalInitialized, availableCount, seats }
@@ -321,7 +339,7 @@ export const buildNormalizedCinemaContext = ({
           };
         } else {
           availableSeats = Math.max(0, totalSeats - bookedFallbackCount);
-          availableByTier = { STANDARD: 48, VIP: 36, SWEETBOX: 4 };
+          availableByTier = { ...SEAT_GRID_CONFIG.tierCounts };
         }
         if (Array.isArray(seatInfo.seats)) {
           rawSeats = seatInfo.seats;
@@ -335,13 +353,14 @@ export const buildNormalizedCinemaContext = ({
       // Chưa có bản ghi ghế nào trong ShowtimeSeat -> đồng bộ đúng công thức roomTotalSeats - bookedCount (88/88)
       seatsInitialized = false;
       availableSeats = Math.max(0, totalSeats - bookedFallbackCount);
-      availableByTier = { STANDARD: 48, VIP: 36, SWEETBOX: 4 };
+      availableByTier = { ...SEAT_GRID_CONFIG.tierCounts };
     }
 
     const bookedSeats = Math.max(0, totalSeats - availableSeats - holdingSeats);
 
     // 2.3. Tính giá vé chuẩn từ Database & cấu hình giá Admin
-    const pricing = calculateShowtimePrices(st, pricingConfig);
+    const resolvedRoomType = resolveCanonicalRoomType(st);
+    const pricing = calculateShowtimePrices({ ...st, roomType: resolvedRoomType }, pricingConfig);
 
     // 2.4. Xử lý ngày giờ theo đúng múi giờ Asia/Ho_Chi_Minh
     const vnParts = getVNDateParts(startTime);
@@ -366,7 +385,7 @@ export const buildNormalizedCinemaContext = ({
       dayMinutes: vnParts ? vnParts.hour * 60 + vnParts.minute : 0,
       roomId: st.roomId?._id ? String(st.roomId._id) : st.roomId ? String(st.roomId) : null,
       roomName: st.roomId?.name || st.roomName || 'Phòng 01 - 2D',
-      roomType: st.roomId?.roomType || st.roomType || '',
+      roomType: resolvedRoomType || st.roomId?.roomType || st.roomType || '',
       cinemaName: cinemaDoc?.name || st.cinemaName || "D'AVENOR Thanh Khê Plaza",
       cinemaAddress: cinemaDoc?.address || '',
       format: pricing.format,

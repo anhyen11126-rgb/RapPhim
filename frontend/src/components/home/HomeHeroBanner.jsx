@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 const getAgeBadgeStyle = (ageRating) => {
@@ -82,6 +82,14 @@ const HomeHeroBanner = ({
   const nextHeroIndex = moviesList.length > 0 ? (heroIndex + 1) % moviesList.length : 0;
   const nextHeroMovie = moviesList[nextHeroIndex] || currentHeroMovie;
 
+  // Preload ảnh banner của phim tiếp theo để chuyển vòng lặp không bị khựng/nháy
+  useEffect(() => {
+    const nextUrl = getMovieBackdrop(nextHeroMovie);
+    if (!nextUrl) return;
+    const img = new Image();
+    img.src = nextUrl;
+  }, [nextHeroMovie]);
+
   return (
     <>
       <section
@@ -92,9 +100,10 @@ const HomeHeroBanner = ({
         {/* Background Image với hiệu ứng chuyển cảnh mượt mà */}
         <div className="absolute inset-0 z-0 overflow-hidden">
           <img
-            key={currentHeroMovie?.id || heroIndex}
             src={getMovieBackdrop(currentHeroMovie)}
             alt={currentHeroMovie?.title || 'Banner'}
+            fetchPriority="high"
+            decoding="async"
             className="w-full h-full object-cover object-center filter brightness-[1.08] contrast-[1.12] saturate-[1.18] transition-all duration-700 ease-in-out scale-100 group-hover/hero:scale-[1.02]"
             onError={(e) => {
               e.target.src = '/banner-dune.jpg';
@@ -147,10 +156,15 @@ const HomeHeroBanner = ({
                 <span className="bg-[#20204B] text-[#83F5FF] border border-[#42DFFF]/40 px-2 py-0.5 rounded text-[10px] font-black tracking-wider uppercase shadow-[0_0_10px_rgba(66,223,255,0.2)]">
                   IMAX
                 </span>
-                <span className="bg-[#20204B] text-[#83F5FF] border border-[#AA9BFF]/30 px-2 py-0.5 rounded text-[11px] font-black flex items-center space-x-1 shadow-[0_0_10px_rgba(66,223,255,0.15)]">
-                  <span className="text-amber-400">★</span>
-                  <span>{currentHeroMovie?.rating || '4.9'} IMDb</span>
-                </span>
+                {currentHeroMovie?.rating != null && Number.isFinite(Number(currentHeroMovie.rating)) && (
+                  <span className="bg-[#20204B] text-[#83F5FF] border border-[#AA9BFF]/30 px-2 py-0.5 rounded text-[11px] font-black flex items-center space-x-1 shadow-[0_0_10px_rgba(66,223,255,0.15)]">
+                    <span className="text-amber-400">★</span>
+                    <span>
+                      {Number(currentHeroMovie.rating).toFixed(1)}/5
+                      {currentHeroMovie?.ratingCount ? ` • ${currentHeroMovie.ratingCount}` : ''}
+                    </span>
+                  </span>
+                )}
               </div>
 
               <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight bg-[linear-gradient(105deg,#FFFFFF_0%,#F8F3FF_22%,#E9C7FF_48%,#CE91FF_75%,#B47AFF_100%)] bg-clip-text text-transparent [filter:drop-shadow(0_0_4px_rgba(255,255,255,0.3))_drop-shadow(0_2px_14px_rgba(11,16,38,0.95))_drop-shadow(0_0_16px_rgba(180,122,255,0.35))]">

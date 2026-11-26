@@ -9,7 +9,7 @@ import {
   DEFAULT_PRICING_CONFIG,
 } from '../../utils/pricing';
 
-const ROOM_TYPES = ['IMAX Laser', 'Dolby Atmos', 'RealD 3D', '2D Tiêu chuẩn', '4DX Sound'];
+const ROOM_TYPES = ['IMAX Laser', 'Dolby Atmos', 'Gold Class', 'RealD 3D', '2D Tiêu chuẩn', '4DX Sound'];
 
 const computeFullRoomRangeLabel = (roomType, cfg) => {
   const wd = getRoomPriceRange(roomType, false, cfg);
@@ -262,20 +262,18 @@ const RoomManagePage = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 font-medium">
                     {filteredRooms.map((room, idx) => {
-                      const defaultSlots =
+                       const defaultSlots =
                         room.defaultSlots ||
                         (room.roomType === 'IMAX Laser'
                           ? '17:30 • 19:15 • 20:45 • 22:30'
+                          : room.roomType === 'Gold Class'
+                          ? '17:45 • 19:30 • 21:15 • 22:45'
                           : room.roomType === 'RealD 3D'
                           ? '18:30 • 20:00 • 21:15 • 22:15'
                           : '18:00 • 19:45 • 21:15 • 23:00');
                       const priceRange =
                         room.priceRange ||
-                        (room.roomType === 'IMAX Laser'
-                          ? '140.000đ - 170.000đ'
-                          : room.roomType === 'RealD 3D'
-                          ? '45.000đ - 60.000đ'
-                          : '45.000đ - 65.000đ');
+                        computeFullRoomRangeLabel(room.roomType || '2D Tiêu chuẩn', pricingConfig);
 
                       return (
                         <tr key={room.id || room._id} className="hover:bg-slate-800/40 transition-colors">
@@ -293,7 +291,11 @@ const RoomManagePage = () => {
                             <span
                               className={`px-2.5 py-1 rounded-md text-[10px] font-bold border ${
                                 room.roomType === 'IMAX Laser'
+                                  ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+                                  : room.roomType === 'Gold Class'
                                   ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                  : room.roomType === 'Dolby Atmos'
+                                  ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
                                   : room.roomType === 'RealD 3D'
                                   ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
                                   : 'bg-blue-500/15 text-blue-300 border-blue-500/30'

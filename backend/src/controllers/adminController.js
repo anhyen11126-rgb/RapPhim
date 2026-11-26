@@ -23,10 +23,21 @@ import {
   calculatePricesFromConfig,
   syncDatabaseWithPricingConfig,
 } from '../services/pricingConfigService.js';
+import {
+  ROOM_TYPES_ENUM,
+  SEAT_GRID_CONFIG,
+  buildStandard88SeatTemplates,
+  resolveCanonicalRoomType,
+} from '../utils/roomLayoutConfig.js';
 import { ensureCleanConcessions, resolveConcessionVisuals } from './concessionController.js';
 import { ensureCleanPromotions, resolvePromotionVisuals } from './promotionController.js';
 import { resolveCinemaImage, DEFAULT_CINEMA_BANNER } from './cinemaController.js';
 import { generateAndSendEmailOtp } from './authController.js';
+import {
+  computeShowtimeLifecycle,
+  DEFAULT_CLEANING_MINUTES,
+  normalizeCleaningMinutes,
+} from '../services/showtimeLifecycleService.js';
 import { ensureAiConfig } from '../services/aiService.js';
 
 // Đăng nhập Admin
@@ -258,62 +269,139 @@ export const deleteMovie = async (req, res) => {
 
 class ScheduleConflict extends Error {}
 
-async function scheduleInRoom({ room, movie, start, price, pricing, session, formatFeature: fmtOverride, batchId, creationSource, createdBy }) {
+const VALID_SEAT_TYPES = new Set(['STANDARD', 'VIP', 'SWEETBOX']);
+
+/**
+ * Kiểm tra tính hợp lệ của mẫu ghế theo cấu hình phòng:
+ * - Đúng tổng số ghế của phòng (ví dụ 88 ghế).
+ * - Không trùng mã ghế (seatNumber) hoặc tọa độ (row, col).
+ * - Nếu là phòng 88 ghế chuẩn của D'AVENOR CINEMA: phải khớp sơ đồ chuẩn A-G (12 ghế/hàng) và H (4 ghế),
+ *   tuyệt đối không dùng nhầm mẫu ghế cũ 8x11 (H có 11 ghế).
+ */
+function isValidRoomSeatTemplate(seats = [], expectedTotalSeats = 88) {
+  if (!Array.isArray(seats) || seats.length !== expectedTotalSeats || expectedTotalSeats <= 0) {
+    return false;
+  }
+  const seenSeatNumbers = new Set();
+  const seenCoords = new Set();
+  const rowCounts = new Map();
+
+  for (const s of seats) {
+    const row = String(s?.row || '').trim().toUpperCase();
+    const col = Number(s?.col);
+    const seatNumber = String(s?.seatNumber || '').trim().toUpperCase();
+    const type = String(s?.type || 'STANDARD').trim().toUpperCase();
+
+    if (!row || !Number.isInteger(col) || col <= 0 || !seatNumber || !VALID_SEAT_TYPES.has(type)) {
+      return false;
+    }
+    const coordKey = `${row}:${col}`;
+    if (seenSeatNumbers.has(seatNumber) || seenCoords.has(coordKey)) {
+      return false;
+    }
+    seenSeatNumbers.add(seatNumber);
+    seenCoords.add(coordKey);
+    rowCounts.set(row, (rowCounts.get(row) || 0) + 1);
+  }
+
+  if (expectedTotalSeats === SEAT_GRID_CONFIG.totalSeats) {
+    for (const r of SEAT_GRID_CONFIG.rows) {
+      const expectedRowCols = SEAT_GRID_CONFIG.rowColsMap[r];
+      if (rowCounts.get(r) !== expectedRowCols) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Chuẩn bị mẫu ghế hợp lệ cho 1 phòng (chỉ đọc tối đa 1 lần, ưu tiên sơ đồ chuẩn 88 ghế đã thiết kế).
+ */
+async function resolveSeatTemplatesForRoom(room, session = null) {
+  const expectedTotal = Number(room?.totalSeats) || SEAT_GRID_CONFIG.totalSeats;
+  if (expectedTotal === SEAT_GRID_CONFIG.totalSeats) {
+    const canonical88 = buildStandard88SeatTemplates();
+    if (isValidRoomSeatTemplate(canonical88, expectedTotal)) {
+      return canonical88;
+    }
+  }
+
+  let seatTemplates = [];
+  const aggQuery = ShowtimeSeat.aggregate([
+    { $match: { roomId: room._id } },
+    { $group: { _id: '$showtimeId', count: { $sum: 1 } } },
+    { $match: { count: expectedTotal } },
+    { $sort: { _id: -1 } },
+    { $limit: 1 },
+  ]);
+  if (session) aggQuery.session(session);
+  const [template] = await aggQuery;
+
+  if (template) {
+    const findQuery = ShowtimeSeat.find({ roomId: room._id, showtimeId: template._id })
+      .select('row col seatNumber type')
+      .lean();
+    if (session) findQuery.session(session);
+    const candidate = await findQuery;
+    if (isValidRoomSeatTemplate(candidate, expectedTotal)) {
+      seatTemplates = candidate;
+    }
+  }
+
+  if (!seatTemplates.length) {
+    const fallback = buildStandard88SeatTemplates();
+    seatTemplates = expectedTotal === SEAT_GRID_CONFIG.totalSeats
+      ? fallback
+      : fallback.slice(0, expectedTotal);
+  }
+  return seatTemplates;
+}
+
+async function scheduleInRoom({ room, movie, start, price, pricing, session, formatFeature: fmtOverride, batchId, creationSource, createdBy, cleaningMinutes: customCleaning }) {
   const duration = Number(movie.duration);
-  const cleaningMinutes = 15;
+  const cleaningMinutes = normalizeCleaningMinutes(customCleaning, DEFAULT_CLEANING_MINUTES);
   if (!Number.isFinite(duration) || duration <= 0) throw new ScheduleConflict('Phim chưa có thời lượng hợp lệ.');
   if (movie.releaseDate && businessDate(start) < businessDate(movie.releaseDate)) {
     throw new ScheduleConflict('Suất chiếu sớm hơn ngày khởi chiếu.');
   }
   const endTime = new Date(start.getTime() + duration * 60000);
-  const blockedUntil = endTime.getTime() + cleaningMinutes * 60000;
+  const cleaningEndTime = new Date(endTime.getTime() + cleaningMinutes * 60000);
+  const blockedUntil = cleaningEndTime.getTime();
+  const now = new Date();
 
   const existing = await Showtime.find({
     $or: [{ roomId: room._id }, { roomId: null, cinemaId: room.cinemaId, roomName: { $in: [room.name, room.shortName].filter(Boolean) } }],
     cancelledAt: null,
-  }).select('movieId startTime endTime cleaningMinutes').populate('movieId', 'duration').session(session).lean();
+  }).select('movieId startTime endTime cleaningMinutes cleaningEndTime lifecycleStatus cancelledAt').populate('movieId', 'duration').session(session).lean();
   const overlaps = existing.some(slot => {
-    const legacyDuration = Number(slot.movieId?.duration) || 120;
-    const slotStart = slot.startTime.getTime();
-    const slotEnd = slot.endTime?.getTime() ?? (slotStart + legacyDuration * 60000);
-    const slotClean = (slot.cleaningMinutes ?? cleaningMinutes) * 60000;
-    const slotBlockedUntil = slotEnd + slotClean;
-    // Chặn mọi va chạm: trùng giờ bắt đầu, bao phủ, chồng lấn một phần, hoặc thiếu 15p dọn phòng
+    const slotLifecycle = computeShowtimeLifecycle(slot, now);
+    if (slotLifecycle.lifecycleStatus === 'COMPLETED' || slotLifecycle.lifecycleStatus === 'CANCELLED') {
+      return false;
+    }
+    const slotStart = slotLifecycle.startTime.getTime();
+    const slotBlockedUntil = slotLifecycle.cleaningEndTime.getTime();
+    // Chặn mọi va chạm với suất chiếu đang hoạt động: trùng giờ bắt đầu, bao phủ, chồng lấn một phần, hoặc thiếu thời gian dọn phòng
     return start.getTime() < slotBlockedUntil && blockedUntil > slotStart;
   });
-  if (overlaps) throw new ScheduleConflict('Khung giờ chồng lịch chiếu hoặc không đủ 15 phút dọn dẹp vệ sinh phòng.');
+  if (overlaps) throw new ScheduleConflict(`Khung giờ chồng lịch chiếu hoặc không đủ ${cleaningMinutes} phút dọn dẹp vệ sinh phòng.`);
 
-  let seatTemplates = [];
-  const [template] = await ShowtimeSeat.aggregate([
-    { $match: { roomId: room._id } },
-    { $group: { _id: '$showtimeId', count: { $sum: 1 } } },
-    { $match: { count: room.totalSeats } },
-    { $sort: { _id: -1 } },
-    { $limit: 1 },
-  ]).session(session);
-
-  if (template) {
-    seatTemplates = await ShowtimeSeat.find({ roomId: room._id, showtimeId: template._id })
-      .select('row col seatNumber type').session(session).lean();
-  }
-
-  // Nếu phòng chưa có template lịch sử (như các phòng 04, 06, 07, 08), sinh ma trận 88 ghế chuẩn
-  if (!seatTemplates.length) {
-    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    for (const r of rows) {
-      const type = ['E', 'F', 'G'].includes(r) ? 'VIP' : (r === 'H' ? 'SWEETBOX' : 'STANDARD');
-      for (let c = 1; c <= 11; c++) {
-        seatTemplates.push({ row: r, col: c, seatNumber: `${r}${c}`, type });
-      }
-    }
-  }
+  const seatTemplates = await resolveSeatTemplatesForRoom(room, session);
 
   const calculated = calculatePricesFromConfig({
     roomName: room.name, roomType: room.roomType, formatFeature: room.formatFeature, startTime: start,
   }, pricing);
+  const initialLifecycle = computeShowtimeLifecycle({
+    startTime: start,
+    endTime,
+    cleaningMinutes,
+  }, now);
   const [showtime] = await Showtime.create([{
     movieId: movie._id, cinemaId: room.cinemaId, roomId: room._id, roomName: room.name,
     formatFeature: fmtOverride ?? room.formatFeature, startTime: start, endTime, cleaningMinutes,
+    cleaningEndTime,
+    lifecycleStatus: initialLifecycle.lifecycleStatus,
     price: price ?? calculated.priceStandard,
     batchId: batchId || null,
     creationSource: creationSource || 'MANUAL',
@@ -327,7 +415,7 @@ async function scheduleInRoom({ room, movie, start, price, pricing, session, for
 
 async function lockRoom(roomId, session) {
   const room = await Room.findOneAndUpdate(
-    { _id: roomId, status: 'ACTIVE' }, { $inc: { scheduleRevision: 1 } }, { new: true, session }
+    { _id: roomId, status: 'ACTIVE' }, { $inc: { scheduleRevision: 1 } }, { returnDocument: 'after', session }
   );
   if (!room) throw new ScheduleConflict('Phòng không có hoặc đang bảo trì.');
   return room;
@@ -335,7 +423,7 @@ async function lockRoom(roomId, session) {
 
 export const createShowtime = async (req, res) => {
   try {
-    const { movieId, cinemaId, roomId, roomName, startTime, price } = req.body;
+    const { movieId, cinemaId, roomId, roomName, startTime, price, cleaningMinutes } = req.body;
     const timestamp = typeof startTime === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(startTime)
       ? startTime + ':00+07:00' : startTime;
     const start = new Date(timestamp);
@@ -359,7 +447,15 @@ export const createShowtime = async (req, res) => {
       if (cinemaId && cinemaId !== 'ALL' && String(room.cinemaId) !== cinemaId) {
         throw new ScheduleConflict('Phòng không thuộc cụm rạp đã chọn.');
       }
-      return scheduleInRoom({ room, movie, start, price: price == null ? undefined : Number(price), pricing, session });
+      return scheduleInRoom({
+        room,
+        movie,
+        start,
+        price: price == null ? undefined : Number(price),
+        pricing,
+        session,
+        cleaningMinutes,
+      });
     });
     return res.status(201).json({ message: 'Đã tạo suất chiếu.', showtime });
   } catch (error) {
@@ -498,24 +594,37 @@ export const deleteCinema = async (req, res) => {
 // ==================== QUẢN LÝ SUẤT CHIẾU ====================
 export const getAdminShowtimes = async (req, res) => {
   try {
-    const { period, startDate, endDate, viewDate, cinemaId, movieId, roomId, roomType, includeCancelled } = req.query;
+    const {
+      period,
+      startDate,
+      endDate,
+      viewDate,
+      cinemaId,
+      movieId,
+      roomId,
+      roomType,
+      includeCancelled,
+      historyFilter,
+    } = req.query;
     const filter = {};
     const now = new Date();
+    const normalizedHistoryFilter = String(historyFilter || '').toUpperCase();
 
-    if (includeCancelled !== 'true') {
+    const shouldQueryCancelled =
+      includeCancelled === 'true' ||
+      normalizedHistoryFilter === 'CANCELLED' ||
+      normalizedHistoryFilter === 'ALL';
+
+    if (!shouldQueryCancelled) {
       filter.cancelledAt = null;
     }
 
     if (viewDate) {
-      // Chuẩn hóa ngày theo múi giờ Việt Nam (UTC+7)
-      const dayStart = new Date(`${viewDate}T00:00:00+07:00`);
-      const dayEnd = new Date(`${viewDate}T23:59:59.999+07:00`);
       // Khung hiển thị rạp: Từ 08:00 sáng đến 02:00 sáng hôm sau (18 tiếng)
       const timelineStart = new Date(`${viewDate}T08:00:00+07:00`);
       const timelineEnd = new Date(timelineStart.getTime() + 18 * 3600000);
 
       // Tra cứu phạm vi an toàn: Suất chiếu có thể giao nhau với [timelineStart, timelineEnd]
-      // Một phim dài tối đa ~4h + 30p dọn, nên chỉ cần tìm các suất bắt đầu từ (timelineStart - 5h) đến timelineEnd
       const queryMinStart = new Date(timelineStart.getTime() - 5 * 3600000);
       filter.startTime = { $gte: queryMinStart, $lt: timelineEnd };
     } else if (startDate && endDate) {
@@ -573,33 +682,60 @@ export const getAdminShowtimes = async (req, res) => {
       .limit(queryLimit)
       .lean();
 
+    // Tính toán trạng thái vòng đời (UPCOMING, NOW_SHOWING, CLEANING, COMPLETED, CANCELLED) theo thời gian thực
+    const lifecycleById = new Map();
+    const bulkSyncOps = [];
+    for (const st of rawShowtimes) {
+      const lifecycle = computeShowtimeLifecycle(st, now);
+      lifecycleById.set(String(st._id), lifecycle);
+
+      const storedEndMs = st.endTime ? new Date(st.endTime).getTime() : 0;
+      const storedCleaningEndMs = st.cleaningEndTime ? new Date(st.cleaningEndTime).getTime() : 0;
+      if (
+        st.lifecycleStatus !== lifecycle.lifecycleStatus ||
+        st.cleaningMinutes !== lifecycle.cleaningMinutes ||
+        storedEndMs !== lifecycle.endTime.getTime() ||
+        storedCleaningEndMs !== lifecycle.cleaningEndTime.getTime()
+      ) {
+        bulkSyncOps.push({
+          updateOne: {
+            filter: { _id: st._id },
+            update: {
+              $set: {
+                lifecycleStatus: lifecycle.lifecycleStatus,
+                endTime: lifecycle.endTime,
+                cleaningMinutes: lifecycle.cleaningMinutes,
+                cleaningEndTime: lifecycle.cleaningEndTime,
+              },
+            },
+          },
+        });
+      }
+    }
+
+    if (bulkSyncOps.length > 0) {
+      Showtime.bulkWrite(bulkSyncOps, { ordered: false }).catch(() => {});
+    }
+
     // Áp dụng nguyên tắc giao nhau thời gian (Interval Intersection) khi xem theo viewDate:
-    // startTime < timelineEnd && occupiedEndTime > timelineStart
+    // startTime < timelineEnd && cleaningEndTime > timelineStart
     let validIntersectingShowtimes = rawShowtimes;
     if (viewDate) {
       const timelineStart = new Date(`${viewDate}T08:00:00+07:00`).getTime();
       const timelineEnd = timelineStart + 18 * 3600000; // 02:00 sáng hôm sau
 
       validIntersectingShowtimes = rawShowtimes.filter((st) => {
-        const stStart = new Date(st.startTime).getTime();
-        const duration = Number(st.movieId?.duration) || 120;
-        const cleaning = (st.cleaningMinutes ?? 15) * 60000;
-        const occupiedEndTime = st.endTime
-          ? new Date(st.endTime).getTime() + cleaning
-          : stStart + duration * 60000 + cleaning;
-
-        // Chỉ nhận suất thực sự giao nhau với khung giờ Timeline
+        const lc = lifecycleById.get(String(st._id)) || computeShowtimeLifecycle(st, now);
+        const stStart = lc.startTime.getTime();
+        const occupiedEndTime = lc.cleaningEndTime.getTime();
         return stStart < timelineEnd && occupiedEndTime > timelineStart;
       });
     }
 
-    // Lọc theo roomType nếu có yêu cầu
+    // Lọc theo roomType chuẩn enum nếu có yêu cầu
     let filteredList = validIntersectingShowtimes;
     if (roomType && roomType !== 'ALL') {
-      filteredList = validIntersectingShowtimes.filter(st => {
-        const type = st.roomId?.roomType || (st.roomName?.includes('IMAX') ? 'IMAX Laser' : st.roomName?.includes('Atmos') ? 'Dolby Atmos' : st.roomName?.includes('Gold') ? 'Gold Class' : '');
-        return type === roomType;
-      });
+      filteredList = validIntersectingShowtimes.filter((st) => resolveCanonicalRoomType(st) === roomType);
     }
 
     const showtimeIds = filteredList.map((st) => st._id);
@@ -621,9 +757,12 @@ export const getAdminShowtimes = async (req, res) => {
       statsMap.set(stat._id.toString(), stat);
     }
 
-    // Kiểm tra xung đột (conflict detection) cục bộ để gắn cờ cảnh báo cho Timeline
+    // Kiểm tra xung đột (conflict detection) chỉ tính trên các suất đang hoạt động (UPCOMING / NOW_SHOWING / CLEANING)
+    // Suất đã COMPLETED hoặc CANCELLED không còn chiếm phòng chiếu thực tế nên không báo xung đột giả
     const byRoom = new Map();
     for (const st of filteredList) {
+      const lc = lifecycleById.get(String(st._id));
+      if (!lc || !lc.isActiveSchedule) continue;
       const rKey = String(st.roomId?._id || st.roomName || 'UNKNOWN');
       if (!byRoom.has(rKey)) byRoom.set(rKey, []);
       byRoom.get(rKey).push(st);
@@ -634,10 +773,8 @@ export const getAdminShowtimes = async (req, res) => {
       rList.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
       for (let i = 0; i < rList.length; i++) {
         const a = rList[i];
-        const aDur = Number(a.movieId?.duration) || 120;
-        const aEnd = a.endTime ? new Date(a.endTime).getTime() : new Date(a.startTime).getTime() + aDur * 60000;
-        const aClean = (a.cleaningMinutes ?? 15) * 60000;
-        const aBlocked = aEnd + aClean;
+        const aLc = lifecycleById.get(String(a._id)) || computeShowtimeLifecycle(a, now);
+        const aBlocked = aLc.cleaningEndTime.getTime();
 
         for (let j = i + 1; j < rList.length; j++) {
           const b = rList[j];
@@ -648,15 +785,12 @@ export const getAdminShowtimes = async (req, res) => {
       }
     }
 
-    const showtimes = filteredList.map((st) => {
+    let showtimes = filteredList.map((st) => {
       const stat = statsMap.get(st._id.toString());
       const hasConflict = conflictSet.has(st._id.toString());
-      const stStart = new Date(st.startTime).getTime();
-      const duration = Number(st.movieId?.duration) || 120;
-      const cleaning = (st.cleaningMinutes ?? 15) * 60000;
-      const occupiedEndTime = st.endTime
-        ? new Date(st.endTime).getTime() + cleaning
-        : stStart + duration * 60000 + cleaning;
+      const lc = lifecycleById.get(String(st._id)) || computeShowtimeLifecycle(st, now);
+      const stStart = lc.startTime.getTime();
+      const occupiedEndTime = lc.cleaningEndTime.getTime();
 
       let timelineCategory = 'DAY_SHOWTIME';
       if (viewDate) {
@@ -675,15 +809,27 @@ export const getAdminShowtimes = async (req, res) => {
         movie: st.movieId,
         cinema: st.cinemaId,
         room: st.roomId,
+        endTime: lc.endTime.toISOString(),
+        cleaningMinutes: lc.cleaningMinutes,
+        cleaningEndTime: lc.cleaningEndTime.toISOString(),
+        occupiedEndTime: lc.cleaningEndTime.toISOString(),
+        lifecycleStatus: lc.lifecycleStatus,
+        isActiveSchedule: lc.isActiveSchedule,
         totalSeats: stat?.totalSeats ?? null,
         bookedSeats: stat?.bookedSeats || 0,
         availableSeats: stat?.totalSeats ? Math.max(0, stat.totalSeats - (stat.bookedSeats || 0)) : null,
-        cleaningMinutes: st.cleaningMinutes ?? 15,
-        occupiedEndTime: new Date(occupiedEndTime).toISOString(),
         timelineCategory,
         hasConflict,
       };
     });
+
+    if (normalizedHistoryFilter === 'ACTIVE') {
+      showtimes = showtimes.filter((st) => st.isActiveSchedule);
+    } else if (normalizedHistoryFilter === 'COMPLETED') {
+      showtimes = showtimes.filter((st) => st.lifecycleStatus === 'COMPLETED');
+    } else if (normalizedHistoryFilter === 'CANCELLED') {
+      showtimes = showtimes.filter((st) => st.lifecycleStatus === 'CANCELLED');
+    }
 
     res.json(showtimes);
   } catch (error) {
@@ -694,7 +840,7 @@ export const getAdminShowtimes = async (req, res) => {
 // Gợi ý khung giờ trống không chồng lấn và tương thích phòng cho Admin
 export const getAvailableShowtimeSlots = async (req, res) => {
   try {
-    const { roomId, movieId, date } = req.query;
+    const { roomId, movieId, date, cleaningMinutes: queryCleaning } = req.query;
     if (!roomId || !movieId || !date) {
       return res.status(400).json({ message: 'Vui lòng cung cấp roomId, movieId và date (YYYY-MM-DD).' });
     }
@@ -717,8 +863,9 @@ export const getAvailableShowtimeSlots = async (req, res) => {
     }
 
     const duration = Number(movie.duration) || 120;
-    const cleaningMinutes = 15;
+    const cleaningMinutes = normalizeCleaningMinutes(queryCleaning, DEFAULT_CLEANING_MINUTES);
     const totalSlotMinutes = duration + cleaningMinutes;
+    const now = new Date();
 
     // Tìm các suất chiếu đã có trong ngày đó
     const dayStart = new Date(`${date}T00:00:00+07:00`);
@@ -732,13 +879,13 @@ export const getAvailableShowtimeSlots = async (req, res) => {
       startTime: { $gte: lookbackStart, $lte: lookaheadEnd },
     }).populate('movieId', 'duration').lean();
 
-    const occupiedIntervals = existing.map(slot => {
-      const dur = Number(slot.movieId?.duration) || 120;
-      const sStart = new Date(slot.startTime).getTime();
-      const sEnd = slot.endTime ? new Date(slot.endTime).getTime() : (sStart + dur * 60000);
-      const clean = (slot.cleaningMinutes ?? 15) * 60000;
-      return { start: sStart, end: sEnd + clean };
-    });
+    const occupiedIntervals = existing
+      .map(slot => computeShowtimeLifecycle(slot, now))
+      .filter(lc => lc.isActiveSchedule)
+      .map(lc => ({
+        start: lc.startTime.getTime(),
+        end: lc.cleaningEndTime.getTime(),
+      }));
 
     const availableSlots = [];
     const baseDate = new Date(`${date}T00:00:00+07:00`);
@@ -795,143 +942,974 @@ export const getAvailableShowtimeSlots = async (req, res) => {
   }
 };
 
-// Xếp lịch chiếu phim hàng loạt theo Tuần / Tháng cho Admin & Khách hàng
-export const batchScheduleShowtimes = async (req, res) => {
-  try {
-    const { roomIds, startDate, endDate, movieIds, timeSlots, preview } = req.body;
-    const day = 86400000;
-    const start = new Date(startDate + 'T00:00:00+07:00');
-    const end = new Date(endDate + 'T00:00:00+07:00');
-    if (!Number.isFinite(+start) || !Number.isFinite(+end) || start > end || +end - +start > 30 * day
-      || businessDate(start) !== startDate || businessDate(end) !== endDate
-      || !Array.isArray(roomIds) || !roomIds.length || !roomIds.every(mongoose.isObjectIdOrHexString)
-      || !Array.isArray(movieIds) || !movieIds.length || !movieIds.every(mongoose.isObjectIdOrHexString)
-      || !Array.isArray(timeSlots) || !timeSlots.length || !timeSlots.every(time => typeof time === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time))) {
-      return res.status(400).json({ message: 'Kiểm tra danh sách phòng, phim, ngày hoặc khung giờ.' });
-    }
+// Helper định dạng phút từ 00:00 của ngày đang xét sang chuỗi HH:mm (kèm +1 ngày nếu >= 24:00)
+function formatMinutesToVNTime(totalMinutes, includeNextDayTag = false) {
+  const isNextDay = totalMinutes >= 1440;
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+  const hh = String(Math.floor(normalized / 60)).padStart(2, '0');
+  const mm = String(normalized % 60).padStart(2, '0');
+  return includeNextDayTag && isNextDay ? `${hh}:${mm} (+1 ngày)` : `${hh}:${mm}`;
+}
 
-    const uniqueRooms = [...new Set(roomIds)].sort();
-    const uniqueTimes = [...new Set(timeSlots)].sort();
-    const [movies, pricing] = await Promise.all([Movie.find({ _id: { $in: movieIds } }), ensurePricingConfig()]);
-    if (movies.length !== new Set(movieIds).size) return res.status(404).json({ message: 'Một số phim không tồn tại.' });
+function parseHHMMToMinutes(timeStr, fallbackMinutes) {
+  if (typeof timeStr !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(timeStr.trim())) {
+    return fallbackMinutes;
+  }
+  const [h, m] = timeStr.trim().split(':').map(Number);
+  return h * 60 + m;
+}
 
-    // Chế độ Xem trước (Preview Mode): Không ghi Database, trả về danh sách hợp lệ và xung đột
-    if (preview) {
-      const previewValid = [];
-      const previewConflicts = [];
-      const occupiedByRoom = new Map();
+/**
+ * Xây dựng các mốc giờ ưu tiên (preferred anchors) phân bổ đều trong ngày vận hành (Sáng - Trưa - Chiều - Tối - Đêm)
+ * dựa trên số suất mong muốn mỗi phòng (1..8) và khoảng [firstStartMin..userLatestStartMin].
+ * - Khi desiredCount = 5 và khung mặc định [09:30..22:30]: trả về đúng 5 mốc mẫu [09:30, 12:45, 16:00, 19:15, 22:30].
+ */
+function buildPreferredDayAnchors(desiredCount, firstStartMin, userLatestStartMin) {
+  if (desiredCount <= 1) return [firstStartMin];
+  if (
+    desiredCount === 5 &&
+    firstStartMin === 9 * 60 + 30 &&
+    userLatestStartMin === 22 * 60 + 30
+  ) {
+    return [9 * 60 + 30, 12 * 60 + 45, 16 * 60, 19 * 60 + 15, 22 * 60 + 30];
+  }
+  const span = Math.max(0, userLatestStartMin - firstStartMin);
+  const step = span / (desiredCount - 1);
+  const anchors = [];
+  for (let i = 0; i < desiredCount; i++) {
+    const raw = firstStartMin + i * step;
+    const rounded5 = Math.round(raw / 5) * 5;
+    anchors.push(Math.min(userLatestStartMin, Math.max(firstStartMin, rounded5)));
+  }
+  return anchors;
+}
 
-      const existingShowtimes = await Showtime.find({
-        roomId: { $in: uniqueRooms },
-        cancelledAt: null,
-        startTime: { $gte: new Date(+start - 86400000), $lte: new Date(+end + 86400000) },
-      }).populate('movieId', 'duration').lean();
+/**
+ * Bộ lập kế hoạch xếp lịch chiếu hàng loạt dùng chung 100% giữa Preview và Confirm.
+ * Quy tắc nghiêm ngặt:
+ * 1. Giờ mở cửa: 08:00, suất đầu mặc định: 09:30, suất cuối bắt đầu muộn nhất: 22:30, đóng cửa: 02:00 sáng hôm sau.
+ * 2. Sau 22:30 tuyệt đối không tạo thêm suất chiếu mới cho ngày vận hành đó.
+ * 3. Các suất bắt đầu <= 22:30 được phép chiếu qua 00:00 nếu kết thúc phim + vệ sinh <= 02:00 sáng hôm sau.
+ * 4. Khi giờ phòng sẵn sàng cho suất kế tiếp > 22:30 (VD: hoàn thành lúc 01:36 hôm sau), dừng ngay vòng lặp của ngày đó,
+ *    TUYỆT ĐỐI KHÔNG tạo suất ảo lúc 01:35/01:36 để đưa vào conflictSlots.
+ * 5. Tách biệt rõ:
+ *    - validSlots: Các suất chiếu hợp lệ sẽ được tạo.
+ *    - conflictSlots: Chỉ chứa các xung đột chồng lấn thời gian thực sự trong cùng một Room ID.
+ *    - unallocatedCount / roomDaySummaries: Số suất không đủ quỹ thời gian để bố trí so với số suất mong muốn.
+ */
+function planBatchSchedule({
+  roomsInOrder,
+  moviesInOrder,
+  startMsDay,
+  endMsDay,
+  scheduleMode = 'smart',
+  firstShowtimeTime = '09:30',
+  latestStartTime = '22:30',
+  targetSlotsPerRoom = 5,
+  cleaningMinutes = 20,
+  optimizeMaxSlots = false,
+  staggerRooms = true,
+  timeSlots = [],
+  existingShowtimes = [],
+  pricingConfig = null,
+  now = new Date(),
+}) {
+  const DAY_MS = 86400000;
+  const OPEN_MINUTES = 8 * 60; // 08:00
+  const CLOSE_MINUTES = 26 * 60; // 02:00 sáng hôm sau (1560 phút tính từ 00:00 ngày vận hành)
+  const HARD_LATEST_START_MINUTES = 22 * 60 + 30; // 22:30 (1350 phút)
 
-      for (const s of existingShowtimes) {
-        const rId = String(s.roomId);
-        if (!occupiedByRoom.has(rId)) occupiedByRoom.set(rId, []);
-        const dur = Number(s.movieId?.duration) || 120;
-        const sStart = new Date(s.startTime).getTime();
-        const sEnd = s.endTime ? new Date(s.endTime).getTime() : sStart + dur * 60000;
-        const clean = (s.cleaningMinutes ?? 15) * 60000;
-        occupiedByRoom.get(rId).push({ start: sStart, end: sEnd + clean });
+  const cleanMin = normalizeCleaningMinutes(cleaningMinutes, DEFAULT_CLEANING_MINUTES);
+  const firstStartMin = Math.max(
+    OPEN_MINUTES,
+    Math.min(HARD_LATEST_START_MINUTES, parseHHMMToMinutes(firstShowtimeTime, 9 * 60 + 30))
+  );
+  const userLatestStartMin = Math.max(
+    firstStartMin,
+    Math.min(HARD_LATEST_START_MINUTES, parseHHMMToMinutes(latestStartTime, HARD_LATEST_START_MINUTES))
+  );
+
+  // Chế độ số lượng suất loại trừ lẫn nhau:
+  // - optimizeMaxSlots = false (Mặc định): Xếp theo số suất mong muốn (targetSlotsPerRoom, mặc định 5, không vượt số suất đã chọn)
+  // - optimizeMaxSlots = true: Tối ưu số suất tối đa trong khung giờ hoạt động
+  const isOptimizeMax = Boolean(optimizeMaxSlots);
+  const desiredCount = Math.max(1, Math.min(8, Number(targetSlotsPerRoom) || 5));
+  const maxSlotsCap = isOptimizeMax ? 10 : desiredCount;
+  const nowMs = now.getTime();
+
+  const totalDays = Math.max(1, Math.round((endMsDay - startMsDay) / DAY_MS) + 1);
+  const avgMovieDuration =
+    moviesInOrder.reduce((sum, m) => sum + (Number(m.duration) || 120), 0) /
+    Math.max(1, moviesInOrder.length);
+
+  // Gom các khoảng thời gian đã bị chiếm bởi suất chiếu hiện có trong DB theo từng Room ID độc lập
+  // Loại trừ suất đã hủy (cancelledAt != null) và suất đã hoàn thành (COMPLETED)
+  const dbOccupiedByRoom = new Map();
+  for (const s of existingShowtimes) {
+    if (s.cancelledAt) continue;
+    const lc = computeShowtimeLifecycle(s, now);
+    if (lc.lifecycleStatus === 'COMPLETED' || lc.lifecycleStatus === 'CANCELLED') continue;
+    const rId = String(s.roomId?._id || s.roomId || '');
+    if (!rId) continue;
+    if (!dbOccupiedByRoom.has(rId)) dbOccupiedByRoom.set(rId, []);
+    const sStart = lc.startTime.getTime();
+    const sCleanEnd = lc.cleaningEndTime.getTime();
+    const sTimeLabel = lc.startTime.toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Ho_Chi_Minh',
+    });
+    dbOccupiedByRoom.get(rId).push({
+      start: sStart,
+      end: sCleanEnd,
+      movieEnd: lc.endTime.getTime(),
+      label: `${sTimeLabel} (${s.movieId?.title || 'Suất hiện có'})`,
+      isExisting: true,
+    });
+  }
+
+  const validSlots = [];
+  const conflictSlots = [];
+  const allSlots = [];
+  const roomDaySummaries = [];
+  let requestedTotalSlots = 0;
+  let unallocatedCount = 0;
+
+  for (let roomIndex = 0; roomIndex < roomsInOrder.length; roomIndex++) {
+    const room = roomsInOrder[roomIndex];
+    const roomIdStr = String(room._id);
+    const canonicalRoomType = resolveCanonicalRoomType(room);
+    const roomTotalSeats = Number(room.totalSeats) || 88;
+
+    // Danh sách khoảng chiếm phòng của riêng Room ID này (bản sao độc lập cho từng phòng)
+    const roomOcc = [...(dbOccupiedByRoom.get(roomIdStr) || [])].sort((a, b) => a.start - b.start);
+
+    let dayIndex = 0;
+    for (let dayEpoch = startMsDay; dayEpoch <= endMsDay; dayEpoch += DAY_MS, dayIndex++) {
+      const dateStr = businessDate(new Date(dayEpoch));
+      const dayMidnightMs = new Date(`${dateStr}T00:00:00+07:00`).getTime();
+
+      if (room.status === 'MAINTENANCE') {
+        const reqForDay = isOptimizeMax ? 0 : desiredCount;
+        requestedTotalSlots += reqForDay;
+        unallocatedCount += reqForDay;
+        roomDaySummaries.push({
+          date: dateStr,
+          roomId: roomIdStr,
+          roomName: room.name,
+          roomType: canonicalRoomType,
+          requestedSlots: isOptimizeMax ? null : desiredCount,
+          allocatedSlots: 0,
+          conflictCount: 0,
+          unallocatedSlots: reqForDay,
+          note: 'Phòng đang bảo trì (MAINTENANCE).',
+        });
+        continue;
       }
 
-      const roomsInDb = await Room.find({ _id: { $in: uniqueRooms } }).lean();
-      const roomObjMap = new Map(roomsInDb.map(r => [String(r._id), r]));
+      if (scheduleMode === 'manual') {
+        // ── CHẾ ĐỘ B: TÙY CHỈNH KHUNG GIỜ ──
+        requestedTotalSlots += timeSlots.length;
+        let manualAllocated = 0;
+        let manualConflicts = 0;
+        let manualUnallocated = 0;
 
-      for (const [index, roomId] of uniqueRooms.entries()) {
-        const room = roomObjMap.get(String(roomId));
-        if (!room || room.status === 'MAINTENANCE') {
-          previewConflicts.push({ roomId, reason: 'Phòng không tồn tại hoặc đang bảo trì' });
-          continue;
+        for (let slotIndex = 0; slotIndex < timeSlots.length; slotIndex++) {
+          const timeStr = timeSlots[slotIndex];
+          const slotStartMin = parseHHMMToMinutes(timeStr, -1);
+          const movie = moviesInOrder[(roomIndex + dayIndex + slotIndex) % moviesInOrder.length];
+          const dur = Number(movie.duration) || 120;
+
+          if (slotStartMin < 0) {
+            manualUnallocated++;
+            unallocatedCount++;
+            continue;
+          }
+
+          const startMs = dayMidnightMs + slotStartMin * 60000;
+          const endMin = slotStartMin + dur;
+          const cleanEndMin = endMin + cleanMin;
+          const readyMin = Math.ceil(cleanEndMin / 5) * 5;
+          const endMs = startMs + dur * 60000;
+          const cleanEndMs = endMs + cleanMin * 60000;
+          const readyMs = dayMidnightMs + readyMin * 60000;
+
+          const calculatedPrices = calculatePricesFromConfig(
+            {
+              roomName: room.name,
+              roomType: canonicalRoomType,
+              formatFeature: room.formatFeature,
+              startTime: new Date(startMs),
+            },
+            pricingConfig
+          );
+
+          const baseSlotInfo = {
+            date: dateStr,
+            roomId: roomIdStr,
+            roomName: room.name,
+            roomNumber: room.roomNumber,
+            roomType: canonicalRoomType,
+            movieId: String(movie._id),
+            movieTitle: movie.title,
+            duration: dur,
+            time: formatMinutesToVNTime(slotStartMin, false),
+            startTimeText: formatMinutesToVNTime(slotStartMin, false),
+            endTimeText: formatMinutesToVNTime(endMin, true),
+            cleaningMinutes: cleanMin,
+            cleaningEndTimeText: formatMinutesToVNTime(cleanEndMin, true),
+            readyTimeText: formatMinutesToVNTime(readyMin, true),
+            startTime: new Date(startMs).toISOString(),
+            endTime: new Date(endMs).toISOString(),
+            cleaningEndTime: new Date(cleanEndMs).toISOString(),
+            readyTime: new Date(readyMs).toISOString(),
+            price: calculatedPrices.priceStandard,
+            priceStandard: calculatedPrices.priceStandard,
+            priceVip: calculatedPrices.priceVip,
+            priceSweetbox: calculatedPrices.priceSweetbox,
+            totalSeats: roomTotalSeats,
+          };
+
+          // 1. Kiểm tra chồng lấn thời gian thực sự trong cùng Room ID
+          const colliding = roomOcc.find((occ) => startMs < occ.end && cleanEndMs > occ.start);
+          if (colliding) {
+            manualConflicts++;
+            const cSlot = {
+              ...baseSlotInfo,
+              status: 'CONFLICT',
+              reason: `Trùng lịch trong cùng phòng với suất ${colliding.label}.`,
+            };
+            conflictSlots.push(cSlot);
+            allSlots.push(cSlot);
+            continue;
+          }
+
+          // 2. Kiểm tra giới hạn giờ hoạt động (08:00 - 22:30, kết thúc + vệ sinh <= 02:00 hôm sau) và thời gian quá khứ
+          if (
+            slotStartMin < OPEN_MINUTES ||
+            slotStartMin > HARD_LATEST_START_MINUTES ||
+            cleanEndMin > CLOSE_MINUTES ||
+            startMs <= nowMs ||
+            (movie.releaseDate && dateStr < businessDate(movie.releaseDate))
+          ) {
+            manualUnallocated++;
+            unallocatedCount++;
+            continue;
+          }
+
+          // 3. Hợp lệ
+          const vSlot = { ...baseSlotInfo, status: 'VALID', reason: null };
+          validSlots.push(vSlot);
+          allSlots.push(vSlot);
+          manualAllocated++;
+          roomOcc.push({
+            start: startMs,
+            end: cleanEndMs,
+            movieEnd: endMs,
+            label: `${baseSlotInfo.startTimeText} (${movie.title})`,
+          });
         }
 
-        const roomOcc = occupiedByRoom.get(String(roomId)) || [];
+        roomDaySummaries.push({
+          date: dateStr,
+          roomId: roomIdStr,
+          roomName: room.name,
+          roomType: canonicalRoomType,
+          requestedSlots: timeSlots.length,
+          allocatedSlots: manualAllocated,
+          conflictCount: manualConflicts,
+          unallocatedSlots: manualUnallocated,
+          note:
+            manualUnallocated > 0
+              ? `Có ${manualUnallocated} khung giờ vượt giới hạn 22:30 / 02:00 (+1 ngày) hoặc đã qua.`
+              : null,
+        });
+      } else {
+        // ── CHẾ ĐỘ A: XẾP LỊCH THÔNG MINH (SMART MODE) ──
+        // Mỗi Room ID và mỗi ngày vận hành có biến thời gian độc lập, khởi tạo lại từ firstStartMin
+        const singleMovieStaggerOffset =
+          staggerRooms && moviesInOrder.length === 1 && roomIndex > 0 && firstStartMin + (roomIndex % 3) * 10 <= userLatestStartMin
+            ? (roomIndex % 3) * 10
+            : 0;
+        let cursorMin = firstStartMin + singleMovieStaggerOffset;
 
-        for (let date = +start; date <= +end; date += day) {
-          const movie = movies[(index + (date - +start) / day) % movies.length];
-          const dur = Number(movie.duration) || 120;
-          const cleaning = 15;
-          const totalSlotMs = (dur + cleaning) * 60000;
+        // Nếu xếp cho ngày hôm nay và giờ hiện tại đã qua cursorMin, đẩy lên mốc 5 phút tiếp theo
+        const nowOffsetMin = Math.ceil((nowMs - dayMidnightMs + 60000) / 60000);
+        if (nowOffsetMin > cursorMin) {
+          cursorMin = Math.ceil(nowOffsetMin / 5) * 5;
+        }
 
-          for (const time of uniqueTimes) {
-            const startsAt = new Date(businessDate(new Date(date)) + 'T' + time + ':00+07:00');
-            const startMs = startsAt.getTime();
-            const endMs = startMs + totalSlotMs;
+        // Xây dựng các mốc ưu tiên cân đối trong ngày (09:30, 12:45, 16:00, 19:15, 22:30) khi ở chế độ Xếp theo số suất mong muốn
+        const preferredAnchors = !isOptimizeMax
+          ? buildPreferredDayAnchors(desiredCount, firstStartMin + singleMovieStaggerOffset, userLatestStartMin)
+          : [];
 
-            if (startsAt <= new Date()) {
-              previewConflicts.push({
-                roomId, roomName: room.name, movieTitle: movie.title, time, date: businessDate(new Date(date)),
-                reason: 'Khung giờ ở quá khứ',
-              });
+        let placedInRoomDay = 0;
+        let rotationStep = 0;
+        let stopReason = null;
+
+        while (placedInRoomDay < maxSlotsCap && rotationStep < maxSlotsCap + 8) {
+          // Điều kiện dừng 1: Giờ phòng sẵn sàng đã vượt quá giới hạn mở suất cuối (22:30 hoặc userLatestStartMin)
+          if (cursorMin > userLatestStartMin || cursorMin > HARD_LATEST_START_MINUTES) {
+            stopReason = `Phòng hoàn thành vệ sinh sau ${formatMinutesToVNTime(userLatestStartMin, false)}, dừng mở suất mới trong ngày.`;
+            break;
+          }
+
+          const primaryIdx = (roomIndex + dayIndex + rotationStep) % moviesInOrder.length;
+          rotationStep++;
+
+          // Xác định mốc bắt đầu mục tiêu (kết hợp giữa cursorMin sẵn sàng và mốc ưu tiên cân đối trong ngày)
+          let targetStartMin = cursorMin;
+          if (!isOptimizeMax && placedInRoomDay < preferredAnchors.length) {
+            const anchorMin = preferredAnchors[placedInRoomDay];
+            const remainingSlotsAfterThis = Math.max(0, desiredCount - placedInRoomDay - 1);
+            const estimatedMinutesForRest = Math.ceil(
+              remainingSlotsAfterThis * (avgMovieDuration + cleanMin + 5)
+            );
+            const primaryMovieDur = Number(moviesInOrder[primaryIdx]?.duration) || 120;
+            // Giới hạn trễ nhất của suất hiện tại để các suất còn lại vẫn kịp bắt đầu trước hoặc đúng userLatestStartMin
+            const latestToFitRemaining =
+              remainingSlotsAfterThis > 0
+                ? Math.floor((userLatestStartMin - estimatedMinutesForRest) / 5) * 5
+                : userLatestStartMin;
+
+            // Chỉ kéo giờ về phía mốc anchor nếu vẫn đảm bảo đủ quỹ giờ cho các suất phía sau và không vượt giới hạn đóng cửa 02:00
+            const maxStartForPrimary = Math.min(
+              userLatestStartMin,
+              HARD_LATEST_START_MINUTES,
+              Math.floor((CLOSE_MINUTES - primaryMovieDur - cleanMin) / 5) * 5
+            );
+            const feasibleAnchor = Math.min(anchorMin, latestToFitRemaining, maxStartForPrimary);
+            targetStartMin = Math.max(cursorMin, feasibleAnchor);
+          }
+
+          // Thử chọn bộ phim phù hợp tại vị trí targetStartMin (ưu tiên phim đến lượt luân phiên; nếu quá dài vượt 02:00 thì tìm phim khác trong danh sách Admin đã chọn)
+          let selectedPlan = null;
+
+          for (let offset = 0; offset < moviesInOrder.length; offset++) {
+            const candidateMovie = moviesInOrder[(primaryIdx + offset) % moviesInOrder.length];
+            const candidateDur = Number(candidateMovie.duration) || 120;
+
+            if (candidateMovie.releaseDate && dateStr < businessDate(candidateMovie.releaseDate)) {
               continue;
             }
 
-            const collision = roomOcc.some(occ => startMs < occ.end && endMs > occ.start);
-            if (collision) {
-              previewConflicts.push({
-                roomId, roomName: room.name, movieTitle: movie.title, time, date: businessDate(new Date(date)),
-                reason: 'Chồng lấn với suất chiếu hoặc thời gian dọn phòng (15p)',
-              });
-            } else {
-              const slotInfo = {
-                roomId, roomName: room.name, roomType: room.roomType,
-                movieId: movie._id, movieTitle: movie.title,
-                time, date: businessDate(new Date(date)),
-                startTime: startsAt, endTime: new Date(startMs + dur * 60000),
-                duration: dur, cleaningMinutes: cleaning,
+            // Giờ bắt đầu muộn nhất cho phép của bộ phim này để kết thúc + vệ sinh <= 02:00 sáng hôm sau
+            const maxAllowedStartForMovie = Math.min(
+              userLatestStartMin,
+              HARD_LATEST_START_MINUTES,
+              Math.floor((CLOSE_MINUTES - candidateDur - cleanMin) / 5) * 5
+            );
+
+            if (cursorMin > maxAllowedStartForMovie) {
+              // Ngay cả khi bắt đầu ngay lúc phòng vừa dọn xong (cursorMin), bộ phim này vẫn vượt 22:30 hoặc vượt 02:00
+              continue;
+            }
+
+            // Nếu targetStartMin (do neo theo mốc 22:30) làm phim dài (VD 192p) vượt 02:00, tự động kéo giờ bắt đầu sớm hơn về maxAllowedStartForMovie (VD 22:20/22:25) miễn là >= cursorMin
+            let candStartMin = Math.min(targetStartMin, maxAllowedStartForMovie);
+            candStartMin = Math.max(cursorMin, candStartMin);
+
+            // Kiểm tra và trượt qua các suất chiếu đã tồn tại trong cùng phòng (chỉ tính những suất nằm trong ngày vận hành này)
+            let bumped = true;
+            let guard = 0;
+            while (bumped && guard < 20) {
+              bumped = false;
+              guard++;
+              const sMs = dayMidnightMs + candStartMin * 60000;
+              const cEndMs = sMs + (candidateDur + cleanMin) * 60000;
+              const hit = roomOcc.find((occ) => sMs < occ.end && cEndMs > occ.start);
+              if (hit) {
+                const hitEndMin = Math.ceil((hit.end - dayMidnightMs) / 60000);
+                candStartMin = Math.max(candStartMin + 5, Math.ceil(hitEndMin / 5) * 5);
+                bumped = true;
+              }
+            }
+
+            const candEndMin = candStartMin + candidateDur;
+            const candCleanEndMin = candEndMin + cleanMin;
+
+            // Kiểm tra 4 điều kiện bắt buộc trước khi chấp nhận:
+            // 1. candStartMin <= 22:30 (và <= userLatestStartMin)
+            // 2. candCleanEndMin <= 02:00 hôm sau (CLOSE_MINUTES = 1560)
+            // 3. Không trùng lịch DB trong cùng phòng
+            // 4. Không trùng suất vừa đề xuất trong cùng phòng
+            if (
+              candStartMin <= maxAllowedStartForMovie &&
+              candStartMin <= HARD_LATEST_START_MINUTES &&
+              candCleanEndMin <= CLOSE_MINUTES
+            ) {
+              selectedPlan = {
+                movie: candidateMovie,
+                dur: candidateDur,
+                startMin: candStartMin,
+                endMin: candEndMin,
+                cleanEndMin: candCleanEndMin,
+                readyMin: Math.ceil(candCleanEndMin / 5) * 5,
               };
-              previewValid.push(slotInfo);
-              roomOcc.push({ start: startMs, end: endMs });
+              break;
             }
           }
+
+          // Nếu không còn bộ phim nào trong danh sách Admin chọn có thể xếp vừa trước 22:30 / 02:00 -> DỪNG NGAY, không tạo suất ảo!
+          if (!selectedPlan) {
+            stopReason =
+              'Không còn bộ phim nào đã chọn có thể kết thúc chiếu và vệ sinh phòng trước giờ đóng cửa 02:00 (+1 ngày) hoặc trước giới hạn mở suất cuối 22:30.';
+            break;
+          }
+
+          const { movie: chosenMovie, dur: chosenDur, startMin, endMin, cleanEndMin, readyMin } = selectedPlan;
+          const startMs = dayMidnightMs + startMin * 60000;
+          const endMs = startMs + chosenDur * 60000;
+          const cleanEndMs = endMs + cleanMin * 60000;
+          const readyMs = dayMidnightMs + readyMin * 60000;
+
+          const calculatedPrices = calculatePricesFromConfig(
+            {
+              roomName: room.name,
+              roomType: canonicalRoomType,
+              formatFeature: room.formatFeature,
+              startTime: new Date(startMs),
+            },
+            pricingConfig
+          );
+
+          const validItem = {
+            date: dateStr,
+            roomId: roomIdStr,
+            roomName: room.name,
+            roomNumber: room.roomNumber,
+            roomType: canonicalRoomType,
+            movieId: String(chosenMovie._id),
+            movieTitle: chosenMovie.title,
+            duration: chosenDur,
+            time: formatMinutesToVNTime(startMin, false),
+            startTimeText: formatMinutesToVNTime(startMin, false),
+            endTimeText: formatMinutesToVNTime(endMin, true),
+            cleaningMinutes: cleanMin,
+            cleaningEndTimeText: formatMinutesToVNTime(cleanEndMin, true),
+            readyTimeText: formatMinutesToVNTime(readyMin, true),
+            startTime: new Date(startMs).toISOString(),
+            endTime: new Date(endMs).toISOString(),
+            cleaningEndTime: new Date(cleanEndMs).toISOString(),
+            readyTime: new Date(readyMs).toISOString(),
+            price: calculatedPrices.priceStandard,
+            priceStandard: calculatedPrices.priceStandard,
+            priceVip: calculatedPrices.priceVip,
+            priceSweetbox: calculatedPrices.priceSweetbox,
+            totalSeats: roomTotalSeats,
+            status: 'VALID',
+            reason: null,
+          };
+
+          validSlots.push(validItem);
+          allSlots.push(validItem);
+          roomOcc.push({
+            start: startMs,
+            end: cleanEndMs,
+            movieEnd: endMs,
+            label: `${validItem.startTimeText} (${chosenMovie.title})`,
+          });
+
+          placedInRoomDay++;
+          cursorMin = readyMin;
+
+          // Điều kiện dừng 2: Ngay sau khi xếp xong 1 suất, nếu giờ phòng sẵn sàng (cursorMin) đã vượt quá 22:30 -> dừng luôn cho ngày vận hành này
+          if (cursorMin > userLatestStartMin || cursorMin > HARD_LATEST_START_MINUTES) {
+            stopReason = `Suất cuối kết thúc vệ sinh lúc ${validItem.cleaningEndTimeText} (sau giới hạn mở suất 22:30), hoàn tất lịch trong ngày.`;
+            break;
+          }
         }
+
+        const reqForRoomDay = isOptimizeMax ? placedInRoomDay : desiredCount;
+        const shortfall = isOptimizeMax ? 0 : Math.max(0, desiredCount - placedInRoomDay);
+        requestedTotalSlots += reqForRoomDay;
+        unallocatedCount += shortfall;
+
+        roomDaySummaries.push({
+          date: dateStr,
+          roomId: roomIdStr,
+          roomName: room.name,
+          roomType: canonicalRoomType,
+          requestedSlots: isOptimizeMax ? null : desiredCount,
+          allocatedSlots: placedInRoomDay,
+          conflictCount: 0,
+          unallocatedSlots: shortfall,
+          note:
+            shortfall > 0
+              ? stopReason || `Chỉ đủ thời gian bố trí ${placedInRoomDay}/${desiredCount} suất trước 22:30 / 02:00 (+1 ngày).`
+              : null,
+        });
       }
+    }
+  }
+
+  const validSignature = validSlots
+    .map((s) => `${s.roomId}|${s.movieId}|${s.startTime}|${s.cleaningMinutes}`)
+    .join(';');
+
+  let allocationSummaryText = '';
+  if (scheduleMode === 'smart' && isOptimizeMax) {
+    allocationSummaryText = `Chế độ tối ưu tối đa: Đã bố trí ${validSlots.length} suất hợp lệ trên ${roomsInOrder.length} phòng trong ${totalDays} ngày.`;
+  } else if (unallocatedCount > 0) {
+    allocationSummaryText = `Đã bố trí ${validSlots.length}/${requestedTotalSlots} suất. Có ${unallocatedCount} suất không đủ thời gian để bố trí.`;
+  } else {
+    allocationSummaryText = `Đã bố trí đủ ${validSlots.length}/${requestedTotalSlots} suất hợp lệ theo yêu cầu.`;
+  }
+
+  return {
+    scheduleMode,
+    slotAllocationMode: isOptimizeMax ? 'MAX' : 'TARGET',
+    optimizeMaxSlots: isOptimizeMax,
+    targetSlotsPerRoom: isOptimizeMax ? null : desiredCount,
+    cleaningMinutes: cleanMin,
+    totalDays,
+    selectedMoviesCount: moviesInOrder.length,
+    selectedRoomsCount: roomsInOrder.length,
+    requestedTotalSlots,
+    validCount: validSlots.length,
+    conflictCount: conflictSlots.length,
+    unallocatedCount,
+    allocationSummaryText,
+    roomDaySummaries,
+    validSlots,
+    conflictSlots,
+    allSlots,
+    validSignature,
+  };
+}
+
+// Xếp lịch chiếu phim hàng loạt thông minh (Smart & Manual) cho Admin
+export const batchScheduleShowtimes = async (req, res) => {
+  try {
+    const {
+      roomIds,
+      startDate,
+      endDate,
+      movieIds,
+      timeSlots,
+      preview,
+      scheduleMode: rawMode,
+      firstShowtimeTime = '09:30',
+      latestStartTime = '22:30',
+      targetSlotsPerRoom = 5,
+      cleaningMinutes: rawCleaning = 20,
+      optimizeMaxSlots = false,
+      staggerRooms = true,
+      expectedValidCount,
+      expectedSignature,
+    } = req.body;
+
+    const day = 86400000;
+    const start = new Date(startDate + 'T00:00:00+07:00');
+    const end = new Date(endDate + 'T00:00:00+07:00');
+
+    // Xác định chế độ xếp lịch: nếu client truyền scheduleMode thì dùng scheduleMode;
+    // nếu không truyền nhưng có mảng timeSlots (tương thích ngược với test cũ) thì dùng 'manual', ngược lại 'smart'
+    const scheduleMode =
+      rawMode === 'smart' || rawMode === 'manual'
+        ? rawMode
+        : Array.isArray(timeSlots) && timeSlots.length > 0
+        ? 'manual'
+        : 'smart';
+
+    if (
+      !Number.isFinite(+start) ||
+      !Number.isFinite(+end) ||
+      start > end ||
+      +end - +start > 30 * day ||
+      businessDate(start) !== startDate ||
+      businessDate(end) !== endDate ||
+      !Array.isArray(roomIds) ||
+      !roomIds.length ||
+      !roomIds.every(mongoose.isObjectIdOrHexString) ||
+      !Array.isArray(movieIds) ||
+      !movieIds.length ||
+      !movieIds.every(mongoose.isObjectIdOrHexString)
+    ) {
+      return res.status(400).json({ message: 'Vui lòng chọn đầy đủ ngày hợp lệ, ít nhất 1 bộ phim và ít nhất 1 phòng chiếu.' });
+    }
+
+    let normalizedTimeSlots = [];
+    if (scheduleMode === 'manual') {
+      if (
+        !Array.isArray(timeSlots) ||
+        !timeSlots.length ||
+        !timeSlots.every((time) => typeof time === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time.trim()))
+      ) {
+        return res.status(400).json({ message: 'Chế độ tùy chỉnh yêu cầu ít nhất 1 khung giờ hợp lệ (HH:mm).' });
+      }
+      const trimmed = timeSlots.map((t) => t.trim());
+      if (new Set(trimmed).size !== trimmed.length) {
+        return res.status(400).json({ message: 'Danh sách khung giờ tùy chỉnh không được chứa khung giờ trùng lặp.' });
+      }
+      normalizedTimeSlots = [...trimmed].sort((a, b) => parseHHMMToMinutes(a, 0) - parseHHMMToMinutes(b, 0));
+    }
+
+    const uniqueRoomIds = [...new Set(roomIds.map(String))];
+    const uniqueMovieIds = [...new Set(movieIds.map(String))];
+
+    const [moviesFromDb, roomsFromDb, pricing] = await Promise.all([
+      Movie.find({ _id: { $in: uniqueMovieIds } }).lean(),
+      Room.find({ _id: { $in: uniqueRoomIds } }).lean(),
+      ensurePricingConfig(),
+    ]);
+
+    if (moviesFromDb.length !== uniqueMovieIds.length) {
+      return res.status(404).json({ message: 'Một số phim đã chọn không tồn tại trong cơ sở dữ liệu.' });
+    }
+    if (roomsFromDb.length !== uniqueRoomIds.length) {
+      return res.status(404).json({ message: 'Một số phòng chiếu đã chọn không tồn tại trong cơ sở dữ liệu.' });
+    }
+
+    // Giữ đúng thứ tự phim Admin đã tích chọn
+    const movieById = new Map(moviesFromDb.map((m) => [String(m._id), m]));
+    const moviesInOrder = uniqueMovieIds.map((id) => movieById.get(id)).filter(Boolean);
+
+    // Sắp xếp phòng vật lý theo đúng thứ tự Phòng 01 -> 09 (IMAX Laser -> Dolby Atmos -> Gold Class)
+    const roomTypeOrder = { 'IMAX Laser': 1, 'Dolby Atmos': 2, 'Gold Class': 3 };
+    const roomsInOrder = [...roomsFromDb].sort((a, b) => {
+      const tA = roomTypeOrder[resolveCanonicalRoomType(a)] || 99;
+      const tB = roomTypeOrder[resolveCanonicalRoomType(b)] || 99;
+      if (tA !== tB) return tA - tB;
+      return (a.roomNumber || 0) - (b.roomNumber || 0) || String(a.name || '').localeCompare(String(b.name || ''));
+    });
+
+    const cleaningMinutes = normalizeCleaningMinutes(rawCleaning, DEFAULT_CLEANING_MINUTES);
+    const now = new Date();
+
+    // 1. NHÁNH PREVIEW: Không ghi vào MongoDB, trả về chi tiết toàn bộ suất dự kiến và xung đột
+    const roomNamesForLegacyMatch = roomsInOrder
+      .flatMap((r) => [r.name, r.shortName])
+      .filter(Boolean);
+    const cinemaIdsForLegacyMatch = [
+      ...new Set(roomsInOrder.map((r) => String(r.cinemaId || '')).filter(mongoose.isObjectIdOrHexString)),
+    ];
+    const existingShowtimeFilter = {
+      $or: [
+        { roomId: { $in: uniqueRoomIds } },
+        ...(roomNamesForLegacyMatch.length > 0
+          ? [
+              {
+                roomId: null,
+                ...(cinemaIdsForLegacyMatch.length > 0 ? { cinemaId: { $in: cinemaIdsForLegacyMatch } } : {}),
+                roomName: { $in: roomNamesForLegacyMatch },
+              },
+            ]
+          : []),
+      ],
+      cancelledAt: null,
+      startTime: { $gte: new Date(+start - day), $lte: new Date(+end + 2 * day) },
+    };
+
+    if (preview) {
+      const existingShowtimes = await Showtime.find(existingShowtimeFilter)
+        .populate('movieId', 'title duration')
+        .lean();
+
+      const plan = planBatchSchedule({
+        roomsInOrder,
+        moviesInOrder,
+        startMsDay: +start,
+        endMsDay: +end,
+        scheduleMode,
+        firstShowtimeTime,
+        latestStartTime,
+        targetSlotsPerRoom,
+        cleaningMinutes,
+        optimizeMaxSlots: Boolean(optimizeMaxSlots),
+        staggerRooms: Boolean(staggerRooms),
+        timeSlots: normalizedTimeSlots,
+        existingShowtimes,
+        pricingConfig: pricing,
+        now,
+      });
 
       return res.json({
         success: true,
         preview: true,
-        validCount: previewValid.length,
-        conflictCount: previewConflicts.length,
-        validSlots: previewValid,
-        conflictSlots: previewConflicts,
+        ...plan,
       });
     }
 
-    const batchId = 'BATCH-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 7).toUpperCase();
-    const createdSlotIds = [];
-    const totalCreatedShowtimes = await mongoose.connection.transaction(async session => {
-      let count = 0;
-      for (const [index, roomId] of uniqueRooms.entries()) {
-        const room = await lockRoom(roomId, session);
-        for (let date = +start; date <= +end; date += day) {
-          const movie = movies[(index + (date - +start) / day) % movies.length];
-          for (const time of uniqueTimes) {
-            const startsAt = new Date(businessDate(new Date(date)) + 'T' + time + ':00+07:00');
-            if (startsAt <= new Date()) continue;
-            const created = await scheduleInRoom({
-              room, movie, start: startsAt, pricing, session,
-              batchId, creationSource: 'BULK', createdBy: req.user?._id || null,
-            });
-            if (created?._id) createdSlotIds.push(created._id.toString());
-            count++;
-          }
-        }
+    // 2. NHÁNH CONFIRM (TẠO LỊCH HÀNG LOẠT TRONG 1 TRANSACTION DUY NHẤT - BULK INSERT):
+    // Bước 1: Chuẩn bị và kiểm tra mẫu ghế 1 lần duy nhất cho từng Room ID trước khi mở Transaction
+    for (const m of moviesInOrder) {
+      const dur = Number(m.duration);
+      if (!Number.isFinite(dur) || dur <= 0) {
+        return res.status(409).json({ message: `Phim "${m.title}" chưa có thời lượng hợp lệ.` });
       }
-      return count;
+    }
+
+    const seatTemplatesByRoomId = new Map();
+    for (const rm of roomsInOrder) {
+      const expectedTotal = Number(rm.totalSeats) || SEAT_GRID_CONFIG.totalSeats;
+      const templates = await resolveSeatTemplatesForRoom(rm, null);
+      if (!isValidRoomSeatTemplate(templates, expectedTotal)) {
+        return res.status(409).json({
+          message: `Cấu hình mẫu ghế của phòng "${rm.name}" không hợp lệ (yêu cầu đúng ${expectedTotal} ghế, không trùng mã/tọa độ).`,
+        });
+      }
+      seatTemplatesByRoomId.set(String(rm._id), templates);
+    }
+
+    const batchId =
+      'BATCH-' +
+      Date.now().toString(36).toUpperCase() +
+      '-' +
+      Math.random().toString(36).slice(2, 7).toUpperCase();
+
+    // Sắp xếp Room ID theo thứ tự từ điển nhất quán khi lockRoom để chống deadlock khi 2 Admin thao tác đồng thời
+    const roomsSortedForLock = [...roomsInOrder].sort((a, b) =>
+      String(a._id).localeCompare(String(b._id))
+    );
+
+    const txResult = await mongoose.connection.transaction(async (session) => {
+      // Khởi tạo toàn bộ mảng tích lũy BÊN TRONG callback Transaction để nếu MongoDB retry TransientTransactionError,
+      // dữ liệu từ lần thử bị rollback trước đó tuyệt đối không bị lẫn vào kết quả trả về.
+      const txCreatedSlotIds = [];
+      const txCreatedShowtimes = [];
+
+      // Bước 2: Khóa toàn bộ các phòng vật lý liên quan theo thứ tự Room ID nhất quán
+      const lockedRoomMap = new Map();
+      for (const rm of roomsSortedForLock) {
+        const locked = await lockRoom(rm._id, session);
+        lockedRoomMap.set(String(rm._id), locked);
+      }
+
+      // Đọc toàn bộ lịch chiếu hiện có trong phạm vi thời gian (bao gồm cả suất qua ngày hôm sau) ngay trong Transaction
+      const existingInTx = await Showtime.find(existingShowtimeFilter)
+        .populate('movieId', 'title duration')
+        .session(session)
+        .lean();
+
+      // Ánh xạ các bản ghi cũ thiếu roomId (nếu có) về đúng roomId theo tên phòng để kiểm tra xung đột chính xác
+      const normalizedExistingInTx = existingInTx.map((st) => {
+        if (st.roomId) return st;
+        const matchedRoom = roomsInOrder.find(
+          (r) => st.roomName === r.name || (r.shortName && st.roomName === r.shortName)
+        );
+        return matchedRoom ? { ...st, roomId: matchedRoom._id } : st;
+      });
+
+      const txNow = new Date();
+      const txPlan = planBatchSchedule({
+        roomsInOrder,
+        moviesInOrder,
+        startMsDay: +start,
+        endMsDay: +end,
+        scheduleMode,
+        firstShowtimeTime,
+        latestStartTime,
+        targetSlotsPerRoom,
+        cleaningMinutes,
+        optimizeMaxSlots: Boolean(optimizeMaxSlots),
+        staggerRooms: Boolean(staggerRooms),
+        timeSlots: normalizedTimeSlots,
+        existingShowtimes: normalizedExistingInTx,
+        pricingConfig: pricing,
+        now: txNow,
+      });
+
+      // Nếu gọi trực tiếp không qua Preview (như test kiểm tra xung đột) và có xung đột khung giờ -> từ chối 409
+      if (expectedValidCount == null && expectedSignature == null && txPlan.conflictCount > 0 && scheduleMode === 'manual') {
+        throw new ScheduleConflict(txPlan.conflictSlots[0]?.reason || 'Khung giờ chồng lịch chiếu.');
+      }
+
+      // So sánh expectedValidCount và expectedSignature với kết quả Preview
+      if (
+        (expectedValidCount != null && Number(expectedValidCount) !== txPlan.validCount) ||
+        (expectedSignature && expectedSignature !== txPlan.validSignature)
+      ) {
+        throw new ScheduleConflict(
+          'Dữ liệu lịch chiếu trong phòng vừa thay đổi hoặc phát sinh xung đột mới. Vui lòng bấm Xem trước lịch dự kiến (Preview) lại trước khi xác nhận.'
+        );
+      }
+
+      if (txPlan.validSlots.length === 0) {
+        throw new ScheduleConflict(
+          txPlan.conflictSlots[0]?.reason || 'Không có suất chiếu hợp lệ nào để tạo.'
+        );
+      }
+
+      // Bước 3: Kiểm tra toàn bộ điều kiện nghiệp vụ tương đương scheduleInRoom & chuẩn bị mảng Showtime + ShowtimeSeat
+      const showtimeDocsToInsert = [];
+      const allSeatDocsToInsert = [];
+      const createdByUserId = req.admin?._id || req.user?._id || null;
+
+      // Tập khoảng thời gian theo từng phòng để hậu kiểm không có bất kỳ 2 suất nào chồng lấn nhau hoặc chồng với DB
+      const verifyIntervalsByRoom = new Map();
+      for (const st of normalizedExistingInTx) {
+        if (st.cancelledAt) continue;
+        const lc = computeShowtimeLifecycle(st, txNow);
+        if (lc.lifecycleStatus === 'COMPLETED' || lc.lifecycleStatus === 'CANCELLED') continue;
+        const rKey = String(st.roomId?._id || st.roomId || '');
+        if (!rKey) continue;
+        if (!verifyIntervalsByRoom.has(rKey)) verifyIntervalsByRoom.set(rKey, []);
+        verifyIntervalsByRoom.get(rKey).push({
+          startMs: lc.startTime.getTime(),
+          endMs: lc.cleaningEndTime.getTime(),
+        });
+      }
+
+      for (const slot of txPlan.validSlots) {
+        const roomDoc = lockedRoomMap.get(String(slot.roomId));
+        const movieDoc = movieById.get(String(slot.movieId));
+        if (!roomDoc) {
+          throw new ScheduleConflict('Phòng không tồn tại hoặc đang bảo trì.');
+        }
+        if (!movieDoc) {
+          throw new ScheduleConflict('Phim đã chọn không tồn tại.');
+        }
+
+        const duration = Number(movieDoc.duration);
+        if (!Number.isFinite(duration) || duration <= 0) {
+          throw new ScheduleConflict(`Phim "${movieDoc.title}" chưa có thời lượng hợp lệ.`);
+        }
+
+        const slotStart = new Date(slot.startTime);
+        const slotStartMs = slotStart.getTime();
+        if (!Number.isFinite(slotStartMs) || slotStartMs <= txNow.getTime()) {
+          throw new ScheduleConflict('Không thể tạo suất chiếu ở thời điểm đã qua.');
+        }
+
+        if (movieDoc.releaseDate && businessDate(slotStart) < businessDate(movieDoc.releaseDate)) {
+          throw new ScheduleConflict(`Suất chiếu phim "${movieDoc.title}" sớm hơn ngày khởi chiếu.`);
+        }
+
+        const slotCleaningMinutes = normalizeCleaningMinutes(slot.cleaningMinutes, cleaningMinutes);
+        const slotEnd = new Date(slotStartMs + duration * 60000);
+        const slotCleaningEnd = new Date(slotEnd.getTime() + slotCleaningMinutes * 60000);
+        const slotBlockedUntilMs = slotCleaningEnd.getTime();
+
+        const rKey = String(roomDoc._id);
+        if (!verifyIntervalsByRoom.has(rKey)) verifyIntervalsByRoom.set(rKey, []);
+        const roomIntervals = verifyIntervalsByRoom.get(rKey);
+        const hasOverlap = roomIntervals.some(
+          (iv) => slotStartMs < iv.endMs && slotBlockedUntilMs > iv.startMs
+        );
+        if (hasOverlap) {
+          throw new ScheduleConflict(
+            `Khung giờ ${slot.time} ngày ${slot.date} tại ${roomDoc.name} chồng lịch chiếu hoặc không đủ ${slotCleaningMinutes} phút dọn dẹp vệ sinh phòng.`
+          );
+        }
+        roomIntervals.push({ startMs: slotStartMs, endMs: slotBlockedUntilMs });
+
+        const calculated = calculatePricesFromConfig(
+          {
+            roomName: roomDoc.name,
+            roomType: roomDoc.roomType,
+            formatFeature: roomDoc.formatFeature,
+            startTime: slotStart,
+          },
+          pricing
+        );
+
+        const initialLifecycle = computeShowtimeLifecycle(
+          {
+            startTime: slotStart,
+            endTime: slotEnd,
+            cleaningMinutes: slotCleaningMinutes,
+          },
+          txNow
+        );
+
+        const showtimeId = new mongoose.Types.ObjectId();
+        const resolvedPrice = slot.priceStandard ?? calculated.priceStandard;
+
+        showtimeDocsToInsert.push({
+          _id: showtimeId,
+          movieId: movieDoc._id,
+          cinemaId: roomDoc.cinemaId,
+          roomId: roomDoc._id,
+          roomName: roomDoc.name,
+          formatFeature: roomDoc.formatFeature || '',
+          startTime: slotStart,
+          endTime: slotEnd,
+          cleaningMinutes: slotCleaningMinutes,
+          cleaningEndTime: slotCleaningEnd,
+          lifecycleStatus: initialLifecycle.lifecycleStatus,
+          price: resolvedPrice,
+          batchId,
+          creationSource: 'BULK',
+          createdBy: createdByUserId,
+          isLocked: false,
+        });
+
+        const roomTemplates = seatTemplatesByRoomId.get(rKey);
+        for (let sIdx = 0; sIdx < roomTemplates.length; sIdx++) {
+          const tmpl = roomTemplates[sIdx];
+          allSeatDocsToInsert.push({
+            roomId: roomDoc._id,
+            showtimeId,
+            row: tmpl.row,
+            col: tmpl.col,
+            seatNumber: tmpl.seatNumber,
+            type: tmpl.type,
+            status: 'AVAILABLE',
+          });
+        }
+
+        const showtimeIdStr = showtimeId.toString();
+        txCreatedSlotIds.push(showtimeIdStr);
+        txCreatedShowtimes.push({
+          id: showtimeIdStr,
+          roomId: rKey,
+          roomName: roomDoc.name,
+          movieId: String(movieDoc._id),
+          movieTitle: movieDoc.title,
+          date: slot.date,
+          time: slot.time,
+          startTime: slotStart.toISOString(),
+          endTime: slotEnd.toISOString(),
+          cleaningMinutes: slotCleaningMinutes,
+          price: resolvedPrice,
+        });
+      }
+
+      // Bước 3: Ghi toàn bộ Showtime hợp lệ bằng 1 lệnh Showtime.insertMany trong cùng Transaction session
+      await Showtime.insertMany(showtimeDocsToInsert, { session, ordered: true });
+
+      // Bước 4: Ghi toàn bộ ShowtimeSeat theo từng nhóm 3.520 ghế (40 suất x 88 ghế) tuần tự trong cùng Transaction session
+      const SEAT_BATCH_CHUNK_SIZE = 3520;
+      for (let offset = 0; offset < allSeatDocsToInsert.length; offset += SEAT_BATCH_CHUNK_SIZE) {
+        const chunk = allSeatDocsToInsert.slice(offset, offset + SEAT_BATCH_CHUNK_SIZE);
+        await ShowtimeSeat.insertMany(chunk, { session, ordered: true });
+      }
+
+      return {
+        totalCreatedShowtimes: showtimeDocsToInsert.length,
+        totalCreatedSeats: allSeatDocsToInsert.length,
+        createdSlotIds: txCreatedSlotIds,
+        createdShowtimes: txCreatedShowtimes,
+      };
     });
+
     return res.json({
       success: true,
       batchId,
-      totalCreatedShowtimes,
-      createdSlotIds,
-      message: 'Đã tạo ' + totalCreatedShowtimes + ' suất chiếu.',
+      scheduleMode,
+      cleaningMinutes,
+      totalCreatedShowtimes: txResult.totalCreatedShowtimes,
+      totalCreatedSeats: txResult.totalCreatedSeats,
+      createdSlotIds: txResult.createdSlotIds,
+      createdShowtimes: txResult.createdShowtimes,
+      message: `Đã tạo thành công ${txResult.totalCreatedShowtimes} suất chiếu (${txResult.totalCreatedSeats.toLocaleString('vi-VN')} ghế).`,
     });
   } catch (error) {
-    if (error instanceof ScheduleConflict) return res.status(409).json({ message: error.message });
-    console.error('Batch scheduling failed:', error.name);
-    return res.status(500).json({ message: 'Không thể xếp lịch hàng loạt.' });
+    if (error instanceof ScheduleConflict) {
+      return res.status(409).json({
+        message: error.message,
+        requiresRePreview: true,
+        rolledBack: true,
+      });
+    }
+    console.error('Batch scheduling failed:', error.name, error.message);
+    return res.status(500).json({
+      message: 'Chưa thể tạo lịch chiếu hàng loạt. Toàn bộ giao dịch đã được rollback an toàn, vui lòng thử lại.',
+      rolledBack: true,
+    });
   }
 };
 
@@ -1537,32 +2515,36 @@ const getMovieAcronym = (title = '') => {
   return acronym || 'SHOW';
 };
 
-const detectShowtimeFormat = (roomName = '', formatFeature = '') => {
-  const combined = `${roomName} ${formatFeature}`.toLowerCase();
-  if (combined.includes('imax')) {
+const detectShowtimeFormat = (roomOrName = '', formatFeature = '') => {
+  const canonicalType = resolveCanonicalRoomType(
+    typeof roomOrName === 'string' ? { roomName: roomOrName } : roomOrName
+  );
+  const featText = String(formatFeature || '').toLowerCase();
+
+  if (canonicalType === ROOM_TYPES_ENUM.IMAX_LASER) {
     return {
       category: 'IMAX Laser',
-      badge: 'IMAX 3D Laser',
+      badge: /\b3d\b/i.test(featText) ? 'IMAX 3D Laser' : 'IMAX Laser',
       color: 'from-amber-500/20 to-amber-600/30 text-amber-300 border-amber-500/40',
     };
   }
-  if (combined.includes('reald') || combined.includes('3d')) {
-    return {
-      category: '3D Digital',
-      badge: combined.includes('lồng tiếng') ? '3D Lồng tiếng' : 'RealD 3D',
-      color: 'from-cyan-500/20 to-cyan-600/30 text-cyan-300 border-cyan-500/40',
-    };
-  }
-  if (combined.includes('vip') || combined.includes('gold') || combined.includes('bed') || combined.includes('recliner')) {
+  if (canonicalType === ROOM_TYPES_ENUM.GOLD_CLASS) {
     return {
       category: 'VIP Gold Class',
-      badge: combined.includes('bed') ? 'VIP Bed Recliner' : 'VIP Gold Class',
+      badge: featText.includes('bed') ? 'VIP Bed Recliner' : 'VIP Gold Class',
       color: 'from-purple-500/20 to-purple-600/30 text-purple-300 border-purple-500/40',
+    };
+  }
+  if (canonicalType === ROOM_TYPES_ENUM.REALD_3D || /\b3d\b/i.test(featText)) {
+    return {
+      category: '3D Digital',
+      badge: featText.includes('lồng tiếng') ? '3D Lồng tiếng' : 'RealD 3D',
+      color: 'from-cyan-500/20 to-cyan-600/30 text-cyan-300 border-cyan-500/40',
     };
   }
   return {
     category: '2D Atmos',
-    badge: combined.includes('atmos') ? '2D Atmos' : '2D Tiêu chuẩn',
+    badge: canonicalType === ROOM_TYPES_ENUM.DOLBY_ATMOS || featText.includes('atmos') ? '2D Atmos' : '2D Tiêu chuẩn',
     color: 'from-blue-500/20 to-blue-600/30 text-blue-300 border-blue-500/40',
   };
 };

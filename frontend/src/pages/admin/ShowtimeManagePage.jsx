@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   CalendarPlus,
   Clock,
@@ -22,6 +22,8 @@ import {
   calculateDynamicPrices,
   loadPricingConfig,
   DEFAULT_PRICING_CONFIG,
+  ROOM_TYPES_ENUM,
+  resolveCanonicalRoomType,
 } from '../../utils/pricing';
 
 const ShowtimeManagePage = () => {
@@ -50,6 +52,18 @@ const ShowtimeManagePage = () => {
   const [filterMovieId, setFilterMovieId] = useState('ALL');
   const [filterRoomType, setFilterRoomType] = useState('ALL');
   const [quickFilter, setQuickFilter] = useState('ALL'); // 'ALL' | 'CONFLICTS' | 'MISSING_SEATS' | 'HIDE_CONFLICTS'
+  // Bộ lọc lịch sử: 'ACTIVE' (Mặc định: UPCOMING, NOW_SHOWING, CLEANING) | 'COMPLETED' | 'CANCELLED' | 'ALL'
+  const [historyFilter, setHistoryFilter] = useState('ACTIVE');
+  const [liveNowMs, setLiveNowMs] = useState(() => Date.now());
+
+  // Chế độ Chọn xóa suất chiếu hàng loạt (Bulk Select & Delete)
+  const [isBulkSelectMode, setIsBulkSelectMode] = useState(false);
+  const [selectedShowtimeIds, setSelectedShowtimeIds] = useState(() => new Set());
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [bulkDeletePreview, setBulkDeletePreview] = useState(null);
+  const [isBulkPreviewLoading, setIsBulkPreviewLoading] = useState(false);
+  const [isBulkCommitting, setIsBulkCommitting] = useState(false);
+  const [bulkDeleteBanner, setBulkDeleteBanner] = useState(null);
 
   // Thu gọn / Mở rộng các phim trong Chế độ theo phim (Mặc định mở tất cả)
   const [expandedMovieIds, setExpandedMovieIds] = useState(new Set());
@@ -64,6 +78,8 @@ const ShowtimeManagePage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [batchLoading, setBatchLoading] = useState(false);
+  const [isConfirmingBatch, setIsConfirmingBatch] = useState(false);
+  const isConfirmingBatchRef = useRef(false);
   const [batchPreview, setBatchPreview] = useState(null);
   const [showtimeToDelete, setShowtimeToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -75,7 +91,7 @@ const ShowtimeManagePage = () => {
     endDate: '',
     daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
     timeSlots: [],
-    pricingMode: 'fixed',
+    pricingMode: 'auto',
     manualTimeInput: '',
   });
   const [recurringPreview, setRecurringPreview] = useState(null); // { validSlots, conflictSlots, ... }
@@ -105,15 +121,28 @@ const ShowtimeManagePage = () => {
     price: 80000,
   });
 
-  // Form lên lịch chiếu hàng loạt theo Tuần / Tháng
+  // Form lên lịch chiếu hàng loạt thông minh (Smart & Manual)
+  const DEFAULT_BATCH_MANUAL_SLOTS = ['09:30', '12:45', '16:00', '19:15', '22:30'];
   const [batchData, setBatchData] = useState({
     cinemaId: 'ALL',
     startDate: todayStr,
     endDate: todayStr,
     selectedMovieIds: [],
-    timeSlots: ['09:00', '11:30', '14:00', '16:30', '19:00', '21:30'],
     roomIds: [],
+    scheduleMode: 'smart', // 'smart' | 'manual'
+    firstShowtimeTime: '09:30',
+    latestStartTime: '22:30',
+    targetSlotsPerRoom: 5,
+    cleaningMinutes: 20,
+    optimizeMaxSlots: false,
+    staggerRooms: true,
+    timeSlots: [...DEFAULT_BATCH_MANUAL_SLOTS],
   });
+  const [batchMovieSearch, setBatchMovieSearch] = useState('');
+  const [batchNewTimeInput, setBatchNewTimeInput] = useState('');
+  const [batchTimeSlotError, setBatchTimeSlotError] = useState('');
+  const [batchPreviewFilter, setBatchPreviewFilter] = useState('ALL'); // 'ALL' | 'VALID' | 'CONFLICT'
+  const [collapsedPreviewGroups, setCollapsedPreviewGroups] = useState(() => new Set());
 
   // Điều hướng ngày: Hôm trước, Hôm sau, Hôm nay
   const handleShiftDay = (delta) => {
@@ -133,10 +162,41 @@ const ShowtimeManagePage = () => {
     loadData();
   }, [viewDate]);
 
-  const resolveSuggestedPrice = (roomName, startTime, cfg = pricingConfig) => {
+  // Tự động cập nhật đồng hồ thời gian thực (mỗi 15s) và đồng bộ nền (mỗi 60s) để tự động dọn suất đã chiếu xong
+  useEffect(() => {
+    const clockInterval = setInterval(() => {
+      setLiveNowMs(Date.now());
+    }, 15000);
+    const syncInterval = setInterval(() => {
+      loadData(true);
+    }, 60000);
+    return () => {
+      clearInterval(clockInterval);
+      clearInterval(syncInterval);
+    };
+  }, [viewDate]);
+
+  useEffect(() => {
+    if (!bulkDeleteBanner) return undefined;
+    const t = setTimeout(() => setBulkDeleteBanner(null), 6000);
+    return () => clearTimeout(t);
+  }, [bulkDeleteBanner]);
+
+  const resolveSuggestedPrice = (roomOrName, startTime, cfg = pricingConfig) => {
+    const matchedRoom =
+      typeof roomOrName === 'object' && roomOrName !== null
+        ? roomOrName
+        : rooms.find(
+            (rm) =>
+              rm.name === roomOrName ||
+              String(rm.id || rm._id) === String(formData.roomId)
+          );
+
     return calculateDynamicPrices(
       {
-        roomName,
+        room: matchedRoom || undefined,
+        roomType: matchedRoom?.roomType || resolveCanonicalRoomType(roomOrName),
+        roomName: typeof roomOrName === 'string' ? roomOrName : matchedRoom?.name,
         startTime: startTime || new Date().toISOString(),
         useConfigMatrix: true,
       },
@@ -144,10 +204,10 @@ const ShowtimeManagePage = () => {
     ).priceStandard;
   };
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true);
-      const params = { viewDate };
+      if (!silent) setLoading(true);
+      const params = { viewDate, includeCancelled: 'true' };
 
       const [stResult, mResult, cResult, rResult, cfgResult] = await Promise.allSettled([
         api.get('/admin/showtimes', { params }),
@@ -169,9 +229,10 @@ const ShowtimeManagePage = () => {
       setMovies(mList);
       setCinemas(cList);
       setRooms(rList);
+      setLiveNowMs(Date.now());
 
       // Mặc định mở rộng tất cả các phim
-      setExpandedMovieIds(new Set(mList.map(m => String(m.id || m._id))));
+      setExpandedMovieIds((prev) => (prev.size > 0 ? prev : new Set(mList.map(m => String(m.id || m._id)))));
 
       if (mList.length > 0 && cList.length > 0 && !formData.movieId) {
         const defaultRoom = rList[0];
@@ -187,16 +248,13 @@ const ShowtimeManagePage = () => {
         setBatchData((prev) => ({
           ...prev,
           cinemaId: cList[0].id || cList[0]._id,
-          selectedMovieIds: prev.selectedMovieIds.length > 0
-            ? prev.selectedMovieIds
-            : mList.slice(0, 4).map((m) => m.id || m._id),
-          roomIds: prev.roomIds.length > 0 ? prev.roomIds : rList.map(r => r.id || r._id),
+          roomIds: prev.roomIds.length > 0 ? prev.roomIds : rList.map((r) => String(r.id || r._id)),
         }));
       }
     } catch (err) {
       console.error('Lỗi khi tải dữ liệu suất chiếu:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -252,7 +310,8 @@ const ShowtimeManagePage = () => {
   };
 
   const getRoomTypeTheme = (roomType = '') => {
-    if (roomType.includes('IMAX')) {
+    const canonical = resolveCanonicalRoomType(roomType);
+    if (canonical === ROOM_TYPES_ENUM.IMAX_LASER) {
       return {
         textColor: 'text-[#22D3EE]',
         bgColor: 'bg-[#22D3EE]/10',
@@ -261,7 +320,7 @@ const ShowtimeManagePage = () => {
         name: 'IMAX Laser'
       };
     }
-    if (roomType.includes('Atmos')) {
+    if (canonical === ROOM_TYPES_ENUM.DOLBY_ATMOS) {
       return {
         textColor: 'text-[#A78BFA]',
         bgColor: 'bg-[#A78BFA]/10',
@@ -270,7 +329,7 @@ const ShowtimeManagePage = () => {
         name: 'Dolby Atmos'
       };
     }
-    if (roomType.includes('Gold')) {
+    if (canonical === ROOM_TYPES_ENUM.GOLD_CLASS) {
       return {
         textColor: 'text-[#E5C07B]',
         bgColor: 'bg-[#E5C07B]/10',
@@ -290,14 +349,14 @@ const ShowtimeManagePage = () => {
 
   const getCompatibleFormats = (movie, room) => {
     if (!room) return ['2D Tiêu chuẩn'];
-    const rType = room.roomType || '';
-    if (rType.includes('IMAX')) {
+    const canonical = resolveCanonicalRoomType(room);
+    if (canonical === ROOM_TYPES_ENUM.IMAX_LASER) {
       return ['2D IMAX Laser', '3D IMAX Laser'];
     }
-    if (rType.includes('Atmos')) {
+    if (canonical === ROOM_TYPES_ENUM.DOLBY_ATMOS) {
       return ['2D Dolby Atmos', '3D Dolby Atmos'];
     }
-    if (rType.includes('Gold')) {
+    if (canonical === ROOM_TYPES_ENUM.GOLD_CLASS) {
       return ['2D Gold Class VIP Lounge'];
     }
     return ['2D Tiêu chuẩn'];
@@ -341,13 +400,13 @@ const ShowtimeManagePage = () => {
     }));
   };
 
-  // Tóm tắt 4 mốc thời gian
+  // Tóm tắt 4 mốc thời gian (endTime = startTime + movieDuration, cleaningEndTime = endTime + 20 phút)
   const timeSummary = useMemo(() => {
     const dur = Number(selectedMovie?.duration) || 120;
     const [sh, sm] = (formTime || '18:00').split(':').map(Number);
     const startMin = (sh || 0) * 60 + (sm || 0);
     const endMin = startMin + dur;
-    const readyMin = endMin + 15;
+    const readyMin = endMin + 20;
 
     const toObj = (totMin) => {
       const isNext = totMin >= 1440;
@@ -361,12 +420,12 @@ const ShowtimeManagePage = () => {
       duration: dur,
       startTime: formTime,
       endTime: toObj(endMin),
-      cleaningTime: '15 phút',
+      cleaningTime: '20 phút',
       readyTime: toObj(readyMin)
     };
   }, [selectedMovie, formTime]);
 
-  // Kiểm tra xung đột thực tế
+  // Kiểm tra xung đột thực tế (bỏ qua suất đã COMPLETED hoặc CANCELLED)
   const conflictStatus = useMemo(() => {
     if (slotsLoading) return { text: 'Đang kiểm tra...', tone: 'loading' };
     if (!formData.roomId || !formData.startTime) return { text: 'Chưa đủ thông tin', tone: 'idle' };
@@ -376,34 +435,40 @@ const ShowtimeManagePage = () => {
     const dur = Number(selectedMovie?.duration) || 120;
     const startMs = startD.getTime();
     const endMs = startMs + dur * 60000;
-    const cleanEndMs = endMs + 15 * 60000;
+    const cleanEndMs = endMs + 20 * 60000;
 
     const startH = startD.getHours();
     if (startH < 8 && startH >= 2) {
       return { text: 'Vượt khung giờ hoạt động rạp (08:00 - 02:00)', tone: 'warning' };
     }
 
-    const roomShowtimes = showtimes.filter(s =>
-      String(s.roomId || s.roomId?._id) === String(formData.roomId) &&
-      !s.cancelledAt
-    );
+    const roomShowtimes = showtimes.filter(s => {
+      if (String(s.roomId || s.roomId?._id) !== String(formData.roomId)) return false;
+      if (s.cancelledAt) return false;
+      const sStart = new Date(s.startTime).getTime();
+      const sDur = Number(s.movieId?.duration) || 120;
+      const sEnd = s.endTime ? new Date(s.endTime).getTime() : sStart + sDur * 60000;
+      const sClean = (s.cleaningMinutes >= 15 && s.cleaningMinutes <= 20 ? s.cleaningMinutes : 20) * 60000;
+      return liveNowMs < (sEnd + sClean);
+    });
 
     for (const s of roomShowtimes) {
       const sStart = new Date(s.startTime).getTime();
       const sDur = Number(s.movieId?.duration) || 120;
       const sEnd = s.endTime ? new Date(s.endTime).getTime() : sStart + sDur * 60000;
-      const sOccupiedEnd = sEnd + (s.cleaningMinutes ?? 15) * 60000;
+      const sCleanMin = s.cleaningMinutes >= 15 && s.cleaningMinutes <= 20 ? s.cleaningMinutes : 20;
+      const sOccupiedEnd = sEnd + sCleanMin * 60000;
 
       if (startMs < sEnd && sStart < endMs) {
         return { text: 'Trùng lịch chiếu với suất khác', tone: 'danger' };
       }
       if (startMs < sOccupiedEnd && sStart < cleanEndMs) {
-        return { text: 'Không đủ 15 phút dọn dẹp vệ sinh', tone: 'warning' };
+        return { text: `Không đủ ${sCleanMin} phút dọn dẹp vệ sinh`, tone: 'warning' };
       }
     }
 
     return { text: 'Không trùng lịch (Sẵn sàng mở bán)', tone: 'success' };
-  }, [slotsLoading, formData.roomId, formData.startTime, selectedMovie, showtimes]);
+  }, [slotsLoading, formData.roomId, formData.startTime, selectedMovie, showtimes, liveNowMs]);
 
   // Ngày mở bán (tối đa trước 7 ngày)
   const openSaleInfo = useMemo(() => {
@@ -709,28 +774,186 @@ const ShowtimeManagePage = () => {
     }
   };
 
+  // Mở popup Xếp lịch hàng loạt thông minh:
+  // - Mặc định 0 phim được chọn (selectedMovieIds: [])
+  // - Ngày mặc định lấy từ ngày Admin đang xem trên Timeline (viewDate)
+  // - Mặc định chọn đủ 9 phòng vật lý
+  const handleOpenBatchModal = () => {
+    setBatchPreview(null);
+    setBatchMovieSearch('');
+    setBatchNewTimeInput('');
+    setBatchTimeSlotError('');
+    setBatchPreviewFilter('ALL');
+    setBatchData((prev) => ({
+      ...prev,
+      cinemaId: cinemas[0]?.id || cinemas[0]?._id || prev.cinemaId || 'ALL',
+      startDate: viewDate,
+      endDate: viewDate,
+      selectedMovieIds: [],
+      roomIds: sortedPhysicalRooms.map((r) => String(r.id || r._id)),
+      scheduleMode: 'smart',
+      firstShowtimeTime: '09:30',
+      latestStartTime: '22:30',
+      targetSlotsPerRoom: 5,
+      cleaningMinutes: 20,
+      optimizeMaxSlots: false,
+      staggerRooms: true,
+      timeSlots: [...DEFAULT_BATCH_MANUAL_SLOTS],
+    }));
+    setIsBatchModalOpen(true);
+  };
+
+  // Cập nhật trường cấu hình trong popup Xếp lịch hàng loạt -> tự động yêu cầu Preview lại
+  const updateBatchField = (updater) => {
+    setBatchPreview(null);
+    setBatchData((prev) => (typeof updater === 'function' ? updater(prev) : { ...prev, ...updater }));
+  };
+
+  const validateManualTimeSlotValue = (val) => {
+    const clean = String(val || '').trim();
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(clean)) {
+      return { valid: false, message: 'Giờ chiếu phải đúng định dạng HH:mm (ví dụ: 09:30).' };
+    }
+    const [h, m] = clean.split(':').map(Number);
+    const totalMin = h * 60 + m;
+    if (totalMin < 8 * 60 || totalMin > 22 * 60 + 30) {
+      return { valid: false, message: 'Giờ bắt đầu suất chiếu phải nằm trong khung mở suất của rạp (08:00 – 22:30).' };
+    }
+    return { valid: true, clean };
+  };
+
+  const handleUpdateBatchTimeSlot = (index, newValue) => {
+    const clean = String(newValue || '').trim();
+    setBatchPreview(null);
+    setBatchData((prev) => {
+      const next = [...prev.timeSlots];
+      next[index] = clean;
+      return { ...prev, timeSlots: next };
+    });
+
+    const check = validateManualTimeSlotValue(clean);
+    if (!check.valid) {
+      setBatchTimeSlotError(check.message);
+      return;
+    }
+    const duplicates = batchData.timeSlots.some((t, i) => i !== index && t.trim() === clean);
+    if (duplicates) {
+      setBatchTimeSlotError(`Khung giờ "${clean}" bị trùng lặp.`);
+      return;
+    }
+    setBatchTimeSlotError('');
+  };
+
+  const handleDeleteBatchTimeSlot = (index) => {
+    setBatchPreview(null);
+    setBatchTimeSlotError('');
+    setBatchData((prev) => ({
+      ...prev,
+      timeSlots: prev.timeSlots.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleAddBatchTimeSlot = () => {
+    const check = validateManualTimeSlotValue(batchNewTimeInput);
+    if (!check.valid) {
+      setBatchTimeSlotError(check.message);
+      return;
+    }
+    if (batchData.timeSlots.some((t) => t.trim() === check.clean)) {
+      setBatchTimeSlotError(`Khung giờ "${check.clean}" đã tồn tại trong danh sách.`);
+      return;
+    }
+    setBatchTimeSlotError('');
+    setBatchNewTimeInput('');
+    setBatchPreview(null);
+    setBatchData((prev) => ({
+      ...prev,
+      timeSlots: [...prev.timeSlots, check.clean].sort(),
+    }));
+  };
+
+  const handleResetBatchTimeSlots = () => {
+    setBatchTimeSlotError('');
+    setBatchNewTimeInput('');
+    setBatchPreview(null);
+    setBatchData((prev) => ({
+      ...prev,
+      timeSlots: [...DEFAULT_BATCH_MANUAL_SLOTS],
+    }));
+  };
+
+  const buildBatchSchedulePayload = (isPreview) => {
+    const base = {
+      cinemaId: batchData.cinemaId,
+      startDate: batchData.startDate,
+      endDate: batchData.endDate,
+      movieIds: batchData.selectedMovieIds.map(String),
+      roomIds: batchData.roomIds.map(String),
+      scheduleMode: batchData.scheduleMode,
+      cleaningMinutes: Number(batchData.cleaningMinutes) === 15 ? 15 : 20,
+      preview: Boolean(isPreview),
+    };
+
+    if (batchData.scheduleMode === 'smart') {
+      base.firstShowtimeTime = batchData.firstShowtimeTime || '09:30';
+      base.latestStartTime = batchData.latestStartTime || '22:30';
+      base.targetSlotsPerRoom = Number(batchData.targetSlotsPerRoom) || 5;
+      base.optimizeMaxSlots = Boolean(batchData.optimizeMaxSlots);
+      base.staggerRooms = Boolean(batchData.staggerRooms);
+    } else {
+      base.timeSlots = batchData.timeSlots.map((t) => t.trim());
+    }
+
+    if (!isPreview && batchPreview) {
+      base.expectedValidCount = batchPreview.validCount;
+      base.expectedSignature = batchPreview.validSignature;
+    }
+
+    return base;
+  };
+
   // Xếp lịch hàng loạt: Xem trước (Preview)
   const handlePreviewBatch = async () => {
     if (!batchData.startDate || !batchData.endDate) {
       alert('Vui lòng chọn ngày bắt đầu và kết thúc!');
       return;
     }
-    if (batchData.selectedMovieIds.length === 0) {
-      alert('Vui lòng chọn ít nhất 1 bộ phim!');
+    if (batchData.startDate > batchData.endDate) {
+      alert('Ngày bắt đầu không được lớn hơn ngày kết thúc!');
       return;
+    }
+    if (batchData.selectedMovieIds.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 bộ phim trước khi xem trước lịch dự kiến!');
+      return;
+    }
+    if (batchData.roomIds.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 phòng chiếu!');
+      return;
+    }
+
+    if (batchData.scheduleMode === 'manual') {
+      if (!batchData.timeSlots.length) {
+        setBatchTimeSlotError('Vui lòng thêm ít nhất 1 khung giờ chiếu.');
+        return;
+      }
+      for (const slot of batchData.timeSlots) {
+        const check = validateManualTimeSlotValue(slot);
+        if (!check.valid) {
+          setBatchTimeSlotError(check.message);
+          return;
+        }
+      }
+      const uniqueSet = new Set(batchData.timeSlots.map((t) => t.trim()));
+      if (uniqueSet.size !== batchData.timeSlots.length) {
+        setBatchTimeSlotError('Danh sách khung giờ đang có giờ trùng nhau. Vui lòng chỉnh sửa hoặc xóa giờ trùng.');
+        return;
+      }
+      setBatchTimeSlotError('');
     }
 
     try {
       setBatchLoading(true);
-      const res = await api.post('/admin/showtimes/schedule-batch', {
-        cinemaId: batchData.cinemaId,
-        startDate: batchData.startDate,
-        endDate: batchData.endDate,
-        movieIds: batchData.selectedMovieIds,
-        timeSlots: batchData.timeSlots,
-        roomIds: batchData.roomIds,
-        preview: true,
-      });
+      const res = await api.post('/admin/showtimes/schedule-batch', buildBatchSchedulePayload(true));
 
       if (res.data?.preview) {
         setBatchPreview(res.data);
@@ -742,36 +965,134 @@ const ShowtimeManagePage = () => {
     }
   };
 
-  // Xếp lịch hàng loạt: Xác nhận ghi Database
+  // Xếp lịch hàng loạt: Xác nhận ghi Database (Chống bấm đúp, giữ form khi lỗi, thông báo rõ trạng thái rollback/409)
   const handleExecuteBatchSchedule = async () => {
-    try {
-      setBatchLoading(true);
-      const res = await api.post('/admin/showtimes/schedule-batch', {
-        cinemaId: batchData.cinemaId,
-        startDate: batchData.startDate,
-        endDate: batchData.endDate,
-        movieIds: batchData.selectedMovieIds,
-        timeSlots: batchData.timeSlots,
-        roomIds: batchData.roomIds,
-        preview: false,
-      });
+    if (isConfirmingBatchRef.current || batchLoading) {
+      return;
+    }
+    if (!batchPreview || !batchPreview.validCount) {
+      alert('Vui lòng bấm "Xem trước lịch dự kiến" và đảm bảo có ít nhất 1 suất chiếu hợp lệ trước khi xác nhận!');
+      return;
+    }
+    if (batchData.selectedMovieIds.length === 0 || batchData.roomIds.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 phim và 1 phòng chiếu!');
+      return;
+    }
 
-      alert(`Đã xếp lịch chiếu hàng loạt thành công! (${res.data?.totalCreatedShowtimes || 0} suất)`);
+    try {
+      isConfirmingBatchRef.current = true;
+      setIsConfirmingBatch(true);
+      setBatchLoading(true);
+      const res = await api.post('/admin/showtimes/schedule-batch', buildBatchSchedulePayload(false));
+
+      alert(`Đã xếp lịch chiếu hàng loạt thành công! (${res.data?.totalCreatedShowtimes || 0} suất chiếu, đủ 88 ghế/suất)`);
       setIsBatchModalOpen(false);
       setBatchPreview(null);
-      loadData();
+      await loadData();
     } catch (err) {
-      alert('Lỗi xếp lịch chiếu: ' + (err.response?.data?.message || err.message));
+      const status = err.response?.status;
+      const serverMsg = err.response?.data?.message || err.message;
+      const rolledBack = err.response?.data?.rolledBack;
+      if (status === 409) {
+        setBatchPreview(null);
+        alert(`Xung đột lịch chiếu (HTTP 409): ${serverMsg}\nDữ liệu form của bạn vẫn được giữ nguyên, vui lòng bấm "Xem trước lịch dự kiến" lại.`);
+      } else {
+        const rollbackNote = rolledBack
+          ? '\nToàn bộ giao dịch đã được rollback an toàn trên MongoDB (không có dữ liệu dở dang).'
+          : '';
+        alert(`Lỗi xếp lịch chiếu: ${serverMsg}${rollbackNote}`);
+      }
     } finally {
+      isConfirmingBatchRef.current = false;
+      setIsConfirmingBatch(false);
       setBatchLoading(false);
     }
   };
 
-  // Lọc showtimes
+  // ── Vòng đời suất chiếu theo thời gian thực (endTime = startTime + duration, cleaningEndTime = endTime + cleaningMinutes) ──
+  const resolveShowtimeLifecycle = (st, nowMs = liveNowMs) => {
+    const startMs = new Date(st.startTime).getTime();
+    const duration = Number(st.movieId?.duration || st.movie?.duration) || 120;
+    const rawEndMs = st.endTime ? new Date(st.endTime).getTime() : NaN;
+    const endMs = Number.isFinite(rawEndMs) && rawEndMs > startMs ? rawEndMs : startMs + duration * 60000;
+    const rawClean = Number(st.cleaningMinutes);
+    const cleaningMinutes = Number.isFinite(rawClean) && rawClean >= 15 && rawClean <= 20 ? Math.round(rawClean) : 20;
+    const cleaningEndMs = endMs + cleaningMinutes * 60000;
+
+    let lifecycleStatus = 'UPCOMING';
+    if (st.cancelledAt) {
+      lifecycleStatus = 'CANCELLED';
+    } else if (nowMs >= cleaningEndMs) {
+      lifecycleStatus = 'COMPLETED';
+    } else if (nowMs >= endMs) {
+      lifecycleStatus = 'CLEANING';
+    } else if (nowMs >= startMs) {
+      lifecycleStatus = 'NOW_SHOWING';
+    } else {
+      lifecycleStatus = 'UPCOMING';
+    }
+
+    const isActiveSchedule =
+      lifecycleStatus === 'UPCOMING' ||
+      lifecycleStatus === 'NOW_SHOWING' ||
+      lifecycleStatus === 'CLEANING';
+
+    return {
+      lifecycleStatus,
+      startMs,
+      endMs,
+      cleaningMinutes,
+      cleaningEndMs,
+      duration,
+      isActiveSchedule,
+    };
+  };
+
+  const showtimesWithLifecycle = useMemo(() => {
+    return showtimes.map((st) => {
+      const lc = resolveShowtimeLifecycle(st, liveNowMs);
+      return {
+        ...st,
+        lifecycleStatus: lc.lifecycleStatus,
+        cleaningMinutes: lc.cleaningMinutes,
+        cleaningEndTime: new Date(lc.cleaningEndMs).toISOString(),
+        isActiveSchedule: lc.isActiveSchedule,
+        hasConflict: lc.isActiveSchedule ? Boolean(st.hasConflict) : false,
+      };
+    });
+  }, [showtimes, liveNowMs]);
+
+  const historyFilterCounts = useMemo(() => {
+    let active = 0;
+    let completed = 0;
+    let cancelled = 0;
+    for (const st of showtimesWithLifecycle) {
+      if (st.lifecycleStatus === 'CANCELLED') cancelled++;
+      else if (st.lifecycleStatus === 'COMPLETED') completed++;
+      else active++;
+    }
+    return {
+      ACTIVE: active,
+      COMPLETED: completed,
+      CANCELLED: cancelled,
+      ALL: showtimesWithLifecycle.length,
+    };
+  }, [showtimesWithLifecycle]);
+
+  const historyFilteredShowtimes = useMemo(() => {
+    return showtimesWithLifecycle.filter((st) => {
+      if (historyFilter === 'ACTIVE') return st.isActiveSchedule;
+      if (historyFilter === 'COMPLETED') return st.lifecycleStatus === 'COMPLETED';
+      if (historyFilter === 'CANCELLED') return st.lifecycleStatus === 'CANCELLED';
+      return true;
+    });
+  }, [showtimesWithLifecycle, historyFilter]);
+
+  // Lọc showtimes theo phim, loại phòng, bộ lọc nhanh và bộ lọc lịch sử
   const filteredShowtimes = useMemo(() => {
-    return showtimes.filter((st) => {
+    return historyFilteredShowtimes.filter((st) => {
       const mId = String(st.movieId?._id || st.movieId || '');
-      const rType = st.roomId?.roomType || (st.roomName?.includes('IMAX') ? 'IMAX Laser' : st.roomName?.includes('Atmos') ? 'Dolby Atmos' : st.roomName?.includes('Gold') ? 'Gold Class' : '');
+      const rType = resolveCanonicalRoomType(st);
 
       const matchMovie = filterMovieId === 'ALL' || mId === String(filterMovieId);
       const matchRoomType = filterRoomType === 'ALL' || rType === filterRoomType;
@@ -783,7 +1104,122 @@ const ShowtimeManagePage = () => {
 
       return matchMovie && matchRoomType && matchQuick;
     });
-  }, [showtimes, filterMovieId, filterRoomType, quickFilter]);
+  }, [historyFilteredShowtimes, filterMovieId, filterRoomType, quickFilter]);
+
+  // ── Các hàm điều khiển Chọn xóa suất chiếu hàng loạt (Bulk Delete) ──
+  const handleToggleBulkSelectMode = () => {
+    setIsBulkSelectMode((prev) => {
+      const next = !prev;
+      if (!next) {
+        setSelectedShowtimeIds(new Set());
+        setBulkDeletePreview(null);
+        setIsBulkDeleteModalOpen(false);
+      } else {
+        setDrawerShowtimeId(null);
+      }
+      return next;
+    });
+  };
+
+  const handleExitBulkSelectMode = () => {
+    setIsBulkSelectMode(false);
+    setSelectedShowtimeIds(new Set());
+    setBulkDeletePreview(null);
+    setIsBulkDeleteModalOpen(false);
+  };
+
+  const handleToggleSelectShowtime = (showtimeId) => {
+    const idStr = String(showtimeId || '');
+    if (!idStr) return;
+    setSelectedShowtimeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(idStr)) next.delete(idStr);
+      else next.add(idStr);
+      return next;
+    });
+  };
+
+  const handleSelectAllFiltered = () => {
+    const ids = filteredShowtimes.map((st) => String(st.id || st._id)).filter(Boolean);
+    setSelectedShowtimeIds(new Set(ids));
+  };
+
+  const handleClearBulkSelection = () => {
+    setSelectedShowtimeIds(new Set());
+  };
+
+  const handleToggleSelectMovieGroup = (movieShowtimes = []) => {
+    const groupIds = movieShowtimes.map((st) => String(st.id || st._id)).filter(Boolean);
+    if (!groupIds.length) return;
+    setSelectedShowtimeIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = groupIds.every((id) => next.has(id));
+      if (allSelected) {
+        groupIds.forEach((id) => next.delete(id));
+      } else {
+        groupIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleOpenBulkDeletePreview = async () => {
+    const ids = Array.from(selectedShowtimeIds);
+    if (ids.length === 0) return;
+
+    try {
+      setIsBulkPreviewLoading(true);
+      setBulkDeletePreview(null);
+      setIsBulkDeleteModalOpen(true);
+
+      const res = await api.post('/admin/showtimes/bulk-delete/preview', {
+        showtimeIds: ids,
+      });
+      setBulkDeletePreview(res.data);
+    } catch (err) {
+      alert('Lỗi khi kiểm tra danh sách suất chiếu cần xóa: ' + (err.response?.data?.message || err.message));
+      setIsBulkDeleteModalOpen(false);
+    } finally {
+      setIsBulkPreviewLoading(false);
+    }
+  };
+
+  const handleCommitBulkDelete = async () => {
+    if (!bulkDeletePreview?.previewId || !Array.isArray(bulkDeletePreview?.eligibleSlots)) return;
+    const confirmedIds = bulkDeletePreview.eligibleSlots.map((s) => String(s.id || s.showtimeId));
+    if (confirmedIds.length === 0) return;
+
+    try {
+      setIsBulkCommitting(true);
+      const requestId = `BULK-DEL-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      const res = await api.post('/admin/showtimes/bulk-delete/commit', {
+        previewId: bulkDeletePreview.previewId,
+        confirmedIds,
+        requestId,
+        reason: `Admin xóa hàng loạt ${confirmedIds.length} suất chiếu trên trang Điều phối lịch chiếu`,
+      });
+
+      const deletedCount = res.data?.deletedCount ?? confirmedIds.length;
+      const skippedCount = res.data?.skippedCount ?? 0;
+
+      setIsBulkDeleteModalOpen(false);
+      setBulkDeletePreview(null);
+      setSelectedShowtimeIds(new Set());
+      setIsBulkSelectMode(false);
+      setBulkDeleteBanner({
+        deletedCount,
+        skippedCount,
+        blockedCount: bulkDeletePreview.blockedCount || 0,
+        message: res.data?.message || `Đã xóa thành công ${deletedCount} suất chiếu.`,
+      });
+
+      await loadData();
+    } catch (err) {
+      alert('Lỗi khi xóa hàng loạt suất chiếu: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsBulkCommitting(false);
+    }
+  };
 
   // Sắp xếp 9 phòng chiếu chuẩn theo 3 nhóm vật lý
   const sortedPhysicalRooms = useMemo(() => {
@@ -796,18 +1232,18 @@ const ShowtimeManagePage = () => {
     });
   }, [rooms]);
 
-  // Thống kê nhanh trên đầu Timeline
+  // Thống kê nhanh trên đầu Timeline (đồng bộ theo bộ lọc lịch sử hiện tại, mặc định là Lịch đang hoạt động)
   const statsSummary = useMemo(() => {
-    const total = showtimes.length;
-    const roomIdsWithShowtimes = new Set(showtimes.map(st => String(st.roomId?._id || st.roomId || st.roomName)));
+    const total = historyFilteredShowtimes.length;
+    const roomIdsWithShowtimes = new Set(historyFilteredShowtimes.map(st => String(st.roomId?._id || st.roomId || st.roomName)));
     const activeRoomsCount = sortedPhysicalRooms.filter(r =>
-      roomIdsWithShowtimes.has(String(r._id || r.id)) || showtimes.some(st => (st.roomName || '').includes(r.shortName || r.name))
+      roomIdsWithShowtimes.has(String(r._id || r.id)) || historyFilteredShowtimes.some(st => (st.roomName || '').includes(r.shortName || r.name))
     ).length;
-    const conflictsCount = showtimes.filter(st => st.hasConflict).length;
-    const missingSeatsCount = showtimes.filter(st => !st.totalSeats || st.totalSeats === 0).length;
+    const conflictsCount = historyFilteredShowtimes.filter(st => st.hasConflict).length;
+    const missingSeatsCount = historyFilteredShowtimes.filter(st => !st.totalSeats || st.totalSeats === 0).length;
 
     return { total, activeRoomsCount, conflictsCount, missingSeatsCount };
-  }, [showtimes, sortedPhysicalRooms]);
+  }, [historyFilteredShowtimes, sortedPhysicalRooms]);
 
   // Trục thời gian mở rộng: từ 08:00 sáng đến 02:00 sáng hôm sau (18 giờ = 1080 phút)
   const timelineHours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26];
@@ -927,7 +1363,7 @@ const ShowtimeManagePage = () => {
       };
 
       entry.showtimes.forEach(st => {
-        const rType = st.roomId?.roomType || (st.roomName?.includes('IMAX') ? 'IMAX Laser' : st.roomName?.includes('Atmos') ? 'Dolby Atmos' : 'Gold Class');
+        const rType = resolveCanonicalRoomType(st);
         if (byType[rType]) {
           byType[rType].push(st);
         } else {
@@ -978,7 +1414,7 @@ const ShowtimeManagePage = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               {/* Nút Tạo suất */}
               <button
                 type="button"
@@ -992,17 +1428,113 @@ const ShowtimeManagePage = () => {
               {/* Nút Xếp lịch hàng loạt */}
               <button
                 type="button"
-                onClick={() => {
-                  setBatchPreview(null);
-                  setIsBatchModalOpen(true);
-                }}
+                data-testid="open-batch-schedule-btn"
+                onClick={handleOpenBatchModal}
                 className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center space-x-2 transition-all shadow-lg shadow-indigo-600/30 cursor-pointer active:scale-95"
               >
                 <span>⚡</span>
                 <span>Xếp lịch hàng loạt</span>
               </button>
+
+              {/* Nút thứ 3: Chọn xóa suất chiếu (có icon thùng rác và màu đỏ) */}
+              <button
+                type="button"
+                data-testid="bulk-select-toggle-btn"
+                onClick={handleToggleBulkSelectMode}
+                className={`font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center space-x-2 transition-all shadow-lg cursor-pointer active:scale-95 border ${
+                  isBulkSelectMode
+                    ? 'bg-rose-700 hover:bg-rose-600 text-white border-rose-400 ring-2 ring-rose-500/40 shadow-rose-600/40'
+                    : 'bg-rose-600 hover:bg-rose-500 text-white border-rose-500/40 shadow-rose-600/30'
+                }`}
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isBulkSelectMode ? `Đang chọn xóa (${selectedShowtimeIds.size})` : 'Chọn xóa suất chiếu'}</span>
+              </button>
             </div>
           </div>
+
+          {/* Thông báo kết quả xóa hàng loạt */}
+          {bulkDeleteBanner && (
+            <div className="bg-emerald-950/80 border border-emerald-500/50 rounded-2xl px-4 py-3 flex items-center justify-between gap-3 text-xs text-emerald-200 shadow-lg animate-fadeIn">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  <strong>{bulkDeleteBanner.message}</strong>
+                  {bulkDeleteBanner.blockedCount > 0 && (
+                    <span className="text-amber-300 ml-2">
+                      (Đã bảo vệ {bulkDeleteBanner.blockedCount} suất chiếu có đơn vé hoặc đang chiếu)
+                    </span>
+                  )}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBulkDeleteBanner(null)}
+                className="text-slate-400 hover:text-white px-2 py-0.5 rounded cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Thanh điều khiển Chế độ Chọn Xóa Hàng Loạt */}
+          {isBulkSelectMode && (
+            <div
+              data-testid="bulk-delete-toolbar"
+              className="bg-rose-950/40 border border-rose-500/50 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xl animate-fadeIn"
+            >
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-600/30 border border-rose-500/50 text-rose-200 font-bold">
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>
+                    Đã chọn <strong className="text-white font-mono text-sm" data-testid="bulk-selected-count">{selectedShowtimeIds.size}</strong> / {filteredShowtimes.length} suất hiển thị
+                  </span>
+                </span>
+                <span className="text-slate-300 hidden md:inline">
+                  Bấm trực tiếp vào các khối suất chiếu trên Timeline, Theo phim hoặc Danh sách để chọn nhiều suất cùng lúc.
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  data-testid="bulk-select-all-btn"
+                  onClick={handleSelectAllFiltered}
+                  disabled={filteredShowtimes.length === 0}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-cyan-300 border border-cyan-500/30 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  ☑ Chọn tất cả ({filteredShowtimes.length})
+                </button>
+                <button
+                  type="button"
+                  data-testid="bulk-clear-all-btn"
+                  onClick={handleClearBulkSelection}
+                  disabled={selectedShowtimeIds.size === 0}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 border border-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  ☐ Bỏ chọn tất cả
+                </button>
+                <button
+                  type="button"
+                  data-testid="bulk-delete-confirm-trigger-btn"
+                  onClick={handleOpenBulkDeletePreview}
+                  disabled={selectedShowtimeIds.size === 0 || isBulkPreviewLoading}
+                  className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white text-xs font-bold shadow-lg shadow-rose-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Xóa {selectedShowtimeIds.size} suất đã chọn</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="bulk-exit-mode-btn"
+                  onClick={handleExitBulkSelectMode}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Thoát chế độ chọn
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Hàng thẻ Thống kê nhanh */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1151,6 +1683,39 @@ const ShowtimeManagePage = () => {
               </div>
             </div>
 
+            {/* Bộ lọc lịch sử: Lịch đang hoạt động (mặc định) | Lịch đã hoàn thành | Lịch đã hủy | Tất cả lịch */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-800/80">
+              <div className="flex flex-wrap items-center gap-1.5" data-testid="history-filter-tabs">
+                <span className="text-[11px] text-slate-400 font-semibold mr-1">Bộ lọc lịch sử:</span>
+                {[
+                  { key: 'ACTIVE', label: 'Lịch đang hoạt động', count: historyFilterCounts.ACTIVE, activeClass: 'bg-emerald-600/25 text-emerald-300 border-emerald-500/50' },
+                  { key: 'COMPLETED', label: 'Lịch đã hoàn thành', count: historyFilterCounts.COMPLETED, activeClass: 'bg-cyan-600/25 text-cyan-300 border-cyan-500/50' },
+                  { key: 'CANCELLED', label: 'Lịch đã hủy', count: historyFilterCounts.CANCELLED, activeClass: 'bg-rose-600/25 text-rose-300 border-rose-500/50' },
+                  { key: 'ALL', label: 'Tất cả lịch', count: historyFilterCounts.ALL, activeClass: 'bg-indigo-600/25 text-indigo-300 border-indigo-500/50' },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    data-testid={`history-tab-${tab.key}`}
+                    onClick={() => setHistoryFilter(tab.key)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                      historyFilter === tab.key
+                        ? tab.activeClass
+                        : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span className="px-1.5 py-0.2 rounded-md bg-slate-900/90 text-[10px] font-mono">
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <span className="text-[11px] text-slate-400">
+                Tự động hoàn thành sau khi hết phim + <strong className="text-amber-300">20 phút</strong> vệ sinh phòng
+              </span>
+            </div>
+
             {/* Hàng bộ lọc: Phim & Loại phòng */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2.5 border-t border-slate-800/80 text-xs">
               <div>
@@ -1224,7 +1789,7 @@ const ShowtimeManagePage = () => {
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Gold
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded bg-amber-500/40 border border-amber-500 inline-block"></span> 15p dọn phòng
+                    <span className="w-2.5 h-2.5 rounded bg-amber-500/40 border border-amber-500 inline-block"></span> 20p dọn phòng
                   </span>
                 </div>
               </div>
@@ -1405,12 +1970,14 @@ const ShowtimeManagePage = () => {
                                   )}
 
                                   {/* Render các khối suất chiếu được phân bổ lane */}
-                                  {renderAssigned.map(({ st, leftPct, widthPct, cleanWidthPct, duration, lane, isCarryOver }) => {
+                                  {renderAssigned.map(({ st, leftPct, widthPct, cleanWidthPct, duration, cleaning, lane, isCarryOver }) => {
+                                    const stIdStr = String(st.id || st._id);
+                                    const isSelectedForBulk = selectedShowtimeIds.has(stIdStr);
                                     const stDate = new Date(st.startTime);
                                     const movie = st.movieId || {};
-                                    const timeStr = stDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                                    const timeStr = stDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
                                     const endDate = new Date(stDate.getTime() + duration * 60000);
-                                    const endTimeStr = endDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                                    const endTimeStr = endDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
 
                                     const booked = st.bookedSeats || 0;
                                     const total = st.totalSeats || 88;
@@ -1418,7 +1985,9 @@ const ShowtimeManagePage = () => {
 
                                     const topPx = lane * 46 + 4;
 
-                                    const blockBg = isConflict
+                                    const blockBg = isBulkSelectMode && isSelectedForBulk
+                                      ? 'bg-rose-950/95 border-rose-400 ring-2 ring-rose-500/70 text-white shadow-[0_0_12px_rgba(244,63,94,0.45)]'
+                                      : isConflict
                                       ? 'bg-slate-900/95 border-red-500/80 border-dashed text-slate-100 shadow-[0_0_8px_rgba(239,68,68,0.2)]'
                                       : isImax
                                       ? 'bg-slate-900/95 border-cyan-500/60 text-cyan-100 shadow-cyan-500/10'
@@ -1427,12 +1996,17 @@ const ShowtimeManagePage = () => {
                                       : 'bg-slate-900/95 border-amber-500/60 text-amber-100 shadow-amber-500/10';
 
                                     return (
-                                      <React.Fragment key={st.id || st._id}>
+                                      <React.Fragment key={stIdStr}>
                                         {/* Khối phim */}
                                         <div
+                                          data-testid={`timeline-showtime-${stIdStr}`}
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            setDrawerShowtimeId(st.id || st._id);
+                                            if (isBulkSelectMode) {
+                                              handleToggleSelectShowtime(stIdStr);
+                                            } else {
+                                              setDrawerShowtimeId(stIdStr);
+                                            }
                                           }}
                                           style={{
                                             left: `${Math.max(0, leftPct)}%`,
@@ -1441,10 +2015,22 @@ const ShowtimeManagePage = () => {
                                             height: '38px',
                                           }}
                                           className={`absolute border rounded-lg px-2 py-0.5 flex flex-col justify-between overflow-hidden shadow-lg hover:brightness-125 transition-all cursor-pointer z-10 group ${blockBg}`}
-                                          title={`🎬 ${movie.title || 'Phim'}\n🕒 ${timeStr} – ${endTimeStr} (${duration} phút)\n🎟️ Đã bán: ${booked}/${total} vé\n💰 Giá: ${(st.price || 0).toLocaleString()}đ\n👉 Click để mở chi tiết suất chiếu & sơ đồ ghế`}
+                                          title={`🎬 ${movie.title || 'Phim'}\n🕒 ${timeStr} – ${endTimeStr} (${duration} phút + ${cleaning || 20}p dọn phòng)\n🎟️ Đã bán: ${booked}/${total} vé\n💰 Giá: ${(st.price || 0).toLocaleString()}đ\n👉 ${isBulkSelectMode ? 'Click để chọn / bỏ chọn xóa hàng loạt' : 'Click để mở chi tiết suất chiếu & sơ đồ ghế'}`}
                                         >
                                           <div className="flex items-center justify-between gap-1 leading-tight">
-                                            <div className="flex items-center gap-1 min-w-0">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                              {isBulkSelectMode && (
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isSelectedForBulk}
+                                                  onChange={() => {}}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleToggleSelectShowtime(stIdStr);
+                                                  }}
+                                                  className="w-3.5 h-3.5 accent-rose-500 rounded cursor-pointer shrink-0"
+                                                />
+                                              )}
                                               {isCarryOver && (
                                                 <span className="text-[9px] text-cyan-300 font-bold bg-cyan-950/90 border border-cyan-500/40 px-1 rounded shrink-0">
                                                   Đêm trước
@@ -1455,22 +2041,44 @@ const ShowtimeManagePage = () => {
                                               </span>
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">
+                                                {st.lifecycleStatus === 'NOW_SHOWING' && (
+                                                  <span className="text-[8px] font-bold px-1 rounded bg-emerald-500/30 text-emerald-300 border border-emerald-500/40">
+                                                    Đang chiếu
+                                                  </span>
+                                                )}
+                                                {st.lifecycleStatus === 'CLEANING' && (
+                                                  <span className="text-[8px] font-bold px-1 rounded bg-amber-500/30 text-amber-200 border border-amber-500/40">
+                                                    Dọn phòng
+                                                  </span>
+                                                )}
+                                                {st.lifecycleStatus === 'COMPLETED' && (
+                                                  <span className="text-[8px] font-bold px-1 rounded bg-slate-700 text-slate-300">
+                                                    Hoàn thành
+                                                  </span>
+                                                )}
+                                                {st.lifecycleStatus === 'CANCELLED' && (
+                                                  <span className="text-[8px] font-bold px-1 rounded bg-rose-900/80 text-rose-200">
+                                                    Đã hủy
+                                                  </span>
+                                                )}
                                                 {isConflict && (
                                                   <span className="text-[9px] text-red-300 font-black animate-pulse">
                                                     ⚠️
                                                   </span>
                                                 )}
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleRequestDelete(st);
-                                                  }}
-                                                  className="opacity-0 group-hover:opacity-100 hover:bg-red-500/30 p-0.5 rounded text-red-300 hover:text-white transition-all cursor-pointer"
-                                                  title="Xóa / Hủy suất chiếu này"
-                                                >
-                                                  <Trash2 className="w-3 h-3" />
-                                                </button>
+                                                {!isBulkSelectMode && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleRequestDelete(st);
+                                                    }}
+                                                    className="opacity-0 group-hover:opacity-100 hover:bg-red-500/30 p-0.5 rounded text-red-300 hover:text-white transition-all cursor-pointer"
+                                                    title="Xóa / Hủy suất chiếu này"
+                                                  >
+                                                    <Trash2 className="w-3 h-3" />
+                                                  </button>
+                                                )}
                                               </div>
                                           </div>
                                           <div className="flex items-center justify-between text-[10px] text-slate-300 font-mono leading-none">
@@ -1481,7 +2089,7 @@ const ShowtimeManagePage = () => {
                                           </div>
                                         </div>
 
-                                        {/* Khối dọn phòng 15 phút ngay sau suất chiếu */}
+                                        {/* Khối dọn phòng sau suất chiếu */}
                                         <div
                                           style={{
                                             left: `${leftPct + widthPct}%`,
@@ -1490,9 +2098,9 @@ const ShowtimeManagePage = () => {
                                             height: '34px',
                                           }}
                                           className="absolute bg-amber-500/10 border-l border-r border-amber-500/30 flex items-center justify-center text-[8px] text-amber-300 font-bold uppercase tracking-tighter pointer-events-none z-0 rounded-r-md"
-                                          title="Thời gian vệ sinh phòng: 15 phút"
+                                          title={`Thời gian vệ sinh phòng: ${cleaning || 20} phút`}
                                         >
-                                          15p
+                                          {cleaning || 20}p
                                         </div>
                                       </React.Fragment>
                                     );
@@ -1553,6 +2161,20 @@ const ShowtimeManagePage = () => {
                             </div>
 
                             <div className="flex items-center gap-5">
+                              {isBulkSelectMode && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleSelectMovieGroup(mShowtimes);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-rose-950/70 hover:bg-rose-900 text-rose-200 border border-rose-500/40 text-xs font-bold cursor-pointer"
+                                >
+                                  {mShowtimes.every((s) => selectedShowtimeIds.has(String(s.id || s._id)))
+                                    ? '☐ Bỏ chọn phim này'
+                                    : '☑ Chọn tất cả phim này'}
+                                </button>
+                              )}
                               <div className="text-right text-xs font-mono">
                                 <span className="text-slate-400 block text-[11px]">Suất chiếu:</span>
                                 <span className="text-cyan-400 font-bold">{mShowtimes.length} suất</span>
@@ -1590,41 +2212,68 @@ const ShowtimeManagePage = () => {
 
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
                                       {list.map((st) => {
+                                        const stIdStr = String(st.id || st._id);
+                                        const isSelectedForBulk = selectedShowtimeIds.has(stIdStr);
                                         const stDate = new Date(st.startTime);
-                                        const timeStr = stDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                                        const timeStr = stDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
                                         const booked = st.bookedSeats || 0;
                                         const total = st.totalSeats || 88;
                                         const isConflict = st.hasConflict;
 
                                         return (
                                           <div
-                                            key={st.id || st._id}
-                                            onClick={() => setDrawerShowtimeId(st.id || st._id)}
+                                            key={stIdStr}
+                                            data-testid={`movie-showtime-${stIdStr}`}
+                                            onClick={() => {
+                                              if (isBulkSelectMode) {
+                                                handleToggleSelectShowtime(stIdStr);
+                                              } else {
+                                                setDrawerShowtimeId(stIdStr);
+                                              }
+                                            }}
                                             className={`bg-slate-950 border ${
-                                              isConflict
+                                              isBulkSelectMode && isSelectedForBulk
+                                                ? 'border-rose-400 ring-2 ring-rose-500/60 bg-rose-950/30'
+                                                : isConflict
                                                 ? 'border-red-500 hover:border-red-400'
                                                 : 'border-slate-800 hover:border-slate-600'
                                             } rounded-xl p-2.5 space-y-1.5 hover:bg-slate-800/40 transition-all cursor-pointer shadow-md group relative`}
                                           >
                                             <div className="flex items-center justify-between">
-                                              <span className="text-base font-black text-white font-mono">{timeStr}</span>
+                                              <div className="flex items-center gap-1.5">
+                                                {isBulkSelectMode && (
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={isSelectedForBulk}
+                                                    onChange={() => {}}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleToggleSelectShowtime(stIdStr);
+                                                    }}
+                                                    className="w-3.5 h-3.5 accent-rose-500 rounded cursor-pointer"
+                                                  />
+                                                )}
+                                                <span className="text-base font-black text-white font-mono">{timeStr}</span>
+                                              </div>
                                               <div className="flex items-center gap-1.5">
                                                 {isConflict && (
                                                   <span className="text-[9px] font-black text-red-400 bg-red-950 px-1 rounded border border-red-800">
                                                     Trùng
                                                   </span>
                                                 )}
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleRequestDelete(st);
-                                                  }}
-                                                  className="opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-slate-400 hover:text-red-400 p-1 rounded transition-all cursor-pointer"
-                                                  title="Xóa / Hủy suất chiếu"
-                                                >
-                                                  <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
+                                                {!isBulkSelectMode && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleRequestDelete(st);
+                                                    }}
+                                                    className="opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-slate-400 hover:text-red-400 p-1 rounded transition-all cursor-pointer"
+                                                    title="Xóa / Hủy suất chiếu"
+                                                  >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                  </button>
+                                                )}
                                               </div>
                                             </div>
                                             <div className="text-[11px] text-slate-300 truncate" title={st.roomName}>
@@ -1668,6 +2317,22 @@ const ShowtimeManagePage = () => {
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
                           <tr className="border-b border-slate-800 bg-slate-950/70 text-slate-400 uppercase tracking-wider font-bold text-[10px]">
+                            {isBulkSelectMode && (
+                              <th className="py-3 px-3 w-10 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={
+                                    filteredShowtimes.length > 0 &&
+                                    filteredShowtimes.every((s) => selectedShowtimeIds.has(String(s.id || s._id)))
+                                  }
+                                  onChange={(e) => {
+                                    if (e.target.checked) handleSelectAllFiltered();
+                                    else handleClearBulkSelection();
+                                  }}
+                                  className="w-4 h-4 accent-rose-500 rounded cursor-pointer"
+                                />
+                              </th>
+                            )}
                             <th className="py-3 px-4">Phim</th>
                             <th className="py-3 px-4">Phòng chiếu</th>
                             <th className="py-3 px-4">Thời gian chiếu</th>
@@ -1678,9 +2343,11 @@ const ShowtimeManagePage = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-800/80 text-slate-200">
                           {filteredShowtimes.map((st) => {
+                            const stIdStr = String(st.id || st._id);
+                            const isSelectedForBulk = selectedShowtimeIds.has(stIdStr);
                             const movie = st.movieId || {};
                             const dateObj = new Date(st.startTime);
-                            const timeFormatted = dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                            const timeFormatted = dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false });
                             const dateFormatted = dateObj.toLocaleDateString('vi-VN', {
                               weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric',
                             });
@@ -1689,7 +2356,32 @@ const ShowtimeManagePage = () => {
                             const percent = Math.round((booked / total) * 100);
 
                             return (
-                              <tr key={st.id || st._id} className="hover:bg-slate-800/40 transition-colors">
+                              <tr
+                                key={stIdStr}
+                                data-testid={`list-showtime-${stIdStr}`}
+                                onClick={() => {
+                                  if (isBulkSelectMode) {
+                                    handleToggleSelectShowtime(stIdStr);
+                                  }
+                                }}
+                                className={`transition-colors ${
+                                  isBulkSelectMode
+                                    ? isSelectedForBulk
+                                      ? 'bg-rose-950/30 hover:bg-rose-950/40 cursor-pointer'
+                                      : 'hover:bg-slate-800/40 cursor-pointer'
+                                    : 'hover:bg-slate-800/40'
+                                }`}
+                              >
+                                {isBulkSelectMode && (
+                                  <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelectedForBulk}
+                                      onChange={() => handleToggleSelectShowtime(stIdStr)}
+                                      className="w-4 h-4 accent-rose-500 rounded cursor-pointer"
+                                    />
+                                  </td>
+                                )}
                                 <td className="py-3 px-4">
                                   <div className="flex items-center space-x-3">
                                     {movie.posterUrl && (
@@ -2256,14 +2948,17 @@ const ShowtimeManagePage = () => {
                     </div>
 
                     <div>
-                      <label className="block text-[#94A3B8] font-semibold text-xs mb-1">Giờ bắt đầu (24 giờ) *</label>
+                      <label className="block text-[#94A3B8] font-semibold text-xs mb-1">Giờ bắt đầu (24h — HH:mm) *</label>
                       <input
-                        type="time"
-                        step="900"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="HH:mm (VD: 18:00)"
+                        maxLength={5}
+                        list="davenor-24h-time-options"
                         required
                         value={formTime}
                         onChange={(e) => handleFormTimeChange(e.target.value)}
-                        className="w-full bg-[#080E1D] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-[#F1F5F9] font-mono focus:outline-none focus:border-[#79D9F5] cursor-pointer"
+                        className="w-full bg-[#080E1D] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-[#F1F5F9] font-mono font-bold focus:outline-none focus:border-[#79D9F5]"
                       />
                     </div>
                   </div>
@@ -2446,203 +3141,1052 @@ const ShowtimeManagePage = () => {
           )}
 
           {/* ========================================================================= */}
-          {/* MODAL LÊN LỊCH CHIẾU HÀNG LOẠT (CÓ BƯỚC PREVIEW XEM TRƯỚC)                */}
+          {/* MODAL LÊN LỊCH CHIẾU HÀNG LOẠT THÔNG MINH (SMART & MANUAL + PREVIEW)      */}
           {/* ========================================================================= */}
-          {isBatchModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fadeIn">
-              <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div>
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      <span>⚡</span>
-                      <span>Lên Lịch Chiếu Hàng Loạt Thông Minh</span>
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      Tự động phân bổ suất chiếu cho 9 phòng vật lý, chống trùng lịch và tạo đủ 88 ghế ngồi.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsBatchModalOpen(false)}
-                    className="text-slate-400 hover:text-white text-lg font-bold cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
+          {isBatchModalOpen && (() => {
+            const normBatchQuery = batchMovieSearch
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/[đĐ]/g, 'd')
+              .toLowerCase()
+              .trim();
 
-                <div className="space-y-4 text-xs">
-                  {/* Khoảng ngày */}
-                  <div className="grid grid-cols-2 gap-3">
+            const filteredBatchMovies = movies.filter((m) => {
+              if (!normBatchQuery) return true;
+              const titleNorm = String(m.title || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[đĐ]/g, 'd')
+                .toLowerCase();
+              return titleNorm.includes(normBatchQuery);
+            });
+
+            const allRoomIds = sortedPhysicalRooms.map((r) => String(r.id || r._id));
+            const isAllRoomsSelected =
+              allRoomIds.length > 0 && allRoomIds.every((id) => batchData.roomIds.includes(id));
+
+            const previewAllSlots = Array.isArray(batchPreview?.allSlots)
+              ? batchPreview.allSlots
+              : [
+                  ...(Array.isArray(batchPreview?.validSlots)
+                    ? batchPreview.validSlots.map((s) => ({ ...s, status: 'VALID' }))
+                    : []),
+                  ...(Array.isArray(batchPreview?.conflictSlots)
+                    ? batchPreview.conflictSlots.map((s) => ({ ...s, status: 'CONFLICT' }))
+                    : []),
+                ];
+
+            const displayedPreviewSlots = previewAllSlots.filter((s) => {
+              if (batchPreviewFilter === 'VALID') return s.status === 'VALID';
+              if (batchPreviewFilter === 'CONFLICT') return s.status === 'CONFLICT';
+              return true;
+            });
+
+            // Nhóm lịch dự kiến theo Ngày & Phòng để cho phép thu gọn / mở rộng
+            const groupedPreviewByDayRoom = (() => {
+              const map = new Map();
+              for (const slot of displayedPreviewSlots) {
+                const gKey = `${slot.date}||${slot.roomId || slot.roomName}`;
+                if (!map.has(gKey)) {
+                  const summary = (batchPreview?.roomDaySummaries || []).find(
+                    (r) => r.date === slot.date && String(r.roomId) === String(slot.roomId)
+                  );
+                  map.set(gKey, {
+                    groupKey: gKey,
+                    date: slot.date,
+                    roomId: slot.roomId,
+                    roomName: slot.roomName,
+                    roomType: slot.roomType || resolveCanonicalRoomType(slot),
+                    summary,
+                    slots: [],
+                  });
+                }
+                map.get(gKey).slots.push(slot);
+              }
+              return Array.from(map.values());
+            })();
+
+            const canPreview =
+              !batchLoading &&
+              Boolean(batchData.startDate) &&
+              Boolean(batchData.endDate) &&
+              batchData.selectedMovieIds.length > 0 &&
+              batchData.roomIds.length > 0 &&
+              (batchData.scheduleMode === 'smart' || batchData.timeSlots.length > 0);
+
+            const canConfirm =
+              !batchLoading &&
+              Boolean(batchPreview) &&
+              Number(batchPreview?.validCount) > 0 &&
+              batchData.selectedMovieIds.length > 0 &&
+              batchData.roomIds.length > 0;
+
+            return (
+              <div
+                data-testid="batch-schedule-modal"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 animate-fadeIn"
+              >
+                <div
+                  className={`bg-[#0B1120] border border-slate-800 w-full ${
+                    batchPreview ? 'max-w-[1060px]' : 'max-w-[760px]'
+                  } rounded-[24px] p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto text-slate-100 transition-all`}
+                >
+                  {/* Header */}
+                  <div className="flex items-start justify-between border-b border-slate-800/80 pb-3.5">
                     <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Từ ngày *</label>
-                      <input
-                        type="date"
-                        value={batchData.startDate}
-                        onChange={(e) => setBatchData({ ...batchData, startDate: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs font-mono"
-                      />
+                      <h3 className="text-lg font-black text-white flex items-center gap-2 tracking-tight">
+                        <span className="text-amber-400">⚡</span>
+                        <span>Lên lịch chiếu hàng loạt thông minh</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Tự động phân bổ suất chiếu cho 9 phòng vật lý, chống trùng lịch và tạo đủ 88 ghế.
+                      </p>
                     </div>
-                    <div>
-                      <label className="block text-slate-300 font-semibold mb-1">Đến ngày *</label>
-                      <input
-                        type="date"
-                        value={batchData.endDate}
-                        onChange={(e) => setBatchData({ ...batchData, endDate: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs font-mono"
-                      />
-                    </div>
+                    <button
+                      type="button"
+                      data-testid="close-batch-modal-btn"
+                      onClick={() => setIsBatchModalOpen(false)}
+                      className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold text-sm transition-colors cursor-pointer border border-slate-800"
+                    >
+                      ✕
+                    </button>
                   </div>
 
-                  {/* Chọn phim */}
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1.5">
-                      Chọn các phim luân phiên chiếu ({batchData.selectedMovieIds.length} phim đã chọn):
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-36 overflow-y-auto bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                      {movies.map((m) => {
-                        const isSelected = batchData.selectedMovieIds.includes(m.id || m._id);
-                        return (
-                          <div
-                            key={m.id || m._id}
-                            onClick={() => {
-                              const exists = batchData.selectedMovieIds.includes(m.id || m._id);
-                              setBatchData(prev => ({
-                                ...prev,
-                                selectedMovieIds: exists
-                                  ? prev.selectedMovieIds.filter(id => id !== (m.id || m._id))
-                                  : [...prev.selectedMovieIds, (m.id || m._id)],
-                              }));
-                            }}
-                            className={`p-2 rounded-lg border text-[11px] font-semibold cursor-pointer transition-all flex items-center space-x-2 ${
-                              isSelected
-                                ? 'bg-cyan-950/80 border-cyan-500 text-white'
-                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                            }`}
+                  {/* Thanh quy tắc giờ hoạt động của rạp */}
+                  <div className="bg-[#081C2E]/80 border border-cyan-500/30 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs">
+                    <span className="text-cyan-300 font-semibold flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      <span>Giờ hoạt động của rạp</span>
+                    </span>
+                    <span className="font-mono font-black text-cyan-300">
+                      08:00 – 02:00 (+1 ngày)
+                    </span>
+                  </div>
+
+                  <div className="space-y-4 text-xs">
+                    {/* Khoảng ngày (mặc định theo viewDate trên Timeline) */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">Từ ngày *</label>
+                        <input
+                          type="date"
+                          data-testid="batch-start-date"
+                          value={batchData.startDate}
+                          onChange={(e) => updateBatchField({ startDate: e.target.value })}
+                          className="w-full bg-[#070B16] border border-slate-800 focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-white text-xs font-mono focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-300 font-semibold mb-1">Đến ngày *</label>
+                        <input
+                          type="date"
+                          data-testid="batch-end-date"
+                          value={batchData.endDate}
+                          onChange={(e) => updateBatchField({ endDate: e.target.value })}
+                          className="w-full bg-[#070B16] border border-slate-800 focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-white text-xs font-mono focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Chọn phim (Mặc định 0 phim được chọn, có tìm kiếm, Chọn tất cả / Bỏ chọn tất cả và hiển thị thời lượng thực tế) */}
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label className="text-slate-200 font-bold">
+                          Chọn phim (<span data-testid="batch-selected-movies-count" className="text-cyan-400">{batchData.selectedMovieIds.length}</span> phim đã chọn)
+                        </label>
+                        <div className="flex items-center gap-3 text-[11px] font-bold">
+                          <button
+                            type="button"
+                            data-testid="batch-select-all-movies-btn"
+                            onClick={() =>
+                              updateBatchField({
+                                selectedMovieIds: filteredBatchMovies.map((m) => String(m.id || m._id)),
+                              })
+                            }
+                            className="text-cyan-400 hover:text-cyan-300 cursor-pointer"
                           >
-                            <span>{isSelected ? '☑' : '☐'}</span>
-                            <span className="truncate">{m.title}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Chọn phòng vật lý */}
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1.5">
-                      Chọn các phòng chiếu ({batchData.roomIds.length} phòng đã chọn):
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {sortedPhysicalRooms.map((r) => {
-                        const isSelected = batchData.roomIds.includes(r.id || r._id);
-                        return (
-                          <div
-                            key={r.id || r._id}
-                            onClick={() => {
-                              const exists = batchData.roomIds.includes(r.id || r._id);
-                              setBatchData(prev => ({
-                                ...prev,
-                                roomIds: exists
-                                  ? prev.roomIds.filter(id => id !== (r.id || r._id))
-                                  : [...prev.roomIds, (r.id || r._id)],
-                              }));
-                            }}
-                            className={`p-2 rounded-lg border text-[11px] font-semibold cursor-pointer transition-all flex items-center space-x-1.5 ${
-                              isSelected
-                                ? 'bg-indigo-950/80 border-indigo-500 text-white'
-                                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                            }`}
+                            Chọn tất cả
+                          </button>
+                          <span className="text-slate-700">|</span>
+                          <button
+                            type="button"
+                            data-testid="batch-clear-all-movies-btn"
+                            onClick={() => updateBatchField({ selectedMovieIds: [] })}
+                            className="text-slate-400 hover:text-rose-400 cursor-pointer"
                           >
-                            <span>{isSelected ? '☑' : '☐'}</span>
-                            <span className="truncate">{r.name.replace(/Phòng \d+ - /, '')}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Khung giờ mặc định */}
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1.5">
-                      Các khung giờ bắt đầu trong ngày (chuẩn 15 phút):
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {['09:00', '11:30', '14:00', '16:30', '19:00', '21:30'].map((slot) => (
-                        <span
-                          key={slot}
-                          className="px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono font-bold text-cyan-300"
-                        >
-                          {slot}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Vùng kết quả Xem trước (Preview) */}
-                  {batchPreview && (
-                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-white flex items-center gap-1.5">
-                          <span>📊</span>
-                          <span>Kết quả kiểm tra xem trước:</span>
-                        </span>
-                        <div className="flex items-center space-x-3 font-mono font-bold">
-                          <span className="text-emerald-400">✓ {batchPreview.validCount} suất hợp lệ</span>
-                          {batchPreview.conflictCount > 0 && (
-                            <span className="text-red-400">✗ {batchPreview.conflictCount} suất bị trùng</span>
-                          )}
+                            Bỏ chọn tất cả
+                          </button>
                         </div>
                       </div>
 
-                      {batchPreview.conflictCount > 0 && (
-                        <div className="bg-red-950/40 border border-red-800/40 rounded-lg p-2 max-h-24 overflow-y-auto text-[11px] text-red-300 space-y-1 font-mono">
-                          {batchPreview.conflictSlots.slice(0, 5).map((c, i) => (
-                            <div key={i}>
-                              • [{c.date} {c.time}] {c.roomName}: {c.reason}
+                      {/* Ô tìm kiếm phim */}
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="text"
+                          data-testid="batch-movie-search-input"
+                          value={batchMovieSearch}
+                          onChange={(e) => setBatchMovieSearch(e.target.value)}
+                          placeholder="Tìm kiếm phim theo tên..."
+                          className="w-full bg-[#070B16] border border-slate-800 focus:border-cyan-500 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+                        />
+                        {batchMovieSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setBatchMovieSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Lưới thẻ checkbox phim */}
+                      <div
+                        data-testid="batch-movies-grid"
+                        className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1"
+                      >
+                        {filteredBatchMovies.map((m) => {
+                          const mId = String(m.id || m._id);
+                          const isSelected = batchData.selectedMovieIds.includes(mId);
+                          const dur = Number(m.duration) || 120;
+                          return (
+                            <div
+                              key={mId}
+                              data-testid={`batch-movie-option-${mId}`}
+                              data-selected={isSelected ? 'true' : 'false'}
+                              onClick={() => {
+                                updateBatchField((prev) => {
+                                  const exists = prev.selectedMovieIds.includes(mId);
+                                  return {
+                                    ...prev,
+                                    selectedMovieIds: exists
+                                      ? prev.selectedMovieIds.filter((id) => id !== mId)
+                                      : [...prev.selectedMovieIds, mId],
+                                  };
+                                });
+                              }}
+                              className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 select-none ${
+                                isSelected
+                                  ? 'bg-[#082B3E]/90 border-[#22D3EE] text-white shadow-[0_0_12px_rgba(34,211,238,0.18)]'
+                                  : 'bg-[#070B16] border-slate-800/90 text-slate-300 hover:border-slate-700'
+                              }`}
+                            >
+                              <div
+                                className={`w-4 h-4 rounded-full mt-0.5 flex items-center justify-center shrink-0 border transition-colors ${
+                                  isSelected
+                                    ? 'bg-[#22D3EE] border-[#22D3EE] text-slate-950'
+                                    : 'border-slate-600 bg-transparent'
+                                }`}
+                              >
+                                {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-bold text-[11px] text-white truncate" title={m.title}>
+                                  {m.title}
+                                </div>
+                                <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                  {dur} phút
+                                </div>
+                              </div>
                             </div>
-                          ))}
-                          {batchPreview.conflictSlots.length > 5 && (
-                            <div>... và {batchPreview.conflictSlots.length - 5} ca khác</div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Chọn 9 phòng vật lý với 3 bảng màu nhận diện chuẩn: IMAX Laser (Cyan), Dolby Atmos (Purple), Gold Class (Gold) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-slate-200 font-bold">
+                          Chọn phòng chiếu (<span data-testid="batch-selected-rooms-count" className="text-cyan-400">{batchData.roomIds.length}</span>/{sortedPhysicalRooms.length})
+                        </label>
+                        <div className="flex items-center gap-3 text-[11px] font-bold">
+                          <button
+                            type="button"
+                            data-testid="batch-select-all-rooms-btn"
+                            onClick={() => updateBatchField({ roomIds: allRoomIds })}
+                            className="text-cyan-400 hover:text-cyan-300 cursor-pointer"
+                          >
+                            Chọn tất cả
+                          </button>
+                          <span className="text-slate-700">|</span>
+                          <button
+                            type="button"
+                            data-testid="batch-clear-all-rooms-btn"
+                            onClick={() => updateBatchField({ roomIds: [] })}
+                            className="text-slate-400 hover:text-rose-400 cursor-pointer"
+                          >
+                            Bỏ chọn tất cả
+                          </button>
+                        </div>
+                      </div>
+
+                      <div data-testid="batch-rooms-grid" className="grid grid-cols-3 gap-2">
+                        {sortedPhysicalRooms.map((r, idx) => {
+                          const rId = String(r.id || r._id);
+                          const isSelected = batchData.roomIds.includes(rId);
+                          const canonicalType = resolveCanonicalRoomType(r);
+                          const numMatch = r.name?.match(/\d+/);
+                          const roomNumStr = r.roomNumber
+                            ? String(r.roomNumber).padStart(2, '0')
+                            : numMatch
+                            ? String(numMatch[0]).padStart(2, '0')
+                            : String(idx + 1).padStart(2, '0');
+
+                          const isImax = canonicalType === 'IMAX Laser';
+                          const isAtmos = canonicalType === 'Dolby Atmos';
+
+                          // Phân biệt rõ 3 màu: IMAX Laser (#22D3EE Cyan), Dolby Atmos (#C084FC Purple), Gold Class (#F6CF65 Gold)
+                          const selectedCardClass = isImax
+                            ? 'bg-[#082B3E]/85 border-[#22D3EE] text-white shadow-[0_0_12px_rgba(34,211,238,0.16)]'
+                            : isAtmos
+                            ? 'bg-[#22133B]/85 border-[#C084FC] text-white shadow-[0_0_12px_rgba(192,132,252,0.16)]'
+                            : 'bg-[#2D220E]/85 border-[#F6CF65] text-white shadow-[0_0_12px_rgba(246,207,101,0.16)]';
+
+                          const unselectedCardClass = isImax
+                            ? 'bg-[#070B16] border-[#22D3EE]/25 text-slate-400 hover:border-[#22D3EE]/50'
+                            : isAtmos
+                            ? 'bg-[#070B16] border-[#C084FC]/25 text-slate-400 hover:border-[#C084FC]/50'
+                            : 'bg-[#070B16] border-[#F6CF65]/25 text-slate-400 hover:border-[#F6CF65]/50';
+
+                          const techLabelColor = isImax
+                            ? 'text-[#22D3EE]'
+                            : isAtmos
+                            ? 'text-[#C084FC]'
+                            : 'text-[#F6CF65]';
+
+                          const checkCircleClass = isSelected
+                            ? isImax
+                              ? 'bg-[#22D3EE] border-[#22D3EE] text-slate-950'
+                              : isAtmos
+                              ? 'bg-[#C084FC] border-[#C084FC] text-slate-950'
+                              : 'bg-[#F6CF65] border-[#F6CF65] text-slate-950'
+                            : 'border-slate-600 bg-transparent';
+
+                          return (
+                            <div
+                              key={rId}
+                              data-testid={`batch-room-option-${roomNumStr}`}
+                              data-room-type={canonicalType}
+                              data-selected={isSelected ? 'true' : 'false'}
+                              onClick={() => {
+                                updateBatchField((prev) => {
+                                  const exists = prev.roomIds.includes(rId);
+                                  return {
+                                    ...prev,
+                                    roomIds: exists
+                                      ? prev.roomIds.filter((id) => id !== rId)
+                                      : [...prev.roomIds, rId],
+                                  };
+                                });
+                              }}
+                              className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 select-none ${
+                                isSelected ? selectedCardClass : unselectedCardClass
+                              }`}
+                            >
+                              <div
+                                className={`w-4 h-4 rounded-full mt-0.5 flex items-center justify-center shrink-0 border transition-colors ${checkCircleClass}`}
+                              >
+                                {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-xs text-white leading-tight">
+                                  Phòng {roomNumStr}
+                                </div>
+                                <div className={`text-[11px] font-semibold truncate mt-0.5 ${techLabelColor}`}>
+                                  {canonicalType}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Phương thức xếp lịch: Chế độ A (Xếp lịch thông minh - mặc định) | Chế độ B (Tùy chỉnh khung giờ) */}
+                    <div className="space-y-3 pt-1">
+                      <label className="block text-slate-200 font-bold">Phương thức xếp lịch</label>
+                      <div className="inline-flex items-center bg-[#070B16] p-1 rounded-xl border border-slate-800 gap-1">
+                        <button
+                          type="button"
+                          data-testid="batch-mode-smart-btn"
+                          onClick={() => updateBatchField({ scheduleMode: 'smart' })}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                            batchData.scheduleMode === 'smart'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <span>⚡</span>
+                          <span>Xếp lịch thông minh</span>
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="batch-mode-manual-btn"
+                          onClick={() => updateBatchField({ scheduleMode: 'manual' })}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                            batchData.scheduleMode === 'manual'
+                              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <span>🕒</span>
+                          <span>Tùy chỉnh khung giờ</span>
+                        </button>
+                      </div>
+
+                      <datalist id="davenor-24h-time-options">
+                        {[
+                          '08:00', '08:30', '09:00', '09:15', '09:30', '09:45',
+                          '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '12:45',
+                          '13:00', '13:30', '14:00', '14:30', '15:00', '15:30',
+                          '16:00', '16:30', '17:00', '17:30', '18:00', '18:30',
+                          '19:00', '19:15', '19:30', '20:00', '20:30', '21:00',
+                          '21:30', '21:45', '22:00', '22:15', '22:30',
+                        ].map((t) => (
+                          <option key={t} value={t} />
+                        ))}
+                      </datalist>
+
+                      {batchData.scheduleMode === 'smart' ? (
+                        /* ── CHẾ ĐỘ A: XẾP LỊCH THÔNG MINH (KHUNG GIỜ 24H) ── */
+                        <div className="space-y-3 bg-[#070B16]/80 border border-slate-800/90 rounded-2xl p-4">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-slate-400 font-semibold mb-1">
+                                Giờ chiếu đầu tiên (24h)
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="09:30"
+                                  maxLength={5}
+                                  list="davenor-24h-time-options"
+                                  data-testid="batch-first-showtime-input"
+                                  value={batchData.firstShowtimeTime}
+                                  onChange={(e) => updateBatchField({ firstShowtimeTime: e.target.value })}
+                                  className="w-full bg-[#0B1120] border border-slate-800 focus:border-cyan-500 rounded-xl px-3.5 py-2 pr-12 text-white font-mono font-bold text-xs focus:outline-none"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-cyan-400/80 pointer-events-none">
+                                  24H
+                                </span>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-slate-400 font-semibold mb-1">
+                                Giờ bắt đầu muộn nhất (24h, tối đa 22:30)
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="22:30"
+                                  maxLength={5}
+                                  list="davenor-24h-time-options"
+                                  data-testid="batch-latest-start-input"
+                                  value={batchData.latestStartTime}
+                                  onChange={(e) => updateBatchField({ latestStartTime: e.target.value })}
+                                  className="w-full bg-[#0B1120] border border-slate-800 focus:border-cyan-500 rounded-xl px-3.5 py-2 pr-12 text-white font-mono font-bold text-xs focus:outline-none"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-cyan-400/80 pointer-events-none">
+                                  24H
+                                </span>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-slate-400 font-semibold mb-1">
+                                Số suất mong muốn / phòng
+                              </label>
+                              <select
+                                data-testid="batch-target-slots-select"
+                                disabled={batchData.optimizeMaxSlots}
+                                value={batchData.targetSlotsPerRoom}
+                                onChange={(e) => updateBatchField({ targetSlotsPerRoom: Number(e.target.value) })}
+                                className={`w-full bg-[#0B1120] border border-slate-800 focus:border-cyan-500 rounded-xl px-3.5 py-2 text-white font-bold text-xs focus:outline-none ${
+                                  batchData.optimizeMaxSlots ? 'opacity-40 cursor-not-allowed' : ''
+                                }`}
+                              >
+                                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                                  <option key={n} value={n}>
+                                    {n} suất
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-slate-400 font-semibold mb-1">
+                                Thời gian vệ sinh phòng
+                              </label>
+                              <select
+                                data-testid="batch-cleaning-minutes-select"
+                                value={batchData.cleaningMinutes}
+                                onChange={(e) => updateBatchField({ cleaningMinutes: Number(e.target.value) })}
+                                className="w-full bg-[#0B1120] border border-slate-800 focus:border-cyan-500 rounded-xl px-3.5 py-2 text-white font-bold text-xs focus:outline-none"
+                              >
+                                <option value={20}>20 phút</option>
+                                <option value={15}>15 phút</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Hai lựa chọn loại trừ lẫn nhau: A. Xếp theo số suất mong muốn vs B. Tối ưu số suất tối đa */}
+                          <div className="space-y-2 pt-1">
+                            <span className="block text-slate-400 font-semibold text-[11px]">
+                              Chế độ phân bổ số suất mỗi phòng (loại trừ lẫn nhau):
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              <div
+                                data-testid="batch-allocation-target-radio"
+                                onClick={() => updateBatchField({ optimizeMaxSlots: false })}
+                                className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
+                                  !batchData.optimizeMaxSlots
+                                    ? 'bg-cyan-950/40 border-cyan-400 text-white'
+                                    : 'bg-[#0B1120] border-slate-800 text-slate-400 hover:border-slate-700'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="slotAllocationMode"
+                                  checked={!batchData.optimizeMaxSlots}
+                                  onChange={() => updateBatchField({ optimizeMaxSlots: false })}
+                                  className="mt-0.5 accent-cyan-400 cursor-pointer"
+                                />
+                                <div>
+                                  <div className="font-bold text-xs text-white">
+                                    A. Xếp theo số suất mong muốn ({batchData.targetSlotsPerRoom} suất/phòng)
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 mt-0.5">
+                                    Phân bổ cân đối Sáng – Trưa – Chiều – Tối – Đêm, không vượt quá {batchData.targetSlotsPerRoom} suất/phòng.
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div
+                                data-testid="batch-optimize-slots-checkbox"
+                                onClick={() => updateBatchField({ optimizeMaxSlots: true })}
+                                className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
+                                  batchData.optimizeMaxSlots
+                                    ? 'bg-amber-950/40 border-amber-400 text-white'
+                                    : 'bg-[#0B1120] border-slate-800 text-slate-400 hover:border-slate-700'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="slotAllocationMode"
+                                  checked={batchData.optimizeMaxSlots}
+                                  onChange={() => updateBatchField({ optimizeMaxSlots: true })}
+                                  className="mt-0.5 accent-amber-400 cursor-pointer"
+                                />
+                                <div>
+                                  <div className="font-bold text-xs text-white">
+                                    B. Tối ưu số suất tối đa
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 mt-0.5">
+                                    Tự tính số suất hợp lệ tối đa theo thời lượng phim (vô hiệu hóa số suất cố định).
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 pt-0.5">
+                            <label className="inline-flex items-center gap-2 cursor-pointer select-none text-slate-200 font-semibold">
+                              <input
+                                type="checkbox"
+                                data-testid="batch-stagger-rooms-checkbox"
+                                checked={batchData.staggerRooms}
+                                onChange={(e) => updateBatchField({ staggerRooms: e.target.checked })}
+                                className="w-4 h-4 accent-cyan-400 rounded cursor-pointer"
+                              />
+                              <span>Tự động xếp lệch giờ giữa các phòng</span>
+                            </label>
+                          </div>
+
+                          <div className="bg-[#081C2E]/70 border border-cyan-500/25 rounded-xl p-3 text-[11px] text-cyan-200/90 leading-relaxed">
+                            💡 Hệ thống tự tính thời lượng thực tế từng phim và thời gian vệ sinh ({batchData.cleaningMinutes} phút), làm tròn giờ bắt đầu suất kế tiếp lên mốc 5 phút. Tất cả phim phải kết thúc và vệ sinh xong trước <strong>02:00 sáng (+1 ngày)</strong>.
+                          </div>
+                        </div>
+                      ) : (
+                        /* ── CHẾ ĐỘ B: TÙY CHỈNH KHUNG GIỜ ── */
+                        <div className="space-y-3 bg-[#070B16]/80 border border-slate-800/90 rounded-2xl p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-slate-300 font-semibold">
+                              Danh sách khung giờ bắt đầu ({batchData.timeSlots.length} khung giờ):
+                            </span>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-slate-400 text-[11px]">Vệ sinh:</span>
+                                <select
+                                  data-testid="batch-manual-cleaning-select"
+                                  value={batchData.cleaningMinutes}
+                                  onChange={(e) => updateBatchField({ cleaningMinutes: Number(e.target.value) })}
+                                  className="bg-[#0B1120] border border-slate-800 rounded-lg px-2 py-1 text-white font-bold text-xs"
+                                >
+                                  <option value={20}>20 phút</option>
+                                  <option value={15}>15 phút</option>
+                                </select>
+                              </div>
+                              <button
+                                type="button"
+                                data-testid="batch-reset-timeslots-btn"
+                                onClick={handleResetBatchTimeSlots}
+                                className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 underline cursor-pointer"
+                              >
+                                Khôi phục giờ mặc định
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Danh sách chip giờ 24h có thể chỉnh sửa và xóa */}
+                          <div data-testid="batch-manual-timeslots-list" className="flex flex-wrap gap-2">
+                            {batchData.timeSlots.map((slot, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-1 bg-[#0B1120] border border-cyan-500/40 rounded-xl px-2.5 py-1.5"
+                              >
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="HH:mm"
+                                  maxLength={5}
+                                  list="davenor-24h-time-options"
+                                  data-testid={`batch-timeslot-input-${idx}`}
+                                  value={slot}
+                                  onChange={(e) => handleUpdateBatchTimeSlot(idx, e.target.value)}
+                                  className="w-14 bg-transparent text-cyan-300 font-mono font-bold text-xs text-center focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  data-testid={`batch-timeslot-delete-${idx}`}
+                                  onClick={() => handleDeleteBatchTimeSlot(idx)}
+                                  className="text-slate-400 hover:text-rose-400 ml-1 font-bold cursor-pointer"
+                                  title="Xóa khung giờ này"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Thêm giờ mới (Định dạng 24h HH:mm) */}
+                          <div className="flex items-center gap-2 pt-1">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="HH:mm (VD: 21:45)"
+                                maxLength={5}
+                                list="davenor-24h-time-options"
+                                data-testid="batch-add-timeslot-input"
+                                value={batchNewTimeInput}
+                                onChange={(e) => setBatchNewTimeInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddBatchTimeSlot();
+                                  }
+                                }}
+                                className="w-40 bg-[#0B1120] border border-slate-800 focus:border-cyan-500 rounded-xl px-3 py-1.5 pr-10 text-white font-mono font-bold text-xs focus:outline-none"
+                              />
+                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono font-bold text-cyan-400/70 pointer-events-none">
+                                24H
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              data-testid="batch-add-timeslot-btn"
+                              onClick={handleAddBatchTimeSlot}
+                              className="px-3.5 py-1.5 rounded-xl bg-cyan-600/25 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/40 font-bold text-xs transition-all cursor-pointer"
+                            >
+                              + Thêm giờ
+                            </button>
+                          </div>
+
+                          {batchTimeSlotError && (
+                            <div
+                              data-testid="batch-timeslot-error"
+                              className="text-[11px] text-rose-400 font-semibold bg-rose-950/40 border border-rose-500/30 rounded-xl px-3 py-2"
+                            >
+                              ⚠️ {batchTimeSlotError}
+                            </div>
                           )}
                         </div>
                       )}
                     </div>
-                  )}
 
-                  {/* Các nút hành động */}
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-                    <button
-                      type="button"
-                      onClick={handlePreviewBatch}
-                      disabled={batchLoading}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-                    >
-                      {batchLoading ? <span className="animate-spin">🔄</span> : <span>🔍</span>}
-                      <span>Xem trước lịch dự kiến (Preview)</span>
-                    </button>
+                    {/* Tóm tắt lựa chọn + Nút Xem trước lịch dự kiến */}
+                    <div className="bg-[#070B16] border border-slate-800/90 rounded-2xl p-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-[11px] text-slate-400 block">Số phim được chọn</span>
+                          <span className="text-base font-black text-cyan-400">
+                            {batchData.selectedMovieIds.length} phim
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[11px] text-slate-400 block">Số phòng được chọn</span>
+                          <span className="text-base font-black text-purple-400">
+                            {batchData.roomIds.length} phòng
+                          </span>
+                        </div>
+                      </div>
 
-                    <div className="flex items-center space-x-2.5">
+                      <button
+                        type="button"
+                        data-testid="batch-preview-btn"
+                        onClick={handlePreviewBatch}
+                        disabled={!canPreview}
+                        className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-white disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black text-xs transition-all cursor-pointer flex items-center justify-center gap-2 shadow"
+                      >
+                        {batchLoading ? (
+                          <>
+                            <span className="animate-spin">🔄</span>
+                            <span>Đang tính toán lịch chiếu dự kiến...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Calendar className="w-4 h-4" />
+                            <span>Xem trước lịch dự kiến</span>
+                          </>
+                        )}
+                      </button>
+
+                      {!batchPreview && (
+                        <p className="text-[11px] text-slate-400 text-center">
+                          {batchData.selectedMovieIds.length === 0
+                            ? 'Vui lòng tích chọn ít nhất 1 bộ phim để xem trước lịch dự kiến.'
+                            : 'Xác nhận tạo lịch chỉ được bật sau khi kiểm tra Preview hợp lệ.'}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Bảng chi tiết Kết quả Preview (Tách riêng Hợp lệ, Xung đột thực sự & Không đủ thời gian bố trí) */}
+                    {batchPreview && (
+                      <div
+                        data-testid="batch-preview-results"
+                        className="bg-[#070B16] border border-cyan-500/30 rounded-2xl p-4 space-y-3.5"
+                      >
+                        {/* 6 Thẻ bộ đếm Preview độc lập (Section VII) */}
+                        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-center">
+                          <div className="bg-[#0B1120] border border-slate-800 rounded-xl p-2">
+                            <span className="text-[10px] text-slate-400 block">Số ngày xếp lịch</span>
+                            <span className="text-sm font-black text-white font-mono" data-testid="batch-preview-days-count">
+                              {batchPreview.totalDays || 1} ngày
+                            </span>
+                          </div>
+                          <div className="bg-[#0B1120] border border-slate-800 rounded-xl p-2">
+                            <span className="text-[10px] text-slate-400 block">Số phim đã chọn</span>
+                            <span className="text-sm font-black text-cyan-300 font-mono">
+                              {batchPreview.selectedMoviesCount ?? batchData.selectedMovieIds.length} phim
+                            </span>
+                          </div>
+                          <div className="bg-[#0B1120] border border-slate-800 rounded-xl p-2">
+                            <span className="text-[10px] text-slate-400 block">Số phòng đã chọn</span>
+                            <span className="text-sm font-black text-purple-300 font-mono">
+                              {batchPreview.selectedRoomsCount ?? batchData.roomIds.length} phòng
+                            </span>
+                          </div>
+                          <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-xl p-2">
+                            <span className="text-[10px] text-emerald-300 block">Suất hợp lệ</span>
+                            <span className="text-sm font-black text-emerald-400 font-mono" data-testid="batch-preview-valid-count">
+                              {batchPreview.validCount}
+                            </span>
+                          </div>
+                          <div className="bg-rose-950/30 border border-rose-500/30 rounded-xl p-2">
+                            <span className="text-[10px] text-rose-300 block">Xung đột thực sự</span>
+                            <span className="text-sm font-black text-rose-400 font-mono" data-testid="batch-preview-conflict-count">
+                              {batchPreview.conflictCount || 0}
+                            </span>
+                          </div>
+                          <div className="bg-amber-950/30 border border-amber-500/30 rounded-xl p-2">
+                            <span className="text-[10px] text-amber-300 block">Thiếu quỹ thời gian</span>
+                            <span className="text-sm font-black text-amber-400 font-mono" data-testid="batch-preview-unallocated-count">
+                              {batchPreview.unallocatedCount || 0}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Thông báo tổng kết bố trí (VD: "Đã bố trí 42/45 suất. Có 3 suất không đủ thời gian để bố trí.") */}
+                        {batchPreview.allocationSummaryText && (
+                          <div
+                            data-testid="batch-preview-allocation-summary"
+                            className={`rounded-xl px-3.5 py-2.5 text-xs font-semibold flex items-center justify-between gap-2 border ${
+                              (batchPreview.unallocatedCount || 0) > 0
+                                ? 'bg-amber-950/30 border-amber-500/40 text-amber-200'
+                                : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+                            }`}
+                          >
+                            <span>📌 {batchPreview.allocationSummaryText}</span>
+                            {!batchData.optimizeMaxSlots && batchPreview.requestedTotalSlots && (
+                              <span className="font-mono text-[11px] shrink-0">
+                                {batchPreview.validCount}/{batchPreview.requestedTotalSlots} suất
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Vùng hiển thị riêng chi tiết lỗi xung đột thực sự (nếu có) để không làm cao dòng bảng */}
+                        {Array.isArray(batchPreview.conflictSlots) && batchPreview.conflictSlots.length > 0 && (
+                          <div className="bg-rose-950/30 border border-rose-500/40 rounded-xl p-3 space-y-1.5 text-[11px]">
+                            <div className="font-bold text-rose-300">
+                              ⚠️ Chi tiết {batchPreview.conflictSlots.length} xung đột chồng lấn phòng chiếu:
+                            </div>
+                            <div className="max-h-24 overflow-y-auto space-y-1 pr-1 font-mono text-rose-200">
+                              {batchPreview.conflictSlots.map((c, i) => (
+                                <div key={i}>
+                                  • [{c.date} • {c.startTimeText || c.time}] {c.roomName} ({c.movieTitle}): {c.reason}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Thanh lọc bảng & nút Thu gọn / Mở rộng các nhóm Ngày - Phòng */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white">
+                              📊 Chi tiết lịch dự kiến theo Ngày & Phòng ({groupedPreviewByDayRoom.length} nhóm):
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setCollapsedPreviewGroups(new Set())}
+                              className="text-[11px] text-cyan-400 hover:underline cursor-pointer"
+                            >
+                              Mở rộng tất cả
+                            </button>
+                            <span className="text-slate-700">|</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCollapsedPreviewGroups(new Set(groupedPreviewByDayRoom.map((g) => g.groupKey)))
+                              }
+                              className="text-[11px] text-slate-400 hover:text-white cursor-pointer"
+                            >
+                              Thu gọn tất cả
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setBatchPreviewFilter('ALL')}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
+                                batchPreviewFilter === 'ALL'
+                                  ? 'bg-slate-800 text-white'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              Tất cả ({previewAllSlots.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setBatchPreviewFilter('VALID')}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
+                                batchPreviewFilter === 'VALID'
+                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
+                                  : 'text-emerald-400 hover:text-emerald-300'
+                              }`}
+                            >
+                              ✓ Hợp lệ ({batchPreview.validCount})
+                            </button>
+                            {batchPreview.conflictCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setBatchPreviewFilter('CONFLICT')}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
+                                  batchPreviewFilter === 'CONFLICT'
+                                    ? 'bg-rose-950 text-rose-300 border border-rose-500/40'
+                                    : 'text-rose-400 hover:text-rose-300'
+                                }`}
+                              >
+                                ✗ Xung đột ({batchPreview.conflictCount})
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Danh sách nhóm theo Ngày & Phòng + Bảng 10 cột chuẩn (Section VIII) */}
+                        <div className="max-h-80 overflow-y-auto space-y-2.5 pr-1">
+                          {groupedPreviewByDayRoom.map((group) => {
+                            const isCollapsed = collapsedPreviewGroups.has(group.groupKey);
+                            const isImax = group.roomType === 'IMAX Laser';
+                            const isAtmos = group.roomType === 'Dolby Atmos';
+                            const roomBadgeClass = isImax
+                              ? 'text-[#22D3EE] border-[#22D3EE]/40 bg-[#22D3EE]/10'
+                              : isAtmos
+                              ? 'text-[#C084FC] border-[#C084FC]/40 bg-[#C084FC]/10'
+                              : 'text-[#F6CF65] border-[#F6CF65]/40 bg-[#F6CF65]/10';
+                            const roomTextClass = isImax
+                              ? 'text-[#22D3EE]'
+                              : isAtmos
+                              ? 'text-[#C084FC]'
+                              : 'text-[#F6CF65]';
+
+                            const validInGroup = group.slots.filter((s) => s.status === 'VALID').length;
+                            const reqInGroup = group.summary?.requestedSlots;
+
+                            return (
+                              <div
+                                key={group.groupKey}
+                                className="border border-slate-800/90 rounded-xl overflow-hidden bg-[#0B1120]"
+                              >
+                                <div
+                                  onClick={() => {
+                                    setCollapsedPreviewGroups((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(group.groupKey)) next.delete(group.groupKey);
+                                      else next.add(group.groupKey);
+                                      return next;
+                                    });
+                                  }}
+                                  className="px-3.5 py-2 bg-slate-900/90 hover:bg-slate-900 flex items-center justify-between cursor-pointer border-b border-slate-800/70"
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="font-mono font-bold text-slate-300 text-xs">
+                                      📅 {group.date}
+                                    </span>
+                                    <span className={`font-bold text-xs ${roomTextClass}`}>
+                                      {group.roomName}
+                                    </span>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${roomBadgeClass}`}>
+                                      {group.roomType}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-[11px]">
+                                    {group.summary?.note && (
+                                      <span className="text-amber-300 text-[10px]" title={group.summary.note}>
+                                        ⚠️ Thiếu {group.summary.unallocatedSlots} suất
+                                      </span>
+                                    )}
+                                    <span className="font-mono font-bold text-emerald-400">
+                                      {reqInGroup ? `${validInGroup}/${reqInGroup} suất` : `${validInGroup} suất`}
+                                    </span>
+                                    <span className="text-slate-400 text-[10px]">
+                                      {isCollapsed ? '▼ Mở' : '▲ Thu gọn'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {!isCollapsed && (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse text-[11px]">
+                                      <thead>
+                                        <tr className="border-b border-slate-800/80 bg-slate-950/60 text-slate-400 font-bold uppercase text-[10px] whitespace-nowrap">
+                                          <th className="py-2 px-2.5">Ngày</th>
+                                          <th className="py-2 px-2.5">Phòng</th>
+                                          <th className="py-2 px-2.5">Phim</th>
+                                          <th className="py-2 px-2.5 text-center">Thời lượng</th>
+                                          <th className="py-2 px-2.5 text-center">Bắt đầu</th>
+                                          <th className="py-2 px-2.5 text-center">Kết thúc</th>
+                                          <th className="py-2 px-2.5 text-center">Vệ sinh xong</th>
+                                          <th className="py-2 px-2.5 text-right">Giá vé</th>
+                                          <th className="py-2 px-2.5 text-center">Số ghế</th>
+                                          <th className="py-2 px-2.5 text-center">Trạng thái</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-800/60">
+                                        {group.slots.map((slot, idx) => {
+                                          const isConflict = slot.status === 'CONFLICT';
+                                          return (
+                                            <tr
+                                              key={idx}
+                                              data-testid={`batch-preview-row-${idx}`}
+                                              className={
+                                                isConflict
+                                                  ? 'bg-rose-950/25 text-rose-200'
+                                                  : 'hover:bg-slate-900/50'
+                                              }
+                                            >
+                                              <td className="py-2 px-2.5 font-mono whitespace-nowrap text-slate-300">
+                                                {slot.date}
+                                              </td>
+                                              <td className={`py-2 px-2.5 font-bold whitespace-nowrap ${roomTextClass}`}>
+                                                {slot.roomName}
+                                              </td>
+                                              <td
+                                                className="py-2 px-2.5 font-bold text-white max-w-[180px] truncate"
+                                                title={slot.movieTitle}
+                                              >
+                                                {slot.movieTitle}
+                                              </td>
+                                              <td className="py-2 px-2.5 text-center font-mono whitespace-nowrap text-slate-300">
+                                                {slot.duration} phút
+                                              </td>
+                                              <td className="py-2 px-2.5 text-center font-mono font-bold text-white whitespace-nowrap">
+                                                {slot.startTimeText || slot.time}
+                                              </td>
+                                              <td className="py-2 px-2.5 text-center font-mono font-semibold text-slate-200 whitespace-nowrap">
+                                                {slot.endTimeText}
+                                              </td>
+                                              <td className="py-2 px-2.5 text-center font-mono whitespace-nowrap">
+                                                <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold text-[10px]">
+                                                  {slot.cleaningEndTimeText} (+{slot.cleaningMinutes}p)
+                                                </span>
+                                              </td>
+                                              <td className="py-2 px-2.5 text-right font-mono font-bold text-emerald-300 whitespace-nowrap">
+                                                {slot.price ? `${Number(slot.price).toLocaleString('vi-VN')}đ` : '--'}
+                                              </td>
+                                              <td className="py-2 px-2.5 text-center font-mono whitespace-nowrap text-slate-300">
+                                                {slot.totalSeats || 88} ghế
+                                              </td>
+                                              <td className="py-2 px-2.5 text-center whitespace-nowrap">
+                                                {isConflict ? (
+                                                  <span
+                                                    className="inline-block px-2.5 py-0.5 rounded-md bg-rose-950 border border-rose-500/60 text-rose-300 font-bold text-[10px] whitespace-nowrap cursor-help"
+                                                    title={slot.reason || 'Xung đột lịch chiếu trong cùng phòng'}
+                                                  >
+                                                    Xung đột
+                                                  </span>
+                                                ) : (
+                                                  <span className="inline-block px-2.5 py-0.5 rounded-md bg-emerald-950 border border-emerald-500/50 text-emerald-300 font-bold text-[10px] whitespace-nowrap">
+                                                    Hợp lệ
+                                                  </span>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer Buttons */}
+                    <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
                       <button
                         type="button"
                         onClick={() => setIsBatchModalOpen(false)}
-                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
+                        className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
                       >
                         Đóng
                       </button>
                       <button
                         type="button"
+                        data-testid="batch-confirm-create-btn"
                         onClick={handleExecuteBatchSchedule}
-                        disabled={batchLoading}
-                        className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+                        disabled={!canConfirm || isConfirmingBatch}
+                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
                       >
-                        {batchLoading ? 'Đang tạo...' : 'Xác nhận tạo lịch chiếu'}
+                        {isConfirmingBatch || batchLoading
+                          ? 'Đang tạo lịch chiếu...'
+                          : batchPreview?.validCount
+                          ? `Xác nhận tạo ${batchPreview.validCount} suất chiếu`
+                          : 'Xác nhận tạo lịch chiếu'}
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ========================================================================= */}
           {/* MODAL XÁC NHẬN XÓA / HỦY SUẤT CHIẾU (HOLOGRAPHIC DARK NAVY THEME)        */}
@@ -2794,6 +4338,168 @@ const ShowtimeManagePage = () => {
               </div>
             );
           })()}
+
+          {/* ========================================================================= */}
+          {/* MODAL XÁC NHẬN XÓA HÀNG LOẠT SUẤT CHIẾU (BULK DELETE PREVIEW & COMMIT)   */}
+          {/* ========================================================================= */}
+          {isBulkDeleteModalOpen && (
+            <div
+              data-testid="bulk-delete-modal"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 animate-fadeIn"
+            >
+              <div className="bg-[#101728] border border-rose-500/30 w-full max-w-[680px] rounded-[24px] p-6 shadow-2xl space-y-5 text-[#F1F5F9] max-h-[90vh] overflow-y-auto">
+                {/* Header */}
+                <div className="flex items-start justify-between border-b border-slate-800/80 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-rose-950/60 border border-rose-500/40 flex items-center justify-center text-rose-400 shadow-inner">
+                      <Trash2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white tracking-wide">
+                        Xác nhận xóa hàng loạt suất chiếu
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Hệ thống kiểm tra an toàn từng suất chiếu trước khi thực hiện giao dịch xóa trên MongoDB
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isBulkCommitting}
+                    onClick={() => setIsBulkDeleteModalOpen(false)}
+                    className="w-8 h-8 rounded-full bg-[#080E1D] hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold text-sm transition-all cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {isBulkPreviewLoading || !bulkDeletePreview ? (
+                  <div className="py-12 text-center text-slate-300 text-xs space-y-2">
+                    <div className="w-7 h-7 border-2 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                    <p>Đang kiểm tra trạng thái đơn vé và ghế của {selectedShowtimeIds.size} suất chiếu...</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* 3 Thẻ chỉ số tổng quan */}
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div className="bg-[#080E1D] border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">Tổng số suất đã chọn</span>
+                        <span className="text-2xl font-black text-white font-mono" data-testid="preview-total-selected">
+                          {bulkDeletePreview.totalSelected || 0}
+                        </span>
+                      </div>
+                      <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-2xl p-3">
+                        <span className="text-[11px] text-emerald-300 block">Số suất được phép xóa</span>
+                        <span className="text-2xl font-black text-emerald-400 font-mono" data-testid="preview-eligible-count">
+                          {bulkDeletePreview.eligibleCount || 0}
+                        </span>
+                      </div>
+                      <div className="bg-amber-950/30 border border-amber-500/30 rounded-2xl p-3">
+                        <span className="text-[11px] text-amber-300 block">Số suất bị bảo vệ</span>
+                        <span className="text-2xl font-black text-amber-400 font-mono" data-testid="preview-blocked-count">
+                          {bulkDeletePreview.blockedCount || 0}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Danh sách suất bị bảo vệ kèm lý do */}
+                    {Array.isArray(bulkDeletePreview.blockedSlots) && bulkDeletePreview.blockedSlots.length > 0 && (
+                      <div className="bg-amber-950/25 border border-amber-500/40 rounded-2xl p-4 space-y-2.5">
+                        <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>Danh sách suất bị bảo vệ và lý do không được xóa ({bulkDeletePreview.blockedSlots.length} suất):</span>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                          {bulkDeletePreview.blockedSlots.map((slot) => {
+                            const tStr = new Date(slot.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                            const dStr = new Date(slot.startTime).toLocaleDateString('vi-VN');
+                            return (
+                              <div
+                                key={slot.id}
+                                data-testid={`blocked-slot-${slot.id}`}
+                                className="bg-[#080E1D]/90 border border-amber-500/20 rounded-xl px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs"
+                              >
+                                <div>
+                                  <span className="font-bold text-white">{slot.movieTitle}</span>
+                                  <span className="text-cyan-300 ml-2 font-semibold">{slot.roomName}</span>
+                                  <span className="text-slate-400 ml-2 font-mono">({tStr} • {dStr})</span>
+                                </div>
+                                <span className="text-amber-300 font-semibold text-[11px]">
+                                  🛡️ {slot.reason}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Danh sách suất được phép xóa */}
+                    {Array.isArray(bulkDeletePreview.eligibleSlots) && bulkDeletePreview.eligibleSlots.length > 0 && (
+                      <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-4 space-y-2.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-emerald-300">
+                            🟢 Suất hợp lệ sẽ được xóa hoàn toàn & giải phóng {bulkDeletePreview.totalSeatsToRelease || 0} ghế ({bulkDeletePreview.eligibleSlots.length} suất):
+                          </span>
+                        </div>
+                        <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+                          {bulkDeletePreview.eligibleSlots.map((slot) => {
+                            const tStr = new Date(slot.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                            const dStr = new Date(slot.startTime).toLocaleDateString('vi-VN');
+                            return (
+                              <div
+                                key={slot.id}
+                                className="bg-[#080E1D]/80 border border-slate-800 rounded-xl px-3 py-2 flex items-center justify-between text-xs"
+                              >
+                                <div className="truncate">
+                                  <span className="font-bold text-white">{slot.movieTitle}</span>
+                                  <span className="text-cyan-300 ml-2">{slot.roomName}</span>
+                                </div>
+                                <span className="text-slate-300 font-mono shrink-0">
+                                  {tStr} • {dStr}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer buttons */}
+                    <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800/80">
+                      <button
+                        type="button"
+                        disabled={isBulkCommitting}
+                        onClick={() => setIsBulkDeleteModalOpen(false)}
+                        className="px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
+                      >
+                        Đóng / Hủy
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="bulk-commit-delete-btn"
+                        disabled={isBulkCommitting || !bulkDeletePreview.eligibleCount}
+                        onClick={handleCommitBulkDelete}
+                        className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold text-xs shadow-lg shadow-rose-900/40 transition-all flex items-center gap-2 cursor-pointer"
+                      >
+                        {isBulkCommitting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span>Đang xóa hàng loạt...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-4 h-4" />
+                            <span>Xác nhận xóa {bulkDeletePreview.eligibleCount || 0} suất hợp lệ</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
         </main>
       </div>

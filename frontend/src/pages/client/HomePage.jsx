@@ -1,28 +1,105 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../services/api';
 import { cinemaDate, releaseMonth } from '../../utils/cinemaCalendar';
+import { getMoviesCached, getCinemasCached, getCachedData } from '../../services/clientDataCache';
+import { resolveCanonicalCinema } from '../../constants/cinemas';
 import HomeHeroBanner from '../../components/home/HomeHeroBanner';
 import HomeQuickBooking from '../../components/home/HomeQuickBooking';
 import HomeMovieTabs from '../../components/home/HomeMovieTabs';
 import HomeBrandShowcase from '../../components/home/HomeBrandShowcase';
 
+const formatAndSortMovies = (rawMovies = []) => {
+  const formattedMovies = rawMovies.map((m) => ({
+    id: m.id || m._id?.toString(),
+    title: m.title,
+    slug: m.slug,
+    genre: m.genre || 'Hành động, Phiêu lưu',
+    ageRating: m.ageRating || 'T16',
+    ageDescription:
+      m.ageRating === 'P'
+        ? 'Phim dành cho mọi lứa tuổi'
+        : `Phim cấm khán giả dưới ${m.ageRating ? m.ageRating.replace('T', '') : 16} tuổi`,
+    techFormat:
+      m.techFormat ||
+      (Array.isArray(m.formats) && m.formats.length > 0
+        ? m.formats[m.formats.length - 1]
+        : 'IMAX'),
+    rating: m.rating != null && Number.isFinite(Number(m.rating)) ? Number(m.rating).toFixed(1) : null,
+    ratingCount: m.ratingCount || '0 lượt đánh giá',
+    verifiedRatingCount: Number.isFinite(Number(m.verifiedRatingCount)) ? Number(m.verifiedRatingCount) : 0,
+    duration: m.duration || 120,
+    formats: Array.isArray(m.formats) && m.formats.length > 0 ? m.formats : ['2D', '3D', 'IMAX'],
+    poster: m.poster || m.posterUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop',
+    posterUrl: m.posterUrl || m.poster,
+    bannerUrl: m.bannerUrl || '',
+    trailerUrl: m.trailerUrl || '',
+    description: m.description || '',
+    status: m.status || 'NOW_SHOWING',
+    releaseDate: m.releaseDate,
+    firstShowtimeId: m.firstShowtimeId,
+    showtimes: Array.isArray(m.showtimes) ? m.showtimes : [],
+  }));
+
+  const currentMonth = cinemaDate().slice(0, 7);
+  const rank = (movie) => {
+    const month = releaseMonth(movie);
+    if (month === currentMonth) return 0;
+    return month > currentMonth ? 1 : 2;
+  };
+  return [...formattedMovies].sort((a, b) => rank(a) - rank(b)
+    || cinemaDate(a.releaseDate).localeCompare(cinemaDate(b.releaseDate)));
+};
+
 const HomePage = () => {
-  const [moviesList, setMoviesList] = useState([]);
-  const [cinemas, setCinemas] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const initialCachedMovies = getCachedData('GET:/movies').data;
+  const initialSortedMovies = initialCachedMovies ? formatAndSortMovies(initialCachedMovies) : [];
+  const initialCachedCinemas = getCachedData('GET:/cinemas?').data;
+
+  const [moviesList, setMoviesList] = useState(initialSortedMovies);
+  const [cinemas, setCinemas] = useState(initialCachedCinemas ? [resolveCanonicalCinema(initialCachedCinemas)] : []);
+  const [loading, setLoading] = useState(initialSortedMovies.length === 0);
 
   // Hero Banner Slider State
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHoveringHero, setIsHoveringHero] = useState(false);
 
-  // Quick Booking Bar State
-  const [selectedMovieId, setSelectedMovieId] = useState('');
-  const [selectedTheater, setSelectedTheater] = useState('');
+  // Quick Booking Bar State (cố định cụm rạp duy nhất D'AVENOR Thanh Khê Plaza)
+  const [selectedMovieId, setSelectedMovieId] = useState(() =>
+    initialSortedMovies.length > 0 ? String(initialSortedMovies[0].id) : ''
+  );
+  const [selectedTheater, setSelectedTheater] = useState(() => resolveCanonicalCinema(initialCachedCinemas).name);
   const [selectedDate, setSelectedDate] = useState('Hôm nay');
   const [selectedShowtimeId, setSelectedShowtimeId] = useState('');
 
   useEffect(() => {
+    let isMounted = true;
+    const fetchInitialData = async () => {
+      try {
+        if (initialSortedMovies.length === 0) setLoading(true);
+        const [rawMovies, rawCinemas] = await Promise.all([
+          getMoviesCached(),
+          getCinemasCached(),
+        ]);
+        if (!isMounted) return;
+
+        if (Array.isArray(rawMovies)) {
+          const sortedMovies = formatAndSortMovies(rawMovies);
+          setMoviesList(sortedMovies);
+          if (sortedMovies.length > 0) {
+            setSelectedMovieId((prev) => prev || String(sortedMovies[0].id));
+          }
+        }
+
+        const canonical = resolveCanonicalCinema(rawCinemas);
+        setCinemas([canonical]);
+        setSelectedTheater(canonical.name);
+      } catch (err) {
+        console.warn('Lỗi tải dữ liệu trang chủ từ máy chủ:', err.message);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
     fetchInitialData();
+    return () => { isMounted = false; };
   }, []);
 
   // Tự động chuyển phim trên banner sau mỗi 6 giây (Tạm dừng khi di chuột)
@@ -33,78 +110,6 @@ const HomePage = () => {
     }, 6000);
     return () => clearInterval(interval);
   }, [moviesList.length, isHoveringHero]);
-
-  const fetchInitialData = async () => {
-    try {
-      setLoading(true);
-      const [resMovies, resCinemas] = await Promise.all([
-        api.get('/movies'),
-        api.get('/cinemas'),
-      ]);
-
-      if (resMovies.data && Array.isArray(resMovies.data)) {
-        const formattedMovies = resMovies.data.map((m) => ({
-          id: m.id || m._id?.toString(),
-          title: m.title,
-          slug: m.slug,
-          genre: m.genre || 'Hành động, Phiêu lưu',
-          ageRating: m.ageRating || 'T16',
-          ageDescription:
-            m.ageRating === 'P'
-              ? 'Phim dành cho mọi lứa tuổi'
-              : `Phim cấm khán giả dưới ${m.ageRating ? m.ageRating.replace('T', '') : 16} tuổi`,
-          techFormat:
-            m.techFormat ||
-            (Array.isArray(m.formats) && m.formats.length > 0
-              ? m.formats[m.formats.length - 1]
-              : 'IMAX'),
-          rating: m.rating || '4.8',
-          duration: m.duration || 120,
-          formats: Array.isArray(m.formats) && m.formats.length > 0 ? m.formats : ['2D', '3D', 'IMAX'],
-          poster: m.poster || m.posterUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop',
-          posterUrl: m.posterUrl || m.poster,
-          bannerUrl: m.bannerUrl || '',
-          trailerUrl: m.trailerUrl || '',
-          description: m.description || '',
-          status: m.status || 'NOW_SHOWING',
-          releaseDate: m.releaseDate,
-          firstShowtimeId: m.firstShowtimeId,
-          showtimes: Array.isArray(m.showtimes) ? m.showtimes : [],
-        }));
-
-        // Sắp xếp ưu tiên 3 bộ phim Đang Chiếu Tại Rạp (Dune 2, Mai, Deadpool & Wolverine) liền kề nhau ở đầu danh sách slider
-        const currentMonth = cinemaDate().slice(0, 7);
-        const rank = (movie) => {
-          const month = releaseMonth(movie);
-          if (month === currentMonth) return 0;
-          return month > currentMonth ? 1 : 2;
-        };
-        const sortedMovies = [...formattedMovies].sort((a, b) => rank(a) - rank(b)
-          || cinemaDate(a.releaseDate).localeCompare(cinemaDate(b.releaseDate)));
-
-        setMoviesList(sortedMovies);
-        if (sortedMovies.length > 0) {
-          setSelectedMovieId(String(sortedMovies[0].id));
-          // Mặc định không tự chọn trước suất chiếu để người dùng thấy nút "Chọn suất chiếu"
-          setSelectedShowtimeId('');
-        }
-      }
-
-      if (resCinemas.data && Array.isArray(resCinemas.data)) {
-        // Chỉ lấy các rạp tại Đà Nẵng
-        const daNangOnly = resCinemas.data.filter((c) => (c.city || '').toLowerCase().includes('đà nẵng') || !c.city);
-        const finalList = daNangOnly.length > 0 ? daNangOnly : resCinemas.data;
-        setCinemas(finalList);
-        if (finalList.length > 0) {
-          setSelectedTheater(finalList[0].name);
-        }
-      }
-    } catch (err) {
-      console.warn('Lỗi tải dữ liệu trang chủ từ máy chủ:', err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleNextHero = () => {
     if (moviesList.length === 0) return;

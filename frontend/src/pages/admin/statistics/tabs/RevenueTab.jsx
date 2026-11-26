@@ -5,32 +5,62 @@ import statisticsApi from '../services/statisticsApi';
 import { formatCurrency, formatNumber, formatPercent } from '../utils/statisticsFormatter';
 
 const EXPENSE_TYPES = [
-  { value: 'DIRECT_MOVIE', label: 'Bản quyền phim & Nhà phát hành' },
-  { value: 'MARKETING', label: 'Tiếp thị & Quảng cáo' },
-  { value: 'OPERATIONAL_CINEMA', label: 'Vận hành cụm rạp' },
-  { value: 'STAFF', label: 'Lương & Nhân sự rạp' },
-  { value: 'UTILITY', label: 'Điện nước, Mạng & Bảo trì' },
-  { value: 'OTHER', label: 'Chi phí khác' },
+  { value: 'MOVIE_LICENSE', label: 'Chi phí bản quyền phim', isDirect: true },
+  { value: 'REVENUE_SHARE', label: 'Chia sẻ doanh thu nhà phát hành', isDirect: true },
+  { value: 'MARKETING', label: 'Chi phí Marketing & Quảng bá', isDirect: true },
+  { value: 'ELECTRICITY_WATER', label: 'Chi phí điện nước & điều hòa', isDirect: false },
+  { value: 'STAFF', label: 'Chi phí nhân sự & vận hành ca', isDirect: false },
+  { value: 'CLEANING', label: 'Chi phí vệ sinh phòng chiếu', isDirect: false },
+  { value: 'MAINTENANCE', label: 'Chi phí bảo trì thiết bị & phòng chiếu', isDirect: false },
+  { value: 'CONCESSION_COGS', label: 'Chi phí nguyên liệu bắp nước', isDirect: false },
+  { value: 'OTHER', label: 'Chi phí khác', isDirect: false },
 ];
 
-const RevenueTab = ({ data, loading }) => {
-  const [tableMode, setTableMode] = useState('monthly'); // 'monthly' | 'daily' | 'movies' | 'expenses'
+const EXPENSE_TYPE_LABELS = {
+  MOVIE_LICENSE: 'Chi phí bản quyền phim',
+  REVENUE_SHARE: 'Chia sẻ doanh thu nhà phát hành',
+  DIRECT_MOVIE: 'Bản quyền & Chia sẻ doanh thu phim',
+  MARKETING: 'Chi phí Marketing & Quảng bá',
+  ELECTRICITY_WATER: 'Chi phí điện nước & điều hòa',
+  UTILITY: 'Điện nước & Tiện ích',
+  STAFF: 'Chi phí nhân sự & vận hành ca',
+  CLEANING: 'Chi phí vệ sinh phòng chiếu',
+  MAINTENANCE: 'Chi phí bảo trì thiết bị & phòng chiếu',
+  OPERATIONAL_CINEMA: 'Vận hành cụm rạp',
+  CONCESSION_COGS: 'Chi phí nguyên liệu bắp nước',
+  OTHER: 'Chi phí khác',
+};
+
+const RevenueTab = ({
+  data,
+  loading,
+  error,
+  onRetry,
+  filters,
+  moviesList = [],
+  roomsList = [],
+  onSelectMovie,
+  onExpenseMutated,
+}) => {
+  const [tableMode, setTableMode] = useState('movies'); // 'movies' | 'expenses' | 'monthly' | 'daily'
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 8;
+  const pageSize = 10;
 
   // State Quản lý Chi phí thực tế (CRUD Expense)
   const [expensesList, setExpensesList] = useState([]);
   const [loadingExpenses, setLoadingExpenses] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
-  const [moviesList, setMoviesList] = useState([]);
   const [expenseForm, setExpenseForm] = useState({
     title: '',
-    type: 'DIRECT_MOVIE',
+    type: 'MOVIE_LICENSE',
     amount: '',
     movieId: '',
+    roomId: '',
     date: new Date().toISOString().slice(0, 10),
+    month: filters?.month || 11,
+    year: filters?.year || 2026,
     notes: '',
   });
   const [expenseFeedback, setExpenseFeedback] = useState('');
@@ -42,26 +72,23 @@ const RevenueTab = ({ data, loading }) => {
   const rows = data?.revenueTableRows || [];
   const movieRows = data?.movieRevenueRows || [];
 
-  // Tải danh sách chi phí thực tế & danh mục phim
+  // Tải danh sách chi phí thực tế theo bộ lọc kỳ hiện tại
   const fetchExpensesData = useCallback(async () => {
     try {
       setLoadingExpenses(true);
-      const [expRes, movRes] = await Promise.all([
-        statisticsApi.getExpenses({ limit: 100 }),
-        statisticsApi.getFilterMovies(),
-      ]);
+      const expRes = await statisticsApi.getExpenses({
+        ...filters,
+        limit: 100,
+      });
       if (expRes.data?.data) {
         setExpensesList(expRes.data.data.items || []);
-      }
-      if (Array.isArray(movRes.data)) {
-        setMoviesList(movRes.data);
       }
     } catch (err) {
       console.warn('Lỗi nạp danh sách chi phí:', err.message);
     } finally {
       setLoadingExpenses(false);
     }
-  }, []);
+  }, [filters]);
 
   useEffect(() => {
     fetchExpensesData();
@@ -70,12 +97,19 @@ const RevenueTab = ({ data, loading }) => {
   // Xử lý mở Modal thêm / sửa chi phí
   const handleOpenAddExpense = () => {
     setEditingExpense(null);
+    const defaultDate =
+      filters?.timeRange === 'by_month' && filters?.year && filters?.month
+        ? `${filters.year}-${String(filters.month).padStart(2, '0')}-15`
+        : new Date().toISOString().slice(0, 10);
     setExpenseForm({
       title: '',
-      type: 'DIRECT_MOVIE',
+      type: 'MOVIE_LICENSE',
       amount: '',
-      movieId: '',
-      date: new Date().toISOString().slice(0, 10),
+      movieId: filters?.movieId && filters.movieId !== 'ALL' ? filters.movieId : '',
+      roomId: filters?.roomId && filters.roomId !== 'ALL' ? filters.roomId : '',
+      date: defaultDate,
+      month: filters?.month || 11,
+      year: filters?.year || 2026,
       notes: '',
     });
     setShowExpenseModal(true);
@@ -88,7 +122,10 @@ const RevenueTab = ({ data, loading }) => {
       type: item.type,
       amount: item.amount,
       movieId: item.movieId?._id || item.movieId || '',
+      roomId: item.roomId?._id || item.roomId || '',
       date: item.date ? new Date(item.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      month: item.month || filters?.month || 11,
+      year: item.year || filters?.year || 2026,
       notes: item.notes || '',
     });
     setShowExpenseModal(true);
@@ -97,21 +134,26 @@ const RevenueTab = ({ data, loading }) => {
   // Submit Form thêm / sửa
   const handleExpenseSubmit = async (e) => {
     e.preventDefault();
-    if (!expenseForm.title || !expenseForm.amount) {
-      setExpenseFeedback('✕ Vui lòng nhập đầy đủ Tên khoản chi và Số tiền!');
+    if (!expenseForm.title || expenseForm.amount === '' || Number(expenseForm.amount) < 0) {
+      setExpenseFeedback('✕ Vui lòng nhập đầy đủ Tên khoản chi và Số tiền hợp lệ!');
       return;
     }
     try {
+      const payload = {
+        ...expenseForm,
+        amount: Number(expenseForm.amount),
+      };
       if (editingExpense) {
-        await statisticsApi.updateExpense(editingExpense._id || editingExpense.id, expenseForm);
-        setExpenseFeedback('✓ Cập nhật khoản chi thành công!');
+        await statisticsApi.updateExpense(editingExpense._id || editingExpense.id, payload);
+        setExpenseFeedback('✓ Cập nhật khoản chi thành công! Số liệu lợi nhuận đã được tính lại.');
       } else {
-        await statisticsApi.createExpense(expenseForm);
-        setExpenseFeedback('✓ Thêm mới khoản chi thành công!');
+        await statisticsApi.createExpense(payload);
+        setExpenseFeedback('✓ Thêm mới khoản chi thành công! Số liệu lợi nhuận đã được tính lại.');
       }
       setShowExpenseModal(false);
-      fetchExpensesData();
-      setTimeout(() => setExpenseFeedback(''), 4000);
+      await fetchExpensesData();
+      if (onExpenseMutated) onExpenseMutated();
+      setTimeout(() => setExpenseFeedback(''), 5000);
     } catch (err) {
       console.error('Lỗi lưu khoản chi:', err);
       setExpenseFeedback('✕ Lưu chi phí thất bại. Vui lòng kiểm tra lại!');
@@ -121,11 +163,12 @@ const RevenueTab = ({ data, loading }) => {
 
   // Xóa khoản chi
   const handleDeleteExpense = async (id) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa khoản chi này?')) return;
+    if (!window.confirm('Bạn có chắc chắn muốn xóa khoản chi phí này?')) return;
     try {
       await statisticsApi.deleteExpense(id);
-      setExpenseFeedback('✓ Đã xóa khoản chi thành công!');
-      fetchExpensesData();
+      setExpenseFeedback('✓ Đã xóa khoản chi thành công! Báo cáo lợi nhuận đã được cập nhật.');
+      await fetchExpensesData();
+      if (onExpenseMutated) onExpenseMutated();
       setTimeout(() => setExpenseFeedback(''), 4000);
     } catch (err) {
       console.error('Lỗi xóa chi phí:', err);
@@ -157,23 +200,23 @@ const RevenueTab = ({ data, loading }) => {
       (e) =>
         e.title?.toLowerCase().includes(term) ||
         e.costCode?.toLowerCase().includes(term) ||
-        e.type?.toLowerCase().includes(term)
+        e.type?.toLowerCase().includes(term) ||
+        e.movieId?.title?.toLowerCase().includes(term)
     );
   }, [expensesList, searchTerm]);
 
-  // Phân trang
   const getCurrentItems = () => {
     switch (tableMode) {
-      case 'monthly':
-        return filteredMonthly;
-      case 'daily':
-        return filteredRows;
       case 'movies':
         return filteredMovieRows;
       case 'expenses':
         return filteredExpenses;
-      default:
+      case 'monthly':
         return filteredMonthly;
+      case 'daily':
+        return filteredRows;
+      default:
+        return filteredMovieRows;
     }
   };
 
@@ -184,109 +227,203 @@ const RevenueTab = ({ data, loading }) => {
     return currentItems.slice(start, start + pageSize);
   }, [currentItems, currentPage, pageSize]);
 
+  if (!loading && error) {
+    return (
+      <div
+        role="alert"
+        className="bg-rose-950/40 border border-rose-500/40 rounded-3xl p-8 text-center space-y-4 shadow-xl"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center mx-auto text-2xl">
+          ⚠️
+        </div>
+        <h3 className="text-base sm:text-lg font-bold text-white">Không tải được báo cáo Doanh thu & Chi phí</h3>
+        <p className="text-xs text-rose-200/80 max-w-md mx-auto">{error}</p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="px-4 py-2 rounded-xl cinema-action text-white text-xs font-bold shadow-lg cursor-pointer"
+          >
+            Thử lại ngay
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const renderStatusBadge = (status, label) => {
+    if (status === 'PROFIT') {
+      return (
+        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full border bg-emerald-950/70 text-emerald-400 border-emerald-500/40">
+          {label || 'Có lãi'}
+        </span>
+      );
+    }
+    if (status === 'BREAKEVEN') {
+      return (
+        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full border bg-cyan-950/70 text-cyan-300 border-cyan-500/40">
+          {label || 'Hòa vốn'}
+        </span>
+      );
+    }
+    if (status === 'LOSS') {
+      return (
+        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full border bg-rose-950/70 text-rose-400 border-rose-500/40">
+          {label || 'Thua lỗ'}
+        </span>
+      );
+    }
+    return (
+      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full border bg-amber-950/70 text-amber-300 border-amber-500/40">
+        {label || 'Chưa đủ dữ liệu tính lợi nhuận'}
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Thông báo thao tác nếu có */}
       {expenseFeedback && (
-        <div className="p-3 bg-[var(--bg-secondary)] border border-slate-700 rounded-2xl text-xs font-semibold text-emerald-300 shadow-lg animate-fadeIn flex items-center justify-between">
+        <div className="p-3 bg-[var(--bg-secondary)] border border-emerald-500/40 rounded-2xl text-xs font-semibold text-emerald-300 shadow-lg animate-fadeIn flex items-center justify-between">
           <span>{expenseFeedback}</span>
-          <button onClick={() => setExpenseFeedback('')} className="text-slate-400 hover:text-white">
+          <button onClick={() => setExpenseFeedback('')} className="text-slate-400 hover:text-white cursor-pointer">
             ✕
+          </button>
+        </div>
+      )}
+
+      {/* Cảnh báo rõ ràng khi chưa có dữ liệu chi phí trong kỳ (Mục VII.2) */}
+      {!loading && data && !metrics.hasExpenseData && (
+        <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="space-y-0.5">
+            <strong className="text-amber-300 block">
+              ⚠️ Chưa đủ dữ liệu tính lợi nhuận cho kỳ {data.timeRangeLabel}
+            </strong>
+            <span className="text-slate-300">
+              Hệ thống hiện chưa có khoản chi phí bản quyền phim hoặc chi phí vận hành nào trong kỳ này. Để không ghi nhận lợi nhuận 100% sai lệch, vui lòng nhập chi phí thực tế.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenAddExpense}
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shrink-0 cursor-pointer shadow"
+          >
+            + Nhập chi phí ngay
           </button>
         </div>
       )}
 
       {/* 1. DÃY 6 CHỈ SỐ TÀI CHÍNH TOÀN DIỆN (DOANH THU - CHI PHÍ - LỢI NHUẬN) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">
-        {/* Chỉ số 1: Doanh thu thuần */}
         <StatisticCard
           title="Doanh Thu Thuần"
           value={metrics.netFormatted || '0 đ'}
-          tooltip="Doanh thu thực tế sau khi đã trừ các khoản hoàn vé"
+          exactValue={`Trước chiết khấu: ${metrics.grossFormatted || '0 đ'}`}
+          tooltip="Doanh thu thuần hợp lệ = Tổng tiền thanh toán thành công (Vé + Bắp nước - Voucher)"
           loading={loading}
           icon="💳"
           iconBg="bg-emerald-500/10 text-emerald-400"
         />
 
-        {/* Chỉ số 2: Tổng chi phí thực tế */}
         <StatisticCard
           title="Tổng Chi Phí"
           value={metrics.expensesFormatted || '0 đ'}
-          tooltip="Tổng chi phí phát sinh thực tế gồm bản quyền, marketing và vận hành cụm rạp"
+          exactValue={
+            metrics.hasExpenseData
+              ? `Trực tiếp phim: ${formatCurrency(metrics.directMovieExpenses || 0)} | Vận hành: ${formatCurrency(metrics.sharedOperationalExpenses || 0)}`
+              : 'Chưa có chứng từ chi phí'
+          }
+          tooltip="Tổng chi phí trực tiếp (bản quyền phim, marketing) + chi phí vận hành rạp (điện nước, nhân sự, bảo trì)"
           loading={loading}
           icon="📉"
           iconBg="bg-rose-500/10 text-rose-400"
         />
 
-        {/* Chỉ số 3: Lợi nhuận rạp */}
         <StatisticCard
-          title="Lợi nhuận"
-          value={metrics.profitFormatted || '0 đ'}
-          subtitle={metrics.profitStatusLabel ? `${metrics.profitStatusLabel} (Biên LN ${metrics.profitMargin}%)` : ''}
-          tooltip={`Lợi nhuận = Doanh thu thuần (${metrics.netFormatted}) - Chi phí (${metrics.expensesFormatted})`}
+          title="Lợi Nhuận Rạp"
+          value={metrics.hasExpenseData ? metrics.profitFormatted : 'Chưa đủ dữ liệu'}
+          valueColor={
+            !metrics.hasExpenseData
+              ? 'text-amber-300'
+              : metrics.profitStatus === 'LOSS'
+              ? 'text-rose-400'
+              : 'text-emerald-400'
+          }
+          subtitle={
+            metrics.hasExpenseData
+              ? `${metrics.profitStatusLabel} • Biên LN: ${metrics.profitMargin}%${metrics.roi != null ? ` • ROI: ${metrics.roi}%` : ''}`
+              : 'Chưa đủ dữ liệu tính lợi nhuận'
+          }
+          tooltip="Lợi nhuận = Doanh thu thuần - Tổng chi phí"
           loading={loading}
           icon={metrics.profitStatus === 'LOSS' ? '⚠️' : '💰'}
           iconBg={metrics.profitStatus === 'LOSS' ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}
         />
 
-        {/* Chỉ số 4: Doanh thu vé */}
         <StatisticCard
           title="Doanh Thu Vé"
           value={metrics.ticketFormatted || '0 đ'}
-          tooltip="Doanh thu trực tiếp từ bán vé xem phim các định dạng"
+          exactValue={`${formatNumber(metrics.totalTicketsSold || 0)} vé (${metrics.ticketPercent || 0}%)`}
+          tooltip="Doanh thu trực tiếp từ bán vé xem phim các định dạng IMAX Laser, Dolby Atmos, Gold Class"
           loading={loading}
           icon="🎟️"
-          iconBg="bg-blue-500/10 text-blue-400"
+          iconBg="bg-cyan-500/10 text-cyan-400"
         />
 
-        {/* Chỉ số 5: Doanh thu bắp nước */}
         <StatisticCard
           title="Doanh Thu Bắp Nước"
           value={metrics.concessionFormatted || '0 đ'}
-          tooltip="Doanh thu từ các combo bắp rang bơ và đồ uống tại quầy Concession"
+          exactValue={`Tỷ trọng: ${metrics.concessionPercent || 0}% tổng doanh thu`}
+          tooltip="Doanh thu từ các combo bắp rang bơ và đồ uống đi kèm đơn đặt vé"
           loading={loading}
           icon="🍿"
           iconBg="bg-amber-500/10 text-amber-400"
         />
 
-        {/* Chỉ số 6: Tiền đã hoàn */}
         <StatisticCard
-          title="Tiền Đã Hoàn"
+          title="Tiền Đã Hoàn / Hủy"
           value={metrics.refundedFormatted || '0 đ'}
-          tooltip="Tổng tiền đã hoàn lại cho khách hàng do hủy vé"
+          exactValue={`${formatNumber(metrics.cancelledOrders || 0)} đơn hủy (${formatCurrency(metrics.cancelledAmount || 0)})`}
+          tooltip="Tổng tiền đã hoàn lại cho khách hàng do hủy vé hoặc hủy suất chiếu"
           loading={loading}
           icon="↩️"
           iconBg="bg-slate-700/40 text-slate-300"
         />
       </div>
 
-      {/* 2. BIỂU ĐỒ DOANH THU TOÀN RẠP (VÉ XEM PHIM & BẮP NƯỚC) */}
+      {/* 2. BIỂU ĐỒ KẾT HỢP DOANH THU - CHI PHÍ - LỢI NHUẬN */}
       <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
-        <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-default)]/80 pb-3">
           <div>
-            <h3 className="text-base sm:text-lg font-bold text-white">Biểu Đồ Doanh Thu Toàn Rạp</h3>
+            <h3 className="text-base sm:text-lg font-bold text-white">
+              Biểu Đồ Doanh Thu (Vé + Bắp Nước) & Chi Phí Theo Ngày
+            </h3>
             <p className="text-xs text-slate-400">
-              Diễn biến doanh thu thực tế phân tách giữa Vé xem phim và Dịch vụ Bắp nước theo các ngày
+              Diễn biến dòng tiền thực tế từng ngày trong kỳ {data?.timeRangeLabel}
             </p>
           </div>
-          <span className="text-xs font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-1 rounded-lg">
-            Thực thu qua các cổng
-          </span>
+          <button
+            type="button"
+            onClick={handleOpenAddExpense}
+            className="px-3.5 py-1.5 rounded-xl cinema-action text-white text-xs font-bold shadow cursor-pointer"
+          >
+            + Thêm khoản chi phí
+          </button>
         </div>
 
-        <RevenueChart data={data?.revenueChartData || []} loading={loading} />
+        <RevenueChart data={data?.revenueChartData || []} loading={loading} showExpenseOverlay={true} />
       </div>
 
       {/* 3. CƠ CẤU CHI PHÍ THỰC TẾ & CƠ CẤU DOANH THU */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Khối Cơ Cấu Chi Phí Thực Tế Rạp (6 Danh Mục Chuẩn) */}
+        {/* Khối Cơ Cấu Chi Phí Thực Tế Rạp */}
         <div className="lg:col-span-6 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
           <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
               <h3 className="text-base font-bold text-white">Cơ Cấu Chi Phí Hoạt Động Rạp</h3>
-              <p className="text-xs text-slate-400">Phân bổ 6 nhóm chi phí thực tế phục vụ tính lãi/lỗ</p>
+              <p className="text-xs text-slate-400">Phân bổ các danh mục chi phí thực tế trong kỳ</p>
             </div>
-            <span className="text-xs font-semibold text-rose-400">Chi phí thực tế</span>
+            <span className="text-xs font-semibold text-rose-400">{metrics.expensesFormatted || '0 đ'}</span>
           </div>
 
           <div className="space-y-3">
@@ -300,7 +437,7 @@ const RevenueTab = ({ data, loading }) => {
                 </div>
                 <div className="h-2 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-rose-600 to-amber-600 rounded-full transition-all duration-700"
+                    className="h-full bg-gradient-to-r from-rose-600 to-amber-500 rounded-full transition-all duration-700"
                     style={{ width: `${Math.min(100, cat.percent)}%` }}
                   ></div>
                 </div>
@@ -309,7 +446,7 @@ const RevenueTab = ({ data, loading }) => {
           </div>
 
           <div className="pt-2 border-t border-[var(--border-default)]/80 text-[11px] text-slate-400 leading-relaxed">
-            💡 Chi phí bản quyền phim chiếm tỷ trọng lớn nhất (~46% doanh thu vé), tiếp theo là chi phí điện nước điều hòa và nhân sự vận hành.
+            💡 <strong>Quy tắc phân bổ minh bạch:</strong> Chi phí gắn trực tiếp với phim (Bản quyền phim, Chia sẻ doanh thu, Marketing phim) được tính trực tiếp cho phim đó. Chi phí vận hành chung (Điện nước, Nhân sự, Bảo trì, Vệ sinh) được phân bổ theo tỷ lệ số suất chiếu thực tế của từng bộ phim, không bao giờ tính trùng hai lần.
           </div>
         </div>
 
@@ -317,31 +454,29 @@ const RevenueTab = ({ data, loading }) => {
         <div className="lg:col-span-6 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-5 shadow-xl">
           <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
-              <h3 className="text-base font-bold text-white">Cơ Cấu Doanh Thu & Cổng Thanh Toán</h3>
-              <p className="text-xs text-slate-400">Đóng góp giữa Vé xem phim, Bắp nước và Cổng MoMo/VNPAY</p>
+              <h3 className="text-base font-bold text-white">Cơ Cấu Doanh Thu & Phương Thức Thanh Toán</h3>
+              <p className="text-xs text-slate-400">Tỷ trọng giữa Vé xem phim, Bắp nước và Cổng thanh toán</p>
             </div>
-            <span className="text-xs font-semibold text-slate-400">Tỷ trọng %</span>
+            <span className="text-xs font-semibold text-emerald-400">{metrics.netFormatted || '0 đ'}</span>
           </div>
 
-          {/* Thanh Vé xem phim */}
           <div className="space-y-3">
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-white flex items-center space-x-2">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-red-600"></span>
+                  <span className="w-2.5 h-2.5 rounded-sm bg-cyan-400"></span>
                   <span>Vé xem phim ({metrics.ticketPercent || 0}%)</span>
                 </span>
-                <span className="font-bold text-emerald-400">{metrics.ticketFormatted || '0 đ'}</span>
+                <span className="font-bold text-cyan-300">{metrics.ticketFormatted || '0 đ'}</span>
               </div>
               <div className="h-2.5 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-red-600 rounded-full transition-all duration-700"
+                  className="h-full bg-cyan-400 rounded-full transition-all duration-700"
                   style={{ width: `${metrics.ticketPercent || 0}%` }}
                 ></div>
               </div>
             </div>
 
-            {/* Thanh Bắp nước */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-white flex items-center space-x-2">
@@ -359,7 +494,6 @@ const RevenueTab = ({ data, loading }) => {
             </div>
           </div>
 
-          {/* Cổng thanh toán */}
           <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[var(--border-default)]">
             {paymentMethods.map((pm) => (
               <div
@@ -377,17 +511,45 @@ const RevenueTab = ({ data, loading }) => {
         </div>
       </div>
 
-      {/* 4. BẢNG BÁO CÁO KINH DOANH CHUYÊN SÂU & QUẢN LÝ CHI PHÍ */}
+      {/* 4. BẢNG PHÂN TÍCH DOANH THU, CHI PHÍ, LỢI NHUẬN TỪNG PHIM & QUẢN LÝ CHI PHÍ (MỤC VII & VIII) */}
       <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-default)]/80 pb-4">
-          <div className="flex items-center space-x-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-[var(--border-default)]/80 pb-4">
+          <div className="flex flex-wrap items-center gap-3">
             <div>
-              <h3 className="text-base font-bold text-white">Báo Cáo & Quản Lý Tài Chính Rạp</h3>
-              <p className="text-xs text-slate-400">Xem báo cáo 12 tháng, chi tiết theo ngày, phim và quản lý chi phí</p>
+              <h3 className="text-base font-bold text-white">Báo Cáo Lợi Nhuận Phim & Quản Lý Chi Phí Rạp</h3>
+              <p className="text-xs text-slate-400">
+                Đối soát doanh thu, chi phí bản quyền, chi phí vận hành phân bổ, lợi nhuận, Biên LN và ROI
+              </p>
             </div>
 
             {/* Chuyển đổi 4 chế độ bảng */}
-            <div className="bg-[var(--bg-surface)] p-1 rounded-xl flex items-center space-x-1 border border-slate-700 text-xs">
+            <div className="bg-[var(--bg-surface)] p-1 rounded-xl flex flex-wrap items-center gap-1 border border-slate-700 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setTableMode('movies');
+                  setCurrentPage(1);
+                  setSearchTerm('');
+                }}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                  tableMode === 'movies' ? 'cinema-action text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Lợi nhuận từng phim ({movieRows.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTableMode('expenses');
+                  setCurrentPage(1);
+                  setSearchTerm('');
+                }}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                  tableMode === 'expenses' ? 'cinema-action text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Quản lý chi phí ({expensesList.length})
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -395,8 +557,8 @@ const RevenueTab = ({ data, loading }) => {
                   setCurrentPage(1);
                   setSearchTerm('');
                 }}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                  tableMode === 'monthly' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                  tableMode === 'monthly' ? 'cinema-action text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 12 Tháng
@@ -408,37 +570,11 @@ const RevenueTab = ({ data, loading }) => {
                   setCurrentPage(1);
                   setSearchTerm('');
                 }}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                  tableMode === 'daily' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                  tableMode === 'daily' ? 'cinema-action text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 Theo ngày
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTableMode('movies');
-                  setCurrentPage(1);
-                  setSearchTerm('');
-                }}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                  tableMode === 'movies' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Theo phim
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTableMode('expenses');
-                  setCurrentPage(1);
-                  setSearchTerm('');
-                }}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-                  tableMode === 'expenses' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Quản lý chi phí ({expensesList.length})
               </button>
             </div>
           </div>
@@ -447,27 +583,203 @@ const RevenueTab = ({ data, loading }) => {
           <div className="flex items-center space-x-2.5">
             <input
               type="text"
-              placeholder="Tìm kiếm nội dung..."
+              placeholder="Tìm tên phim, mã chi phí..."
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-red-500 w-44 sm:w-52"
+              className="bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-400 w-44 sm:w-56"
             />
-            {tableMode === 'expenses' && (
-              <button
-                type="button"
-                onClick={handleOpenAddExpense}
-                className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center space-x-1.5 cursor-pointer whitespace-nowrap"
-              >
-                <span>+ Thêm chi phí</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleOpenAddExpense}
+              className="px-3.5 py-1.5 cinema-action text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center space-x-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <span>+ Thêm chi phí</span>
+            </button>
           </div>
         </div>
 
-        {/* BẢNG 1: BÁO CÁO 12 THÁNG KINH DOANH TRONG NĂM (YÊU CẦU 1 CỦA GIẢNG VIÊN) */}
+        {/* BẢNG 1: BẢNG DOANH THU - CHI PHÍ - LỢI NHUẬN - BIÊN LN - ROI TỪNG BỘ PHIM (MỤC VII.4) */}
+        {tableMode === 'movies' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
+                <tr>
+                  <th className="py-3 px-3 min-w-[200px]">Bộ phim</th>
+                  <th className="py-3 px-2 text-center">Suất chiếu</th>
+                  <th className="py-3 px-2 text-center">Vé bán</th>
+                  <th className="py-3 px-3 text-right">Doanh thu vé</th>
+                  <th className="py-3 px-3 text-right text-amber-300">Bắp nước</th>
+                  <th className="py-3 px-3 text-right font-bold text-white">Doanh thu thuần</th>
+                  <th className="py-3 px-3 text-right text-rose-300">Chi phí trực tiếp</th>
+                  <th className="py-3 px-3 text-right text-amber-300">Chi phí phân bổ</th>
+                  <th className="py-3 px-3 text-right font-bold text-rose-400">Tổng chi phí</th>
+                  <th className="py-3 px-3 text-right font-black text-emerald-400">Lợi nhuận</th>
+                  <th className="py-3 px-2 text-center">Biên LN</th>
+                  <th className="py-3 px-2 text-center">ROI</th>
+                  <th className="py-3 px-3 text-center">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 font-medium">
+                {paginatedItems.length > 0 ? (
+                  paginatedItems.map((mv, idx) => (
+                    <tr key={mv.movieId || idx} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
+                      <td className="py-3 px-3">
+                        <div
+                          onClick={() => onSelectMovie && onSelectMovie(mv.movieId)}
+                          className="flex items-center space-x-2.5 cursor-pointer group"
+                        >
+                          <img
+                            src={mv.poster}
+                            alt={mv.title}
+                            className="w-8 h-11 rounded-lg object-cover shrink-0 border border-slate-700 shadow"
+                            onError={(e) => {
+                              e.target.src = 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&auto=format&fit=crop';
+                            }}
+                          />
+                          <div className="min-w-0">
+                            <span className="font-bold text-white group-hover:text-cyan-300 block truncate">
+                              {mv.title}
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              Tỷ trọng phân bổ: {mv.allocationSharePercent || 0}%
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 text-center text-slate-300">{formatNumber(mv.showtimesCount || 0)}</td>
+                      <td className="py-3 px-2 text-center font-bold text-cyan-300">{formatNumber(mv.tickets || 0)}</td>
+                      <td className="py-3 px-3 text-right text-slate-300">{formatCurrency(mv.ticketRevenue || 0)}</td>
+                      <td className="py-3 px-3 text-right text-amber-300">{formatCurrency(mv.concessionRevenue || 0)}</td>
+                      <td className="py-3 px-3 text-right font-bold text-white">{formatCurrency(mv.netRevenue || 0)}</td>
+                      <td className="py-3 px-3 text-right text-rose-300">{formatCurrency(mv.directExpenses || 0)}</td>
+                      <td className="py-3 px-3 text-right text-amber-300">
+                        {formatCurrency(mv.allocatedOperationalCost || 0)}
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-rose-400">{formatCurrency(mv.totalCost || 0)}</td>
+                      <td
+                        className={`py-3 px-3 text-right font-black ${
+                          !mv.hasExpenseData
+                            ? 'text-amber-300'
+                            : (mv.profit || 0) >= 0
+                            ? 'text-emerald-400'
+                            : 'text-rose-400'
+                        }`}
+                      >
+                        {mv.hasExpenseData ? formatCurrency(mv.profit) : 'Chưa đủ dữ liệu'}
+                      </td>
+                      <td className="py-3 px-2 text-center font-bold">
+                        {mv.hasExpenseData && mv.profitMargin != null ? `${mv.profitMargin}%` : '—'}
+                      </td>
+                      <td className="py-3 px-2 text-center font-bold">
+                        {mv.hasExpenseData && mv.roi != null ? `${mv.roi}%` : '—'}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {renderStatusBadge(mv.profitStatus, mv.statusLabel)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="13" className="py-12 text-center text-slate-500">
+                      Chưa có dữ liệu phim trong kỳ đã chọn
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* BẢNG 2: QUẢN LÝ DANH MỤC CHI PHÍ THỰC TẾ (EXPENSE CRUD - MỤC VIII) */}
+        {tableMode === 'expenses' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
+                <tr>
+                  <th className="py-3 px-3">Mã chi phí</th>
+                  <th className="py-3 px-3 min-w-[180px]">Tên khoản chi</th>
+                  <th className="py-3 px-3">Loại chi phí</th>
+                  <th className="py-3 px-3">Phim / Phòng gắn kết</th>
+                  <th className="py-3 px-2 text-center">Kỳ áp dụng</th>
+                  <th className="py-3 px-2 text-center">Ngày chi</th>
+                  <th className="py-3 px-3 text-right font-black text-rose-400">Số tiền (VNĐ)</th>
+                  <th className="py-3 px-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 font-medium">
+                {loadingExpenses ? (
+                  <tr>
+                    <td colSpan="8" className="py-12 text-center text-slate-400">
+                      Đang tải danh sách chi phí...
+                    </td>
+                  </tr>
+                ) : paginatedItems.length > 0 ? (
+                  paginatedItems.map((exp) => (
+                    <tr key={exp._id || exp.id} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
+                      <td className="py-3 px-3 font-mono text-slate-400 font-bold">{exp.costCode}</td>
+                      <td className="py-3 px-3">
+                        <span className="font-bold text-white block">{exp.title}</span>
+                        {exp.notes && <span className="text-[10px] text-slate-500 block">{exp.notes}</span>}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="bg-[var(--bg-surface)] text-slate-300 px-2 py-0.5 rounded text-[10px] border border-slate-700">
+                          {EXPENSE_TYPE_LABELS[exp.type] || exp.type}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-slate-300">
+                        {exp.movieId?.title ? (
+                          <span className="text-cyan-300 font-semibold">🎬 {exp.movieId.title}</span>
+                        ) : exp.roomId?.name ? (
+                          <span className="text-purple-300 font-semibold">🏛️ {exp.roomId.name}</span>
+                        ) : (
+                          <span className="text-slate-400">Dùng chung toàn rạp</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 text-center text-slate-300 font-mono">
+                        {exp.month && exp.year ? `T${exp.month}/${exp.year}` : '—'}
+                      </td>
+                      <td className="py-3 px-2 text-center text-slate-400 font-mono">
+                        {new Date(exp.date).toLocaleDateString('vi-VN')}
+                      </td>
+                      <td className="py-3 px-3 text-right font-black text-rose-400">
+                        {formatCurrency(exp.amount)}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex items-center justify-end space-x-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditExpense(exp)}
+                            className="px-2.5 py-1 bg-[var(--bg-surface)] hover:bg-slate-700 text-slate-200 rounded text-[11px] cursor-pointer"
+                          >
+                            Sửa
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteExpense(exp._id || exp.id)}
+                            className="px-2.5 py-1 bg-rose-950/60 hover:bg-rose-900 text-rose-300 rounded text-[11px] cursor-pointer"
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="8" className="py-12 text-center text-slate-500">
+                      Chưa có khoản chi phí nào được ghi nhận trong kỳ. Hãy bấm "+ Thêm chi phí" để nhập chi phí bản quyền hoặc vận hành.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* BẢNG 3: BÁO CÁO 12 THÁNG KINH DOANH TRONG NĂM */}
         {tableMode === 'monthly' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
@@ -479,7 +791,7 @@ const RevenueTab = ({ data, loading }) => {
                   <th className="py-3 px-4 text-right">Doanh thu thuần</th>
                   <th className="py-3 px-4 text-right text-rose-300">Tổng chi phí</th>
                   <th className="py-3 px-4 text-right font-black text-emerald-400">Lợi nhuận (Lãi/Lỗ)</th>
-                  <th className="py-3 px-3 text-center">Tỷ suất LN</th>
+                  <th className="py-3 px-3 text-center">Biên LN</th>
                   <th className="py-3 px-3 text-center">Trạng thái</th>
                 </tr>
               </thead>
@@ -502,24 +814,20 @@ const RevenueTab = ({ data, loading }) => {
                       </td>
                       <td
                         className={`py-3.5 px-4 text-right font-black ${
-                          m.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          !m.hasExpenseData
+                            ? 'text-amber-300'
+                            : (m.profit || 0) >= 0
+                            ? 'text-emerald-400'
+                            : 'text-rose-400'
                         }`}
                       >
                         {m.formattedProfit}
                       </td>
                       <td className="py-3.5 px-3 text-center font-bold text-slate-300">
-                        {metrics.profitKnown ? m.profitMargin + '%' : '—'}
+                        {m.hasExpenseData && m.profitMargin != null ? `${m.profitMargin}%` : '—'}
                       </td>
                       <td className="py-3.5 px-3 text-center">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                            m.profitStatus === 'PROFIT'
-                              ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/30'
-                              : 'bg-rose-950/60 text-rose-400 border-rose-500/30'
-                          }`}
-                        >
-                          {m.statusLabel}
-                        </span>
+                        {renderStatusBadge(m.profitStatus, m.statusLabel)}
                       </td>
                     </tr>
                   ))
@@ -535,7 +843,7 @@ const RevenueTab = ({ data, loading }) => {
           </div>
         )}
 
-        {/* BẢNG 2: BÁO CÁO DOANH THU THEO NGÀY */}
+        {/* BẢNG 4: BÁO CÁO DOANH THU THEO NGÀY */}
         {tableMode === 'daily' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
@@ -548,7 +856,7 @@ const RevenueTab = ({ data, loading }) => {
                   <th className="py-3 px-4 text-right text-amber-400">Bắp nước</th>
                   <th className="py-3 px-4 text-right font-bold text-slate-200">Doanh thu thuần</th>
                   <th className="py-3 px-4 text-right text-rose-400">Chi phí</th>
-                  <th className="py-3 px-4 text-right font-black text-emerald-400">Lợi nhuận</th>
+                  <th className="py-3 px-4 text-right font-black text-emerald-400">Chênh lệch ngày</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 font-medium">
@@ -567,140 +875,14 @@ const RevenueTab = ({ data, loading }) => {
                           (r.profit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
-                        {metrics.profitKnown ? formatCurrency(r.profit) : '—'}
+                        {formatCurrency(r.profit)}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td colSpan="8" className="py-12 text-center text-slate-500">
-                      Không tìm thấy dữ liệu doanh thu phù hợp
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* BẢNG 3: BÁO CÁO DOANH THU THEO TỪNG PHIM */}
-        {tableMode === 'movies' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
-                <tr>
-                  <th className="py-3 px-4 min-w-[200px]">Bộ phim</th>
-                  <th className="py-3 px-3 text-center">Số đơn vé</th>
-                  <th className="py-3 px-3 text-center">Số vé bán</th>
-                  <th className="py-3 px-4 text-right">Doanh thu vé</th>
-                  <th className="py-3 px-4 text-right text-amber-400">Doanh thu bắp nước</th>
-                  <th className="py-3 px-4 text-right font-black text-emerald-400">Tổng doanh thu</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 font-medium">
-                {paginatedItems.length > 0 ? (
-                  paginatedItems.map((mv, idx) => (
-                    <tr key={mv.movieId || idx} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center space-x-3">
-                          <img
-                            src={mv.poster}
-                            alt={mv.title}
-                            className="w-9 h-12 rounded-lg object-cover shrink-0 border border-slate-700 shadow"
-                            onError={(e) => {
-                              e.target.src = 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&auto=format&fit=crop';
-                            }}
-                          />
-                          <span className="font-bold text-white truncate">{mv.title}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-center font-medium">{formatNumber(mv.orders)}</td>
-                      <td className="py-3 px-3 text-center font-bold text-slate-200">{formatNumber(mv.tickets)}</td>
-                      <td className="py-3 px-4 text-right text-slate-300">{formatCurrency(mv.ticketRevenue)}</td>
-                      <td className="py-3 px-4 text-right text-amber-400">{formatCurrency(mv.concessionRevenue)}</td>
-                      <td className="py-3 px-4 text-right font-black text-emerald-400">{formatCurrency(mv.totalRevenue)}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="6" className="py-12 text-center text-slate-500">
-                      Chưa có dữ liệu doanh thu phim
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* BẢNG 4: QUẢN LÝ DANH MỤC CHI PHÍ THỰC TẾ (EXPENSE MANAGEMENT) */}
-        {tableMode === 'expenses' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
-                <tr>
-                  <th className="py-3 px-4">Mã chi phí</th>
-                  <th className="py-3 px-4 min-w-[200px]">Tên khoản chi</th>
-                  <th className="py-3 px-3">Phân loại</th>
-                  <th className="py-3 px-3">Phim liên quan</th>
-                  <th className="py-3 px-3 text-center">Ngày chi</th>
-                  <th className="py-3 px-4 text-right font-black text-rose-400">Số tiền (đ)</th>
-                  <th className="py-3 px-3 text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 font-medium">
-                {loadingExpenses ? (
-                  <tr>
-                    <td colSpan="7" className="py-12 text-center text-slate-400">
-                      Đang tải danh sách chi phí...
-                    </td>
-                  </tr>
-                ) : paginatedItems.length > 0 ? (
-                  paginatedItems.map((exp) => (
-                    <tr key={exp._id || exp.id} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
-                      <td className="py-3 px-4 font-mono text-slate-400 font-bold">{exp.costCode}</td>
-                      <td className="py-3 px-4">
-                        <span className="font-bold text-white block">{exp.title}</span>
-                        {exp.notes && <span className="text-[10px] text-slate-500 block">{exp.notes}</span>}
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="bg-[var(--bg-surface)] text-slate-300 px-2 py-0.5 rounded text-[10px] border border-slate-700">
-                          {EXPENSE_TYPES.find((t) => t.value === exp.type)?.label || exp.type}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-slate-400 truncate max-w-[150px]">
-                        {exp.movieId?.title || 'Dùng chung toàn rạp'}
-                      </td>
-                      <td className="py-3 px-3 text-center text-slate-400 font-mono">
-                        {new Date(exp.date).toLocaleDateString('vi-VN')}
-                      </td>
-                      <td className="py-3 px-4 text-right font-black text-rose-400">
-                        {formatCurrency(exp.amount)}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="flex items-center justify-end space-x-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditExpense(exp)}
-                            className="px-2 py-1 bg-[var(--bg-surface)] hover:bg-slate-700 text-slate-300 rounded text-[11px] cursor-pointer"
-                          >
-                            Sửa
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteExpense(exp._id || exp.id)}
-                            className="px-2 py-1 bg-rose-950/60 hover:bg-rose-900 text-rose-300 rounded text-[11px] cursor-pointer"
-                          >
-                            Xóa
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="7" className="py-12 text-center text-slate-500">
-                      Chưa có khoản chi phí nào được ghi nhận.
+                      Chưa có phát sinh giao dịch hoặc chi phí theo ngày trong kỳ này
                     </td>
                   </tr>
                 )}
@@ -730,7 +912,7 @@ const RevenueTab = ({ data, loading }) => {
                   type="button"
                   onClick={() => setCurrentPage(i + 1)}
                   className={`px-2.5 py-1 rounded font-bold cursor-pointer ${
-                    currentPage === i + 1 ? 'bg-red-600 text-white' : 'bg-[var(--bg-surface)] text-slate-300 hover:bg-slate-700'
+                    currentPage === i + 1 ? 'cinema-action text-white' : 'bg-[var(--bg-surface)] text-slate-300 hover:bg-slate-700'
                   }`}
                 >
                   {i + 1}
@@ -749,18 +931,18 @@ const RevenueTab = ({ data, loading }) => {
         )}
       </div>
 
-      {/* MODAL THÊM / SỬA KHOẢN CHI THỰC TẾ */}
+      {/* MODAL THÊM / SỬA KHOẢN CHI THỰC TẾ (MỤC VIII) */}
       {showExpenseModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 animate-fadeIn">
           <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 sm:p-7 max-w-lg w-full space-y-4 shadow-2xl text-slate-200">
             <div className="flex items-center justify-between border-b border-[var(--border-default)] pb-3">
               <h3 className="text-base font-bold text-white">
-                {editingExpense ? 'Chỉnh Sửa Khoản Chi' : 'Thêm Khoản Chi Mới'}
+                {editingExpense ? 'Chỉnh Sửa Khoản Chi Phí' : 'Thêm Khoản Chi Phí Mới'}
               </h3>
               <button
                 type="button"
                 onClick={() => setShowExpenseModal(false)}
-                className="w-7 h-7 rounded-full bg-[var(--bg-surface)] hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white"
+                className="w-7 h-7 rounded-full bg-[var(--bg-surface)] hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-white cursor-pointer"
               >
                 ✕
               </button>
@@ -772,20 +954,20 @@ const RevenueTab = ({ data, loading }) => {
                 <input
                   type="text"
                   required
-                  placeholder="Ví dụ: Phí bản quyền phim Captain America..."
+                  placeholder="Ví dụ: Phí bản quyền phim Dune: Hành Tinh Cát - Phần 2..."
                   value={expenseForm.title}
                   onChange={(e) => setExpenseForm({ ...expenseForm, title: e.target.value })}
-                  className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500"
+                  className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan-400"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">Phân loại chi phí *</label>
+                  <label className="text-slate-400 font-semibold block mb-1">Loại chi phí *</label>
                   <select
                     value={expenseForm.type}
                     onChange={(e) => setExpenseForm({ ...expenseForm, type: e.target.value })}
-                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 cursor-pointer"
+                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan-400 cursor-pointer"
                   >
                     {EXPENSE_TYPES.map((t) => (
                       <option key={t.value} value={t.value} className="bg-[var(--bg-secondary)] text-white">
@@ -803,21 +985,21 @@ const RevenueTab = ({ data, loading }) => {
                     min="0"
                     placeholder="10000000"
                     value={expenseForm.amount}
-                    onChange={(e) => setExpenseForm({ ...expenseForm, amount: Number(e.target.value) })}
-                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 font-mono"
+                    onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan-400 font-mono"
                   />
                 </div>
               </div>
 
-              {['DIRECT_MOVIE', 'MARKETING'].includes(expenseForm.type) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">Phim liên quan (nếu có)</label>
+                  <label className="text-slate-400 font-semibold block mb-1">Gắn với bộ phim (tùy chọn)</label>
                   <select
                     value={expenseForm.movieId}
                     onChange={(e) => setExpenseForm({ ...expenseForm, movieId: e.target.value })}
-                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 cursor-pointer"
+                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan-400 cursor-pointer"
                   >
-                    <option value="">-- Dùng chung toàn rạp (Không gắn phim) --</option>
+                    <option value="">-- Chi phí chung toàn rạp (Phân bổ) --</option>
                     {moviesList.map((m) => (
                       <option key={m._id || m.id} value={m._id || m.id} className="bg-[var(--bg-secondary)] text-white">
                         {m.title}
@@ -825,27 +1007,76 @@ const RevenueTab = ({ data, loading }) => {
                     ))}
                   </select>
                 </div>
-              )}
 
-              <div>
-                <label className="text-slate-400 font-semibold block mb-1">Ngày phát sinh chi phí *</label>
-                <input
-                  type="date"
-                  required
-                  value={expenseForm.date}
-                  onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
-                  className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500 font-mono"
-                />
+                <div>
+                  <label className="text-slate-400 font-semibold block mb-1">Gắn với phòng chiếu (tùy chọn)</label>
+                  <select
+                    value={expenseForm.roomId}
+                    onChange={(e) => setExpenseForm({ ...expenseForm, roomId: e.target.value })}
+                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan-400 cursor-pointer"
+                  >
+                    <option value="">-- Tất cả 9 phòng chiếu --</option>
+                    {roomsList.map((r) => (
+                      <option key={r._id || r.id} value={r._id || r.id} className="bg-[var(--bg-secondary)] text-white">
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-slate-400 font-semibold block mb-1">Ngày chi *</label>
+                  <input
+                    type="date"
+                    required
+                    value={expenseForm.date}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const parts = val.split('-');
+                      setExpenseForm({
+                        ...expenseForm,
+                        date: val,
+                        year: parts[0] ? Number(parts[0]) : expenseForm.year,
+                        month: parts[1] ? Number(parts[1]) : expenseForm.month,
+                      });
+                    }}
+                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan-400 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 font-semibold block mb-1">Tháng áp dụng</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={expenseForm.month}
+                    onChange={(e) => setExpenseForm({ ...expenseForm, month: Number(e.target.value) })}
+                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan-400 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 font-semibold block mb-1">Năm áp dụng</label>
+                  <input
+                    type="number"
+                    min="2020"
+                    max="2035"
+                    value={expenseForm.year}
+                    onChange={(e) => setExpenseForm({ ...expenseForm, year: Number(e.target.value) })}
+                    className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan-400 font-mono"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Ghi chú / Chứng từ</label>
+                <label className="text-slate-400 font-semibold block mb-1">Ghi chú / Số hóa đơn chứng từ</label>
                 <textarea
                   rows="2"
-                  placeholder="Ghi chú hóa đơn hoặc mã hợp đồng..."
+                  placeholder="Ghi chú hợp đồng bản quyền hoặc hóa đơn vận hành..."
                   value={expenseForm.notes}
                   onChange={(e) => setExpenseForm({ ...expenseForm, notes: e.target.value })}
-                  className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-red-500"
+                  className="w-full bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan-400"
                 ></textarea>
               </div>
 
@@ -859,7 +1090,7 @@ const RevenueTab = ({ data, loading }) => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-red-600/30 cursor-pointer"
+                  className="px-5 py-2 cinema-action text-white font-bold rounded-xl transition-all shadow-lg cursor-pointer"
                 >
                   {editingExpense ? 'Lưu thay đổi' : 'Thêm khoản chi'}
                 </button>

@@ -145,7 +145,7 @@ function resolveXAxisTickIndices(data) {
   return Array.from(selected).sort((a, b) => a - b);
 }
 
-const RevenueChart = ({ data = [], loading = false }) => {
+const RevenueChart = ({ data = [], loading = false, showExpenseOverlay = false }) => {
   const [hoverIndex, setHoverIndex] = useState(null);
   const svgRef = useRef(null);
 
@@ -255,7 +255,7 @@ const RevenueChart = ({ data = [], loading = false }) => {
   const hoveredTicketPt = hoverIndex !== null ? ticketPoints[hoverIndex] : null;
 
   return (
-    <div className="space-y-3 select-none">
+    <div className="space-y-3 select-none" data-expense-overlay={showExpenseOverlay ? 'true' : 'false'}>
       {/* Vùng Biểu đồ Area + Line SVG */}
       <div className="relative w-full overflow-hidden">
         <svg

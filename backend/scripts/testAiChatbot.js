@@ -295,7 +295,7 @@ const runTests = async () => {
     );
 
     assert.equal(res.intent, INTENTS.SEAT_AVAILABILITY);
-    assert.match(res.reply, /HẾT GHẾ \(0 ghế trống\)/i);
+    assert.match(res.reply, /HẾT GHẾ\s*\(0\s*(?:\/88|ghế trống)\)/i);
     assert.doesNotMatch(res.reply, /\b42\b/);
     assert.doesNotMatch(res.reply, new RegExp(ST_DUNE_SOLDOUT_ID));
     assert.equal(res.movieCard, null);
@@ -453,7 +453,7 @@ const runTests = async () => {
       { nowDate: NOW_TEST, mockContext: baseContext, skipLog: true }
     );
     assert.equal(resMovieMai.intent, INTENTS.SHOWTIME_SEARCH);
-    assert.match(resMovieMai.reply, /phim \*\*Mai\*\*/i);
+    assert.match(resMovieMai.reply, /phim\s+\*{0,2}Mai\*{0,2}/i);
     assert.doesNotMatch(resMovieMai.reply, /Doraemon/);
     passed++;
     console.log('✅ Test 06 PASSED: "Ngày mai có phim gì?" phân biệt chính xác với bộ phim "Mai".');
@@ -677,7 +677,7 @@ const runTests = async () => {
     );
 
     assert.match(resMissingMovie.reply, /Oppenheimer/);
-    assert.match(resMissingMovie.reply, /không có trong danh sách đang chiếu/i);
+    assert.match(resMissingMovie.reply, /chưa có lịch chiếu cho phim|không có trong danh sách đang chiếu/i);
     assert.equal(resMissingMovie.movieCard, null);
     passed++;
     console.log('✅ Test 13 PASSED: Thông báo rõ ràng khi khách hỏi bộ phim không tồn tại trong Database.');

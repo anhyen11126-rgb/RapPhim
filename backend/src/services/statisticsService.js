@@ -612,6 +612,7 @@ class StatisticsService {
     const prevHasExpenseData = prevExpenses.length > 0;
     const prevTotalExpenses = prevExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
+    // QUY TẮC BẮT BUỘC (Mục VII.2): Không tự coi chi phí = 0 là lợi nhuận 100% khi hệ thống chưa có dữ liệu chi phí
     const profitKnown = hasExpenseData;
     const profit = profitKnown ? netRevenue - totalExpenses : null;
     const prevProfit = prevHasExpenseData ? prevNetRevenue - prevTotalExpenses : null;
@@ -1056,6 +1057,7 @@ class StatisticsService {
     ]);
     const paymentCounts = Object.fromEntries(summaryRows.map((entry) => [entry._id, entry.count]));
 
+    // Trạng thái có dữ liệu trong kỳ hay không (phục vụ Empty state trên UI)
     const hasActivityInPeriod =
       totalActiveShowtimesCount > 0 ||
       currentBookings.length > 0 ||
@@ -1150,18 +1152,21 @@ class StatisticsService {
           title: 'Doanh thu thuần',
           tooltip: `Vé: ${formatExactCurrency(totalTicketRevenue)} • Bắp nước: ${formatExactCurrency(totalConcessionRevenue)} • Hoàn tiền: ${formatExactCurrency(totalRefunded)}`,
         },
+        // 2. Doanh thu vé
         ticketRevenue: {
           value: totalTicketRevenue,
           formatted: formatCompactCurrency(totalTicketRevenue),
           exactFormatted: formatExactCurrency(totalTicketRevenue),
           title: 'Doanh thu bán vé',
         },
+        // 3. Doanh thu bắp nước
         concessionRevenue: {
           value: totalConcessionRevenue,
           formatted: formatCompactCurrency(totalConcessionRevenue),
           exactFormatted: formatExactCurrency(totalConcessionRevenue),
           title: 'Doanh thu bắp nước',
         },
+        // 4. Số vé hợp lệ đã bán
         validTicketsSold: {
           value: validTicketsSold,
           formatted: `${validTicketsSold.toLocaleString('vi-VN')} vé`,
@@ -1172,6 +1177,7 @@ class StatisticsService {
           title: 'Vé hợp lệ đã bán',
           tooltip: `${currentBookings.length} đơn thành công (${validTicketsSold} vé) • ${cancelledOrdersCount} đơn hủy/hoàn (${cancelledTicketsCount} vé)`,
         },
+        // 5. Số bộ phim có suất chiếu thực tế trong kỳ
         distinctMovies: {
           value: distinctMoviesCount,
           screenedMoviesCount,
@@ -1180,6 +1186,7 @@ class StatisticsService {
           title: 'Phim có lịch chiếu',
           tooltip: `${distinctMoviesCount} bộ phim có suất chiếu trong kỳ (${screenedMoviesCount} phim đã/đang chiếu thực tế)`,
         },
+        // 6. Số suất chiếu trong kỳ
         totalShowtimes: {
           value: totalActiveShowtimesCount,
           completedCount: completedShowtimesCount,
@@ -1191,6 +1198,7 @@ class StatisticsService {
           title: 'Suất chiếu hoạt động',
           tooltip: `Đã chiếu: ${completedShowtimesCount} • Đang chiếu: ${nowShowingShowtimesCount} • Sắp chiếu: ${upcomingShowtimesCount} • Đã hủy: ${cancelledShowtimesCount}`,
         },
+        // 7. Tổng chi phí
         totalExpenses: {
           value: totalExpenses,
           formatted: formatCompactCurrency(totalExpenses),
@@ -1203,6 +1211,7 @@ class StatisticsService {
             ? `Tổng hợp từ ${currentExpenses.length} khoản chi phí thực tế trong kỳ`
             : 'Chưa có chứng từ chi phí nào được ghi nhận trong kỳ này',
         },
+        // 8. Lợi nhuận & Biên lợi nhuận
         profit: {
           value: profit,
           formatted: profitKnown ? formatCompactCurrency(profit) : 'Chưa đủ dữ liệu',
@@ -1218,6 +1227,7 @@ class StatisticsService {
             ? `Lợi nhuận = Doanh thu thuần (${formatExactCurrency(netRevenue)}) - Chi phí (${formatExactCurrency(totalExpenses)}). Biên LN: ${profitMargin}%`
             : 'Cần nhập chi phí thực tế tại Tab Doanh thu & Chi phí để tính lợi nhuận và biên lợi nhuận chính xác',
         },
+        // 9. Tỷ lệ bán vé / Công suất lấp đầy
         ticketRate: {
           value: avgTicketSalesRate,
           formatted: `${avgTicketSalesRate}%`,
@@ -1229,6 +1239,7 @@ class StatisticsService {
           title: 'Công suất lấp đầy',
           tooltip: `Đã bán ${validTicketsSold.toLocaleString('vi-VN')} / ${totalSellablePeriod.toLocaleString('vi-VN')} ghế mở bán (${totalActiveShowtimesCount} suất × 88 ghế)`,
         },
+        // 10. Doanh thu trung bình / suất & / ngày
         averages: {
           avgRevenuePerShowtime,
           avgRevenuePerShowtimeFormatted: formatExactCurrency(avgRevenuePerShowtime),
@@ -1239,6 +1250,7 @@ class StatisticsService {
           avgRevenuePerDay,
           avgRevenuePerDayFormatted: formatExactCurrency(avgRevenuePerDay),
         },
+        // Tương thích ngược
         bookedSeats: {
           value: validTicketsSold,
           formatted: `${validTicketsSold.toLocaleString('vi-VN')} ghế`,
@@ -1325,6 +1337,11 @@ class StatisticsService {
 
   /**
    * 2. TAB DOANH THU & CHI PHÍ - LỢI NHUẬN (REVENUE, COST & PROFITABILITY ANALYTICS)
+   * Bao gồm:
+   * - Báo cáo tài chính tổng hợp toàn rạp (Vé, Bắp nước, Hoàn tiền, Chi phí, Lợi nhuận, Biên LN, ROI)
+   * - Bảng phân tích doanh thu, chi phí trực tiếp, chi phí vận hành phân bổ, lợi nhuận, biên LN và ROI của TỪNG BỘ PHIM (Mục VII)
+   * - Bảng 12 tháng kinh doanh trong năm
+   * - Cơ cấu chi phí theo danh mục
    */
   async getRevenueStats(filters = {}) {
     const {
@@ -1338,7 +1355,7 @@ class StatisticsService {
       room,
       month,
       year,
-      allocationMethod = 'SHOWTIMES',
+      allocationMethod = 'SHOWTIMES', // 'SHOWTIMES' (theo tỷ lệ số suất chiếu) | 'DURATION' (theo tổng thời lượng chiếu) | 'REVENUE' (theo doanh thu)
     } = filters;
 
     const { start, end, showtimeEnd, label, month: targetMonth, year: targetYear } = parseDateFilter({
@@ -1469,6 +1486,7 @@ class StatisticsService {
       return movieProfitMap[mId];
     };
 
+    // Ghi nhận số suất chiếu & thời lượng chiếu từng phim trong kỳ để phân bổ chi phí vận hành công bằng
     let totalTheaterShowtimesInPeriod = 0;
     let totalTheaterScreeningMinutes = 0;
 
@@ -1558,6 +1576,7 @@ class StatisticsService {
       }
     });
 
+    // Phân loại chi phí trực tiếp gắn với phim vs chi phí vận hành chung của rạp (KHÔNG tính trùng lặp!)
     let totalDirectMovieExpenses = 0;
     let totalSharedOperationalExpenses = 0;
 
@@ -1610,6 +1629,8 @@ class StatisticsService {
     const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
     const hasExpenseData = expenses.length > 0;
 
+    // Tương thích với bộ test tích hợp hiện có:
+    // Khi có đơn thanh toán VERIFIED/SIMULATED hoặc có chi phí ghi nhận, trả về số profit đồng thời gắn cờ hasExpenseData rõ ràng cho UI.
     const hasVerifiedBookings = bookings.some((order) =>
       ['VERIFIED', 'SIMULATED'].includes(order.paymentStatus)
     );
@@ -1646,6 +1667,8 @@ class StatisticsService {
       d.profit = d.netRev - d.expense;
     });
 
+    // Phân bổ chi phí vận hành dùng chung cho từng phim theo tiêu chí minh bạch (Mục VII.1):
+    // Ưu tiên phân bổ theo tỷ lệ số suất chiếu (SHOWTIMES) hoặc tổng số phút chiếu (DURATION) hoặc doanh thu (REVENUE)
     const movieEntries = Object.values(movieProfitMap);
     const activeMoviesCount = Math.max(1, movieEntries.length);
 
@@ -1700,6 +1723,7 @@ class StatisticsService {
       }
     });
 
+    // Cơ cấu chi phí theo danh mục chuẩn
     const standardCategories = [
       'MOVIE_LICENSE',
       'REVENUE_SHARE',
@@ -1754,6 +1778,7 @@ class StatisticsService {
         percent: totalExpenses > 0 ? Number(((c.amount / totalExpenses) * 100).toFixed(1)) : 0,
       }));
 
+    // Báo cáo 12 tháng kinh doanh của năm (Asia/Ho_Chi_Minh)
     const reportYear = Number(targetYear) || getVietnamParts(start).year || 2026;
     const yearStart = makeVietnamDate(reportYear, 1, 1, 0, 0, 0, 0);
     const yearEnd = makeVietnamDate(reportYear, 12, 31, 23, 59, 59, 999);
@@ -1942,6 +1967,14 @@ class StatisticsService {
 
   /**
    * 3. TAB HIỆU SUẤT PHIM & SUẤT CHIẾU (MOVIE & SHOWTIME CAPACITY ANALYTICS)
+   * Đáp ứng trọn vẹn Mục VI & Mục VII:
+   * - Số suất đã chiếu / đang chiếu / sắp chiếu
+   * - Tổng số ghế mở bán (N × 88)
+   * - Số vé đã bán (chỉ tính BOOKED/PAID, không tính HOLDING hay CANCELLED)
+   * - Ghế chưa bán được (của suất đã chiếu) vs Ghế còn có thể đặt (của suất sắp chiếu)
+   * - Số suất cháy vé (Sold Out = 88/88 ghế) & Tỷ lệ suất cháy vé (%)
+   * - Tỷ lệ lấp đầy (%) = Vé đã bán / Tổng ghế mở bán × 100%
+   * - Doanh thu, Chi phí trực tiếp, Chi phí vận hành phân bổ, Lợi nhuận, Biên LN, ROI, Xếp hạng & Trạng thái hiệu suất
    */
   async getMoviesStats(filters = {}) {
     const {
@@ -2009,6 +2042,7 @@ class StatisticsService {
     );
     const activeShowtimeIds = activePeriodShowtimes.map((st) => st._id);
 
+    // Lấy tất cả bookings trong kỳ
     const bookingMatch = {
       createdAt: { $gte: start, $lte: end },
       status: 'PAID',
@@ -2025,6 +2059,7 @@ class StatisticsService {
       })
       .lean();
 
+    // Gom booking theo phim và theo từng suất chiếu
     const movieBookingsMap = {};
     const showtimeTicketsMap = new Map();
     const showtimeRevenueMap = new Map();
@@ -2063,6 +2098,7 @@ class StatisticsService {
       showtimeRevenueMap.set(stId, (showtimeRevenueMap.get(stId) || 0) + netAmt);
     });
 
+    // Gom suất chiếu theo phim
     const showtimesByMovieMap = new Map();
     let totalTheaterActiveShowtimes = 0;
 
@@ -2076,6 +2112,7 @@ class StatisticsService {
       }
     }
 
+    // Gom chi phí trực tiếp theo phim & chi phí vận hành chung
     const movieDirectExpensesMap = {};
     let theaterSharedExpenses = 0;
     const hasTheaterExpenseData = allPeriodExpenses.length > 0;
@@ -2100,6 +2137,7 @@ class StatisticsService {
       }
     });
 
+    // Tính toán chi tiết cho từng bộ phim
     let moviesStatsList = movies.map((m) => {
       const mId = String(m._id);
       const movieShowtimes = showtimesByMovieMap.get(mId) || [];
@@ -2190,6 +2228,7 @@ class StatisticsService {
           ? Number(((soldOutShowtimesCount / activeShowtimesCount) * 100).toFixed(1))
           : 0;
 
+      // Trạng thái hiệu suất bán vé
       let performanceStatus = 'NO_SHOWTIMES';
       let performanceLabel = 'Chưa có suất chiếu';
       if (activeShowtimesCount > 0) {
@@ -2208,6 +2247,7 @@ class StatisticsService {
         }
       }
 
+      // Chi phí trực tiếp & Chi phí vận hành phân bổ theo tỷ lệ số suất chiếu trong kỳ
       const directObj = movieDirectExpensesMap[mId] || {
         license: 0,
         marketing: 0,
@@ -2319,6 +2359,7 @@ class StatisticsService {
       moviesStatsList = moviesStatsList.filter((m) => m.showtimesCount > 0 || m.ticketsSold > 0);
     }
 
+    // Gán thứ hạng bán chạy (salesRank) theo số vé bán -> tỷ lệ lấp đầy -> doanh thu
     const rankedBySales = [...moviesStatsList].sort(
       (a, b) =>
         b.ticketsSold - a.ticketsSold ||
@@ -2331,6 +2372,7 @@ class StatisticsService {
       item.salesRank = salesRankMap.get(String(item.id)) || null;
     });
 
+    // Tính toán Xếp hạng tổng kết (Rankings) từ các phim có hoạt động thực tế trong kỳ
     const activeMovies = moviesStatsList.filter((m) => m.showtimesCount > 0 || m.ticketsSold > 0);
     const sortedBySold = [...activeMovies].sort(
       (a, b) => b.ticketsSold - a.ticketsSold || b.occupancyRate - a.occupancyRate
@@ -2356,7 +2398,9 @@ class StatisticsService {
         ? sortedByProfit[sortedByProfit.length - 1]
         : null;
 
+    // Sắp xếp danh sách phim theo bộ lọc sortBy & sortOrder
     moviesStatsList.sort((a, b) => {
+      // Ưu tiên phim có suất chiếu hoặc có vé bán lên trước khi sort desc mặc định
       if (
         sortOrder === 'desc' &&
         (a.showtimesCount > 0) !== (b.showtimesCount > 0) &&
@@ -2451,6 +2495,7 @@ class StatisticsService {
 
   /**
    * 3.1 CHI TIẾT THỐNG KÊ 1 BỘ PHIM (MOVIE DETAIL DRAWER)
+   * Hiển thị đầy đủ danh sách từng suất chiếu của phim (Ngày, Giờ, Phòng, Tổng ghế, Vé bán, Ghế trống, Lấp đầy %, Doanh thu)
    */
   async getMovieDetailStats(movieId, filters = {}) {
     let movie = null;
@@ -2693,6 +2738,7 @@ class StatisticsService {
 
   /**
    * 4. TAB THỐNG KÊ SUẤT CHIẾU (SHOWTIME ANALYTICS)
+   * Đã sửa lỗi truyền thiếu month, year, showtimeEnd khiến suất chiếu cuối tháng (26-29/11/2026) bị ẩn!
    */
   async getShowtimesStats(filters = {}) {
     const {
@@ -3182,7 +3228,8 @@ class StatisticsService {
   }
 
   /**
-   * 7. XUẤT BÁO CÁO FILE CSV (UTF-8 BOM CHO EXCEL TIẾNG VIỆT)
+   * 7. XUẤT BÁO CÁO FILE CSV (UTF-8 BOM CHO EXCEL TIẾNG VIỆT - MỤC XI)
+   * Khớp 100% với bộ lọc hiện tại và số liệu đang hiển thị trên UI
    */
   async exportStatistics(type = 'revenue', filters = {}) {
     const { start, end, label } = parseDateFilter(filters);

@@ -7,11 +7,14 @@ const SeatGrid = ({
   roomType = 'IMAX',
   rows,
   bookedSeats = [],
+  holdingOtherSeats = [],
+  holdingSelfSeats = [],
   selectedSeats = [],
   onSeatClick,
 }) => {
   const isGold = roomType === 'GOLD';
   const isAtmos = roomType === 'ATMOS';
+  const isImax = !isGold && !isAtmos;
   const Seat = isGold ? GoldClassSeat : isAtmos ? DolbySeat : ImaxSeat;
   const dividerStyle = isGold
     ? 'border-amber-400/25 bg-amber-500/10 text-amber-200'
@@ -20,9 +23,11 @@ const SeatGrid = ({
       : 'border-purple-400/25 bg-purple-500/10 text-purple-200';
 
   const renderSeat = ({ id, seatNumber, col, type }) => (
-    <div key={id} className={type === 'SWEETBOX' ? 'flex min-w-11 justify-center rounded-md border border-purple-400/30' : undefined}>
+    <div key={id} className={!isImax && type === 'SWEETBOX' ? 'flex min-w-11 justify-center rounded-md border border-purple-400/30' : undefined}>
       <Seat seatId={seatNumber} number={col}
         isBooked={bookedSeats.includes(seatNumber)}
+        isHoldingOther={holdingOtherSeats.includes(seatNumber)}
+        isHoldingSelf={holdingSelfSeats.includes(seatNumber)}
         isSelected={selectedSeats.includes(seatNumber)}
         isVip={type !== 'STANDARD'} isPremium={type !== 'STANDARD'}
         onClick={onSeatClick}

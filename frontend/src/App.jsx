@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 
 // Components Client & Chat
@@ -20,19 +20,25 @@ import PromotionsPage from './pages/client/PromotionsPage';
 import SupportPage from './pages/client/SupportPage';
 import AuthPage from './pages/client/AuthPage';
 
-// Pages Admin (4 Mục Chủ Chốt: Thống Kê · Phim · Ghế & Phòng · Chatbot)
-import StatisticsPage from './pages/admin/statistics/StatisticsPage';
-import MovieManagePage from './pages/admin/MovieManagePage';
-import RoomManagePage from './pages/admin/RoomManagePage';
-import ShowtimeManagePage from './pages/admin/ShowtimeManagePage';
-import PricingManagePage from './pages/admin/PricingManagePage';
-import BookingManagePage from './pages/admin/BookingManagePage';
-import CheckInManagePage from './pages/admin/CheckInManagePage';
-import SeatManagePage from './pages/admin/SeatManagePage';
-import UserManagePage from './pages/admin/UserManagePage';
-import ConcessionManagePage from './pages/admin/ConcessionManagePage';
-import PromotionManagePage from './pages/admin/PromotionManagePage';
-import ChatbotManagePage from './pages/admin/ChatbotManagePage';
+// Pages Admin (Lazy-loaded để tách bundle Quản trị khỏi bundle Khách hàng)
+const StatisticsPage = lazy(() => import('./pages/admin/statistics/StatisticsPage'));
+const MovieManagePage = lazy(() => import('./pages/admin/MovieManagePage'));
+const RoomManagePage = lazy(() => import('./pages/admin/RoomManagePage'));
+const ShowtimeManagePage = lazy(() => import('./pages/admin/ShowtimeManagePage'));
+const PricingManagePage = lazy(() => import('./pages/admin/PricingManagePage'));
+const BookingManagePage = lazy(() => import('./pages/admin/BookingManagePage'));
+const CheckInManagePage = lazy(() => import('./pages/admin/CheckInManagePage'));
+const SeatManagePage = lazy(() => import('./pages/admin/SeatManagePage'));
+const UserManagePage = lazy(() => import('./pages/admin/UserManagePage'));
+const ConcessionManagePage = lazy(() => import('./pages/admin/ConcessionManagePage'));
+const PromotionManagePage = lazy(() => import('./pages/admin/PromotionManagePage'));
+const ChatbotManagePage = lazy(() => import('./pages/admin/ChatbotManagePage'));
+
+const RouteLoadingFallback = () => (
+  <div className="min-h-screen bg-[#070B1E] flex items-center justify-center text-slate-300 text-sm">
+    Đang tải giao diện...
+  </div>
+);
 
 // Client Layout bọc Navbar, Footer và Chatbot AI (Màn hình 6)
 const ClientLayout = () => {
@@ -53,7 +59,8 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollManager />
-      <Routes>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Routes>
         {/* Cụm màn hình Khách hàng */}
         <Route element={<ClientLayout />}>
           <Route path="/" element={<HomePage />} />
@@ -104,7 +111,8 @@ function App() {
           <Route path="/admin/promotions" element={<PromotionManagePage />} />
           <Route path="/admin/*" element={<Navigate to="/admin/statistics" replace />} />
         </Route>
-      </Routes>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

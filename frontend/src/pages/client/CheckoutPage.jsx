@@ -9,35 +9,152 @@ import {
   resolveConcessionBadge,
   deduplicateConcessions,
 } from '../../utils/visualResolver';
+import { resolveCanonicalRoomType } from '../../utils/pricing';
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const savedHold = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('davenor_active_hold') || 'null');
+    } catch {
+      return null;
+    }
+  })();
+
   const stateData = location.state || {};
-  const showtimeId = stateData.showtimeId || stateData.showtime?._id || stateData.showtime?.id;
-  const showtime = stateData.showtime || {
-    movie: { title: 'Dune: Hành Tinh Cát 2', ageRating: 'T16' },
-    roomName: "D'AVENOR Center (P.3)",
-    startTime: new Date(),
+  const [holdId, setHoldId] = useState(stateData.holdId || savedHold?.holdId || '');
+  const [showtimeId, setShowtimeId] = useState(
+    stateData.showtimeId || stateData.showtime?._id || stateData.showtime?.id || savedHold?.showtimeId || ''
+  );
+  const [showtime, setShowtime] = useState(stateData.showtime || null);
+  const [selectedSeats, setSelectedSeats] = useState(
+    stateData.selectedSeats?.length > 0 ? stateData.selectedSeats : savedHold?.seatNumbers || []
+  );
+  const [seatTotal, setSeatTotal] = useState(
+    typeof stateData.seatTotal === 'number' ? stateData.seatTotal : 0
+  );
+  const [ticketLines, setTicketLines] = useState(
+    Array.isArray(stateData.ticketLines) ? stateData.ticketLines : []
+  );
+  const [priceSyncNotice, setPriceSyncNotice] = useState('');
+
+  // Trạng thái xác thực phiên giữ ghế & đồng hồ đếm ngược 10 phút từ serverTime + expiresAt
+  const [holdStatus, setHoldStatus] = useState('VERIFYING'); // 'VERIFYING' | 'ACTIVE' | 'EXPIRED' | 'INVALID'
+  const [holdErrorMsg, setHoldErrorMsg] = useState('');
+  const [expiresAtMs, setExpiresAtMs] = useState(() =>
+    stateData.expiresAt ? new Date(stateData.expiresAt).getTime() : savedHold?.expiresAt ? new Date(savedHold.expiresAt).getTime() : 0
+  );
+  const [serverOffsetMs, setServerOffsetMs] = useState(() =>
+    stateData.serverTime ? new Date(stateData.serverTime).getTime() - Date.now() : 0
+  );
+  const [remainingSeconds, setRemainingSeconds] = useState(600);
+
+  const verifyHoldFromServer = async (targetHoldId) => {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    if (!token) {
+      navigate('/login', { state: { from: '/checkout' } });
+      return;
+    }
+    if (!targetHoldId) {
+      setHoldStatus('INVALID');
+      setHoldErrorMsg('Không tìm thấy phiên giữ ghế hợp lệ. Vui lòng chọn ghế trước khi thanh toán.');
+      return;
+    }
+    try {
+      const res = await api.get(`/bookings/hold/${encodeURIComponent(targetHoldId)}`);
+      const data = res.data;
+      if (data?.success) {
+        setHoldId(data.holdId);
+        setShowtimeId(data.showtimeId);
+        if (data.showtime) setShowtime(data.showtime);
+        if (Array.isArray(data.seatNumbers)) setSelectedSeats(data.seatNumbers);
+        if (Array.isArray(data.ticketLines)) setTicketLines(data.ticketLines);
+        if (typeof data.seatTotal === 'number' && data.seatTotal > 0) {
+          if (typeof stateData.seatTotal === 'number' && stateData.seatTotal > 0 && stateData.seatTotal !== data.seatTotal) {
+            setPriceSyncNotice(
+              `Giá vé của suất chiếu vừa được cập nhật theo cấu hình chính thức (${data.seatTotal.toLocaleString('vi-VN')} đ). Vui lòng kiểm tra lại tổng tiền trước khi xác nhận thanh toán.`
+            );
+          }
+          setSeatTotal(data.seatTotal);
+        }
+        const expMs = new Date(data.expiresAt).getTime();
+        const srvMs = new Date(data.serverTime).getTime();
+        setExpiresAtMs(expMs);
+        setServerOffsetMs(srvMs - Date.now());
+        setRemainingSeconds(Math.max(0, Math.floor((expMs - srvMs) / 1000)));
+        setHoldStatus('ACTIVE');
+        sessionStorage.setItem(
+          'davenor_active_hold',
+          JSON.stringify({
+            holdId: data.holdId,
+            showtimeId: data.showtimeId,
+            seatNumbers: data.seatNumbers,
+            expiresAt: data.expiresAt,
+            serverTime: data.serverTime,
+          })
+        );
+      }
+    } catch (err) {
+      const code = err?.response?.data?.code;
+      const msg = err?.response?.data?.message || 'Phiên giữ ghế không hợp lệ hoặc đã hết hạn.';
+      if (err?.response?.data?.showtimeId) setShowtimeId(err.response.data.showtimeId);
+      sessionStorage.removeItem('davenor_active_hold');
+      setHoldStatus(code === 'HOLD_EXPIRED' ? 'EXPIRED' : 'INVALID');
+      setHoldErrorMsg(msg);
+    }
   };
-  const selectedSeats =
-    stateData.selectedSeats && stateData.selectedSeats.length > 0
-      ? stateData.selectedSeats
-      : ['F6', 'F7'];
-  const seatTotal = typeof stateData.seatTotal === 'number' ? stateData.seatTotal : 140000;
+
+  useEffect(() => {
+    verifyHoldFromServer(holdId);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && holdId) {
+        verifyHoldFromServer(holdId);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
+  useEffect(() => {
+    if (holdStatus !== 'ACTIVE' || !expiresAtMs) return;
+    const tick = () => {
+      const serverNow = Date.now() + serverOffsetMs;
+      const secs = Math.max(0, Math.floor((expiresAtMs - serverNow) / 1000));
+      setRemainingSeconds(secs);
+      if (secs <= 0) {
+        setHoldStatus('EXPIRED');
+        setHoldErrorMsg('Phiên giữ ghế 10 phút đã hết hạn. Vui lòng quay lại chọn ghế.');
+        sessionStorage.removeItem('davenor_active_hold');
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [holdStatus, expiresAtMs, serverOffsetMs]);
+
+  const formattedCountdown = `${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(remainingSeconds % 60).padStart(2, '0')}`;
 
   const goBackToSeats = () => {
-    if (stateData.returnToSeatHistory) {
-      navigate(-1);
-    } else if (showtimeId) {
-      navigate('/booking/seat/' + encodeURIComponent(showtimeId), {
-        replace: true,
-        state: { slotInfo: stateData.showtime, draftSeats: stateData.selectedSeats },
-      });
+    if (showtimeId) {
+      navigate('/booking/seat/' + encodeURIComponent(showtimeId), { replace: true });
     } else {
       navigate('/theaters', { replace: true });
     }
+  };
+
+  const handleCancelHoldAndBack = async () => {
+    if (holdId && holdStatus === 'ACTIVE') {
+      if (!window.confirm('Bạn có chắc muốn hủy giữ ghế và quay lại chọn lại ghế?')) return;
+      try {
+        await api.delete(`/bookings/hold/${encodeURIComponent(holdId)}`);
+      } catch {
+        // Bỏ qua nếu phiên đã hết hạn trên server
+      }
+    }
+    sessionStorage.removeItem('davenor_active_hold');
+    goBackToSeats();
   };
 
   // Danh sách các vị bắp
@@ -171,6 +288,7 @@ const CheckoutPage = () => {
     setShowQRModal(false);
     try {
       const payload = {
+        holdId,
         showtimeId: String(showtimeId || showtime?._id || showtime?.id || ''),
         seatNumbers: selectedSeats,
         customerName,
@@ -193,6 +311,7 @@ const CheckoutPage = () => {
           headers: { 'Idempotency-Key': checkoutRequest.current.key },
         });
         if (res.data?.success && res.data?.booking) {
+          sessionStorage.removeItem('davenor_active_hold');
           navigate('/booking-success', {
             state: { booking: res.data.booking },
           });
@@ -222,13 +341,13 @@ const CheckoutPage = () => {
       {/* 1. THANH TIÊU ĐỀ TRÊN CÙNG: QUAY LẠI + TIẾN TRÌNH 3 BƯỚC (HIỆN RA DẦN DẦN) */}
       <div className="w-full bg-[var(--bg-secondary)]/95 backdrop-blur-xl border-b border-[#AA9BFF]/20 py-3.5 sticky top-0 z-40 shadow-xl animate-smooth-fade">
         <div className="max-w-[1560px] mx-auto px-6 sm:px-10 lg:px-14 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
-          {/* Cụm bên trái: Nút Back tròn + Tên phim + Nhãn T16 / IMAX LASER */}
+          {/* Cụm bên trái: Nút Back tròn + Tên phim + Nhãn độ tuổi / Loại phòng thực tế */}
           <div className="flex items-center space-x-3.5">
             <button
               type="button"
-              onClick={goBackToSeats}
+              onClick={handleCancelHoldAndBack}
               className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-card)] border border-slate-700/70 text-slate-200 hover:text-white flex items-center justify-center text-sm transition-all shadow-md shrink-0 cursor-pointer"
-              title="Quay lại sơ đồ ghế"
+              title="Hủy giữ ghế & quay lại sơ đồ ghế"
             >
               ←
             </button>
@@ -236,14 +355,28 @@ const CheckoutPage = () => {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-base sm:text-lg font-black text-white tracking-wide">
-                  {showtime?.movie?.title || 'Dune: Hành Tinh Cát 2'}
+                  {showtime?.movie?.title || 'Thanh toán đặt vé'}
                 </h1>
                 <span className="bg-[#f59e0b] text-[#0a1120] font-black text-[10px] px-2 py-0.5 rounded-full shadow-sm">
                   {showtime?.movie?.ageRating || 'T16'}
                 </span>
                 <span className="bg-[var(--bg-card)] text-[var(--ice-blue)] font-extrabold text-[10px] px-2.5 py-0.5 rounded-full border border-blue-400/30 uppercase tracking-wider">
-                  IMAX LASER
+                  {resolveCanonicalRoomType(showtime) || 'IMAX Laser'}
                 </span>
+                {holdStatus === 'ACTIVE' && (
+                  <span
+                    className={`font-mono font-black text-xs px-2.5 py-0.5 rounded-full border ${
+                      remainingSeconds < 60
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 animate-pulse'
+                        : remainingSeconds <= 120
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                        : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40'
+                    }`}
+                    title="Thời gian giữ ghế còn lại"
+                  >
+                    ⏳ {formattedCountdown}
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mt-0.5 flex-wrap">
@@ -254,10 +387,15 @@ const CheckoutPage = () => {
                 <span className="text-slate-600">•</span>
                 <span className="flex items-center gap-1 text-slate-300 font-medium">
                   <span className="text-amber-400">🕒</span>
-                  <span>Hôm nay 19:15</span>
+                  <span>
+                    {showtime?.time ||
+                      (showtime?.startTime
+                        ? new Date(showtime.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                        : '19:30')}
+                  </span>
                 </span>
                 <span className="text-slate-600">•</span>
-                <span>166 phút</span>
+                <span>{showtime?.movie?.duration ? `${showtime.movie.duration} phút` : '120 phút'}</span>
               </div>
             </div>
           </div>
@@ -347,10 +485,16 @@ const CheckoutPage = () => {
 
           {/* CỘT PHẢI (4-5 CỘT): TÓM TẮT ĐƠN HÀNG, PHƯƠNG THỨC THANH TOÁN */}
           <div className="lg:col-span-5 xl:col-span-4 space-y-6 lg:sticky lg:top-24">
+            {priceSyncNotice && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-400/50 text-amber-200 text-xs font-medium leading-relaxed">
+                ⚠️ {priceSyncNotice}
+              </div>
+            )}
             <CheckoutOrderSummary
               showtime={showtime}
               selectedSeats={selectedSeats}
               seatTotal={seatTotal}
+              ticketLines={ticketLines}
               concessions={concessions}
               comboQuantities={comboQuantities}
               popcornFlavors={popcornFlavors}

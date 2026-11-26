@@ -32,13 +32,15 @@ const MovieOverviewHighlights = ({ movie, ageBadge, isFavorite, onToggleFavorite
         {/* Hàng Điểm Đánh Giá & Các Nút Hành Động */}
         <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-b border-[var(--border-default)]/80 pb-5">
           <div className="flex flex-wrap items-center gap-6">
-            {/* Rating MovieTix */}
+            {/* Rating MovieTix (đồng bộ trực tiếp từ điểm đánh giá khách hàng) */}
             <div className="flex items-center space-x-2">
-              <span className="text-2xl font-black text-[#fbbf24]">★ {movie.rating ?? '—'}</span>
+              <span className="text-2xl font-black text-[#fbbf24]">
+                ★ {movie.rating != null && Number.isFinite(Number(movie.rating)) ? Number(movie.rating).toFixed(1) : '—'}
+              </span>
               <span className="text-xs text-slate-400 font-medium">
                 / 5.0
                 <br />
-                <span className="text-[10px] text-slate-500">{movie.ratingCount || '12.4k lượt đánh giá năm nay'}</span>
+                <span className="text-[10px] text-slate-500">{movie.ratingCount || '0 lượt đánh giá'}</span>
               </span>
             </div>
 

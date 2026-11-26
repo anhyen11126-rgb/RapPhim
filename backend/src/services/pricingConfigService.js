@@ -3,23 +3,13 @@ import TicketPricingConfig, { INITIAL_PRICING_FORMATS } from '../models/TicketPr
 import Showtime from '../models/Showtime.js';
 import Room from '../models/Room.js';
 import { getVNDateParts } from './ai/timezoneUtils.js';
+import { resolvePricingFormatKey } from '../utils/roomLayoutConfig.js';
 
 /**
- * Xác định chuẩn định dạng phòng ('2D' | '3D' | 'IMAX' | 'GOLD_CLASS')
+ * Xác định chuẩn khóa bảng giá ('2D' | '3D' | 'IMAX' | 'GOLD_CLASS')
+ * ưu tiên enum `room.roomType` kết hợp định dạng phim `formatFeature`.
  */
-export const detectFormatKey = (roomOrFormat = {}) => {
-  const str =
-    typeof roomOrFormat === 'string'
-      ? roomOrFormat.toLowerCase()
-      : `${roomOrFormat.roomName || ''} ${roomOrFormat.roomType || ''} ${roomOrFormat.formatFeature || ''} ${roomOrFormat.format || ''}`.toLowerCase();
-
-  if (str.includes('imax')) return 'IMAX';
-  if (str.includes('gold class') || str.includes('gold_class') || str.includes('lounge')) {
-    return 'GOLD_CLASS';
-  }
-  if (str.includes('3d')) return '3D';
-  return '2D';
-};
+export const detectFormatKey = (roomOrFormat = {}) => resolvePricingFormatKey(roomOrFormat);
 
 /**
  * Đảm bảo luôn có cấu hình giá vé trong MongoDB và sửa tự động nếu cấu hình cũ bị nghịch lý (2D >= 3D)
@@ -168,11 +158,16 @@ export const syncDatabaseWithPricingConfig = async (config, options = {}) => {
 
   // 2. Cập nhật giá các suất chiếu trong tương lai theo cấu hình động mới
   if (updateFutureShowtimes) {
-    const futureShowtimes = await Showtime.find({ startTime: { $gte: nowDate } });
+    const futureShowtimes = await Showtime.find({ startTime: { $gte: nowDate } }).populate(
+      'roomId',
+      'name roomType formatFeature'
+    );
     for (const st of futureShowtimes) {
       const calc = calculatePricesFromConfig(
         {
-          roomName: st.roomName,
+          roomId: st.roomId,
+          roomType: st.roomId?.roomType,
+          roomName: st.roomId?.name || st.roomName,
           formatFeature: st.formatFeature,
           startTime: st.startTime,
         },

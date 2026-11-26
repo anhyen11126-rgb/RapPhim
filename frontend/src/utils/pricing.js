@@ -81,21 +81,202 @@ export const loadPricingConfig = async (force = false) => {
   return inflightPromise;
 };
 
+export const ROOM_TYPES_ENUM = Object.freeze({
+  IMAX_LASER: 'IMAX Laser',
+  DOLBY_ATMOS: 'Dolby Atmos',
+  GOLD_CLASS: 'Gold Class',
+  REALD_3D: 'RealD 3D',
+  STANDARD_2D: '2D Tiêu chuẩn',
+  SOUND_4DX: '4DX Sound',
+});
+
+export const ACTIVE_CINEMA_ROOM_TYPES = Object.freeze([
+  ROOM_TYPES_ENUM.IMAX_LASER,
+  ROOM_TYPES_ENUM.DOLBY_ATMOS,
+  ROOM_TYPES_ENUM.GOLD_CLASS,
+]);
+
+const ENUM_LOOKUP = new Map([
+  ['imax laser', ROOM_TYPES_ENUM.IMAX_LASER],
+  ['imax', ROOM_TYPES_ENUM.IMAX_LASER],
+  ['dolby atmos', ROOM_TYPES_ENUM.DOLBY_ATMOS],
+  ['atmos', ROOM_TYPES_ENUM.DOLBY_ATMOS],
+  ['gold class', ROOM_TYPES_ENUM.GOLD_CLASS],
+  ['gold_class', ROOM_TYPES_ENUM.GOLD_CLASS],
+  ['gold', ROOM_TYPES_ENUM.GOLD_CLASS],
+  ['reald 3d', ROOM_TYPES_ENUM.REALD_3D],
+  ['3d', ROOM_TYPES_ENUM.REALD_3D],
+  ['2d tiêu chuẩn', ROOM_TYPES_ENUM.STANDARD_2D],
+  ['2d', ROOM_TYPES_ENUM.STANDARD_2D],
+  ['4dx sound', ROOM_TYPES_ENUM.SOUND_4DX],
+]);
+
 /**
- * Nhận diện chuẩn khóa định dạng phòng ('2D' | '3D' | 'IMAX' | 'GOLD_CLASS')
+ * Nhận diện chuẩn enum công nghệ phòng chiếu (`room.roomType`).
+ * - Ưu tiên tuyệt đối enum `room.roomType` / `roomId.roomType` / `roomType` từ MongoDB.
+ * - Chỉ fallback sang tên phòng khi bản ghi cũ chưa truyền `roomType`.
+ */
+export const resolveCanonicalRoomType = (input) => {
+  if (!input) return '';
+
+  const rawEnum =
+    typeof input === 'string'
+      ? input.trim()
+      : String(
+          input.room?.roomType ||
+            (typeof input.roomId === 'object' ? input.roomId?.roomType : '') ||
+            input.roomType ||
+            ''
+        ).trim();
+
+  if (rawEnum) {
+    const direct = ENUM_LOOKUP.get(rawEnum.toLowerCase());
+    if (direct) return direct;
+  }
+
+  const fallbackText =
+    typeof input === 'string'
+      ? input.toLowerCase()
+      : `${input.room?.name || ''} ${typeof input.roomId === 'object' ? input.roomId?.name || '' : ''} ${input.roomName || ''} ${input.name || ''}`.toLowerCase();
+
+  if (fallbackText.includes('imax') || /\b(phòng|phong|p)\s*0?[123]\b/i.test(fallbackText)) {
+    return ROOM_TYPES_ENUM.IMAX_LASER;
+  }
+  if (
+    fallbackText.includes('gold class') ||
+    fallbackText.includes('gold_class') ||
+    fallbackText.includes('gold') ||
+    fallbackText.includes('lounge') ||
+    /\b(phòng|phong|p)\s*0?[789]\b/i.test(fallbackText)
+  ) {
+    return ROOM_TYPES_ENUM.GOLD_CLASS;
+  }
+  if (
+    fallbackText.includes('atmos') ||
+    fallbackText.includes('dolby') ||
+    /\b(phòng|phong|p)\s*0?[456]\b/i.test(fallbackText)
+  ) {
+    return ROOM_TYPES_ENUM.DOLBY_ATMOS;
+  }
+  if (fallbackText.includes('reald') || fallbackText.includes('3d')) return ROOM_TYPES_ENUM.REALD_3D;
+  if (fallbackText.includes('4dx')) return ROOM_TYPES_ENUM.SOUND_4DX;
+  if (fallbackText.trim()) return ROOM_TYPES_ENUM.STANDARD_2D;
+
+  return '';
+};
+
+/**
+ * Chuyển enum công nghệ phòng sang khóa theme UI ('IMAX' | 'ATMOS' | 'GOLD')
+ */
+export const resolveRoomThemeKey = (input) => {
+  const canonical = resolveCanonicalRoomType(input);
+  if (canonical === ROOM_TYPES_ENUM.GOLD_CLASS) return 'GOLD';
+  if (canonical === ROOM_TYPES_ENUM.DOLBY_ATMOS) return 'ATMOS';
+  return 'IMAX';
+};
+
+/**
+ * Bảng màu nhận diện dùng chung theo từng công nghệ phòng chiếu (đồng bộ với SeatGrid & SeatSelectionPage):
+ * - IMAX Laser (Phòng 01, 02, 03): Xanh cyan neon #22D3EE
+ * - Dolby Atmos (Phòng 04, 05, 06): Tím holographic #C084FC
+ * - Gold Class (Phòng 07, 08, 09): Vàng gold #F6CF65
+ */
+export const ROOM_THEME_STYLES = Object.freeze({
+  IMAX: {
+    key: 'IMAX',
+    roomType: ROOM_TYPES_ENUM.IMAX_LASER,
+    accentHex: '#22D3EE',
+    roomCard:
+      'bg-[#071A3E]/35 border-[#22D3EE]/35 hover:border-[#22D3EE]/60 shadow-[0_0_18px_rgba(34,211,238,0.08)] transition-colors',
+    roomBadge:
+      'font-bold text-[#22D3EE] bg-[#0B2545]/85 px-2 py-0.5 rounded border border-[#22D3EE]/45 shadow-[0_0_10px_rgba(34,211,238,0.18)]',
+    featureText: 'text-[#67E8F9]',
+    slotBtn:
+      'bg-[#0B1633]/90 hover:bg-[#0E2952] border border-[#22D3EE]/35 hover:border-[#22D3EE] hover:shadow-[0_0_14px_rgba(34,211,238,0.35)]',
+    priceText: 'text-[#22D3EE] group-hover:text-[#67E8F9]',
+    tagIdle:
+      'bg-[#0B2545]/75 text-[#22D3EE] border-[#22D3EE]/40 hover:bg-[#0E315C] hover:border-[#22D3EE] hover:shadow-[0_0_10px_rgba(34,211,238,0.25)]',
+    tagActive:
+      'bg-[#22D3EE]/20 text-[#67E8F9] border-[#22D3EE] shadow-[0_0_12px_rgba(34,211,238,0.35)] ring-1 ring-[#22D3EE]/50',
+  },
+  ATMOS: {
+    key: 'ATMOS',
+    roomType: ROOM_TYPES_ENUM.DOLBY_ATMOS,
+    accentHex: '#C084FC',
+    roomCard:
+      'bg-[#1B0E3A]/35 border-[#C084FC]/35 hover:border-[#C084FC]/60 shadow-[0_0_18px_rgba(192,132,252,0.08)] transition-colors',
+    roomBadge:
+      'font-bold text-[#C084FC] bg-[#24124D]/85 px-2 py-0.5 rounded border border-[#C084FC]/45 shadow-[0_0_10px_rgba(192,132,252,0.18)]',
+    featureText: 'text-[#D8B4FE]',
+    slotBtn:
+      'bg-[#160D33]/90 hover:bg-[#271556] border border-[#C084FC]/35 hover:border-[#C084FC] hover:shadow-[0_0_14px_rgba(192,132,252,0.35)]',
+    priceText: 'text-[#C084FC] group-hover:text-[#E9D5FF]',
+    tagIdle:
+      'bg-[#24124D]/75 text-[#C084FC] border-[#C084FC]/40 hover:bg-[#311868] hover:border-[#C084FC] hover:shadow-[0_0_10px_rgba(192,132,252,0.25)]',
+    tagActive:
+      'bg-[#C084FC]/20 text-[#E9D5FF] border-[#C084FC] shadow-[0_0_12px_rgba(192,132,252,0.35)] ring-1 ring-[#C084FC]/50',
+  },
+  GOLD: {
+    key: 'GOLD',
+    roomType: ROOM_TYPES_ENUM.GOLD_CLASS,
+    accentHex: '#F6CF65',
+    roomCard:
+      'bg-[#2A1E0D]/35 border-[#F6CF65]/35 hover:border-[#F6CF65]/60 shadow-[0_0_18px_rgba(246,207,101,0.08)] transition-colors',
+    roomBadge:
+      'font-bold text-[#F6CF65] bg-[#36260F]/85 px-2 py-0.5 rounded border border-[#F6CF65]/45 shadow-[0_0_10px_rgba(246,207,101,0.18)]',
+    featureText: 'text-[#FDE68A]',
+    slotBtn:
+      'bg-[#1F170B]/90 hover:bg-[#352610] border border-[#F6CF65]/35 hover:border-[#F6CF65] hover:shadow-[0_0_14px_rgba(246,207,101,0.35)]',
+    priceText: 'text-[#F6CF65] group-hover:text-[#FEF08A]',
+    tagIdle:
+      'bg-[#36260F]/75 text-[#F6CF65] border-[#F6CF65]/40 hover:bg-[#473214] hover:border-[#F6CF65] hover:shadow-[0_0_10px_rgba(246,207,101,0.25)]',
+    tagActive:
+      'bg-[#F6CF65]/20 text-[#FEF08A] border-[#F6CF65] shadow-[0_0_12px_rgba(246,207,101,0.35)] ring-1 ring-[#F6CF65]/50',
+  },
+});
+
+export const getRoomThemeStyles = (input) => {
+  const themeKey = resolveRoomThemeKey(input);
+  return ROOM_THEME_STYLES[themeKey] || ROOM_THEME_STYLES.IMAX;
+};
+
+/**
+ * Nhận diện chuẩn khóa bảng giá vé ('2D' | '3D' | 'IMAX' | 'GOLD_CLASS')
+ * phân biệt rõ Công nghệ phòng (`room.roomType`) với Định dạng phim (`formatFeature`).
  */
 export const detectFormatKey = (roomOrFormat = '') => {
-  const combined =
+  if (typeof roomOrFormat === 'string') {
+    const clean = roomOrFormat.trim().toLowerCase();
+    if (clean === 'imax' || clean === 'imax laser') return 'IMAX';
+    if (clean === 'gold_class' || clean === 'gold class' || clean === 'gold') return 'GOLD_CLASS';
+    if (clean === '3d' || clean === 'reald 3d') return '3D';
+    if (clean === '2d' || clean === 'dolby atmos' || clean === '2d tiêu chuẩn') return '2D';
+  }
+
+  const canonicalRoomType = resolveCanonicalRoomType(roomOrFormat);
+  const formatText =
     typeof roomOrFormat === 'string'
       ? roomOrFormat.toLowerCase()
-      : `${roomOrFormat?.roomName || ''} ${roomOrFormat?.roomType || ''} ${roomOrFormat?.format || ''} ${roomOrFormat?.formatFeature || ''}`.toLowerCase();
+      : `${roomOrFormat?.formatFeature || ''} ${roomOrFormat?.format || ''}`.toLowerCase();
 
-  if (combined.includes('imax')) return 'IMAX';
-  if (combined.includes('gold class') || combined.includes('gold_class') || combined.includes('gold') || combined.includes('lounge')) {
+  if (canonicalRoomType === ROOM_TYPES_ENUM.IMAX_LASER) return 'IMAX';
+  if (canonicalRoomType === ROOM_TYPES_ENUM.GOLD_CLASS) return 'GOLD_CLASS';
+  if (canonicalRoomType === ROOM_TYPES_ENUM.REALD_3D) return '3D';
+
+  if (
+    canonicalRoomType === ROOM_TYPES_ENUM.DOLBY_ATMOS ||
+    canonicalRoomType === ROOM_TYPES_ENUM.STANDARD_2D ||
+    canonicalRoomType === ROOM_TYPES_ENUM.SOUND_4DX
+  ) {
+    if (/\b3d\b/i.test(formatText) || formatText.includes('reald')) return '3D';
+    return '2D';
+  }
+
+  if (formatText.includes('imax')) return 'IMAX';
+  if (formatText.includes('gold class') || formatText.includes('gold_class') || formatText.includes('lounge')) {
     return 'GOLD_CLASS';
   }
-  if (combined.includes('3d')) return '3D';
-  if (combined.includes('atmos')) return '2D';
+  if (/\b3d\b/i.test(formatText) || formatText.includes('reald')) return '3D';
   return '2D';
 };
 

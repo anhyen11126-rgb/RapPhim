@@ -113,6 +113,7 @@ const expenseSchema = new mongoose.Schema(
   }
 );
 
+// Tự động gán month và year theo ngày phát sinh (múi giờ Việt Nam) nếu chưa truyền cụ thể
 expenseSchema.pre('save', function (next) {
   if (this.date && (!this.month || !this.year)) {
     const parts = getVietnamParts(this.date);

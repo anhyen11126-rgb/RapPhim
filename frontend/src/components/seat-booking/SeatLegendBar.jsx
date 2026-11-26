@@ -13,8 +13,13 @@ const SeatLegendBar = ({
   roomType = 'IMAX', // 'IMAX' | 'ATMOS' | 'GOLD'
   seats = [],
   bookedSeats = [],
+  holdingSeats = [],
   selectedSeats = [],
   totalAmount = 0,
+  priceStandard = 0,
+  priceVip = 0,
+  priceSweetbox = 0,
+  isSubmitting = false,
   onProceed,
 }) => {
   const isImax = roomType === 'IMAX';
@@ -24,11 +29,13 @@ const SeatLegendBar = ({
   // Tính toán số lượng ghế thực tế thời gian thực
   const totalSeats = seats.length;
   const bookedCount = bookedSeats.length;
+  const holdingCount = holdingSeats.length;
   const selectedCount = selectedSeats.length;
-  const availableCount = Math.max(0, totalSeats - bookedCount - selectedCount);
+  const availableCount = Math.max(0, totalSeats - bookedCount - holdingCount - selectedCount);
   const occupancyRate = totalSeats > 0 ? ((bookedCount / totalSeats) * 100).toFixed(1) : '0.0';
 
-  const isAvailable = ({ seatNumber }) => !bookedSeats.includes(seatNumber) && !selectedSeats.includes(seatNumber);
+  const isAvailable = ({ seatNumber }) =>
+    !bookedSeats.includes(seatNumber) && !holdingSeats.includes(seatNumber) && !selectedSeats.includes(seatNumber);
   const availableVipCount = seats.filter((seat) => seat.type !== 'STANDARD' && isAvailable(seat)).length;
   const availableStandardCount = availableCount - availableVipCount;
 
@@ -88,7 +95,9 @@ const SeatLegendBar = ({
                 <rect x="6" y="16" width="26" height="15" rx="3" fill="#060E22" stroke="rgba(0,217,255,0.4)" strokeWidth="0.8" />
               </svg>
             )}
-            <span className="text-slate-300 font-semibold">Ghế tiêu chuẩn</span>
+            <span className="text-slate-300 font-semibold">
+              Ghế tiêu chuẩn{priceStandard > 0 ? ` (${priceStandard.toLocaleString('vi-VN')}đ)` : ''}
+            </span>
             <span className="px-1.5 py-0.2 rounded-full bg-slate-700/60 border border-slate-500/50 text-slate-200 font-black text-[10px] leading-tight">
               {availableStandardCount}
             </span>
@@ -103,7 +112,9 @@ const SeatLegendBar = ({
                 <rect x="34" y="9" width="8" height="27" rx="3.5" fill="#1F170E" stroke="#FFD18A" strokeWidth="1.4" />
                 <rect x="11" y="12" width="22" height="22" rx="3.5" fill="#17110A" stroke="rgba(255,209,138,0.85)" strokeWidth="1" />
               </svg>
-              <span className="text-[#FFD18A] font-bold">Ghế VIP Premium</span>
+              <span className="text-[#FFD18A] font-bold">
+                Ghế VIP Premium{priceVip > 0 ? ` (${priceVip.toLocaleString('vi-VN')}đ)` : ''}
+              </span>
               <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 border border-[#FFD18A]/50 text-[#FFD18A] font-black text-[10px] leading-tight shadow-[0_0_8px_rgba(255,209,138,0.25)]">
                 {availableVipCount}
               </span>
@@ -116,7 +127,9 @@ const SeatLegendBar = ({
                 <path d="M 6 12 C 6 5, 32 5, 32 12 L 32 30 C 32 34, 6 34, 6 30 Z" fill="#1A0C3D" stroke="#00D5FF" strokeWidth="1.5" />
                 <rect x="8" y="16" width="22" height="14" rx="4" fill="#0C051B" stroke="rgba(0,213,255,0.6)" strokeWidth="0.8" />
               </svg>
-              <span className="text-[#00D5FF] font-bold">Ghế Premium</span>
+              <span className="text-[#00D5FF] font-bold">
+                Ghế Premium{priceVip > 0 ? ` (${priceVip.toLocaleString('vi-VN')}đ)` : ''}
+              </span>
               <span className="px-1.5 py-0.2 rounded-full bg-cyan-500/20 border border-[#00D5FF]/50 text-[#00D5FF] font-black text-[10px] leading-tight shadow-[0_0_8px_rgba(0,213,255,0.25)]">
                 {availableVipCount}
               </span>
@@ -130,7 +143,9 @@ const SeatLegendBar = ({
                 <rect x="3" y="8" width="32" height="26" rx="5" fill="#0D0724" stroke="#8B3DFF" strokeWidth="1.4" />
                 <rect x="6" y="16" width="26" height="15" rx="3" fill="#080417" stroke="rgba(139,61,255,0.4)" strokeWidth="0.8" />
               </svg>
-              <span className="text-[#E34BFF] font-bold">Ghế VIP Prime</span>
+              <span className="text-[#E34BFF] font-bold">
+                Ghế VIP Prime{priceVip > 0 ? ` (${priceVip.toLocaleString('vi-VN')}đ)` : ''}
+              </span>
               <span className="px-1.5 py-0.2 rounded-full bg-purple-500/20 border border-[#8B3DFF]/50 text-[#E34BFF] font-black text-[10px] leading-tight shadow-[0_0_8px_rgba(139,61,255,0.25)]">
                 {availableVipCount}
               </span>
@@ -194,6 +209,15 @@ const SeatLegendBar = ({
             <span className="text-slate-300 font-semibold">Ghế đã đặt</span>
             <span className="px-1.5 py-0.2 rounded-full bg-slate-700/80 border border-slate-600 text-slate-200 font-black text-[10px] leading-tight">
               {bookedCount}
+            </span>
+          </div>
+
+          {/* E. GHẾ ĐANG GIỮ (HOLDING - VÀNG HỔ PHÁCH) */}
+          <div className="flex items-center space-x-1.5" title="Ghế đang được giữ tạm thời trong 10 phút">
+            <span className="w-4 h-4 rounded border border-amber-500/70 bg-amber-500/15 flex items-center justify-center text-[9px]">⏳</span>
+            <span className="text-amber-300 font-semibold">Đang giữ</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 font-black text-[10px] leading-tight">
+              {holdingCount}
             </span>
           </div>
         </div>

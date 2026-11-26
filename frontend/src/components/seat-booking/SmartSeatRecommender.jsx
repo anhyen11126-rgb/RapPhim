@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
+import { SEAT_LAYOUT_CONFIG, getRowSeatCount, resolveRowAisleSplitCol } from './seatLayout';
 
 const PREFERENCE_OPTIONS = [
   { id: 'CENTER', label: 'Điểm ngọt trung tâm', icon: '🎯', desc: 'Góc nhìn & âm thanh chuẩn điện ảnh' },
@@ -11,6 +12,7 @@ const PREFERENCE_OPTIONS = [
 const SmartSeatRecommender = ({
   showtimeId,
   roomType = 'IMAX',
+  seats = [],
   selectedSeats = [],
   bookedSeats = [],
   onSelectSeats,
@@ -96,54 +98,89 @@ const SmartSeatRecommender = ({
     }
   };
 
-  // Thuật toán tìm ghế liền kề cục bộ (không cắt lối đi)
+  // Thuật toán tìm ghế liền kề cục bộ dựa trên dữ liệu ghế thực tế (tuyệt đối không cắt lối đi & không tạo ghế ảo)
   const computeLocalRecommendation = (count, pref, bookedList) => {
     const bookedSet = new Set((bookedList || []).map((s) => String(s).toUpperCase()));
-    const rows = [
-      { row: 'E', left: [1, 2, 3, 4, 5, 6], right: [7, 8, 9, 10, 11, 12], type: 'VIP', score: 100 },
-      { row: 'F', left: [1, 2, 3, 4, 5, 6], right: [7, 8, 9, 10, 11, 12], type: 'VIP', score: 95 },
-      { row: 'D', left: [1, 2, 3, 4, 5, 6], right: [7, 8, 9, 10, 11, 12], type: 'STANDARD', score: 90 },
-      { row: 'C', left: [1, 2, 3, 4, 5, 6], right: [7, 8, 9, 10, 11, 12], type: 'STANDARD', score: 80 },
-      { row: 'G', left: [1, 2, 3, 4, 5, 6], right: [7, 8, 9, 10, 11, 12], type: 'VIP', score: 85 },
-      { row: 'B', left: [1, 2, 3, 4, 5, 6], right: [7, 8, 9, 10, 11, 12], type: 'STANDARD', score: 65 },
-      { row: 'H', left: [1, 2], right: [3, 4], type: 'SWEETBOX', score: 75 },
-      { row: 'A', left: [1, 2, 3, 4, 5, 6], right: [7, 8, 9, 10, 11, 12], type: 'STANDARD', score: 40 },
-    ];
+    const sourceSeats =
+      Array.isArray(seats) && seats.length > 0
+        ? seats
+        : SEAT_LAYOUT_CONFIG.rows.flatMap((row) =>
+            Array.from({ length: getRowSeatCount(row) }, (_, idx) => ({
+              row,
+              col: idx + 1,
+              seatNumber: `${row}${idx + 1}`,
+              type: ['E', 'F', 'G'].includes(row) ? 'VIP' : row === 'H' ? 'SWEETBOX' : 'STANDARD',
+            }))
+          );
+
+    const byRow = new Map();
+    for (const s of sourceSeats) {
+      const rowLabel = String(s.row || '').trim().toUpperCase();
+      const colNum = Number(s.col);
+      if (!rowLabel || !Number.isFinite(colNum)) continue;
+      if (!byRow.has(rowLabel)) byRow.set(rowLabel, []);
+      byRow.get(rowLabel).push({
+        seatCode: String(s.seatNumber || `${rowLabel}${colNum}`).toUpperCase(),
+        row: rowLabel,
+        col: colNum,
+        type: String(s.type || 'STANDARD').toUpperCase(),
+      });
+    }
 
     const candidates = [];
-    rows.forEach((cfg) => {
-      [cfg.left, cfg.right].forEach((blockCols, blockIdx) => {
-        const sideName = blockIdx === 0 ? 'Dãy trái' : 'Dãy phải';
-        if (blockCols.length < count) return;
+    for (const [rowLabel, rowEntries] of [...byRow.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      const ordered = rowEntries.slice().sort((a, b) => a.col - b.col);
+      const splitCol = resolveRowAisleSplitCol(ordered);
+      const aisleCenter = splitCol + 0.5;
+      const baseScore = SEAT_LAYOUT_CONFIG.rowBaseScores[rowLabel] ?? 70;
 
-        for (let i = 0; i <= blockCols.length - count; i++) {
-          const sliceCols = blockCols.slice(i, i + count);
-          const seatCodes = sliceCols.map((c) => `${cfg.row}${c}`);
-          const isFree = seatCodes.every((code) => !bookedSet.has(code));
+      const leftBlock = ordered.filter((s) => s.col <= splitCol);
+      const rightBlock = ordered.filter((s) => s.col > splitCol);
+
+      [leftBlock, rightBlock].forEach((blockSeats, blockIdx) => {
+        const sideName = blockIdx === 0 ? 'Dãy trái' : 'Dãy phải';
+        if (blockSeats.length < count) return;
+
+        for (let i = 0; i <= blockSeats.length - count; i++) {
+          const slice = blockSeats.slice(i, i + count);
+          const isFree = slice.every((s) => !bookedSet.has(s.seatCode));
           if (!isFree) continue;
 
-          let s = cfg.score;
+          let isAdjacent = true;
+          for (let k = 1; k < slice.length; k++) {
+            if (slice[k].col !== slice[k - 1].col + 1) {
+              isAdjacent = false;
+              break;
+            }
+          }
+          if (!isAdjacent) continue;
+
+          const sliceCols = slice.map((s) => s.col);
+          const seatCodes = slice.map((s) => s.seatCode);
+          const dominantType = slice[0].type;
+
+          let s = baseScore;
           const avgCol = sliceCols.reduce((a, b) => a + b, 0) / count;
-          const distFromCenter = Math.abs(avgCol - 6.5);
+          const distFromCenter = Math.abs(avgCol - aisleCenter);
           s += Math.max(0, 30 - distFromCenter * 6);
 
-          if (pref === 'CENTER' && ['D', 'E', 'F'].includes(cfg.row)) s += 40;
-          if (pref === 'VIP' && (cfg.type === 'VIP' || cfg.type === 'SWEETBOX')) s += 45;
-          if (pref === 'NEAR_SCREEN' && ['B', 'C', 'D'].includes(cfg.row)) s += 45;
-          if (pref === 'FAR_SCREEN' && ['F', 'G', 'H'].includes(cfg.row)) s += 45;
+          if (pref === 'CENTER' && ['D', 'E', 'F'].includes(rowLabel)) s += 40;
+          if (pref === 'VIP' && (dominantType === 'VIP' || dominantType === 'SWEETBOX')) s += 45;
+          if (pref === 'NEAR_SCREEN' && ['B', 'C', 'D'].includes(rowLabel)) s += 45;
+          if (pref === 'FAR_SCREEN' && ['F', 'G', 'H'].includes(rowLabel)) s += 45;
 
           candidates.push({
-            row: cfg.row,
+            row: rowLabel,
             cols: sliceCols,
             seatCodes,
-            type: cfg.type,
+            type: dominantType,
             side: sideName,
             score: Math.round(s),
-            label: `Hàng ${cfg.row} (${sideName}) - Ghế ${seatCodes.join(', ')}`,
+            label: `Hàng ${rowLabel} (${sideName}) - Ghế ${seatCodes.join(', ')}`,
           });
         }
       });
-    });
+    }
 
     candidates.sort((a, b) => b.score - a.score);
     return {

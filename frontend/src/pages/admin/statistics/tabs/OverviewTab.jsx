@@ -61,6 +61,7 @@ const OverviewTab = ({
   const kpis = data?.kpis || {};
   const occupancy = data?.occupancy || {};
   const cinemaCapacity = data?.cinemaCapacity || {};
+  const mom = data?.momComparison || {};
   const roomOccupancyBreakdown = data?.roomOccupancyBreakdown || [];
   const roomTypeBreakdown = data?.roomTypeBreakdown || [];
   const topRevenueMovies = data?.topRevenueMovies || [];
@@ -75,7 +76,8 @@ const OverviewTab = ({
     data?.isSimulatedMode ??
     ((data?.paymentCounts?.SIMULATED || 0) > 0 && (data?.paymentCounts?.VERIFIED || 0) === 0);
 
-  const revenueBadgeLabel = data?.revenueSourceBadge || (isSimulatedMode ? 'Doanh thu mô phỏng' : 'Dòng tiền thực');
+  const revenueBadgeLabel =
+    data?.revenueSourceBadge || (isSimulatedMode ? 'Doanh thu mô phỏng' : 'Dòng tiền thực');
 
   const profitValueColor = !data?.profitKnown
     ? 'text-amber-300'
@@ -103,6 +105,11 @@ const OverviewTab = ({
             <span>
               Kỳ báo cáo: <strong className="text-white">{data.timeRangeLabel}</strong>
             </span>
+            {cinemaCapacity.missingSeatShowtimesCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 font-semibold">
+                Cảnh báo: {cinemaCapacity.missingSeatShowtimesCount} suất thiếu dữ liệu ShowtimeSeat
+              </span>
+            )}
           </div>
           {data.paymentCounts && (
             <div className="flex flex-wrap items-center gap-3 text-slate-400">
@@ -121,6 +128,15 @@ const OverviewTab = ({
               </span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Trạng thái Empty khi kỳ được chọn hoàn toàn chưa có dữ liệu */}
+      {!loading && data && !data.hasActivityInPeriod && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-xs text-amber-200 flex items-center justify-between">
+          <span>
+            ℹ️ Chưa có dữ liệu giao dịch hoặc suất chiếu trong kỳ <strong>{data.timeRangeLabel}</strong>. Bạn có thể chọn kỳ báo cáo khác (ví dụ Tháng 11/2026) để xem số liệu hoạt động.
+          </span>
         </div>
       )}
 
@@ -208,6 +224,7 @@ const OverviewTab = ({
               : 'Chưa ghi nhận chi phí trong kỳ'
           }
           growth={kpis.totalExpenses?.growth}
+          subtitle={!kpis.totalExpenses?.hasExpenseData ? 'Bấm Tab Doanh thu & Chi phí để nhập' : undefined}
           tooltip={kpis.totalExpenses?.tooltip}
           loading={loading}
           icon="📉"
@@ -239,6 +256,67 @@ const OverviewTab = ({
         />
       </div>
 
+      {/* 1.2 DÃY CHỈ SỐ BỔ SUNG THÁNG & SO SÁNH THÁNG TRƯỚC (MoM) */}
+      {!loading && data && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] text-slate-400 font-semibold block">Doanh thu TB / Suất chiếu</span>
+              <strong className="text-sm sm:text-base font-black text-white mt-0.5 block">
+                {kpis.averages?.avgRevenuePerShowtimeFormatted || '0 ₫'}
+              </strong>
+              <span className="text-[10px] text-slate-500">
+                Tính trên {formatNumber(kpis.totalShowtimes?.value || 0)} suất hoạt động
+              </span>
+            </div>
+            <span className="text-lg">📽️</span>
+          </div>
+
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] text-slate-400 font-semibold block">Doanh thu TB / Ngày trong kỳ</span>
+              <strong className="text-sm sm:text-base font-black text-cyan-300 mt-0.5 block">
+                {kpis.averages?.avgRevenuePerDayFormatted || '0 ₫'}
+              </strong>
+              <span className="text-[10px] text-slate-500">
+                Vé: {kpis.ticketRevenue?.formatted || '0 ₫'} • Combo: {kpis.concessionRevenue?.formatted || '0 ₫'}
+              </span>
+            </div>
+            <span className="text-lg">📅</span>
+          </div>
+
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] text-slate-400 font-semibold block">Tổng sức chứa trong kỳ</span>
+              <strong className="text-sm sm:text-base font-black text-white mt-0.5 block">
+                {formatNumber(occupancy.totalSellable || 0)} ghế
+              </strong>
+              <span className="text-[10px] text-slate-500">
+                Đã bán: {formatNumber(occupancy.booked || 0)} • Chưa bán: {formatNumber(occupancy.available || 0)}
+              </span>
+            </div>
+            <span className="text-lg">🪑</span>
+          </div>
+
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] text-slate-400 font-semibold block">
+                So sánh với {mom.previousPeriodLabel || 'Kỳ trước'} (MoM)
+              </span>
+              <strong className="text-xs sm:text-sm font-bold text-slate-200 mt-0.5 block">
+                DT: {mom.revenue?.growth != null ? `${mom.revenue.growth > 0 ? '+' : ''}${mom.revenue.growth}%` : 'N/A'} • Vé:{' '}
+                {mom.tickets?.growth != null ? `${mom.tickets.growth > 0 ? '+' : ''}${mom.tickets.growth}%` : 'N/A'}
+              </strong>
+              <span className="text-[10px] text-slate-500">
+                Suất: {mom.showtimes?.growth != null ? `${mom.showtimes.growth > 0 ? '+' : ''}${mom.showtimes.growth}%` : 'N/A'} • Lấp đầy:{' '}
+                {mom.occupancyRate?.growth != null ? `${mom.occupancyRate.growth > 0 ? '+' : ''}${mom.occupancyRate.growth}%` : 'N/A'}
+              </span>
+            </div>
+            <span className="text-lg">📈</span>
+          </div>
+        </div>
+      )}
+
       {/* 2. KHỐI BIỂU ĐỒ DIỄN BIẾN DOANH THU & DONUT TỶ LỆ BÁN VÉ / CÔNG SUẤT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Cột trái (7 cols): Biểu đồ Diễn biến Doanh thu (Area + Line Chart) */}
@@ -251,16 +329,17 @@ const OverviewTab = ({
               </p>
             </div>
             <span
-              className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${isSimulatedMode
+              className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${
+                isSimulatedMode
                   ? 'text-purple-300 bg-purple-950/60 border-purple-500/40'
                   : 'text-emerald-400 bg-emerald-950/60 border-emerald-500/30'
-                }`}
+              }`}
             >
               {revenueBadgeLabel}
             </span>
           </div>
 
-          <RevenueChart data={data?.revenueChartData || []} loading={loading} />
+          <RevenueChart data={data?.revenueChartData || []} loading={loading} showExpenseOverlay={true} />
         </div>
 
         {/* Cột phải (5 cols): Tỷ lệ bán vé trung bình & công suất phòng chiếu */}
@@ -296,7 +375,7 @@ const OverviewTab = ({
 
       {/* 3. KHỐI THÔNG TIN BỔ SUNG: TOP 5 PHIM DOANH THU CAO NHẤT & KHUNG GIỜ CAO ĐIỂM */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Top 5 Phim doanh thu cao nhất (6 cols) */}
+        {/* Top Phim trong kỳ (6 cols) */}
         <div className="lg:col-span-6 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
           <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
@@ -316,14 +395,15 @@ const OverviewTab = ({
                 >
                   <div className="flex items-center space-x-3 min-w-0">
                     <span
-                      className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${idx === 0
+                      className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${
+                        idx === 0
                           ? 'bg-amber-500 text-slate-950 font-black'
                           : idx === 1
-                            ? 'bg-slate-300 text-slate-950 font-black'
-                            : idx === 2
-                              ? 'bg-amber-700 text-white font-black'
-                              : 'bg-[var(--bg-surface)] text-slate-400'
-                        }`}
+                          ? 'bg-slate-300 text-slate-950 font-black'
+                          : idx === 2
+                          ? 'bg-amber-700 text-white font-black'
+                          : 'bg-[var(--bg-surface)] text-slate-400'
+                      }`}
                     >
                       {idx + 1}
                     </span>
@@ -357,29 +437,36 @@ const OverviewTab = ({
           </div>
         </div>
 
-        {/* Khung giờ có lượng khách cao nhất & Suất chiếu sắp diễn ra (6 cols) */}
+        {/* Hiệu suất theo Khung giờ chiếu & Suất chiếu sắp diễn ra (6 cols) */}
         <div className="lg:col-span-6 space-y-6">
           {/* Khung giờ cao điểm */}
           <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
             <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
               <div>
-                <h3 className="text-base font-bold text-white">Khung Giờ Cao Điểm</h3>
-                <p className="text-xs text-slate-400">Các khung giờ khán giả đến rạp xem phim nhiều nhất</p>
+                <h3 className="text-base font-bold text-white">Hiệu Suất Theo Khung Giờ Chiếu</h3>
+                <p className="text-xs text-slate-400">Phân bổ suất chiếu, vé bán và doanh thu theo 4 ca trong ngày</p>
               </div>
-              <span className="text-xs font-bold text-amber-400">Giờ Vàng</span>
+              <span className="text-xs font-bold text-amber-400">Ca chiếu</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {peakHours.map((slot, idx) => (
                 <div
                   key={idx}
-                  className="bg-[var(--bg-surface)]/40 border border-slate-700/60 rounded-2xl p-3 text-center space-y-1"
+                  className="bg-[var(--bg-surface)]/40 border border-slate-700/60 rounded-2xl p-3.5 flex items-center justify-between"
                 >
-                  <span className="text-[10px] font-semibold text-slate-400 block truncate">{slot.slot}</span>
-                  <span className="text-lg font-black text-white block">{formatNumber(slot.tickets)}</span>
-                  <span className="text-[10px] text-cyan-300 font-semibold block">
-                    vé ({formatPercent(slot.occupancyRate || 0, 1)})
-                  </span>
+                  <div>
+                    <span className="text-xs font-bold text-white block">{slot.slot}</span>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">
+                      {formatNumber(slot.showtimesCount || 0)} suất • Lấp đầy {formatPercent(slot.occupancyRate || 0, 1)}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-black text-cyan-300 block">{formatNumber(slot.tickets)} vé</span>
+                    <span className="text-[10px] text-emerald-400 font-semibold block">
+                      {slot.revenueFormatted || formatCurrency(slot.revenue || 0)}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -389,7 +476,7 @@ const OverviewTab = ({
           <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-3.5 shadow-xl">
             <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
               <h3 className="text-base font-bold text-white">Suất Chiếu Sắp Bắt Đầu</h3>
-              <span className="text-xs text-slate-400">Theo thời gian thực</span>
+              <span className="text-xs text-slate-400">Bấm vào suất để xem sơ đồ 88 ghế</span>
             </div>
 
             <div className="space-y-2">

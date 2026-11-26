@@ -23,11 +23,14 @@ import roomRoutes from './routes/roomRoutes.js';
 import pricingRoutes from './routes/pricingRoutes.js';
 import statisticsRoutes from './routes/statisticsRoutes.js';
 import connectDB from './config/db.js';
+import { startShowtimeLifecycleScheduler } from './services/showtimeLifecycleService.js';
 
 dotenv.config();
 
-// Khởi chạy kết nối MongoDB
-connectDB();
+// Khởi chạy kết nối MongoDB và bộ lập lịch tự động hoàn thành suất chiếu đã kết thúc
+connectDB().then(() => {
+  startShowtimeLifecycleScheduler(60000);
+});
 
 const app = express();
 const PORT = process.env.PORT || 5000;

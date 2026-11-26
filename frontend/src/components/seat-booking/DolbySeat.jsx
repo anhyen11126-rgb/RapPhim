@@ -10,12 +10,14 @@ const DolbySeat = ({
   seatId,
   number,
   isBooked,
+  isHoldingOther,
+  isHoldingSelf,
   isSelected,
   isPremium, // Hàng E, F, G là khu vực Premium có viền Cyan
   onClick,
 }) => {
   const handleClick = () => {
-    if (!isBooked && onClick) {
+    if (!isBooked && !isHoldingOther && onClick) {
       onClick(seatId);
     }
   };
@@ -43,6 +45,35 @@ const DolbySeat = ({
             className="text-[12px] font-black fill-[#E2E8F0] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
           >
             ✕
+          </text>
+        </svg>
+      </div>
+    );
+  }
+
+  // 1b. TRẠNG THÁI: GHẾ ĐANG ĐƯỢC KHÁCH KHÁC GIỮ (HOLDING_OTHER)
+  if (isHoldingOther) {
+    return (
+      <div
+        className="relative w-7 h-7 sm:w-8 sm:h-8 md:w-[33px] md:h-[31px] flex items-center justify-center select-none cursor-not-allowed opacity-90 shrink-0"
+        title={`Ghế ${seatId} - Đang được khách khác giữ`}
+      >
+        <svg viewBox="0 0 38 36" className="w-full h-full">
+          <path
+            d="M 6 12 C 6 5, 32 5, 32 12 L 32 29 C 32 33, 6 33, 6 29 Z"
+            fill="#24190A"
+            stroke="#F59E0B"
+            strokeWidth="1.2"
+          />
+          <rect x="8" y="15" width="22" height="14" rx="4" fill="#171005" stroke="#B45309" strokeWidth="1" />
+          <text
+            x="19"
+            y="22"
+            textAnchor="middle"
+            dominantBaseline="central"
+            className="text-[11px] font-black fill-[#FCD34D]"
+          >
+            ⏳
           </text>
         </svg>
       </div>

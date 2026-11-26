@@ -1,15 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
-import { FALLBACK_CINEMAS } from '../../constants/cinemas';
-import { calculateDynamicPrices, loadPricingConfig, DEFAULT_PRICING_CONFIG } from '../../utils/pricing';
+import { getCinemasCached, getCachedData } from '../../services/clientDataCache';
+import { FALLBACK_CINEMAS, resolveCanonicalCinema } from '../../constants/cinemas';
+import {
+  calculateDynamicPrices,
+  loadPricingConfig,
+  DEFAULT_PRICING_CONFIG,
+  ROOM_TYPES_ENUM,
+  ACTIVE_CINEMA_ROOM_TYPES,
+  resolveCanonicalRoomType,
+  getRoomThemeStyles,
+} from '../../utils/pricing';
 
-const TECH_FILTERS = ['Tất cả', 'IMAX Laser', 'Dolby Atmos', 'RealD 3D'];
+const TECH_FILTERS = ['Tất cả', 'IMAX Laser', 'Dolby Atmos', 'Gold Class'];
 
 const PRICE_MATRIX_FORMATS = [
-  { key: '2D', label: '2D Dolby Atmos / Tiêu chuẩn', roomName: 'Rạp 03 - 2D Dolby' },
-  { key: '3D', label: 'RealD 3D High Frame Rate', roomName: 'Rạp 05 - RealD 3D' },
-  { key: 'IMAX', label: 'IMAX Laser Grand Hall', roomName: 'Phòng IMAX 01' },
+  { key: 'IMAX', label: 'IMAX Laser Grand Hall', roomType: 'IMAX Laser', roomName: 'Phòng 01 - IMAX Laser' },
+  { key: '2D', label: 'Dolby Atmos', roomType: 'Dolby Atmos', roomName: 'Phòng 04 - Dolby Atmos' },
+  { key: 'GOLD_CLASS', label: 'VIP Gold Class Lounge', roomType: 'Gold Class', roomName: 'Phòng 07 - Gold Class' },
 ];
 
 const PRICE_TIME_SLOTS = [
@@ -25,25 +34,28 @@ const TheatersPage = () => {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [activeTech, setActiveTech] = useState('Tất cả');
 
+  // Khởi tạo tức thì cụm rạp duy nhất từ cache/chuẩn để hiển thị UI ngay và gọi API lịch chiếu song song
+  const initialCanonicalCinema = resolveCanonicalCinema(getCachedData('GET:/cinemas?city=Đà Nẵng&district=Thanh Khê').data);
+
   // State dữ liệu rạp từ API
-  const [cinemas, setCinemas] = useState([]);
-  const [loadingCinemas, setLoadingCinemas] = useState(true);
-  const [selectedCinemaId, setSelectedCinemaId] = useState(null);
+  const [cinemas, setCinemas] = useState([initialCanonicalCinema]);
+  const [loadingCinemas, setLoadingCinemas] = useState(false);
+  const [selectedCinemaId, setSelectedCinemaId] = useState(initialCanonicalCinema.id);
 
   // State lịch chiếu của rạp đang chọn
-  const [cinemaDetails, setCinemaDetails] = useState(null);
+  const [cinemaDetails, setCinemaDetails] = useState(initialCanonicalCinema);
   const [moviesWithShowtimes, setMoviesWithShowtimes] = useState([]);
   const [monthMovies, setMonthMovies] = useState([]);
-  const [loadingShowtimes, setLoadingShowtimes] = useState(false);
+  const [loadingShowtimes, setLoadingShowtimes] = useState(true);
   const [activeDateIndex, setActiveDateIndex] = useState(0);
 
-  // Modal Bảng giá vé tiêu chuẩn (nạp động từ MongoDB)
+  // Modal Bảng giá vé tiêu chuẩn (dùng cache có sẵn, không ép tải lại thừa)
   const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
   const [priceDayType, setPriceDayType] = useState('WEEKDAY'); // 'WEEKDAY' | 'WEEKEND'
   const [pricingConfig, setPricingConfig] = useState(DEFAULT_PRICING_CONFIG);
 
   useEffect(() => {
-    loadPricingConfig(true).then((cfg) => {
+    loadPricingConfig(false).then((cfg) => {
       if (cfg) setPricingConfig(cfg);
     });
   }, []);
@@ -98,8 +110,8 @@ const TheatersPage = () => {
         if (activeTech && activeTech !== 'Tất cả') params.tech = activeTech;
         if (searchKeyword.trim()) params.search = searchKeyword.trim();
 
-        const res = await api.get('/cinemas', { params });
-        const data = res.data && res.data.length > 0 ? res.data : null;
+        const rawList = await getCinemasCached(params);
+        const data = rawList && rawList.length > 0 ? rawList : null;
 
         if (data) {
           setCinemas(data);
@@ -188,29 +200,58 @@ const TheatersPage = () => {
     return () => request.abort();
   }, [selectedCinemaId, activeDateIndex, customDate]);
 
-  // Điều hướng sang màn hình chọn ghế với showtimeId thật từ DB
-  const handleSelectShowtime = (showtimeId) => {
-    navigate(`/booking/seat/${showtimeId}`);
+  // Điều hướng sang màn hình chọn ghế với showtimeId thật từ DB kèm slotInfo hiển thị tức thì
+  const handleSelectShowtime = (showtimeId, movie = null, room = null, st = null) => {
+    const selectedDateIso = customDate || dates[activeDateIndex]?.isoDate || new Date().toISOString().slice(0, 10);
+    const slotInfo = movie && room && st
+      ? {
+          id: showtimeId,
+          _id: showtimeId,
+          movie: {
+            id: movie.id || movie._id,
+            _id: movie._id || movie.id,
+            title: movie.title,
+            posterUrl: movie.posterUrl,
+            duration: movie.duration,
+            genre: movie.genre,
+            ageRating: movie.ageRating,
+          },
+          roomName: room.name,
+          roomType: resolveCanonicalRoomType(room),
+          format: room.feature || resolveCanonicalRoomType(room),
+          time: st.time,
+          date: selectedDateIso,
+          price: st.priceStandard || st.price,
+          ticketPrices:
+            st.priceStandard && st.priceVip && st.priceSweetbox
+              ? { standard: st.priceStandard, vip: st.priceVip, sweetbox: st.priceSweetbox }
+              : undefined,
+          cinemaName: cinemaDetails?.name || "D'AVENOR Thanh Khê Plaza",
+        }
+      : undefined;
+
+    navigate(`/booking/seat/${showtimeId}`, slotInfo ? { state: { slotInfo } } : undefined);
   };
 
-  // Hàm kiểm tra phòng chiếu có khớp với công nghệ đã chọn hay không
+  // Kiểm tra phòng chiếu có khớp với công nghệ đã chọn dựa trên enum room.roomType kết hợp định dạng phim
   const isRoomMatchingTech = (room, tech) => {
     if (!tech || tech === 'Tất cả') return true;
-    const name = (room.name || '').toLowerCase();
+    const canonicalType = resolveCanonicalRoomType(room);
     const feature = (room.feature || '').toLowerCase();
-    const combined = `${name} ${feature}`;
 
-    if (tech === 'IMAX Laser') {
-      return combined.includes('imax');
+    if (tech === ROOM_TYPES_ENUM.IMAX_LASER) {
+      return canonicalType === ROOM_TYPES_ENUM.IMAX_LASER;
     }
-    if (tech === 'RealD 3D') {
-      return (combined.includes('3d') || combined.includes('reald')) && !combined.includes('imax');
+    if (tech === ROOM_TYPES_ENUM.DOLBY_ATMOS) {
+      return canonicalType === ROOM_TYPES_ENUM.DOLBY_ATMOS;
     }
-    if (tech === 'Dolby Atmos') {
-      if (combined.includes('imax') || combined.includes('3d')) return false;
-      return combined.includes('dolby') || combined.includes('atmos') || combined.includes('2d');
+    if (tech === ROOM_TYPES_ENUM.GOLD_CLASS) {
+      return canonicalType === ROOM_TYPES_ENUM.GOLD_CLASS;
     }
-    return combined.includes(tech.toLowerCase());
+    if (tech === ROOM_TYPES_ENUM.REALD_3D) {
+      return canonicalType === ROOM_TYPES_ENUM.REALD_3D || /\b3d\b/i.test(feature) || feature.includes('reald');
+    }
+    return canonicalType.toLowerCase() === tech.toLowerCase();
   };
 
   // Danh sách phim và phòng chiếu sau khi lọc theo công nghệ đã chọn
@@ -324,25 +365,28 @@ const TheatersPage = () => {
                         {cinema.address}
                       </p>
 
-                      {/* Thẻ công nghệ */}
+                      {/* Thẻ công nghệ (Chỉ hiển thị 3 loại phòng chuẩn: IMAX Laser, Dolby Atmos, Gold Class với đúng màu nhận diện) */}
                       <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-[#AA9BFF]/15">
-                        {cinema.tags && cinema.tags.map((tag) => (
-                          <button
-                            key={tag}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveTech(tag);
-                            }}
-                            className={`border text-[10px] font-semibold px-2 py-0.5 rounded-md transition-all ${activeTech === tag
-                              ? 'bg-gradient-to-r from-[#A855F7] to-[#42DFFF] text-[#0B1026] border-[#42DFFF] shadow-sm'
-                              : 'bg-[#20204B] text-[var(--text-muted)] border-[#AA9BFF]/25 hover:text-[var(--text-main)] hover:bg-[#25234D]'
+                        {ACTIVE_CINEMA_ROOM_TYPES.map((tag) => {
+                          const tagTheme = getRoomThemeStyles(tag);
+                          const isTagActive = activeTech === tag;
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveTech(isTagActive ? 'Tất cả' : tag);
+                              }}
+                              className={`border text-[10px] font-semibold px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                                isTagActive ? tagTheme.tagActive : tagTheme.tagIdle
                               }`}
-                            title={`Lọc phòng chiếu ${tag}`}
-                          >
-                            {tag}
-                          </button>
-                        ))}
+                              title={`Lọc phòng chiếu ${tag}`}
+                            >
+                              {tag}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -596,58 +640,62 @@ const TheatersPage = () => {
                           </div>
                         </div>
 
-                        {/* Danh sách phòng & các khung giờ */}
+                        {/* Danh sách phòng & các khung giờ (Phân biệt màu tự động theo roomType của 9 phòng vật lý) */}
                         <div className="space-y-3 pt-2">
-                          {movie.rooms && movie.rooms.map((room, rIdx) => (
-                            <div
-                              key={rIdx}
-                              className="bg-[var(--bg-main)] border border-[#AA9BFF]/20 rounded-2xl p-4 space-y-3"
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                                <div className="flex items-center space-x-2">
-                                  <span className="font-bold text-[#42DFFF] bg-[#20204B] px-2 py-0.5 rounded border border-[#42DFFF]/30">
-                                    {room.name}
-                                  </span>
-                                  {room.feature && (
-                                    <span className="text-[var(--text-muted)] text-[11px]">
-                                      • {room.feature}
+                          {movie.rooms && movie.rooms.map((room, rIdx) => {
+                            const roomTheme = getRoomThemeStyles(room);
+                            return (
+                              <div
+                                key={rIdx}
+                                className={`border rounded-2xl p-4 space-y-3 ${roomTheme.roomCard}`}
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                  <div className="flex items-center space-x-2">
+                                    <span className={roomTheme.roomBadge}>
+                                      {room.name}
                                     </span>
-                                  )}
-                                </div>
-                                <span className="text-[var(--text-muted)] font-medium text-[11px]">
-                                  {room.priceText}
-                                </span>
-                              </div>
-
-                              {/* Các nút bấm Suất chiếu liên kết thẳng tới SeatSelectionPage */}
-                              <div className="flex flex-wrap items-center gap-2.5">
-                                {room.showtimes.map((st) => (
-                                  <button
-                                    key={st.id}
-                                    onClick={() => handleSelectShowtime(st.id)}
-                                    className="group relative bg-[var(--bg-secondary)] hover:bg-gradient-to-r hover:from-[#A855F7] hover:to-[#42DFFF] border border-[#AA9BFF]/30 hover:border-[#42DFFF] px-3.5 py-2 rounded-xl text-left transition-all duration-200 shadow-sm"
-                                  >
-                                    <div className="flex items-baseline space-x-2">
-                                      <span className="block text-sm font-black text-white group-hover:text-[#0B1026]">
-                                        {st.time}
+                                    {room.feature && (
+                                      <span className={`text-[11px] font-medium ${roomTheme.featureText}`}>
+                                        • {room.feature}
                                       </span>
-                                      {st.price && (
-                                        <span className="text-[11px] font-bold text-[#83F5FF] group-hover:text-[#0B1026]">
-                                          {st.price.toLocaleString('vi-VN')} đ
-                                        </span>
-                                      )}
-                                    </div>
-                                    <span
-                                      className={`block text-[10px] font-semibold mt-0.5 group-hover:text-[#0B1026] ${st.statusColor || 'text-[var(--text-muted)]'
-                                        }`}
+                                    )}
+                                  </div>
+                                  <span className="text-[var(--text-muted)] font-medium text-[11px]">
+                                    {room.priceText}
+                                  </span>
+                                </div>
+
+                                {/* Các nút bấm Suất chiếu liên kết thẳng tới SeatSelectionPage */}
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                  {room.showtimes.map((st) => (
+                                    <button
+                                      key={st.id}
+                                      onClick={() => handleSelectShowtime(st.id, movie, room, st)}
+                                      className={`group relative px-3.5 py-2 rounded-xl text-left transition-all duration-200 shadow-sm cursor-pointer ${roomTheme.slotBtn}`}
                                     >
-                                      {st.seatText}
-                                    </span>
-                                  </button>
-                                ))}
+                                      <div className="flex items-baseline space-x-2">
+                                        <span className="block text-sm font-black text-white">
+                                          {st.time}
+                                        </span>
+                                        {st.price && (
+                                          <span className={`text-[11px] font-bold transition-colors ${roomTheme.priceText}`}>
+                                            Từ {st.price.toLocaleString('vi-VN')} đ
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span
+                                        className={`block text-[10px] font-semibold mt-0.5 ${
+                                          st.statusColor || 'text-emerald-400'
+                                        }`}
+                                      >
+                                        {st.seatText}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ))

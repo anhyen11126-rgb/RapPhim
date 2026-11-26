@@ -530,7 +530,7 @@ const AuthPage = ({ initialMode = 'login' }) => {
                 <AuthSubmit busy={loading}>Đăng ký tài khoản</AuthSubmit>
               </form>
             ) : (
-              <form className="auth-form" onSubmit={handleLogin}>
+              <form className="auth-form auth-form--login" onSubmit={handleLogin}>
                 <AuthField label="Email hoặc Số điện thoại" icon={Mail} autoComplete="username" placeholder="nguyen.van.a@example.com hoặc 0912…"
                   value={loginForm.identifier} onChange={event => setLoginForm(current => ({ ...current, identifier: event.target.value }))} />
                 <AuthField label="Mật khẩu" icon={LockKeyhole} type={showPassword ? 'text' : 'password'} autoComplete="current-password"
@@ -545,18 +545,20 @@ const AuthPage = ({ initialMode = 'login' }) => {
               </form>
             )}
 
-            <div className="auth-divider">{isRegister ? 'Hoặc đăng ký bằng' : 'Hoặc tiếp tục với'}</div>
-            <div className="auth-social" aria-describedby="auth-social-status">
-              <button type="button" disabled><SocialIcon provider="google" /> Google</button>
-              <button type="button" disabled><SocialIcon provider="facebook" /> Facebook</button>
+            <div className="auth-footer">
+              <div className="auth-divider">{isRegister ? 'Hoặc đăng ký bằng' : 'Hoặc tiếp tục với'}</div>
+              <div className="auth-social" aria-describedby="auth-social-status">
+                <button type="button" disabled><SocialIcon provider="google" /> Google</button>
+                <button type="button" disabled><SocialIcon provider="facebook" /> Facebook</button>
+              </div>
+              <p id="auth-social-status" className="auth-social-status">Đăng nhập qua Google và Facebook chưa khả dụng.</p>
+              <p className="auth-switch">
+                {isRegister ? 'Bạn đã có tài khoản?' : 'Bạn chưa có tài khoản D’AVENOR?'}{' '}
+                <button type="button" disabled={loading} onClick={() => handleSwitchMode(isRegister ? 'login' : 'register')}>
+                  {isRegister ? 'Đăng nhập ngay' : 'Đăng ký ngay'}
+                </button>
+              </p>
             </div>
-            <p id="auth-social-status" className="auth-social-status">Đăng nhập qua Google và Facebook chưa khả dụng.</p>
-            <p className="auth-switch">
-              {isRegister ? 'Bạn đã có tài khoản?' : 'Bạn chưa có tài khoản D’AVENOR?'}{' '}
-              <button type="button" disabled={loading} onClick={() => handleSwitchMode(isRegister ? 'login' : 'register')}>
-                {isRegister ? 'Đăng nhập ngay' : 'Đăng ký ngay'}
-              </button>
-            </p>
           </div>
         </section>
       </AuthLayout>

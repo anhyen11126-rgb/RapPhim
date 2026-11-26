@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { cinemaDate, monthLabel, releaseMonth } from '../../utils/cinemaCalendar';
+import { resolveRoomThemeKey } from '../../utils/pricing';
+import { resolveCanonicalCinema } from '../../constants/cinemas';
 
 const getAgeBadgeStyle = (ageRating) => {
   switch (ageRating) {
@@ -257,17 +259,31 @@ const HomeQuickBooking = ({
     return () => request.abort();
   }, [showtimeKey, activeMovieId, dateStr, isPastDate]);
 
-  const availableShowtimes = useMemo(() => {
+  const canonicalCinema = useMemo(() => resolveCanonicalCinema(cinemas), [cinemas]);
+
+  const allDayShowtimes = useMemo(() => {
     if (isPastDate || schedule?.key !== showtimeKey) return [];
     const now = Date.now();
-    return schedule.slots.filter(slot => {
-      const start = Date.parse(slot.startTime);
-      return slot.roomId && !slot.isLocked && slot.availableSeats !== 0 && start > now && start - now <= 7 * 86400000;
-    }).map(slot => ({
-      ...slot,
-      time: new Date(slot.startTime).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }),
-    }));
+    return schedule.slots
+      .filter((slot) => {
+        const start = Date.parse(slot.startTime);
+        return slot.roomId && !slot.isLocked && start > now && start - now <= 7 * 86400000;
+      })
+      .map((slot) => ({
+        ...slot,
+        isSoldOut: slot.availableSeats === 0 || slot.isSoldOut === true,
+        time: new Date(slot.startTime).toLocaleTimeString('vi-VN', {
+          timeZone: 'Asia/Ho_Chi_Minh',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      }));
   }, [isPastDate, schedule, showtimeKey]);
+
+  const availableShowtimes = useMemo(
+    () => allDayShowtimes.filter((slot) => !slot.isSoldOut),
+    [allDayShowtimes]
+  );
 
   // Đồng bộ suất chiếu: Nếu suất đã chọn không còn trong danh sách thì trả về trống để hiển thị "Chọn suất chiếu"
   useEffect(() => {
@@ -317,11 +333,11 @@ const HomeQuickBooking = ({
       },
     };
 
-    availableShowtimes.forEach((st) => {
-      const room = (st.roomType || '').toLowerCase();
-      if (room.includes('gold')) {
+    allDayShowtimes.forEach((st) => {
+      const themeKey = resolveRoomThemeKey(st);
+      if (themeKey === 'GOLD') {
         groups.GOLD.slots.push(st);
-      } else if (room.includes('atmos')) {
+      } else if (themeKey === 'ATMOS') {
         groups.ATMOS.slots.push(st);
       } else {
         groups.IMAX.slots.push(st);
@@ -329,7 +345,7 @@ const HomeQuickBooking = ({
     });
 
     return groups;
-  }, [availableShowtimes, activeMovie]);
+  }, [allDayShowtimes, activeMovie]);
 
   // Xử lý khi chọn ngày từ Date Picker:
   // - Nếu ngày cũ trong quá khứ so với hôm nay thì chặn và cảnh báo
@@ -416,7 +432,8 @@ const HomeQuickBooking = ({
       time,
       date: dateStr || dynamicDays.today.dateStr,
       price,
-      cinemaName: selectedTheater || "D'AVENOR Thanh Khê Plaza",
+      cinemaId: canonicalCinema.id,
+      cinemaName: canonicalCinema.name,
     };
 
     navigate(`/booking/seat/${targetShowtimeId}`, {
@@ -591,44 +608,29 @@ const HomeQuickBooking = ({
             )}
           </div>
 
-          {/* 2. Rạp chiếu (Cố định cụm rạp duy nhất Thanh Khê Plaza) */}
+          {/* 2. Rạp chiếu (Trường hiển thị cố định cụm rạp duy nhất — không dropdown, không mũi tên) */}
           <div className="sm:col-span-1 lg:col-span-3 space-y-1">
             <div className="flex items-center h-5">
-              <label className="text-[11px] font-medium text-[#BEC5E5] flex items-center space-x-1.5">
+              <span className="text-[11px] font-medium text-[#BEC5E5] flex items-center space-x-1.5">
                 <span className="text-[#42DFFF]">📍</span>
                 <span>Rạp chiếu</span>
-              </label>
+              </span>
             </div>
-            {cinemas.length > 1 ? (
-              <div className="relative">
-                <select
-                  value={selectedTheater}
-                  onChange={(e) => setSelectedTheater(e.target.value)}
-                  className="w-full h-[38px] bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-3 text-xs font-bold text-[#F8F7FF] focus:outline-none focus:border-[#42DFFF] appearance-none cursor-pointer pr-7"
-                >
-                  {cinemas.map((c) => (
-                    <option key={c.id || c._id} value={c.name}>
-                      {c.district ? `[Q.${c.district}] ` : ''}{c.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="absolute right-3 top-2.5 text-[#BEC5E5] text-[10px] pointer-events-none">
-                  ⌵
-                </span>
-              </div>
-            ) : (
-              <div
-                className="w-full h-[38px] bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-3 text-xs font-bold text-[#F8F7FF] select-none shadow-sm flex items-center space-x-1.5"
-                title="D'AVENOR Thanh Khê Plaza - 295 Điện Biên Phủ, Q. Thanh Khê, Đà Nẵng"
-              >
-                <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-purple-900/60 text-[#83F5FF] border border-[#42DFFF]/40 shrink-0">
-                  Q. Thanh Khê
-                </span>
-                <span className="truncate text-[#F8F7FF] font-bold">
-                  D'AVENOR Thanh Khê Plaza
-                </span>
-              </div>
-            )}
+            <div
+              role="textbox"
+              aria-readonly="true"
+              aria-label="Rạp chiếu cố định"
+              data-cinema-id={canonicalCinema.id}
+              className="w-full h-[38px] bg-[#0B1026] border border-[#AA9BFF]/25 rounded-xl px-3 text-xs font-bold text-[#F8F7FF] select-none shadow-inner flex items-center space-x-1.5"
+              title={`${canonicalCinema.name} - ${canonicalCinema.address || '295 Điện Biên Phủ, Q. Thanh Khê, Đà Nẵng'}`}
+            >
+              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-purple-900/60 text-[#83F5FF] border border-[#42DFFF]/40 shrink-0">
+                Q. Thanh Khê
+              </span>
+              <span className="truncate text-[#F8F7FF] font-bold">
+                {canonicalCinema.name}
+              </span>
+            </div>
           </div>
 
           {/* 3. Chọn Ngày & Lịch Chiếu (Hỗ trợ mở Lịch/Datepicker + chia đều 3 phim theo tháng) */}
@@ -747,7 +749,7 @@ const HomeQuickBooking = ({
               {isShowtimeDropdownOpen && (
                 <div className="absolute right-0 bottom-full sm:bottom-auto sm:top-full mb-2 sm:mb-0 sm:mt-2 w-[340px] sm:w-[580px] md:w-[680px] max-w-[95vw] bg-[#090D22]/98 backdrop-blur-2xl border border-[#42DFFF]/40 rounded-2xl p-3 sm:p-3.5 shadow-[0_20px_60px_rgba(5,8,20,0.98),0_0_35px_rgba(66,223,255,0.25)] z-50 animate-in fade-in zoom-in-95 duration-150">
                   <div className="space-y-2.5">
-                    {!availableShowtimes.length && <p className="p-2 text-sm text-[#BEC5E5]">
+                    {!allDayShowtimes.length && <p className="p-2 text-sm text-[#BEC5E5]">
                       {schedule?.key !== showtimeKey && activeMovieId ? 'Đang tải suất chiếu…' : 'Hiện chưa có lịch chiếu. Vui lòng quay lại sau.'}
                     </p>}
                     {Object.values(showtimesByRoom).filter(group => group.slots.length).map((grp) => (
@@ -766,19 +768,32 @@ const HomeQuickBooking = ({
                         <div className="flex items-center gap-2 flex-wrap flex-1">
                           {grp.slots.map((st) => {
                             const isSelected = String(st.id) === String(selectedShowtimeId);
+                            const isSoldOut = st.isSoldOut === true;
                             return (
                               <button
                                 key={st.id}
                                 type="button"
+                                disabled={isSoldOut}
                                 onClick={() => {
+                                  if (isSoldOut) return;
                                   setSelectedShowtimeId(String(st.id));
                                   setIsShowtimeDropdownOpen(false);
                                 }}
-                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                                  isSelected ? grp.activeBtnStyle : grp.idleBtnStyle
+                                title={isSoldOut ? 'Suất chiếu đã hết ghế trống' : `${st.time} - ${st.roomName}`}
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                                  isSoldOut
+                                    ? 'bg-slate-900/80 text-slate-500 border-slate-700/60 cursor-not-allowed line-through'
+                                    : isSelected
+                                      ? `${grp.activeBtnStyle} cursor-pointer`
+                                      : `${grp.idleBtnStyle} cursor-pointer`
                                 }`}
                               >
-                                {st.time}
+                                <span>{st.time}</span>
+                                {isSoldOut && (
+                                  <span className="ml-1.5 no-underline inline-block text-[9px] font-black text-rose-400">
+                                    Hết ghế
+                                  </span>
+                                )}
                               </button>
                             );
                           })}

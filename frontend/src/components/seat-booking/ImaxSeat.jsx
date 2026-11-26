@@ -10,12 +10,14 @@ const ImaxSeat = ({
   seatId,
   number,
   isBooked,
+  isHoldingOther,
+  isHoldingSelf,
   isSelected,
   isVip,
   onClick,
 }) => {
   const handleClick = () => {
-    if (!isBooked && onClick) {
+    if (!isBooked && !isHoldingOther && onClick) {
       onClick(seatId);
     }
   };
@@ -39,6 +41,31 @@ const ImaxSeat = ({
             className="text-[12px] font-black fill-[#E2E8F0] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
           >
             ✕
+          </text>
+        </svg>
+      </div>
+    );
+  }
+
+  // 1b. TRẠNG THÁI: GHẾ ĐANG ĐƯỢC KHÁCH KHÁC GIỮ (HOLDING_OTHER)
+  if (isHoldingOther) {
+    return (
+      <div
+        className="relative w-7 h-7 sm:w-8 sm:h-8 md:w-[33px] md:h-[31px] flex items-center justify-center select-none cursor-not-allowed opacity-90 shrink-0"
+        title={`Ghế ${seatId} - Đang được khách khác giữ`}
+      >
+        <svg viewBox="0 0 38 36" className="w-full h-full">
+          <rect x="7" y="2" width="24" height="6" rx="2.5" fill="#2A1F0D" stroke="#F59E0B" strokeWidth="1.2" />
+          <rect x="3" y="8" width="32" height="25" rx="5" fill="#1F1609" stroke="#F59E0B" strokeWidth="1.2" />
+          <rect x="6" y="15" width="26" height="15" rx="3" fill="#140E05" stroke="#B45309" strokeWidth="1" />
+          <text
+            x="19"
+            y="23"
+            textAnchor="middle"
+            dominantBaseline="central"
+            className="text-[11px] font-black fill-[#FCD34D]"
+          >
+            ⏳
           </text>
         </svg>
       </div>

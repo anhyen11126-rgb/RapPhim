@@ -32,9 +32,10 @@ const HomeMovieTabs = ({ moviesList }) => {
   // Carousel State cho Phim Đang Chiếu (0: Dune 2, 1: Mai, 2: Deadpool)
   const [activeNowShowingIndex, setActiveNowShowingIndex] = useState(1);
 
-  // Vòng lặp vô tận (Infinite Seamless Loop): Bắt đầu ở Set 1 (vị trí Joker: Folie à Deux, index 22) ở chính giữa
-  const [comingSoonVirtualIndex, setComingSoonVirtualIndex] = useState(22);
-  const comingSoonVirtualIndexRef = useRef(22);
+  // Vòng lặp vô tận (Infinite Seamless Loop): Động theo số lượng phim thực tế (Set 1 ở chính giữa)
+  const [comingSoonVirtualIndex, setComingSoonVirtualIndex] = useState(0);
+  const [isRebasing, setIsRebasing] = useState(false);
+  const comingSoonVirtualIndexRef = useRef(0);
   comingSoonVirtualIndexRef.current = comingSoonVirtualIndex;
 
   // Ref section và cờ khóa lăn chuột (throttle) để lăn chuột êm ái từng phim
@@ -151,13 +152,16 @@ const HomeMovieTabs = ({ moviesList }) => {
     }
   };
 
-  // Căn giữa tĩnh bộ phim Joker ban đầu khi mở tab hoặc tải dữ liệu
+  // Căn giữa tĩnh vào Set 1 khi mở tab hoặc tải dữ liệu (động theo số lượng phim)
   useEffect(() => {
-    if (activeTab === 'COMING_SOON' && reelScrollRef.current) {
+    if (activeTab === 'COMING_SOON' && reelScrollRef.current && comingSoonMovies.length > 0) {
       const timer = setTimeout(() => {
         const container = reelScrollRef.current;
         const n = comingSoonMovies.length;
-        const targetIdx = n ? n + (comingSoonVirtualIndexRef.current % n) : 0;
+        const current = comingSoonVirtualIndexRef.current;
+        const targetIdx = current >= n && current < 2 * n ? current : n + (current % n);
+        comingSoonVirtualIndexRef.current = targetIdx;
+        setComingSoonVirtualIndex(targetIdx);
         const card = cardRefs.current[targetIdx];
         if (container && card) {
           const containerWidth = container.clientWidth;
@@ -194,22 +198,30 @@ const HomeMovieTabs = ({ moviesList }) => {
     };
   }, []);
 
-  // Khử hoàn toàn lỗi lướt nhanh: Chỉ reset biên cực xa và thực hiện tức thời 0ms, không animation
+  // Khử hoàn toàn lỗi khựng khi lặp vòng: Rebase tức thời 0ms không CSS transition bằng đúng độ lệch offsetLeft
   const checkBoundaryReset = () => {
     if (isDragging || isAutoScrollingRef.current) return;
     const container = reelScrollRef.current;
-    if (!container || comingSoonMovies.length === 0) return;
+    const n = comingSoonMovies.length;
+    if (!container || n === 0) return;
 
     const currentIdx = comingSoonVirtualIndexRef.current;
-    // Khi người dùng lướt qua cực biên xa Set 2 (từ card 36 trở đi)
-    if (currentIdx >= 36) {
-      const resetIdx = currentIdx - 15;
-      scrollToMovie(resetIdx, false);
+    let resetIdx = null;
+    if (currentIdx >= n * 2) {
+      resetIdx = currentIdx - n;
+    } else if (currentIdx < n) {
+      resetIdx = currentIdx + n;
     }
-    // Khi người dùng lướt lùi qua cực biên xa Set 0 (trước card 9)
-    else if (currentIdx < 9) {
-      const resetIdx = currentIdx + 15;
-      scrollToMovie(resetIdx, false);
+
+    if (resetIdx !== null && cardRefs.current[currentIdx] && cardRefs.current[resetIdx]) {
+      const delta = cardRefs.current[resetIdx].offsetLeft - cardRefs.current[currentIdx].offsetLeft;
+      setIsRebasing(true);
+      comingSoonVirtualIndexRef.current = resetIdx;
+      setComingSoonVirtualIndex(resetIdx);
+      container.scrollLeft += delta;
+      requestAnimationFrame(() => {
+        setIsRebasing(false);
+      });
     }
   };
 
@@ -342,9 +354,10 @@ const HomeMovieTabs = ({ moviesList }) => {
     scrollToMovie(idx, true);
   };
 
-  // Xử lý click vào 15 chấm tròn chọn phim: Luôn nhắm vào chu kỳ Set 1 để phim luôn có đủ 2 bên đối xứng
+  // Xử lý click vào chấm tròn chọn phim: Luôn nhắm vào chu kỳ Set 1 (động theo comingSoonMovies.length)
   const handleDotClick = (targetRealIdx) => {
-    const targetVirtualIdx = targetRealIdx + 15;
+    const n = comingSoonMovies.length;
+    const targetVirtualIdx = n > 0 ? targetRealIdx + n : targetRealIdx;
     scrollToMovie(targetVirtualIdx, true);
   };
 
@@ -427,32 +440,12 @@ const HomeMovieTabs = ({ moviesList }) => {
     };
   };
 
-  // Đảm bảo điểm số cao chuẩn bom tấn
+  // Đồng bộ điểm đánh giá thật trực tiếp từ kết quả đánh giá của bộ phim
   const getRatingDisplay = (movie) => {
-    const slug = movie?.slug || '';
-    if (
-      slug.includes('dune') ||
-      slug.includes('oppenheimer') ||
-      slug.includes('avatar') ||
-      slug.includes('spider-man')
-    ) {
-      return '4.9';
+    if (movie?.rating != null && Number.isFinite(Number(movie.rating))) {
+      return Number(movie.rating).toFixed(1);
     }
-    if (
-      slug.includes('mai') ||
-      slug.includes('lat-mat') ||
-      slug.includes('godzilla') ||
-      slug.includes('inside-out') ||
-      slug.includes('moana') ||
-      slug.includes('deadpool') ||
-      slug.includes('joker')
-    ) {
-      return '4.8';
-    }
-    if (movie?.rating && Number(movie.rating) >= 4.7) {
-      return String(movie.rating);
-    }
-    return '4.8';
+    return '—';
   };
 
   const comingSoonRealIndex =
@@ -682,7 +675,9 @@ const HomeMovieTabs = ({ moviesList }) => {
                   key={`${movie.slug || movie.id || idx}-loop-${idx}`}
                   ref={(el) => (cardRefs.current[idx] = el)}
                   onClick={() => handleCardClick(idx)}
-                  className={`relative w-[265px] sm:w-[295px] md:w-[315px] shrink-0 aspect-[1/1.45] rounded-3xl overflow-hidden transition-[transform,opacity,box-shadow,border-color] duration-300 ease-out select-none ${
+                  className={`relative w-[265px] sm:w-[295px] md:w-[315px] shrink-0 aspect-[1/1.45] rounded-3xl overflow-hidden ${
+                    isRebasing ? 'transition-none' : 'transition-[transform,opacity,box-shadow,border-color] duration-300 ease-out'
+                  } select-none ${
                     isActive
                       ? 'scale-105 z-30 shadow-[0_12px_45px_rgba(168,85,247,0.4),inset_0_0_20px_rgba(66,223,255,0.2)] ring-4 ring-[#42DFFF]/50 border-2 border-[#83F5FF] opacity-100 cursor-default'
                       : distance === 1
@@ -693,6 +688,8 @@ const HomeMovieTabs = ({ moviesList }) => {
                   <img
                     src={movie.poster || movie.posterUrl || '/banner-dune.jpg'}
                     alt={movie.title}
+                    loading="lazy"
+                    decoding="async"
                     draggable={false}
                     className="w-full h-full object-cover pointer-events-none"
                   />
@@ -801,7 +798,7 @@ const HomeMovieTabs = ({ moviesList }) => {
                 {getMovieReleaseMonth(activeComingSoonMovie)}
               </span>
               <span className="text-[#BEC5E5]/40">•</span>
-              <span className="text-[#BEC5E5]">Phim {comingSoonRealIndex + 1}/15:</span>
+              <span className="text-[#BEC5E5]">Phim {comingSoonRealIndex + 1}/{comingSoonMovies.length}:</span>
               <span className="text-[#F8F7FF] font-bold truncate max-w-[180px] sm:max-w-none">
                 {activeComingSoonMovie?.title}
               </span>
