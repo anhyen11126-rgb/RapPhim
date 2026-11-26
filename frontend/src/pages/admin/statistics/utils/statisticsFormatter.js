@@ -42,11 +42,14 @@ export const formatNumber = (val = 0) => {
 };
 
 /**
- * Format phần trăm
- * Ví dụ: 78.5 -> "78.5%"
+ * Format phần trăm hiển thị tối đa 2 chữ số thập phân (không làm tròn sớm làm lệch dữ liệu)
+ * Ví dụ: 12.345 -> "12.35%", 15.0 -> "15%" hoặc "15.0%"
  */
-export const formatPercent = (val = 0) => {
-  return `${Number(val || 0).toFixed(1)}%`;
+export const formatPercent = (val = 0, maxDecimals = 2) => {
+  const num = Number(val || 0);
+  if (!Number.isFinite(num)) return '0%';
+  const fixed = Number(num.toFixed(maxDecimals));
+  return `${fixed}%`;
 };
 
 /**

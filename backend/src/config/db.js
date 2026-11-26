@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import dns from 'dns';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -12,35 +11,48 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
 dotenv.config();
 
-// Khắc phục triệt để lỗi querySrv ECONNREFUSED trên Windows / nhà mạng chặn bản ghi SRV
-try {
-  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
-} catch (err) {
-  console.warn('⚠️ [DNS] Không thể thiết lập DNS dự phòng:', err.message);
-}
+/**
+ * Xác định URI kết nối dựa trên chế độ DB_MODE ('DEMO' | 'LIVE')
+ * - Khi DB_MODE=DEMO: ưu tiên MONGODB_DEMO_URI (movietix_demo_db)
+ * - Khi DB_MODE=LIVE: sử dụng MONGODB_LIVE_URI hoặc MONGODB_URI (movietix_db)
+ */
+export const resolveMongoUri = () => {
+  const mode = String(process.env.DB_MODE || 'LIVE').trim().toUpperCase();
+  const baseUri = process.env.MONGODB_LIVE_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/movietix_db';
+
+  if (mode === 'DEMO') {
+    if (process.env.MONGODB_DEMO_URI) {
+      return process.env.MONGODB_DEMO_URI;
+    }
+    return baseUri.replace(/\/movietix_db(\?|$)/, '/movietix_demo_db$1');
+  }
+
+  return baseUri;
+};
 
 const connectDB = async () => {
-  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/movietix_db';
+  const mode = String(process.env.DB_MODE || 'LIVE').trim().toUpperCase();
+  const uri = resolveMongoUri();
 
   try {
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 15000,
     });
-    console.log(`🍃 [MongoDB] Đã kết nối thành công: ${conn.connection.host}/${conn.connection.name}`);
+    console.log(`🍃 [MongoDB - ${mode} MODE] Đã kết nối thành công: ${conn.connection.host}/${conn.connection.name}`);
     return conn;
   } catch (error) {
     console.warn(`⚠️ [MongoDB] Lỗi kết nối Atlas: ${error.message}`);
-    
-    // Nếu kết nối Atlas thất bại do timeout / mạng / chưa whitelist IP, thử fallback sang MongoDB Local
+
     if (!uri.includes('localhost') && !uri.includes('127.0.0.1')) {
       try {
-        console.log('🔄 Đang thử kết nối MongoDB Local dự phòng (mongodb://127.0.0.1:27017/movietix_db)...');
-        const localConn = await mongoose.connect('mongodb://127.0.0.1:27017/movietix_db', {
-          serverSelectionTimeoutMS: 2000,
+        const localDbName = mode === 'DEMO' ? 'movietix_demo_db' : 'movietix_db';
+        console.log(`🔄 Đang thử kết nối MongoDB Local dự phòng (mongodb://127.0.0.1:27017/${localDbName})...`);
+        const localConn = await mongoose.connect(`mongodb://127.0.0.1:27017/${localDbName}`, {
+          serverSelectionTimeoutMS: 3000,
         });
-        console.log(`🍃 [MongoDB Local] Đã kết nối thành công: ${localConn.connection.host}/${localConn.connection.name}`);
+        console.log(`🍃 [MongoDB Local - ${mode}] Đã kết nối thành công: ${localConn.connection.host}/${localConn.connection.name}`);
         return localConn;
-      } catch (localErr) {
+      } catch {
         console.warn('⚠️ [MongoDB] Bạn hãy kiểm tra lại kết nối Internet và chắc chắn đã Whitelist IP 0.0.0.0/0 trên MongoDB Atlas (Network Access).');
       }
     }

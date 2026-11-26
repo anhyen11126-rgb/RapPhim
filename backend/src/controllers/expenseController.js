@@ -1,48 +1,95 @@
 import mongoose from 'mongoose';
-import Expense from '../models/Expense.js';
-import Movie from '../models/Movie.js';
+import Expense, { DIRECT_MOVIE_EXPENSE_TYPES, EXPENSE_CATEGORY_LABELS } from '../models/Expense.js';
+import { getVietnamParts, parseDateFilter } from '../utils/statisticsUtils.js';
 
 /**
- * Lấy danh sách khoản chi phí (có lọc theo tháng, năm, phim, phân loại)
+ * Lấy danh sách khoản chi phí (có lọc theo kỳ thời gian, tháng, năm, phim, phòng, phân loại)
  */
 export const getExpenses = async (req, res) => {
   try {
-    const { month, year, movieId, type, search = '', page = 1, limit = 20 } = req.query;
+    const {
+      timeRange,
+      customStart,
+      customEnd,
+      month,
+      year,
+      movieId,
+      roomId,
+      type,
+      search = '',
+      page = 1,
+      limit = 50,
+    } = req.query;
 
     const query = {};
 
-    if (month && Number(month) > 0) {
-      query.month = Number(month);
+    if (timeRange) {
+      const { start, end, month: parsedMonth, year: parsedYear } = parseDateFilter({
+        timeRange,
+        customStart,
+        customEnd,
+        month,
+        year,
+      });
+      if (timeRange === 'by_month' && parsedMonth && parsedYear) {
+        query.$or = [
+          { month: Number(parsedMonth), year: Number(parsedYear) },
+          { date: { $gte: start, $lte: end } },
+        ];
+      } else {
+        query.date = { $gte: start, $lte: end };
+      }
+    } else {
+      if (month && Number(month) > 0) {
+        query.month = Number(month);
+      }
+      if (year && Number(year) > 0) {
+        query.year = Number(year);
+      }
     }
-    if (year && Number(year) > 0) {
-      query.year = Number(year);
-    }
+
     if (movieId && movieId !== 'ALL' && mongoose.Types.ObjectId.isValid(movieId)) {
       query.movieId = new mongoose.Types.ObjectId(movieId);
+    }
+    if (roomId && roomId !== 'ALL' && mongoose.Types.ObjectId.isValid(roomId)) {
+      query.roomId = new mongoose.Types.ObjectId(roomId);
     }
     if (type && type !== 'ALL') {
       query.type = type;
     }
     if (search && search.trim().length > 0) {
-      query.$or = [
+      const searchCond = [
         { title: { $regex: search.trim(), $options: 'i' } },
         { costCode: { $regex: search.trim(), $options: 'i' } },
         { notes: { $regex: search.trim(), $options: 'i' } },
       ];
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: searchCond }];
+        delete query.$or;
+      } else {
+        query.$or = searchCond;
+      }
     }
 
     const total = await Expense.countDocuments(query);
     const skip = (Number(page) - 1) * Number(limit);
 
-    const items = await Expense.find(query)
+    const rawItems = await Expense.find(query)
       .populate('movieId', 'title poster posterUrl')
+      .populate('roomId', 'roomNumber name shortName roomType')
       .populate('cinemaId', 'name')
       .sort({ date: -1, createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))
       .lean();
 
-    // Tính tổng kết chi phí
+    const items = rawItems.map((item) => ({
+      ...item,
+      id: item._id.toString(),
+      categoryLabel: EXPENSE_CATEGORY_LABELS[item.type] || item.type,
+      isDirectMovieCost: Boolean(item.movieId) || DIRECT_MOVIE_EXPENSE_TYPES.includes(item.type),
+    }));
+
     const aggregateSummary = await Expense.aggregate([
       { $match: query },
       {
@@ -51,12 +98,30 @@ export const getExpenses = async (req, res) => {
           totalAmount: { $sum: '$amount' },
           directAmount: {
             $sum: {
-              $cond: [{ $eq: ['$type', 'DIRECT_MOVIE'] }, '$amount', 0],
+              $cond: [
+                {
+                  $or: [
+                    { $in: ['$type', DIRECT_MOVIE_EXPENSE_TYPES] },
+                    { $ne: [{ $ifNull: ['$movieId', null] }, null] },
+                  ],
+                },
+                '$amount',
+                0,
+              ],
             },
           },
           sharedAmount: {
             $sum: {
-              $cond: [{ $ne: ['$type', 'DIRECT_MOVIE'] }, '$amount', 0],
+              $cond: [
+                {
+                  $and: [
+                    { $not: [{ $in: ['$type', DIRECT_MOVIE_EXPENSE_TYPES] }] },
+                    { $eq: [{ $ifNull: ['$movieId', null] }, null] },
+                  ],
+                },
+                '$amount',
+                0,
+              ],
             },
           },
         },
@@ -81,12 +146,9 @@ export const getExpenses = async (req, res) => {
   }
 };
 
-/**
- * Thêm một khoản chi phí mới
- */
 export const createExpense = async (req, res) => {
   try {
-    const { title, type, amount, movieId, cinemaId, date, notes } = req.body;
+    const { title, type, amount, movieId, roomId, cinemaId, date, month: reqMonth, year: reqYear, notes } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ success: false, message: 'Tên khoản chi không được để trống' });
@@ -94,25 +156,27 @@ export const createExpense = async (req, res) => {
     if (!type) {
       return res.status(400).json({ success: false, message: 'Vui lòng chọn loại chi phí' });
     }
-    if (amount == null || Number(amount) < 0) {
+    if (amount == null || Number.isNaN(Number(amount)) || Number(amount) < 0) {
       return res.status(400).json({ success: false, message: 'Số tiền chi phí không hợp lệ' });
     }
 
     const expenseDate = date ? new Date(date) : new Date();
-    const month = expenseDate.getMonth() + 1;
-    const year = expenseDate.getFullYear();
+    const vnParts = getVietnamParts(expenseDate);
+    const month = reqMonth ? Number(reqMonth) : vnParts.month;
+    const year = reqYear ? Number(reqYear) : vnParts.year;
 
-    // Tạo mã chi phí tự động: CP-YYYYMM-XXXX
     const count = await Expense.countDocuments({ month, year });
-    const costCode = `CP-${year}${String(month).padStart(2, '0')}-${String(count + 1).padStart(4, '0')}`;
+    const randSuffix = String(Date.now()).slice(-3);
+    const costCode = `CP-${year}${String(month).padStart(2, '0')}-${String(count + 1).padStart(3, '0')}${randSuffix}`;
 
     const newExpense = new Expense({
       costCode,
       title: title.trim(),
       type,
       amount: Number(amount),
-      movieId: movieId && mongoose.Types.ObjectId.isValid(movieId) ? new mongoose.Types.ObjectId(movieId) : null,
-      cinemaId: cinemaId && mongoose.Types.ObjectId.isValid(cinemaId) ? new mongoose.Types.ObjectId(cinemaId) : null,
+      movieId: movieId && movieId !== 'ALL' && mongoose.Types.ObjectId.isValid(movieId) ? new mongoose.Types.ObjectId(movieId) : null,
+      roomId: roomId && roomId !== 'ALL' && mongoose.Types.ObjectId.isValid(roomId) ? new mongoose.Types.ObjectId(roomId) : null,
+      cinemaId: cinemaId && cinemaId !== 'ALL' && mongoose.Types.ObjectId.isValid(cinemaId) ? new mongoose.Types.ObjectId(cinemaId) : null,
       date: expenseDate,
       month,
       year,
@@ -120,11 +184,19 @@ export const createExpense = async (req, res) => {
     });
 
     await newExpense.save();
+    const populated = await Expense.findById(newExpense._id)
+      .populate('movieId', 'title poster posterUrl')
+      .populate('roomId', 'roomNumber name shortName roomType')
+      .lean();
 
     res.status(201).json({
       success: true,
       message: 'Tạo khoản chi phí thành công',
-      data: newExpense,
+      data: {
+        ...populated,
+        id: populated._id.toString(),
+        categoryLabel: EXPENSE_CATEGORY_LABELS[populated.type] || populated.type,
+      },
     });
   } catch (error) {
     console.error('Lỗi khi tạo chi phí:', error);
@@ -132,13 +204,10 @@ export const createExpense = async (req, res) => {
   }
 };
 
-/**
- * Cập nhật một khoản chi phí
- */
 export const updateExpense = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, type, amount, movieId, cinemaId, date, notes } = req.body;
+    const { title, type, amount, movieId, roomId, cinemaId, date, month: reqMonth, year: reqYear, notes } = req.body;
 
     const expense = await Expense.findById(id);
     if (!expense) {
@@ -151,24 +220,45 @@ export const updateExpense = async (req, res) => {
     if (notes != null) expense.notes = notes.trim();
 
     if (movieId !== undefined) {
-      expense.movieId = movieId && mongoose.Types.ObjectId.isValid(movieId) ? new mongoose.Types.ObjectId(movieId) : null;
+      expense.movieId = movieId && movieId !== 'ALL' && mongoose.Types.ObjectId.isValid(movieId)
+        ? new mongoose.Types.ObjectId(movieId)
+        : null;
+    }
+    if (roomId !== undefined) {
+      expense.roomId = roomId && roomId !== 'ALL' && mongoose.Types.ObjectId.isValid(roomId)
+        ? new mongoose.Types.ObjectId(roomId)
+        : null;
     }
     if (cinemaId !== undefined) {
-      expense.cinemaId = cinemaId && mongoose.Types.ObjectId.isValid(cinemaId) ? new mongoose.Types.ObjectId(cinemaId) : null;
+      expense.cinemaId = cinemaId && cinemaId !== 'ALL' && mongoose.Types.ObjectId.isValid(cinemaId)
+        ? new mongoose.Types.ObjectId(cinemaId)
+        : null;
     }
 
     if (date) {
       expense.date = new Date(date);
-      expense.month = expense.date.getMonth() + 1;
-      expense.year = expense.date.getFullYear();
+      const vnParts = getVietnamParts(expense.date);
+      expense.month = reqMonth ? Number(reqMonth) : vnParts.month;
+      expense.year = reqYear ? Number(reqYear) : vnParts.year;
+    } else {
+      if (reqMonth) expense.month = Number(reqMonth);
+      if (reqYear) expense.year = Number(reqYear);
     }
 
     await expense.save();
+    const populated = await Expense.findById(expense._id)
+      .populate('movieId', 'title poster posterUrl')
+      .populate('roomId', 'roomNumber name shortName roomType')
+      .lean();
 
     res.json({
       success: true,
       message: 'Cập nhật khoản chi phí thành công',
-      data: expense,
+      data: {
+        ...populated,
+        id: populated._id.toString(),
+        categoryLabel: EXPENSE_CATEGORY_LABELS[populated.type] || populated.type,
+      },
     });
   } catch (error) {
     console.error('Lỗi cập nhật chi phí:', error);
@@ -176,9 +266,6 @@ export const updateExpense = async (req, res) => {
   }
 };
 
-/**
- * Xóa một khoản chi phí
- */
 export const deleteExpense = async (req, res) => {
   try {
     const { id } = req.params;
