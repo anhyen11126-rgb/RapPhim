@@ -561,7 +561,7 @@ const RevenueTab = ({
                   tableMode === 'monthly' ? 'cinema-action text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                12 Tháng
+                Theo tháng ({monthlyBreakdown.length})
               </button>
               <button
                 type="button"

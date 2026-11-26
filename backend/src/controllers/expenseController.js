@@ -1,9 +1,16 @@
 import mongoose from 'mongoose';
 import Expense, { DIRECT_MOVIE_EXPENSE_TYPES, EXPENSE_CATEGORY_LABELS } from '../models/Expense.js';
-import { getVietnamParts, parseDateFilter } from '../utils/statisticsUtils.js';
+import {
+  getVietnamParts,
+  parseDateFilter,
+  CINEMA_OPERATION_START,
+  CINEMA_OPERATION_START_YEAR,
+  CINEMA_OPERATION_START_MONTH,
+} from '../utils/statisticsUtils.js';
 
 /**
  * Lấy danh sách khoản chi phí (có lọc theo kỳ thời gian, tháng, năm, phim, phòng, phân loại)
+ * Tuân thủ mốc vận hành rạp từ 01/11/2026 (Asia/Ho_Chi_Minh).
  */
 export const getExpenses = async (req, res) => {
   try {
@@ -23,15 +30,19 @@ export const getExpenses = async (req, res) => {
 
     const query = {};
 
-    if (timeRange) {
+    if (timeRange || (month && year)) {
+      const shouldStrict =
+        ['by_month', 'last_month', 'this_year', 'custom'].includes(timeRange) ||
+        (month != null && year != null);
       const { start, end, month: parsedMonth, year: parsedYear } = parseDateFilter({
-        timeRange,
+        timeRange: timeRange || 'by_month',
         customStart,
         customEnd,
         month,
         year,
+        strictValidation: shouldStrict,
       });
-      if (timeRange === 'by_month' && parsedMonth && parsedYear) {
+      if ((timeRange === 'by_month' || (!timeRange && month && year)) && parsedMonth && parsedYear) {
         query.$or = [
           { month: Number(parsedMonth), year: Number(parsedYear) },
           { date: { $gte: start, $lte: end } },
@@ -40,6 +51,7 @@ export const getExpenses = async (req, res) => {
         query.date = { $gte: start, $lte: end };
       }
     } else {
+      query.date = { $gte: CINEMA_OPERATION_START };
       if (month && Number(month) > 0) {
         query.month = Number(month);
       }
@@ -141,14 +153,35 @@ export const getExpenses = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Lỗi khi lấy danh sách chi phí:', error);
-    res.status(500).json({ success: false, message: 'Lỗi nạp danh sách chi phí', error: error.message });
+    const statusCode =
+      error?.statusCode ||
+      (error?.name === 'StatisticsPeriodValidationError' ? 400 : 500);
+    if (statusCode >= 500) {
+      console.error('Lỗi khi lấy danh sách chi phí:', error);
+    }
+    res.status(statusCode).json({
+      success: false,
+      code: error?.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR'),
+      message: error?.message || 'Lỗi nạp danh sách chi phí',
+      error: error?.message,
+    });
   }
 };
 
 export const createExpense = async (req, res) => {
   try {
-    const { title, type, amount, movieId, roomId, cinemaId, date, month: reqMonth, year: reqYear, notes } = req.body;
+    const {
+      title,
+      type,
+      amount,
+      movieId,
+      roomId,
+      cinemaId,
+      date,
+      month: reqMonth,
+      year: reqYear,
+      notes,
+    } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ success: false, message: 'Tên khoản chi không được để trống' });
@@ -165,6 +198,19 @@ export const createExpense = async (req, res) => {
     const month = reqMonth ? Number(reqMonth) : vnParts.month;
     const year = reqYear ? Number(reqYear) : vnParts.year;
 
+    if (
+      year < CINEMA_OPERATION_START_YEAR ||
+      (year === CINEMA_OPERATION_START_YEAR && month < CINEMA_OPERATION_START_MONTH) ||
+      expenseDate.getTime() < CINEMA_OPERATION_START.getTime()
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: 'PERIOD_BEFORE_OPERATION_START',
+        message:
+          "Rạp D'AVENOR CINEMA bắt đầu hoạt động từ ngày 01/11/2026. Không thể ghi nhận chi phí trước thời điểm vận hành.",
+      });
+    }
+
     // Tạo mã chi phí tự động không trùng lặp: CP-YYYYMM-XXXX
     const count = await Expense.countDocuments({ month, year });
     const randSuffix = String(Date.now()).slice(-3);
@@ -175,9 +221,18 @@ export const createExpense = async (req, res) => {
       title: title.trim(),
       type,
       amount: Number(amount),
-      movieId: movieId && movieId !== 'ALL' && mongoose.Types.ObjectId.isValid(movieId) ? new mongoose.Types.ObjectId(movieId) : null,
-      roomId: roomId && roomId !== 'ALL' && mongoose.Types.ObjectId.isValid(roomId) ? new mongoose.Types.ObjectId(roomId) : null,
-      cinemaId: cinemaId && cinemaId !== 'ALL' && mongoose.Types.ObjectId.isValid(cinemaId) ? new mongoose.Types.ObjectId(cinemaId) : null,
+      movieId:
+        movieId && movieId !== 'ALL' && mongoose.Types.ObjectId.isValid(movieId)
+          ? new mongoose.Types.ObjectId(movieId)
+          : null,
+      roomId:
+        roomId && roomId !== 'ALL' && mongoose.Types.ObjectId.isValid(roomId)
+          ? new mongoose.Types.ObjectId(roomId)
+          : null,
+      cinemaId:
+        cinemaId && cinemaId !== 'ALL' && mongoose.Types.ObjectId.isValid(cinemaId)
+          ? new mongoose.Types.ObjectId(cinemaId)
+          : null,
       date: expenseDate,
       month,
       year,
@@ -208,7 +263,18 @@ export const createExpense = async (req, res) => {
 export const updateExpense = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, type, amount, movieId, roomId, cinemaId, date, month: reqMonth, year: reqYear, notes } = req.body;
+    const {
+      title,
+      type,
+      amount,
+      movieId,
+      roomId,
+      cinemaId,
+      date,
+      month: reqMonth,
+      year: reqYear,
+      notes,
+    } = req.body;
 
     const expense = await Expense.findById(id);
     if (!expense) {
@@ -221,19 +287,22 @@ export const updateExpense = async (req, res) => {
     if (notes != null) expense.notes = notes.trim();
 
     if (movieId !== undefined) {
-      expense.movieId = movieId && movieId !== 'ALL' && mongoose.Types.ObjectId.isValid(movieId)
-        ? new mongoose.Types.ObjectId(movieId)
-        : null;
+      expense.movieId =
+        movieId && movieId !== 'ALL' && mongoose.Types.ObjectId.isValid(movieId)
+          ? new mongoose.Types.ObjectId(movieId)
+          : null;
     }
     if (roomId !== undefined) {
-      expense.roomId = roomId && roomId !== 'ALL' && mongoose.Types.ObjectId.isValid(roomId)
-        ? new mongoose.Types.ObjectId(roomId)
-        : null;
+      expense.roomId =
+        roomId && roomId !== 'ALL' && mongoose.Types.ObjectId.isValid(roomId)
+          ? new mongoose.Types.ObjectId(roomId)
+          : null;
     }
     if (cinemaId !== undefined) {
-      expense.cinemaId = cinemaId && cinemaId !== 'ALL' && mongoose.Types.ObjectId.isValid(cinemaId)
-        ? new mongoose.Types.ObjectId(cinemaId)
-        : null;
+      expense.cinemaId =
+        cinemaId && cinemaId !== 'ALL' && mongoose.Types.ObjectId.isValid(cinemaId)
+          ? new mongoose.Types.ObjectId(cinemaId)
+          : null;
     }
 
     if (date) {
@@ -244,6 +313,20 @@ export const updateExpense = async (req, res) => {
     } else {
       if (reqMonth) expense.month = Number(reqMonth);
       if (reqYear) expense.year = Number(reqYear);
+    }
+
+    if (
+      expense.year < CINEMA_OPERATION_START_YEAR ||
+      (expense.year === CINEMA_OPERATION_START_YEAR &&
+        expense.month < CINEMA_OPERATION_START_MONTH) ||
+      expense.date.getTime() < CINEMA_OPERATION_START.getTime()
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: 'PERIOD_BEFORE_OPERATION_START',
+        message:
+          "Rạp D'AVENOR CINEMA bắt đầu hoạt động từ ngày 01/11/2026. Không thể cập nhật chi phí về trước thời điểm vận hành.",
+      });
     }
 
     await expense.save();

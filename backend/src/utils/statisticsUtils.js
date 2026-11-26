@@ -31,6 +31,32 @@ export const makeVietnamDate = (year, month, day = 1, hour = 0, minute = 0, seco
 };
 
 /**
+ * MỐC BẮT ĐẦU HOẠT ĐỘNG VÀ THỐNG KÊ CHÍNH THỨC CỦA RẠP D’AVENOR CINEMA
+ * 01/11/2026 00:00:00.000 (Asia/Ho_Chi_Minh, GMT+7)
+ */
+export const CINEMA_OPERATION_START_YEAR = 2026;
+export const CINEMA_OPERATION_START_MONTH = 11;
+export const CINEMA_OPERATION_START_DAY = 1;
+export const CINEMA_OPERATION_START = makeVietnamDate(2026, 11, 1, 0, 0, 0, 0);
+export const CINEMA_OPERATION_START_LABEL = '01/11/2026';
+
+/**
+ * Lỗi validation khi kỳ báo cáo nằm hoàn toàn trước ngày rạp bắt đầu vận hành (01/11/2026)
+ */
+export class StatisticsPeriodValidationError extends Error {
+  constructor(
+    message = "Rạp D'AVENOR CINEMA bắt đầu hoạt động và thống kê từ ngày 01/11/2026. Kỳ báo cáo được chọn nằm trước thời điểm vận hành.",
+    details = {}
+  ) {
+    super(message);
+    this.name = 'StatisticsPeriodValidationError';
+    this.statusCode = 400;
+    this.code = 'PERIOD_BEFORE_OPERATION_START';
+    this.details = details;
+  }
+}
+
+/**
  * Lấy số ngày trong một tháng dương lịch
  */
 export const getDaysInMonth = (year, month) => {
@@ -57,29 +83,120 @@ export const getVietnamDate = (date = new Date()) => {
 };
 
 /**
+ * Kiểm tra và chuẩn hóa khoảng thời gian báo cáo theo mốc vận hành CINEMA_OPERATION_START (01/11/2026).
+ * - Nếu toàn bộ kỳ nằm trước 01/11/2026 (end < CINEMA_OPERATION_START):
+ *   + Khi strictValidation = true: ném StatisticsPeriodValidationError (400) rõ ràng, KHÔNG âm thầm đổi tháng 10 thành tháng 11.
+ * - Nếu kỳ giao với 01/11/2026 (start < CINEMA_OPERATION_START <= end):
+ *   + Kẹp start = CINEMA_OPERATION_START (01/11/2026 00:00:00.000).
+ * - Nếu kỳ hiện tại bắt đầu từ tháng đầu vận hành (11/2026) hoặc kỳ trước kết thúc trước 01/11/2026:
+ *   + Không tính tăng trưởng MoM so với tháng 10 (hasValidPreviousPeriod = false, isFirstOperatingPeriod = true).
+ */
+const enforceOperationStartBoundary = ({
+  start,
+  end,
+  chartEnd,
+  showtimeEnd,
+  prevStart,
+  prevEnd,
+  label,
+  prevLabel,
+  month,
+  year,
+  timeRange,
+  strictValidation = false,
+}) => {
+  const opStartMs = CINEMA_OPERATION_START.getTime();
+
+  // Trường hợp 1: Toàn bộ khoảng thời gian yêu cầu nằm trước ngày 01/11/2026
+  if (end.getTime() < opStartMs) {
+    const errMessage = `Rạp D'AVENOR CINEMA bắt đầu hoạt động và thống kê từ ngày 01/11/2026. Kỳ báo cáo "${label}" nằm trước thời điểm rạp vận hành.`;
+    if (strictValidation) {
+      throw new StatisticsPeriodValidationError(errMessage, {
+        requestedStart: start,
+        requestedEnd: end,
+        operationStart: CINEMA_OPERATION_START,
+        timeRange,
+        month,
+        year,
+      });
+    }
+  }
+
+  let clampedStart = start;
+  let wasClampedToOperationStart = false;
+  if (start.getTime() < opStartMs && end.getTime() >= opStartMs) {
+    clampedStart = new Date(opStartMs);
+    wasClampedToOperationStart = true;
+  }
+
+  const effectiveChartEnd =
+    (chartEnd || end).getTime() < clampedStart.getTime()
+      ? new Date(clampedStart)
+      : chartEnd || end;
+  const effectiveShowtimeEnd =
+    (showtimeEnd || end).getTime() < clampedStart.getTime()
+      ? new Date(end)
+      : showtimeEnd || end;
+
+  // Kiểm tra kỳ trước có nằm trong giai đoạn rạp đã vận hành (>= 01/11/2026) hay không
+  let hasValidPreviousPeriod = true;
+  let effectivePrevStart = prevStart;
+  let effectivePrevEnd = prevEnd;
+  let effectivePrevLabel = prevLabel || 'Kỳ trước';
+
+  if (!prevEnd || prevEnd.getTime() < opStartMs) {
+    hasValidPreviousPeriod = false;
+    effectivePrevStart = null;
+    effectivePrevEnd = null;
+    effectivePrevLabel = 'Tháng đầu vận hành (Chưa có kỳ trước để so sánh)';
+  } else if (prevStart && prevStart.getTime() < opStartMs) {
+    effectivePrevStart = new Date(opStartMs);
+  }
+
+  const isFirstOperatingMonth =
+    Number(year) === CINEMA_OPERATION_START_YEAR &&
+    Number(month) === CINEMA_OPERATION_START_MONTH;
+
+  if (isFirstOperatingMonth) {
+    hasValidPreviousPeriod = false;
+    effectivePrevStart = null;
+    effectivePrevEnd = null;
+    effectivePrevLabel = 'Tháng đầu vận hành (Chưa có kỳ trước để so sánh)';
+  }
+
+  return {
+    start: clampedStart,
+    end,
+    chartEnd: effectiveChartEnd,
+    showtimeEnd: effectiveShowtimeEnd,
+    prevStart: effectivePrevStart,
+    prevEnd: effectivePrevEnd,
+    label,
+    prevLabel: effectivePrevLabel,
+    month,
+    year,
+    operationStart: CINEMA_OPERATION_START,
+    operationStartLabel: CINEMA_OPERATION_START_LABEL,
+    wasClampedToOperationStart,
+    isBeforeOperationStart: end.getTime() < opStartMs,
+    isFirstOperatingMonth,
+    hasValidPreviousPeriod,
+    momComparisonNote: !hasValidPreviousPeriod
+      ? 'Tháng đầu vận hành • Chưa có kỳ trước để so sánh'
+      : null,
+  };
+};
+
+/**
  * Phân tích khoảng thời gian lọc (Global Time Range) theo múi giờ Asia/Ho_Chi_Minh (+07:00)
- * Hỗ trợ đầy đủ các tùy chọn:
- * - today: Hôm nay (00:00:00 -> 23:59:59.999)
- * - 7_days: 7 ngày gần nhất
- * - 30_days: 30 ngày gần nhất
- * - this_month: Tháng này
- * - last_month: Tháng trước
- * - by_month: Tháng/năm cụ thể (ví dụ month=11, year=2026)
- * - this_year: Năm nay
- * - custom: Khoảng ngày tùy chọn (customStart -> customEnd)
- *
- * Lưu ý quan trọng (Mục 6):
- * - Với tháng đã qua (ví dụ Tháng 10/2026): hiển thị đầy đủ từ 01/10 đến 31/10.
- * - Với tháng hiện tại (ví dụ Tháng 11/2026, hôm nay là 26/11/2026):
- *   biểu đồ doanh thu và giao dịch chỉ tính đến hết ngày hiện tại (26/11/2026),
- *   tuyệt đối không hiển thị ngày tương lai 27–30/11 trên biểu đồ doanh thu!
  */
 export const parseDateFilter = (
   timeRange = 'this_month',
   customStart = null,
   customEnd = null,
   month = null,
-  year = null
+  year = null,
+  strictValidation = false
 ) => {
   if (typeof timeRange === 'object' && timeRange !== null) {
     const opts = timeRange;
@@ -88,6 +205,7 @@ export const parseDateFilter = (
     customEnd = opts.customEnd ?? null;
     month = opts.month ?? null;
     year = opts.year ?? null;
+    strictValidation = Boolean(opts.strictValidation);
   }
 
   const now = new Date();
@@ -100,6 +218,7 @@ export const parseDateFilter = (
   let prevStart;
   let prevEnd;
   let label = 'Tháng này';
+  let prevLabel = 'Kỳ trước';
   let resolvedMonth = vnNow.month;
   let resolvedYear = vnNow.year;
 
@@ -119,9 +238,8 @@ export const parseDateFilter = (
     const isFutureMonth = y > vnNow.year || (y === vnNow.year && m > vnNow.month);
 
     start = makeVietnamDate(y, m, 1, 0, 0, 0, 0);
-    // Nếu là tháng hiện tại (11/2026), giới hạn ngày doanh thu đến hết ngày hiện tại (26/11/2026 23:59:59.999)
     const activeEndDay = isCurrentMonth ? vnNow.day : daysInTargetMonth;
-    end = makeVietnamDate(y, m, activeEndDay, 23, 59, 59, 999);
+    end = makeVietnamDate(y, m, daysInTargetMonth, 23, 59, 59, 999);
     chartEnd = isFutureMonth
       ? makeVietnamDate(y, m, 1, 0, 0, 0, 0)
       : makeVietnamDate(y, m, activeEndDay, 23, 59, 59, 999);
@@ -134,7 +252,9 @@ export const parseDateFilter = (
     prevEnd = makeVietnamDate(prevY, prevM, daysInPrevMonth, 23, 59, 59, 999);
 
     label = `Tháng ${m}/${y}`;
-    return {
+    prevLabel = `Tháng ${prevM}/${prevY}`;
+
+    return enforceOperationStartBoundary({
       start,
       end,
       chartEnd,
@@ -142,10 +262,12 @@ export const parseDateFilter = (
       prevStart,
       prevEnd,
       label,
+      prevLabel,
       month: m,
       year: y,
-      prevLabel: `Tháng ${prevM}/${prevY}`,
-    };
+      timeRange: 'by_month',
+      strictValidation,
+    });
   }
 
   switch (timeRange) {
@@ -157,6 +279,7 @@ export const parseDateFilter = (
       prevStart = new Date(start.getTime() - 24 * 60 * 60 * 1000);
       prevEnd = new Date(end.getTime() - 24 * 60 * 60 * 1000);
       label = 'Hôm nay';
+      prevLabel = 'Hôm qua';
       break;
     }
     case '7_days': {
@@ -169,6 +292,7 @@ export const parseDateFilter = (
       prevStart = new Date(start.getTime() - duration);
       prevEnd = new Date(start.getTime() - 1);
       label = '7 ngày qua';
+      prevLabel = '7 ngày trước đó';
       break;
     }
     case '30_days': {
@@ -181,6 +305,7 @@ export const parseDateFilter = (
       prevStart = new Date(start.getTime() - duration);
       prevEnd = new Date(start.getTime() - 1);
       label = '30 ngày qua';
+      prevLabel = '30 ngày trước đó';
       break;
     }
     case 'this_month': {
@@ -188,8 +313,8 @@ export const parseDateFilter = (
       const y = vnNow.year;
       const daysInTargetMonth = getDaysInMonth(y, m);
       start = makeVietnamDate(y, m, 1, 0, 0, 0, 0);
-      end = makeVietnamDate(y, m, vnNow.day, 23, 59, 59, 999);
-      chartEnd = new Date(end);
+      end = makeVietnamDate(y, m, daysInTargetMonth, 23, 59, 59, 999);
+      chartEnd = makeVietnamDate(y, m, vnNow.day, 23, 59, 59, 999);
       showtimeEnd = makeVietnamDate(y, m, daysInTargetMonth, 23, 59, 59, 999);
 
       const prevM = m === 1 ? 12 : m - 1;
@@ -198,6 +323,7 @@ export const parseDateFilter = (
       prevStart = makeVietnamDate(prevY, prevM, 1, 0, 0, 0, 0);
       prevEnd = makeVietnamDate(prevY, prevM, daysInPrevMonth, 23, 59, 59, 999);
       label = `Tháng ${m}/${y}`;
+      prevLabel = `Tháng ${prevM}/${prevY}`;
       break;
     }
     case 'last_month': {
@@ -217,20 +343,24 @@ export const parseDateFilter = (
       prevStart = makeVietnamDate(prevY, prevM, 1, 0, 0, 0, 0);
       prevEnd = makeVietnamDate(prevY, prevM, daysInPrevMonth, 23, 59, 59, 999);
       label = `Tháng trước (${m}/${y})`;
+      prevLabel = `Tháng ${prevM}/${prevY}`;
       break;
     }
     case 'this_year': {
       const y = Number(year) || vnNow.year;
       resolvedYear = y;
-      start = makeVietnamDate(y, 1, 1, 0, 0, 0, 0);
-      end = y === vnNow.year
-        ? makeVietnamDate(y, vnNow.month, vnNow.day, 23, 59, 59, 999)
-        : makeVietnamDate(y, 12, 31, 23, 59, 59, 999);
-      chartEnd = new Date(end);
+      const startMonthForYear = y === CINEMA_OPERATION_START_YEAR ? CINEMA_OPERATION_START_MONTH : 1;
+      start = makeVietnamDate(y, startMonthForYear, 1, 0, 0, 0, 0);
+      end = makeVietnamDate(y, 12, 31, 23, 59, 59, 999);
+      chartEnd =
+        y === vnNow.year
+          ? makeVietnamDate(y, vnNow.month, vnNow.day, 23, 59, 59, 999)
+          : makeVietnamDate(y, 12, 31, 23, 59, 59, 999);
       showtimeEnd = makeVietnamDate(y, 12, 31, 23, 59, 59, 999);
       prevStart = makeVietnamDate(y - 1, 1, 1, 0, 0, 0, 0);
       prevEnd = makeVietnamDate(y - 1, 12, 31, 23, 59, 59, 999);
-      label = `Năm ${y}`;
+      label = y === CINEMA_OPERATION_START_YEAR ? `Năm ${y} (Từ T11/${y})` : `Năm ${y}`;
+      prevLabel = `Năm ${y - 1}`;
       break;
     }
     case 'custom': {
@@ -259,6 +389,12 @@ export const parseDateFilter = (
       }
 
       if (end < start) {
+        if (strictValidation) {
+          throw new StatisticsPeriodValidationError(
+            'Khoảng thời gian tùy chọn không hợp lệ: Ngày bắt đầu không được lớn hơn ngày kết thúc.',
+            { customStart, customEnd }
+          );
+        }
         const tmp = start;
         const pEnd = getVietnamParts(end);
         const pTmp = getVietnamParts(tmp);
@@ -272,6 +408,10 @@ export const parseDateFilter = (
       prevEnd = new Date(start.getTime() - 1);
       prevStart = new Date(start.getTime() - duration);
       label = `${formatVietnamDateKey(start)} – ${formatVietnamDateKey(end)}`;
+      prevLabel = 'Kỳ liền trước';
+      const pStart = getVietnamParts(start);
+      resolvedMonth = pStart.month;
+      resolvedYear = pStart.year;
       break;
     }
     default: {
@@ -279,8 +419,8 @@ export const parseDateFilter = (
       const y = vnNow.year;
       const daysInTargetMonth = getDaysInMonth(y, m);
       start = makeVietnamDate(y, m, 1, 0, 0, 0, 0);
-      end = makeVietnamDate(y, m, vnNow.day, 23, 59, 59, 999);
-      chartEnd = new Date(end);
+      end = makeVietnamDate(y, m, daysInTargetMonth, 23, 59, 59, 999);
+      chartEnd = makeVietnamDate(y, m, vnNow.day, 23, 59, 59, 999);
       showtimeEnd = makeVietnamDate(y, m, daysInTargetMonth, 23, 59, 59, 999);
       const prevM = m === 1 ? 12 : m - 1;
       const prevY = m === 1 ? y - 1 : y;
@@ -288,11 +428,12 @@ export const parseDateFilter = (
       prevStart = makeVietnamDate(prevY, prevM, 1, 0, 0, 0, 0);
       prevEnd = makeVietnamDate(prevY, prevM, daysInPrevMonth, 23, 59, 59, 999);
       label = `Tháng ${m}/${y}`;
+      prevLabel = `Tháng ${prevM}/${prevY}`;
       break;
     }
   }
 
-  return {
+  return enforceOperationStartBoundary({
     start,
     end,
     chartEnd: chartEnd || end,
@@ -300,17 +441,21 @@ export const parseDateFilter = (
     prevStart,
     prevEnd,
     label,
+    prevLabel,
     month: resolvedMonth,
     year: resolvedYear,
-  };
+    timeRange,
+    strictValidation,
+  });
 };
 
 /**
  * Tính tỷ lệ tăng trưởng so với kỳ trước (%)
- * Nếu kỳ trước không có dữ liệu (= 0), trả về null để UI hiển thị N/A thay vì chia cho 0 hoặc 100% ảo.
+ * Nếu kỳ trước không có dữ liệu (= 0) hoặc là tháng đầu vận hành (hasValidPreviousPeriod = false),
+ * trả về null để UI hiển thị N/A / "Tháng đầu vận hành" thay vì chia cho 0 hoặc 100% ảo.
  */
-export const calculateGrowth = (current = 0, previous = 0) => {
-  if (previous === null || previous === undefined || Number(previous) === 0) {
+export const calculateGrowth = (current = 0, previous = 0, hasValidPreviousPeriod = true) => {
+  if (!hasValidPreviousPeriod || previous === null || previous === undefined || Number(previous) === 0) {
     return null;
   }
   const growth = ((Number(current) - Number(previous)) / Math.abs(Number(previous))) * 100;

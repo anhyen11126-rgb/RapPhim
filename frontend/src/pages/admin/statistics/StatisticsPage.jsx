@@ -2,7 +2,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import SidebarAdmin from '../../../components/admin/SidebarAdmin';
 import TopbarAdmin from '../../../components/admin/TopbarAdmin';
 import StatisticsHeader from './components/StatisticsHeader';
-import StatisticsFilter from './components/StatisticsFilter';
+import StatisticsFilter, {
+  CINEMA_OPERATION_START_YEAR,
+  CINEMA_OPERATION_START_MONTH,
+} from './components/StatisticsFilter';
 import OverviewTab from './tabs/OverviewTab';
 import RevenueTab from './tabs/RevenueTab';
 import MoviesTab from './tabs/MoviesTab';
@@ -29,10 +32,18 @@ const StatisticsPage = () => {
       year: 'numeric',
       month: 'numeric',
     }).formatToParts(new Date());
+    const rawMonth = Number(parts.find((part) => part.type === 'month').value);
+    const rawYear = Number(parts.find((part) => part.type === 'year').value);
+    const validYear = Math.max(CINEMA_OPERATION_START_YEAR, rawYear);
+    const validMonth =
+      validYear === CINEMA_OPERATION_START_YEAR
+        ? Math.max(CINEMA_OPERATION_START_MONTH, rawMonth)
+        : rawMonth;
+
     return {
       timeRange: 'by_month',
-      month: Number(parts.find((part) => part.type === 'month').value),
-      year: Number(parts.find((part) => part.type === 'year').value),
+      month: validMonth,
+      year: validYear,
       customStart: '',
       customEnd: '',
       movieId: 'ALL',
@@ -52,12 +63,16 @@ const StatisticsPage = () => {
   const [moviesData, setMoviesData] = useState(null);
   const [showtimesData, setShowtimesData] = useState(null);
 
-  // Danh mục phim & 9 phòng chiếu cho thanh lọc
+  // Danh mục phim trong kỳ & 9 phòng chiếu cho thanh lọc
   const [moviesList, setMoviesList] = useState([]);
   const [roomsList, setRoomsList] = useState([]);
 
-  // Trạng thái tải dữ liệu (Phân biệt rõ 4 trạng thái: Loading, Success, Empty, Error)
-  const request = useRef(null);
+  // Trạng thái tải dữ liệu & Chống Race-condition khi chuyển bộ lọc nhanh
+  const requestControllerRef = useRef(null);
+  const requestSeqRef = useRef(0);
+  const filterMoviesControllerRef = useRef(null);
+  const filterMoviesSeqRef = useRef(0);
+
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -69,15 +84,11 @@ const StatisticsPage = () => {
   const [selectedMovieId, setSelectedMovieId] = useState(null);
   const [selectedShowtimeId, setSelectedShowtimeId] = useState(null);
 
-  // 1. Nạp danh mục phim & phòng chiếu cho bộ lọc
+  // 1. Nạp danh sách 9 phòng chiếu vật lý
   useEffect(() => {
-    const fetchDropdownOptions = async () => {
+    const fetchRooms = async () => {
       try {
-        const [moviesRes, roomsRes] = await Promise.all([
-          statisticsApi.getFilterMovies(),
-          statisticsApi.getRooms(),
-        ]);
-        if (Array.isArray(moviesRes.data)) setMoviesList(moviesRes.data);
+        const roomsRes = await statisticsApi.getRooms();
         const roomsArr = Array.isArray(roomsRes.data)
           ? roomsRes.data
           : Array.isArray(roomsRes.data?.data)
@@ -87,18 +98,86 @@ const StatisticsPage = () => {
           : [];
         if (roomsArr.length > 0) setRoomsList(roomsArr);
       } catch (err) {
-        console.warn('Lỗi nạp danh mục bộ lọc:', err.message);
+        console.warn('Lỗi nạp danh mục phòng chiếu:', err.message);
       }
     };
-    fetchDropdownOptions();
+    fetchRooms();
   }, []);
 
-  // 2. Nạp dữ liệu theo Tab và Bộ lọc đang kích hoạt
+  // 1.2. Nạp danh sách Phim động theo đúng kỳ báo cáo và phạm vi phòng đang chọn
+  // Nếu movieId đang chọn không thuộc kỳ báo cáo mới -> tự động reset movieId về 'ALL' (Mục V.7 & V.9)
+  useEffect(() => {
+    filterMoviesControllerRef.current?.abort();
+    const controller = new AbortController();
+    filterMoviesControllerRef.current = controller;
+    const mySeq = ++filterMoviesSeqRef.current;
+
+    const fetchPeriodMovies = async () => {
+      try {
+        const res = await statisticsApi.getFilterMovies(
+          {
+            timeRange: filters.timeRange,
+            month: filters.month,
+            year: filters.year,
+            customStart: filters.customStart,
+            customEnd: filters.customEnd,
+            roomType: filters.roomType,
+            roomId: filters.roomId,
+            room: filters.room,
+          },
+          controller.signal
+        );
+        if (controller.signal.aborted || mySeq !== filterMoviesSeqRef.current) return;
+
+        const periodMovies = Array.isArray(res.data?.data?.items)
+          ? res.data.data.items
+          : Array.isArray(res.data?.data)
+          ? res.data.data
+          : [];
+
+        setMoviesList(periodMovies);
+
+        if (filters.movieId && filters.movieId !== 'ALL') {
+          const existsInNewPeriod = periodMovies.some(
+            (m) => String(m.id || m._id || m.movieId) === String(filters.movieId)
+          );
+          if (!existsInNewPeriod) {
+            setFilters((prev) =>
+              prev.movieId !== 'ALL' ? { ...prev, movieId: 'ALL', page: 1 } : prev
+            );
+          }
+        }
+      } catch (err) {
+        if (!controller.signal.aborted && err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+          if (mySeq === filterMoviesSeqRef.current) {
+            setMoviesList([]);
+          }
+        }
+      }
+    };
+
+    fetchPeriodMovies();
+    return () => controller.abort();
+  }, [
+    filters.timeRange,
+    filters.month,
+    filters.year,
+    filters.customStart,
+    filters.customEnd,
+    filters.roomType,
+    filters.roomId,
+    filters.room,
+    filters.movieId,
+  ]);
+
+  // 2. Nạp dữ liệu theo Tab và Bộ lọc đang kích hoạt (Chống race-condition bằng requestSeqRef + AbortController)
   const fetchTabData = useCallback(
     async (isManualRefresh = false) => {
-      request.current?.abort();
+      requestControllerRef.current?.abort();
       const controller = new AbortController();
-      request.current = controller;
+      requestControllerRef.current = controller;
+      const mySeq = ++requestSeqRef.current;
+
       setLoadError('');
       try {
         if (isManualRefresh) setIsRefreshing(true);
@@ -108,19 +187,27 @@ const StatisticsPage = () => {
 
         if (activeReport === 'overview') {
           const res = await statisticsApi.getOverview(currentFilters, controller.signal);
-          if (!controller.signal.aborted && res.data?.data) setOverviewData(res.data.data);
+          if (!controller.signal.aborted && mySeq === requestSeqRef.current && res.data?.data) {
+            setOverviewData(res.data.data);
+          }
         } else if (activeReport === 'revenue') {
           const res = await statisticsApi.getRevenue(currentFilters, controller.signal);
-          if (!controller.signal.aborted && res.data?.data) setRevenueData(res.data.data);
+          if (!controller.signal.aborted && mySeq === requestSeqRef.current && res.data?.data) {
+            setRevenueData(res.data.data);
+          }
         } else if (activeReport === 'movies') {
           const res = await statisticsApi.getMovies(currentFilters, controller.signal);
-          if (!controller.signal.aborted && res.data?.data) setMoviesData(res.data.data);
+          if (!controller.signal.aborted && mySeq === requestSeqRef.current && res.data?.data) {
+            setMoviesData(res.data.data);
+          }
         } else if (activeReport === 'showtimes') {
           const res = await statisticsApi.getShowtimes(currentFilters, controller.signal);
-          if (!controller.signal.aborted && res.data?.data) setShowtimesData(res.data.data);
+          if (!controller.signal.aborted && mySeq === requestSeqRef.current && res.data?.data) {
+            setShowtimesData(res.data.data);
+          }
         }
 
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || mySeq !== requestSeqRef.current) return;
         const now = new Date();
         setLastUpdated(
           now.toLocaleTimeString('vi-VN', {
@@ -130,14 +217,19 @@ const StatisticsPage = () => {
           })
         );
       } catch (err) {
-        if (!controller.signal.aborted && err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+        if (
+          !controller.signal.aborted &&
+          mySeq === requestSeqRef.current &&
+          err?.name !== 'CanceledError' &&
+          err?.code !== 'ERR_CANCELED'
+        ) {
           const msg =
             err?.response?.data?.message ||
             'Không tải được báo cáo từ máy chủ thống kê. Vui lòng kiểm tra kết nối và thử lại.';
           setLoadError(msg);
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && mySeq === requestSeqRef.current) {
           setLoading(false);
           setIsRefreshing(false);
         }
@@ -148,7 +240,7 @@ const StatisticsPage = () => {
 
   useEffect(() => {
     fetchTabData();
-    return () => request.current?.abort();
+    return () => requestControllerRef.current?.abort();
   }, [fetchTabData]);
 
   // Xử lý xuất báo cáo CSV / Excel
@@ -212,7 +304,7 @@ const StatisticsPage = () => {
             </div>
           )}
 
-          {/* 2. Global Filter Bar dùng chung: Thời gian, Phim, Loại phòng, Phòng vật lý */}
+          {/* 2. Global Filter Bar dùng chung: Thời gian, Phim trong kỳ, Loại phòng, Phòng vật lý */}
           <StatisticsFilter
             filters={filters}
             onChange={(newFilters) => setFilters(newFilters)}

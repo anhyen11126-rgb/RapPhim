@@ -12,50 +12,85 @@ dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
 dotenv.config();
 
 /**
- * Xác định URI kết nối dựa trên chế độ DB_MODE ('DEMO' | 'LIVE')
- * - Khi DB_MODE=DEMO: ưu tiên MONGODB_DEMO_URI (movietix_demo_db)
- * - Khi DB_MODE=LIVE: sử dụng MONGODB_LIVE_URI hoặc MONGODB_URI (movietix_db)
+ * Xác định chế độ Database đang kích hoạt ('LIVE' | 'DEMO')
+ * Mặc định luôn là 'LIVE' (movietix_db).
+ */
+export const getActiveDbMode = () => {
+  return String(process.env.DB_MODE || 'LIVE').trim().toUpperCase() === 'DEMO' ? 'DEMO' : 'LIVE';
+};
+
+/**
+ * Xác định URI kết nối dựa trên chế độ DB_MODE ('LIVE' | 'DEMO')
+ * - Khi DB_MODE=LIVE: bắt buộc sử dụng MONGODB_LIVE_URI hoặc MONGODB_URI trỏ về movietix_db
+ * - Khi DB_MODE=DEMO: sử dụng MONGODB_DEMO_URI (movietix_demo_db)
  */
 export const resolveMongoUri = () => {
-  const mode = String(process.env.DB_MODE || 'LIVE').trim().toUpperCase();
-  const baseUri = process.env.MONGODB_LIVE_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/movietix_db';
+  const mode = getActiveDbMode();
+  const liveUri =
+    process.env.MONGODB_LIVE_URI ||
+    (process.env.MONGODB_URI
+      ? process.env.MONGODB_URI.replace(/\/movietix_demo_db(\?|$)/, '/movietix_db$1')
+      : 'mongodb://127.0.0.1:27017/movietix_db');
 
   if (mode === 'DEMO') {
     if (process.env.MONGODB_DEMO_URI) {
       return process.env.MONGODB_DEMO_URI;
     }
-    return baseUri.replace(/\/movietix_db(\?|$)/, '/movietix_demo_db$1');
+    return liveUri.replace(/\/movietix_db(\?|$)/, '/movietix_demo_db$1');
   }
 
-  return baseUri;
+  return liveUri;
 };
 
 const connectDB = async () => {
-  const mode = String(process.env.DB_MODE || 'LIVE').trim().toUpperCase();
+  const mode = getActiveDbMode();
   const uri = resolveMongoUri();
+  const expectedDbName = mode === 'DEMO' ? 'movietix_demo_db' : 'movietix_db';
 
   try {
     const conn = await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 15000,
     });
-    console.log(`🍃 [MongoDB - ${mode} MODE] Đã kết nối thành công: ${conn.connection.host}/${conn.connection.name}`);
+    const connectedDbName = conn.connection.name;
+    console.log(
+      `🍃 [MongoDB - ${mode} MODE] Đã kết nối thành công: ${conn.connection.host}/${connectedDbName}`
+    );
+
+    if (connectedDbName !== expectedDbName) {
+      console.warn(
+        `⚠️ [MongoDB] Cảnh báo: DB_MODE=${mode} kỳ vọng kết nối tới "${expectedDbName}" nhưng đang kết nối tới "${connectedDbName}".`
+      );
+    }
     return conn;
   } catch (error) {
-    console.warn(`⚠️ [MongoDB] Lỗi kết nối Atlas: ${error.message}`);
+    console.error(
+      `❌ [MongoDB - ${mode} MODE] Không thể kết nối tới cơ sở dữ liệu chính (${expectedDbName}): ${error.message}`
+    );
+    console.error(
+      '⚠️ Hệ thống KHÔNG tự động chuyển sang database DEMO hoặc MongoDB Local để tránh sai lệch dữ liệu.'
+    );
 
-    if (!uri.includes('localhost') && !uri.includes('127.0.0.1')) {
+    if (
+      String(process.env.ALLOW_LOCAL_DB_FALLBACK || '').trim().toLowerCase() === 'true' &&
+      !uri.includes('localhost') &&
+      !uri.includes('127.0.0.1')
+    ) {
       try {
-        const localDbName = mode === 'DEMO' ? 'movietix_demo_db' : 'movietix_db';
-        console.log(`🔄 Đang thử kết nối MongoDB Local dự phòng (mongodb://127.0.0.1:27017/${localDbName})...`);
-        const localConn = await mongoose.connect(`mongodb://127.0.0.1:27017/${localDbName}`, {
+        console.warn(
+          `⚠️ [CẢNH BÁO FALLBACK] ALLOW_LOCAL_DB_FALLBACK=true được bật: Đang kết nối dự phòng tới mongodb://127.0.0.1:27017/${expectedDbName}...`
+        );
+        const localConn = await mongoose.connect(`mongodb://127.0.0.1:27017/${expectedDbName}`, {
           serverSelectionTimeoutMS: 3000,
         });
-        console.log(`🍃 [MongoDB Local - ${mode}] Đã kết nối thành công: ${localConn.connection.host}/${localConn.connection.name}`);
+        console.warn(
+          `⚠️ [MongoDB Local Fallback - ${mode}] Đang chạy tạm trên Local DB: ${localConn.connection.host}/${localConn.connection.name}`
+        );
         return localConn;
-      } catch {
-        console.warn('⚠️ [MongoDB] Bạn hãy kiểm tra lại kết nối Internet và chắc chắn đã Whitelist IP 0.0.0.0/0 trên MongoDB Atlas (Network Access).');
+      } catch (localErr) {
+        console.error(`❌ [MongoDB Local Fallback] Thất bại: ${localErr.message}`);
       }
     }
+    return null;
   }
 };
 

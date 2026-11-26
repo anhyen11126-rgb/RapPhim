@@ -133,15 +133,21 @@ const MovieDetailDrawer = ({ movieId, filters = {}, onClose, onSelectShowtime })
                   </span>
                 </div>
                 <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
-                  <span className="text-[11px] text-slate-400 block">Ghế còn trống</span>
-                  <span className="text-sm font-bold text-slate-300 block mt-1">
-                    {formatNumber(data.stats.availableSeats || 0)} ghế
+                  <span className="text-[11px] text-slate-400 block">Ghế còn đặt được</span>
+                  <span className="text-sm font-bold text-emerald-400 block mt-1">
+                    {formatNumber(data.stats.upcomingAvailableSeats ?? 0)} ghế
+                  </span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    Trống đã chiếu: {formatNumber(data.stats.completedUnsoldSeats ?? 0)}
                   </span>
                 </div>
                 <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
-                  <span className="text-[11px] text-slate-400 block">Tỷ lệ lấp đầy</span>
+                  <span className="text-[11px] text-slate-400 block">Tỷ lệ bán vé toàn kỳ</span>
                   <span className="text-sm font-bold text-amber-400 block mt-1">
                     {formatPercent(data.stats.avgOccupancy)}
+                  </span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    Đã chiếu: {formatPercent(data.stats.completedOccupancyRate || 0)} • Sắp: {formatPercent(data.stats.upcomingOccupancyRate || 0)}
                   </span>
                 </div>
               </div>

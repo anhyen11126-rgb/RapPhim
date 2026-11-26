@@ -151,9 +151,18 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
                 </span>
               </div>
               <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
-                <span className="text-[11px] text-slate-400 block">Ghế còn trống</span>
+                <span className="text-[11px] text-slate-400 block">
+                  {data.showtime?.isBookableUpcoming ? 'Ghế còn đặt được' : 'Ghế trống vật lý'}
+                </span>
                 <span className="text-sm sm:text-base font-bold text-slate-200 block mt-1">
                   {data.stats.availableCount} ghế
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  {data.showtime?.isBookableUpcoming
+                    ? `Mở bán: ${data.stats.bookableAvailableCount ?? data.stats.availableCount} ghế`
+                    : data.showtime?.isLocked
+                    ? 'Suất tạm khóa (0 ghế mở bán)'
+                    : 'Đã/đang chiếu (0 ghế mở bán)'}
                 </span>
               </div>
               {data.stats.holdingCount > 0 && (

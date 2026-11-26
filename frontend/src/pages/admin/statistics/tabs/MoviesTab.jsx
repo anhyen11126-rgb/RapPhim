@@ -616,7 +616,7 @@ const MoviesTab = ({
                           <span className="text-[10px] text-slate-500 block">({m.soldOutRate || 0}%)</span>
                         </td>
 
-                        {/* Tỷ lệ lấp đầy (%) */}
+                        {/* Tỷ lệ lấp đầy (%) — Phân biệt rõ Toàn kỳ / Suất đã chiếu / Suất sắp chiếu */}
                         <td className="py-3 px-3">
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-[11px]">
@@ -634,6 +634,10 @@ const MoviesTab = ({
                                 }`}
                                 style={{ width: `${Math.min(100, Math.max(m.ticketsSold > 0 ? 4 : 0, m.occupancyRate))}%` }}
                               ></div>
+                            </div>
+                            <div className="text-[9px] text-slate-400 flex items-center justify-between">
+                              <span>Đã chiếu: {m.completedOccupancyRate ?? 0}%</span>
+                              <span>Sắp chiếu: {m.upcomingOccupancyRate ?? 0}%</span>
                             </div>
                           </div>
                         </td>

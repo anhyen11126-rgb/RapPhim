@@ -24,6 +24,7 @@ export const resolveMovieStatsAndReviews = async (movie, showtimes = [], current
   const ticketsSold = bookings.reduce((sum, booking) => sum + booking.seats.split(',').filter(seat => seat.trim()).length, 0);
   return {
     stats: { revenue, revenueText: Math.round(revenue / 1000000) + ' triệu', ticketsSold, seatsBooked: ticketsSold },
+    analytics: null,
     ...summarizeReviews(movie.reviews, currentUserId),
   };
 };
@@ -318,6 +319,7 @@ export const getMovies = async (req, res) => {
       }
       const statsAndReviews = {
         stats: { revenue, revenueText: Math.round(revenue / 1000000) + ' triệu', ticketsSold, seatsBooked: ticketsSold },
+        analytics: null,
         ...summarizeReviews(m.reviews),
       };
 

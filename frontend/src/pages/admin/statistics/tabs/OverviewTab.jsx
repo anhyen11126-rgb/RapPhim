@@ -131,6 +131,13 @@ const OverviewTab = ({
         </div>
       )}
 
+      {/* Cảnh báo nghiệp vụ nếu kỳ báo cáo có > 3 bộ phim phát sinh lịch chiếu */}
+      {!loading && data?.schedulePolicyWarning && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-950/25 px-4 py-3 text-xs text-amber-200 flex items-center justify-between">
+          <span>⚠️ {data.schedulePolicyWarning}</span>
+        </div>
+      )}
+
       {/* Trạng thái Empty khi kỳ được chọn hoàn toàn chưa có dữ liệu */}
       {!loading && data && !data.hasActivityInPeriod && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-xs text-amber-200 flex items-center justify-between">
@@ -152,7 +159,8 @@ const OverviewTab = ({
               : ''
           }
           growth={kpis.netRevenue?.growth}
-          showGrowthNA={kpis.netRevenue?.growth === null}
+          subtitle={kpis.netRevenue?.subtitle}
+          showGrowthNA={kpis.netRevenue?.growth === null && !kpis.netRevenue?.subtitle}
           tooltip={kpis.netRevenue?.tooltip}
           loading={loading}
           icon="💳"
@@ -169,7 +177,8 @@ const OverviewTab = ({
               : ''
           }
           growth={kpis.validTicketsSold?.growth}
-          showGrowthNA={kpis.validTicketsSold?.growth === null}
+          subtitle={kpis.validTicketsSold?.subtitle}
+          showGrowthNA={kpis.validTicketsSold?.growth === null && !kpis.validTicketsSold?.subtitle}
           tooltip={kpis.validTicketsSold?.tooltip}
           loading={loading}
           icon="🎟️"
@@ -202,12 +211,12 @@ const OverviewTab = ({
               : ''
           }
           growth={kpis.totalShowtimes?.growth}
-          showGrowthNA={kpis.totalShowtimes?.growth === null}
           subtitle={
             kpis.totalShowtimes?.cancelledCount > 0
               ? `Đã loại trừ ${kpis.totalShowtimes.cancelledCount} suất hủy`
-              : undefined
+              : kpis.totalShowtimes?.subtitle
           }
+          showGrowthNA={kpis.totalShowtimes?.growth === null && !kpis.totalShowtimes?.subtitle}
           tooltip={kpis.totalShowtimes?.tooltip}
           loading={loading}
           icon="⏱️"
@@ -301,16 +310,31 @@ const OverviewTab = ({
           <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-4 flex items-center justify-between">
             <div>
               <span className="text-[11px] text-slate-400 font-semibold block">
-                So sánh với {mom.previousPeriodLabel || 'Kỳ trước'} (MoM)
+                {mom.hasValidPreviousPeriod === false
+                  ? 'So sánh kỳ trước (MoM)'
+                  : `So sánh với ${mom.previousPeriodLabel || 'Kỳ trước'} (MoM)`}
               </span>
-              <strong className="text-xs sm:text-sm font-bold text-slate-200 mt-0.5 block">
-                DT: {mom.revenue?.growth != null ? `${mom.revenue.growth > 0 ? '+' : ''}${mom.revenue.growth}%` : 'N/A'} • Vé:{' '}
-                {mom.tickets?.growth != null ? `${mom.tickets.growth > 0 ? '+' : ''}${mom.tickets.growth}%` : 'N/A'}
-              </strong>
-              <span className="text-[10px] text-slate-500">
-                Suất: {mom.showtimes?.growth != null ? `${mom.showtimes.growth > 0 ? '+' : ''}${mom.showtimes.growth}%` : 'N/A'} • Lấp đầy:{' '}
-                {mom.occupancyRate?.growth != null ? `${mom.occupancyRate.growth > 0 ? '+' : ''}${mom.occupancyRate.growth}%` : 'N/A'}
-              </span>
+              {mom.hasValidPreviousPeriod === false ? (
+                <>
+                  <strong className="text-xs sm:text-sm font-bold text-amber-300 mt-0.5 block">
+                    Tháng đầu vận hành
+                  </strong>
+                  <span className="text-[10px] text-slate-400">
+                    Chưa có kỳ trước để so sánh (Rạp hoạt động từ 01/11/2026)
+                  </span>
+                </>
+              ) : (
+                <>
+                  <strong className="text-xs sm:text-sm font-bold text-slate-200 mt-0.5 block">
+                    DT: {mom.revenue?.growth != null ? `${mom.revenue.growth > 0 ? '+' : ''}${mom.revenue.growth}%` : 'N/A'} • Vé:{' '}
+                    {mom.tickets?.growth != null ? `${mom.tickets.growth > 0 ? '+' : ''}${mom.tickets.growth}%` : 'N/A'}
+                  </strong>
+                  <span className="text-[10px] text-slate-500">
+                    Suất: {mom.showtimes?.growth != null ? `${mom.showtimes.growth > 0 ? '+' : ''}${mom.showtimes.growth}%` : 'N/A'} • Lấp đầy:{' '}
+                    {mom.occupancyRate?.growth != null ? `${mom.occupancyRate.growth > 0 ? '+' : ''}${mom.occupancyRate.growth}%` : 'N/A'}
+                  </span>
+                </>
+              )}
             </div>
             <span className="text-lg">📈</span>
           </div>
@@ -348,11 +372,11 @@ const OverviewTab = ({
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white">Tỷ Lệ Bán Vé & Công Suất</h3>
               <p className="text-xs text-slate-400">
-                Hiệu suất lấp đầy ghế bình quân ({physicalRoomsCount} phòng • {formatNumber(totalPhysicalSeats)} ghế vật lý)
+                Tỷ lệ bán vé trên tổng ghế mở bán của các suất trong kỳ ({physicalRoomsCount} phòng • {formatNumber(totalPhysicalSeats)} ghế vật lý)
               </p>
             </div>
             <span className="text-xs font-semibold text-cyan-300 bg-cyan-950/60 border border-cyan-500/30 px-2.5 py-1 rounded-lg">
-              Tỷ lệ lấp đầy: {occupancyDisplayRate}
+              Bán vé toàn kỳ: {occupancyDisplayRate}
             </span>
           </div>
 

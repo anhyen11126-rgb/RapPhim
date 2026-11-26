@@ -39,9 +39,10 @@ export const statisticsApi = {
   updateExpense: (id, data) => api.put(`/admin/statistics/expenses/${id}`, data),
   deleteExpense: (id) => api.delete(`/admin/statistics/expenses/${id}`),
 
-  // Danh mục hỗ trợ lọc (Phim, Phòng chiếu, Rạp)
+  // 9. Danh mục hỗ trợ lọc theo kỳ báo cáo (Chỉ lấy các phim có hoạt động thực tế trong kỳ & phạm vi phòng)
+  getFilterMovies: (params = {}, signal) =>
+    api.get('/admin/statistics/filter-movies', { params, signal }),
   getCinemas: () => api.get('/cinemas'),
-  getFilterMovies: () => api.get('/movies'),
   getRooms: () => api.get('/rooms'),
 };
 

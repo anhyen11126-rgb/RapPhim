@@ -150,8 +150,22 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
           </div>
         </div>
 
-        {/* Phân biệt rõ Tổng sức chứa trong kỳ vs Cấu hình 9 phòng vật lý (792 ghế) */}
+        {/* Phân biệt rõ Tổng sức chứa trong kỳ, 3 tỷ lệ theo mẫu số vs Cấu hình 9 phòng vật lý (792 ghế) */}
         <div className="pt-2 border-t border-[var(--border-default)] space-y-1 text-[11px] text-slate-400">
+          <div className="flex items-center justify-between gap-4">
+            <span>Trống đã chiếu / Còn đặt được (Sắp chiếu):</span>
+            <span className="font-semibold text-slate-200">
+              {formatNumber(occupancy.completedUnsoldSeats || 0)} /{' '}
+              <strong className="text-emerald-400">{formatNumber(occupancy.upcomingAvailableSeats || 0)} ghế</strong>
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span>Lấp đầy suất đã chiếu / Đặt trước sắp chiếu:</span>
+            <span className="font-semibold text-amber-300">
+              {formatPercent(occupancy.completedOccupancyRate || 0, 2)} /{' '}
+              <span className="text-cyan-300">{formatPercent(occupancy.upcomingOccupancyRate || 0, 2)}</span>
+            </span>
+          </div>
           <div className="flex items-center justify-between gap-4">
             <span>Tổng sức chứa trong kỳ ({formatNumber(activeShowtimesCount)} suất):</span>
             <span className="font-bold text-white">{formatNumber(total)} ghế</span>

@@ -1,5 +1,6 @@
 import express from 'express';
 import {
+  getFilterMovies,
   getOverview,
   getRevenue,
   getMovies,
@@ -20,7 +21,7 @@ import { authenticateAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-
+router.get('/filter-movies', authenticateAdmin, getFilterMovies);
 router.get('/overview', authenticateAdmin, getOverview);
 router.get('/revenue', authenticateAdmin, getRevenue);
 router.get('/movies', authenticateAdmin, getMovies);
