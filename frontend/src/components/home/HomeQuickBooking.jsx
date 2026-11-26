@@ -236,7 +236,11 @@ const HomeQuickBooking = ({
 
   const currentMonth = year + '-' + String(month).padStart(2, '0');
   const currentSchedule = monthSchedule(currentMonth, todayMonth, []);
-  const quickBookingMovies = moviesList.filter(movie => releaseMonth(movie) === currentMonth);
+  const quickBookingMovies = moviesList.filter((movie) => {
+    if (movie.status === 'ENDED') return false;
+    if (releaseMonth(movie) === currentMonth) return true;
+    return Array.isArray(movie.showtimes) && movie.showtimes.some((st) => String(st.date || '').slice(0, 7) === currentMonth);
+  });
   const activeMovie = quickBookingMovies.find(movie => String(movie.id) === String(selectedMovieId)) || quickBookingMovies[0];
   const activeMovieId = activeMovie?.id || activeMovie?._id;
   const activeBadge = getAgeBadgeStyle(activeMovie?.ageRating);

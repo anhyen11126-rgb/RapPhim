@@ -63,36 +63,39 @@ const TheatersPage = () => {
   const [searchParams] = useSearchParams();
   const dateFromLink = searchParams.get('date') || '';
   const [customDate, setCustomDate] = useState(() => /^\d{4}-\d{2}-\d{2}$/.test(dateFromLink) ? dateFromLink : '');
-  const nextMonth = new Date();
+  const getVietnamTodayDateObj = () => {
+    const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+    return new Date(`${todayStr}T12:00:00+07:00`);
+  };
+
+  const vnTodayObj = getVietnamTodayDateObj();
+  const nextMonth = new Date(vnTodayObj);
   nextMonth.setDate(1);
   nextMonth.setMonth(nextMonth.getMonth() + 1);
-  const nextMonthStart = nextMonth.getFullYear() + '-' + String(nextMonth.getMonth() + 1).padStart(2, '0') + '-01';
+  const nextMonthStart = nextMonth.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 7) + '-01';
 
-  // Sinh 30 ngày liên tiếp tính từ hôm nay theo giờ địa phương chuẩn (hỗ trợ xem tuần này, tuần sau, tháng 11, tháng 12)
+  // Sinh 30 ngày liên tiếp tính từ hôm nay theo chuẩn Asia/Ho_Chi_Minh (hỗ trợ xem tuần này, tuần sau, tháng kế tiếp, qua năm)
   const dates = Array.from({ length: 30 }).map((_, idx) => {
-    const d = new Date();
-    d.setDate(d.getDate() + idx);
+    const d = new Date(vnTodayObj.getTime() + idx * 86400000);
+    const isoDate = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const [, mm, dd] = isoDate.split('-');
+    const dow = new Date(`${isoDate}T12:00:00+07:00`).getUTCDay();
     const dayNames = ['CHỦ NHẬT', 'THỨ 2', 'THỨ 3', 'THỨ 4', 'THỨ 5', 'THỨ 6', 'THỨ 7'];
-    const dayStr = idx === 0 ? 'HÔM NAY' : idx === 1 ? 'NGÀY MAI' : dayNames[d.getDay()];
-    const dateStr = `${d.getDate()}/${d.getMonth() + 1}`;
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const isoDate = `${year}-${month}-${day}`;
+    const dayStr = idx === 0 ? 'HÔM NAY' : idx === 1 ? 'NGÀY MAI' : dayNames[dow];
+    const dateStr = `${Number(dd)}/${Number(mm)}`;
     return { dayStr, dateStr, isoDate, d };
   });
 
   const jumpToPeriod = (type) => {
-    const d = new Date();
+    const d = getVietnamTodayDateObj();
     setCustomDate('');
     if (type === 'this_week') {
       setActiveDateIndex(0);
     } else if (type === 'next_week') {
-      const dayOfWeek = d.getDay();
+      const dayOfWeek = d.getUTCDay();
       const diffToNextMon = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
-      const nextMon = new Date(d);
-      nextMon.setDate(d.getDate() + diffToNextMon);
-      const nextMonIso = nextMon.toISOString().slice(0, 10);
+      const nextMon = new Date(d.getTime() + diffToNextMon * 86400000);
+      const nextMonIso = nextMon.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
       const foundIdx = dates.findIndex((item) => item.isoDate === nextMonIso);
       if (foundIdx !== -1) setActiveDateIndex(foundIdx);
       else setActiveDateIndex(7);

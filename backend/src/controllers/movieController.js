@@ -266,10 +266,14 @@ export const getMovies = async (req, res) => {
       const formattedShowtimes = cleanShowtimes.map((st) => {
         const startTimeDate = new Date(st.startTime);
         const timeStr = startTimeDate.toLocaleTimeString('vi-VN', {
+          timeZone: 'Asia/Ho_Chi_Minh',
           hour: '2-digit',
           minute: '2-digit',
+          hour12: false,
         });
-        const dateStr = startTimeDate.toISOString().slice(0, 10);
+        const dateStr = startTimeDate.toLocaleDateString('sv-SE', {
+          timeZone: 'Asia/Ho_Chi_Minh',
+        });
         const canonicalRoomType = resolveCanonicalRoomType(st);
         return {
           id: st._id.toString(),

@@ -303,12 +303,24 @@ export const getCinemaShowtimes = async (req, res) => {
             const monthStart = new Date(date.slice(0, 7) + '-01T00:00:00+07:00');
             const nextMonth = new Date(monthStart.getTime() + 32 * 86400000);
             const nextKey = nextMonth.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 7);
-            return Movie.find({
-              releaseDate: { $gte: monthStart, $lt: new Date(nextKey + '-01T00:00:00+07:00') },
-            })
-              .select('title releaseDate')
-              .sort({ releaseDate: 1, title: 1 })
-              .lean();
+            const monthEnd = new Date(nextKey + '-01T00:00:00+07:00');
+            return Showtime.distinct('movieId', {
+              cinemaId: cinema._id,
+              startTime: { $gte: monthStart, $lt: monthEnd },
+              cancelledAt: null,
+              isLocked: { $ne: true },
+            }).then((scheduledMovieIds) =>
+              Movie.find({
+                status: { $ne: 'ENDED' },
+                $or: [
+                  { releaseDate: { $gte: monthStart, $lt: monthEnd } },
+                  { _id: { $in: scheduledMovieIds }, releaseDate: { $lt: monthEnd } },
+                ],
+              })
+                .select('title releaseDate')
+                .sort({ releaseDate: 1, title: 1 })
+                .lean()
+            );
           })()
         : Promise.resolve(undefined);
 
@@ -396,7 +408,7 @@ export const getCinemaShowtimes = async (req, res) => {
       const movie = st.movieId;
       const release = movie.releaseDate?.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
       const screening = st.startTime.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
-      if (published && release && (screening < release || screening.slice(0, 7) !== release.slice(0, 7))) continue;
+      if (published && release && screening < release) continue;
       const movieIdStr = movie._id.toString();
 
       if (!moviesMap.has(movieIdStr)) {

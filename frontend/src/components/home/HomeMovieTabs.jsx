@@ -59,7 +59,10 @@ const HomeMovieTabs = ({ moviesList }) => {
   const today = cinemaDate();
   const month = today.slice(0, 7);
   const nowShowingMovies = moviesList.filter((movie) => {
+    if (movie.status === 'ENDED') return false;
     const release = cinemaDate(movie.releaseDate);
+    const hasUpcomingShowtimes = Array.isArray(movie.showtimes) && movie.showtimes.length > 0;
+    if (hasUpcomingShowtimes && (!release || release <= today)) return true;
     return release ? release.slice(0, 7) === month && release <= today : movie.status === 'NOW_SHOWING';
   });
   const comingSoonMovies = useMemo(() => moviesList.filter((movie) => {

@@ -89,9 +89,11 @@ const ShowtimeManagePage = () => {
   const [recurringData, setRecurringData] = useState({
     startDate: '',
     endDate: '',
-    daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    daysOfWeek: [1, 2, 3, 4, 5, 6, 0],
     timeSlots: [],
     pricingMode: 'auto',
+    cleaningMinutes: 20,
+    skipConflicts: true,
     manualTimeInput: '',
   });
   const [recurringPreview, setRecurringPreview] = useState(null); // { validSlots, conflictSlots, ... }
@@ -497,13 +499,13 @@ const ShowtimeManagePage = () => {
 
   // ── Recurring helpers ──────────────────────────────────────────────────────
   const recurringDayLabels = [
-    { label: 'CN', value: 0 },
-    { label: 'T2', value: 1 },
-    { label: 'T3', value: 2 },
-    { label: 'T4', value: 3 },
-    { label: 'T5', value: 4 },
-    { label: 'T6', value: 5 },
-    { label: 'T7', value: 6 },
+    { label: 'T2', fullLabel: 'Thứ 2', value: 1 },
+    { label: 'T3', fullLabel: 'Thứ 3', value: 2 },
+    { label: 'T4', fullLabel: 'Thứ 4', value: 3 },
+    { label: 'T5', fullLabel: 'Thứ 5', value: 4 },
+    { label: 'T6', fullLabel: 'Thứ 6', value: 5 },
+    { label: 'T7', fullLabel: 'Thứ 7', value: 6 },
+    { label: 'CN', fullLabel: 'Chủ Nhật', value: 0 },
   ];
 
   const getRecurringStartDate = () =>
@@ -513,9 +515,10 @@ const ShowtimeManagePage = () => {
     recurringData.endDate || viewDate;
 
   const handleRecurringQuickRange = (days) => {
+    const clampedDays = Math.min(30, Math.max(1, Number(days) || 7));
     const start = getRecurringStartDate();
     const d = new Date(start + 'T12:00:00+07:00');
-    d.setDate(d.getDate() + days - 1);
+    d.setDate(d.getDate() + clampedDays - 1);
     const end = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
     setRecurringData(prev => ({ ...prev, startDate: start, endDate: end }));
     setRecurringPreview(null);
@@ -524,8 +527,23 @@ const ShowtimeManagePage = () => {
   const handleRecurringEndOfMonth = () => {
     const start = getRecurringStartDate();
     const d = new Date(start + 'T12:00:00+07:00');
-    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0)
-      .toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const lastDayOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    const maxAllowedDate = new Date(d.getTime() + 29 * 86400000);
+    const targetEnd = lastDayOfMonth.getTime() > maxAllowedDate.getTime() ? maxAllowedDate : lastDayOfMonth;
+    const end = targetEnd.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+    setRecurringData(prev => ({ ...prev, startDate: start, endDate: end }));
+    setRecurringPreview(null);
+  };
+
+  const handleRecurringMonthYearPick = (yearMonth) => {
+    if (!/^\d{4}-\d{2}$/.test(yearMonth)) return;
+    const [yStr, mStr] = yearMonth.split('-');
+    const y = Number(yStr);
+    const m = Number(mStr);
+    const start = `${yearMonth}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const endDay = Math.min(30, lastDay);
+    const end = `${yearMonth}-${String(endDay).padStart(2, '0')}`;
     setRecurringData(prev => ({ ...prev, startDate: start, endDate: end }));
     setRecurringPreview(null);
   };
@@ -551,7 +569,16 @@ const ShowtimeManagePage = () => {
 
   const addManualTimeSlot = () => {
     const t = recurringData.manualTimeInput.trim();
-    if (!/^\d{2}:\d{2}$/.test(t)) { alert('Định dạng giờ phải là HH:mm (ví dụ: 09:30)'); return; }
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(t)) {
+      alert('Định dạng giờ phải là 24h HH:mm (ví dụ: 09:30 hoặc 19:15)');
+      return;
+    }
+    const [hh, mm] = t.split(':').map(Number);
+    const totalMin = hh * 60 + mm;
+    if (totalMin < 8 * 60 || totalMin > 22 * 60 + 30) {
+      alert('Giờ bắt đầu suất chiếu phải nằm trong khung giờ mở suất của rạp (08:00 – 22:30).');
+      return;
+    }
     if (!recurringData.timeSlots.includes(t)) {
       setRecurringData(prev => ({
         ...prev,
@@ -559,26 +586,33 @@ const ShowtimeManagePage = () => {
         manualTimeInput: '',
       }));
       setRecurringPreview(null);
+    } else {
+      setRecurringData(prev => ({ ...prev, manualTimeInput: '' }));
     }
   };
 
-  // Expected count (computed locally, no API call)
-  const recurringExpectedCount = (() => {
+  // Expected metrics (computed locally, no API call)
+  const recurringRangeMetrics = (() => {
     const start = getRecurringStartDate();
     const end = getRecurringEndDate();
-    if (!start || !end || start > end) return 0;
+    if (!start || !end || start > end) return { rangeDays: 0, matchedDaysCount: 0, expectedShowtimes: 0 };
     const msPerDay = 86400000;
     const startMs = new Date(start + 'T00:00:00+07:00').getTime();
     const endMs   = new Date(end   + 'T00:00:00+07:00').getTime();
     const days = Math.round((endMs - startMs) / msPerDay) + 1;
-    let count = 0;
-    for (let i = 0; i < days; i++) {
+    let matchedDays = 0;
+    for (let i = 0; i < Math.min(days, 366); i++) {
       const d = new Date(startMs + i * msPerDay);
-      const dow = new Date(d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }) + 'T12:00:00+07:00').getDay();
-      if (recurringData.daysOfWeek.includes(dow)) count++;
+      const dow = new Date(d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }) + 'T12:00:00+07:00').getUTCDay();
+      if (recurringData.daysOfWeek.includes(dow)) matchedDays++;
     }
-    return count * recurringData.timeSlots.length;
+    return {
+      rangeDays: days,
+      matchedDaysCount: matchedDays,
+      expectedShowtimes: matchedDays * recurringData.timeSlots.length,
+    };
   })();
+  const recurringExpectedCount = recurringRangeMetrics.expectedShowtimes;
 
   const handleRecurringPreview = async () => {
     if (!formData.movieId) { alert('Vui lòng chọn bộ phim.'); return; }
@@ -586,9 +620,17 @@ const ShowtimeManagePage = () => {
     const startDate = getRecurringStartDate();
     const endDate = getRecurringEndDate();
     if (!startDate || !endDate) { alert('Vui lòng chọn ngày bắt đầu và kết thúc.'); return; }
-    if (startDate > endDate) { alert('Ngày bắt đầu phải trước ngày kết thúc.'); return; }
-    if (recurringData.daysOfWeek.length === 0) { alert('Vui lòng chọn ít nhất 1 ngày trong tuần.'); return; }
+    if (startDate > endDate) { alert('Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.'); return; }
+    if (recurringRangeMetrics.rangeDays > 30) {
+      alert(`Khoảng ngày lặp lịch tối đa 30 ngày (hiện tại ${recurringRangeMetrics.rangeDays} ngày).`);
+      return;
+    }
+    if (recurringData.daysOfWeek.length === 0) { alert('Vui lòng chọn ít nhất 1 thứ trong tuần.'); return; }
     if (recurringData.timeSlots.length === 0) { alert('Vui lòng chọn ít nhất 1 khung giờ.'); return; }
+    if (recurringExpectedCount > 180) {
+      alert(`Tổng số suất dự kiến (${recurringExpectedCount} suất) vượt quá giới hạn tối đa 180 suất mỗi lần lặp lịch.`);
+      return;
+    }
 
     try {
       setRecurringLoading(true);
@@ -597,7 +639,7 @@ const ShowtimeManagePage = () => {
       const res = await api.post('/admin/showtimes/recurring/preview', {
         movieId: formData.movieId,
         roomId: formData.roomId,
-        cinemaId: formData.cinemaId,
+        cinemaId: selectedRoom?.cinemaId || formData.cinemaId,
         formatFeature: selectedFormat || getCompatibleFormats(selectedMovie, selectedRoom)[0] || '2D Tiêu chuẩn',
         startDate,
         endDate,
@@ -605,6 +647,8 @@ const ShowtimeManagePage = () => {
         timeSlots: recurringData.timeSlots,
         pricingMode: recurringData.pricingMode,
         price: formData.price,
+        cleaningMinutes: recurringData.cleaningMinutes || 20,
+        skipConflicts: recurringData.skipConflicts,
       });
       setRecurringPreview(res.data);
       setPreviewFilter('ALL');
@@ -617,30 +661,54 @@ const ShowtimeManagePage = () => {
 
   const handleRecurringCommit = async () => {
     if (!recurringPreview) return;
+    if (!recurringData.skipConflicts && Number(recurringPreview.conflictCount) > 0) {
+      alert('Có suất chiếu bị trùng lịch. Vui lòng bật "Bỏ qua các suất bị trùng lịch" hoặc điều chỉnh lại khung giờ trước khi xác nhận.');
+      return;
+    }
     const allValid = recurringPreview.validSlots || [];
     const confirmedSlots = allValid
       .filter(s => !previewRemovedKeys.has(s.startTime + s.roomId))
       .map(s => ({
         movieId: s.movieId,
         roomId: s.roomId,
-        cinemaId: formData.cinemaId,
+        cinemaId: selectedRoom?.cinemaId || formData.cinemaId,
         formatFeature: s.formatFeature,
         startTime: s.startTime,
         price: s.price,
+        cleaningMinutes: s.cleaningMinutes || recurringData.cleaningMinutes || 20,
       }));
 
     if (confirmedSlots.length === 0) { alert('Không có suất chiếu hợp lệ để tạo.'); return; }
 
-    const confirmed = window.confirm(`Xác nhận tạo ${confirmedSlots.length} suất chiếu hợp lệ?`);
+    const confirmed = window.confirm(
+      `Xác nhận tạo ${confirmedSlots.length} suất chiếu hợp lệ (${confirmedSlots.length * (recurringPreview.totalSeatsPerShowtime || 88)} ghế)?`
+    );
     if (!confirmed) return;
 
     try {
       setRecurringCommitting(true);
-      const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2);
-      const res = await api.post('/admin/showtimes/recurring/commit', { confirmedSlots, requestId });
-      const { created = [], conflicts = [], failed = [] } = res.data;
-      let msg = `Đã tạo ${created.length} suất chiếu thành công!`;
-      if (conflicts.length > 0) msg += `\n${conflicts.length} suất bị xung đột.`;
+      const requestId = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+      const res = await api.post('/admin/showtimes/recurring/commit', {
+        movieId: formData.movieId,
+        roomId: formData.roomId,
+        cinemaId: selectedRoom?.cinemaId || formData.cinemaId,
+        formatFeature: selectedFormat || getCompatibleFormats(selectedMovie, selectedRoom)[0] || '2D Tiêu chuẩn',
+        startDate: getRecurringStartDate(),
+        endDate: getRecurringEndDate(),
+        daysOfWeek: recurringData.daysOfWeek,
+        timeSlots: recurringData.timeSlots,
+        pricingMode: recurringData.pricingMode,
+        price: formData.price,
+        cleaningMinutes: recurringData.cleaningMinutes || 20,
+        skipConflicts: recurringData.skipConflicts,
+        previewSignature: recurringPreview.previewSignature,
+        confirmedSlots,
+        requestId,
+      });
+      const { created = [], skipped = [], conflicts = [], failed = [] } = res.data;
+      let msg = `Đã tạo ${created.length} suất chiếu thành công (${created.length * (recurringPreview.totalSeatsPerShowtime || 88)} ghế)!`;
+      if (skipped.length > 0) msg += `\nĐã bỏ qua ${skipped.length} suất bị trùng lịch.`;
+      else if (conflicts.length > 0) msg += `\n${conflicts.length} suất bị xung đột.`;
       if (failed.length > 0) msg += `\n${failed.length} suất lỗi kỹ thuật.`;
       alert(msg);
       setIsModalOpen(false);
@@ -669,6 +737,13 @@ const ShowtimeManagePage = () => {
       startTime: targetDateTime,
       price: resolveSuggestedPrice(room.name, targetDateTime, pricingConfig),
     }));
+    setRecurringData((prev) => ({
+      ...prev,
+      startDate: viewDate,
+      endDate: prev.endDate && prev.endDate >= viewDate ? prev.endDate : viewDate,
+      timeSlots: prev.timeSlots.includes(`${hh}:${mm}`) ? prev.timeSlots : [...prev.timeSlots, `${hh}:${mm}`].sort(),
+    }));
+    setRecurringPreview(null);
     const compFormats = getCompatibleFormats(firstMovie, room);
     setSelectedFormat(compFormats[0] || '2D Tiêu chuẩn');
     setIsMoviePickerOpen(false);
@@ -2503,12 +2578,13 @@ const ShowtimeManagePage = () => {
                   </button>
                 </div>
 
-                {/* ── Segmented Control: Một ngày / Lặp lịch chiếu ── */}
+                {/* ── Segmented Control: Tạo 1 suất / Lặp lịch chiếu ── */}
                 <div className="flex rounded-xl overflow-hidden border border-slate-700/60 bg-[#080E1D] p-0.5 gap-0.5">
-                  {[{ key: 'single', label: 'Một ngày' }, { key: 'recurring', label: '🔁 Lặp lịch chiếu' }].map(({ key, label }) => (
+                  {[{ key: 'single', label: 'Tạo 1 suất' }, { key: 'recurring', label: '🔁 Lặp lịch chiếu' }].map(({ key, label }) => (
                     <button
                       key={key}
                       type="button"
+                      data-testid={`create-mode-${key}-btn`}
                       onClick={() => { setCreateMode(key); setRecurringPreview(null); }}
                       className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                         createMode === key
@@ -2593,6 +2669,7 @@ const ShowtimeManagePage = () => {
                                         movieId: m.id || m._id,
                                         price: resolveSuggestedPrice(prev.roomName, prev.startTime, pricingConfig)
                                       }));
+                                      setRecurringPreview(null);
                                       setIsMoviePickerOpen(false);
                                       setMovieSearchKeyword('');
                                     }}
@@ -2633,11 +2710,13 @@ const ShowtimeManagePage = () => {
                         )}
                       </div>
                       <select
+                        data-testid="modal-room-select"
                         value={formData.roomId}
                         onChange={(e) => {
                           const r = rooms.find(item => String(item.id || item._id) === e.target.value);
                           const compFormats = getCompatibleFormats(selectedMovie, r);
                           setSelectedFormat(compFormats[0] || '2D Tiêu chuẩn');
+                          setRecurringPreview(null);
                           setFormData(prev => ({
                             ...prev,
                             roomId: e.target.value,
@@ -2659,8 +2738,9 @@ const ShowtimeManagePage = () => {
                     <div>
                       <label className="block text-[#94A3B8] font-semibold text-xs mb-1">Định dạng phim *</label>
                       <select
+                        data-testid="modal-format-select"
                         value={selectedFormat || getCompatibleFormats(selectedMovie, selectedRoom)[0] || '2D Tiêu chuẩn'}
-                        onChange={(e) => setSelectedFormat(e.target.value)}
+                        onChange={(e) => { setSelectedFormat(e.target.value); setRecurringPreview(null); }}
                         className="w-full bg-[#080E1D] border border-slate-700/80 rounded-xl px-3 py-2.5 text-xs text-[#F1F5F9] focus:outline-none focus:border-[#79D9F5] cursor-pointer"
                       >
                         {getCompatibleFormats(selectedMovie, selectedRoom).map(fmt => (
@@ -2672,67 +2752,105 @@ const ShowtimeManagePage = () => {
 
                   {/* ══ RECURRING MODE UI ══════════════════════════════════════════════════════ */}
                   {createMode === 'recurring' && (
-                    <div className="space-y-3 text-xs">
+                    <div className="space-y-3 text-xs" data-testid="recurring-mode-panel">
 
-                      {/* Date range */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[#94A3B8] font-semibold text-xs mb-1">Từ ngày *</label>
-                          <input
-                            type="date"
-                            value={recurringData.startDate || viewDate}
-                            onChange={e => { setRecurringData(p => ({ ...p, startDate: e.target.value })); setRecurringPreview(null); }}
-                            className="w-full bg-[#080E1D] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-[#F1F5F9] font-mono focus:outline-none focus:border-[#79D9F5] cursor-pointer"
-                          />
+                      {/* Date range + Compact Month/Year & Quick Range Selector */}
+                      <div className="bg-[#080E1D]/90 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="text-[#94A3B8] font-semibold text-xs flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-[#79D9F5]" />
+                            <span>Khoảng ngày lặp lịch (Tối đa 30 ngày / 180 suất)</span>
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-[#94A3B8]">Chọn nhanh tháng:</span>
+                            <input
+                              type="month"
+                              data-testid="recurring-month-picker"
+                              value={(recurringData.startDate || viewDate).slice(0, 7)}
+                              onChange={(e) => handleRecurringMonthYearPick(e.target.value)}
+                              className="bg-[#192337] border border-slate-700/80 rounded-lg px-2 py-1 text-[11px] text-[#79D9F5] font-mono font-bold focus:outline-none focus:border-[#79D9F5] cursor-pointer"
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-[#94A3B8] font-semibold text-xs mb-1">Đến ngày *</label>
-                          <input
-                            type="date"
-                            value={recurringData.endDate || viewDate}
-                            onChange={e => { setRecurringData(p => ({ ...p, endDate: e.target.value })); setRecurringPreview(null); }}
-                            className="w-full bg-[#080E1D] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-[#F1F5F9] font-mono focus:outline-none focus:border-[#79D9F5] cursor-pointer"
-                          />
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[#94A3B8] font-semibold text-[11px] mb-1">Từ ngày *</label>
+                            <input
+                              type="date"
+                              data-testid="recurring-start-date"
+                              value={recurringData.startDate || viewDate}
+                              onChange={e => { setRecurringData(p => ({ ...p, startDate: e.target.value })); setRecurringPreview(null); }}
+                              className="w-full bg-[#101728] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-[#F1F5F9] font-mono focus:outline-none focus:border-[#79D9F5] cursor-pointer"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[#94A3B8] font-semibold text-[11px] mb-1">Đến ngày *</label>
+                            <input
+                              type="date"
+                              data-testid="recurring-end-date"
+                              value={recurringData.endDate || viewDate}
+                              onChange={e => { setRecurringData(p => ({ ...p, endDate: e.target.value })); setRecurringPreview(null); }}
+                              className="w-full bg-[#101728] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-[#F1F5F9] font-mono focus:outline-none focus:border-[#79D9F5] cursor-pointer"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Quick range picks */}
+                        <div className="flex items-center justify-between flex-wrap gap-1.5 pt-0.5">
+                          <div className="flex flex-wrap gap-1.5">
+                            {[7, 14, 30].map(d => (
+                              <button key={d} type="button" onClick={() => handleRecurringQuickRange(d)}
+                                className="px-2.5 py-1 bg-[#192337] hover:bg-[#202d46] border border-slate-700/60 text-[#79D9F5] rounded-lg text-[11px] font-bold cursor-pointer transition-colors">
+                                {d} ngày
+                              </button>
+                            ))}
+                            <button type="button" onClick={handleRecurringEndOfMonth}
+                              className="px-2.5 py-1 bg-[#192337] hover:bg-[#202d46] border border-slate-700/60 text-[#79D9F5] rounded-lg text-[11px] font-bold cursor-pointer transition-colors">
+                              Đến cuối tháng
+                            </button>
+                          </div>
+                          <span className={`text-[11px] font-mono font-bold ${
+                            recurringRangeMetrics.rangeDays > 30 ? 'text-rose-400' : 'text-[#94A3B8]'
+                          }`}>
+                            Phạm vi: {recurringRangeMetrics.rangeDays} ngày ({recurringRangeMetrics.matchedDaysCount} ngày khớp thứ)
+                          </span>
                         </div>
                       </div>
 
-                      {/* Quick range picks */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {[7, 14, 30].map(d => (
-                          <button key={d} type="button" onClick={() => handleRecurringQuickRange(d)}
-                            className="px-3 py-1.5 bg-[#192337] hover:bg-[#202d46] border border-slate-700/60 text-[#79D9F5] rounded-xl text-[11px] font-bold cursor-pointer transition-colors">
-                            {d} ngày
-                          </button>
-                        ))}
-                        <button type="button" onClick={handleRecurringEndOfMonth}
-                          className="px-3 py-1.5 bg-[#192337] hover:bg-[#202d46] border border-slate-700/60 text-[#79D9F5] rounded-xl text-[11px] font-bold cursor-pointer transition-colors">
-                          Đến cuối tháng
-                        </button>
-                      </div>
-
-                      {/* Day of week selector */}
+                      {/* Day of week selector (Thứ 2 -> Chủ Nhật) */}
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-[#94A3B8] font-semibold text-xs">Ngày trong tuần</span>
+                          <span className="text-[#94A3B8] font-semibold text-xs">Các thứ trong tuần *</span>
                           <div className="flex gap-1.5">
-                            {[{ label: 'Cả tuần', days: [0,1,2,3,4,5,6] }, { label: 'T2–T6', days: [1,2,3,4,5] }, { label: 'T7–CN', days: [0,6] }].map(({ label, days }) => (
+                            {[
+                              { label: 'Cả tuần', days: [1, 2, 3, 4, 5, 6, 0] },
+                              { label: 'Ngày thường', days: [1, 2, 3, 4, 5] },
+                              { label: 'Cuối tuần', days: [6, 0] },
+                            ].map(({ label, days }) => (
                               <button key={label} type="button"
+                                data-testid={`recurring-days-preset-${label}`}
                                 onClick={() => { setRecurringData(p => ({ ...p, daysOfWeek: days })); setRecurringPreview(null); }}
-                                className="text-[10px] px-2 py-0.5 bg-[#192337] hover:bg-[#202d46] text-[#94A3B8] hover:text-[#79D9F5] border border-slate-700/40 rounded-lg cursor-pointer transition-colors">
+                                className="text-[10px] px-2.5 py-1 bg-[#192337] hover:bg-[#202d46] text-[#94A3B8] hover:text-[#79D9F5] border border-slate-700/50 rounded-lg font-bold cursor-pointer transition-colors">
                                 {label}
                               </button>
                             ))}
                           </div>
                         </div>
-                        <div className="flex gap-1.5 flex-wrap">
-                          {recurringDayLabels.map(({ label, value }) => {
+                        <div className="grid grid-cols-7 gap-1.5">
+                          {recurringDayLabels.map(({ label, fullLabel, value }) => {
                             const sel = recurringData.daysOfWeek.includes(value);
                             return (
-                              <button key={value} type="button" onClick={() => toggleDayOfWeek(value)}
-                                className={`w-10 h-10 rounded-xl text-xs font-bold border cursor-pointer transition-all ${
-                                  sel ? 'bg-[#078CA8] text-[#F1F5F9] border-[#79D9F5]/60 shadow-sm' : 'bg-[#080E1D] text-[#94A3B8] border-slate-700/60 hover:border-[#79D9F5]/40 hover:text-[#F1F5F9]'
+                              <button key={value} type="button"
+                                data-testid={`recurring-day-btn-${value}`}
+                                title={fullLabel}
+                                onClick={() => toggleDayOfWeek(value)}
+                                className={`py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all flex flex-col items-center justify-center ${
+                                  sel
+                                    ? 'bg-[#078CA8] text-[#F1F5F9] border-[#79D9F5]/70 shadow-sm'
+                                    : 'bg-[#080E1D] text-[#94A3B8] border-slate-700/60 hover:border-[#79D9F5]/40 hover:text-[#F1F5F9]'
                                 }`}>
-                                {label}
+                                <span>{label}</span>
                               </button>
                             );
                           })}
@@ -2741,14 +2859,25 @@ const ShowtimeManagePage = () => {
 
                       {/* Multi-slot time selector */}
                       <div>
-                        <label className="block text-[#94A3B8] font-semibold text-xs mb-2">Khung giờ chiếu</label>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {['08:00','09:30','10:00','11:30','13:00','14:00','15:30','16:30','18:00','19:00','20:30','21:30','22:00'].map(t => {
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-[#94A3B8] font-semibold text-xs">
+                            Khung giờ chiếu (24h — Chọn nhiều khung giờ) *
+                          </label>
+                          <span className="text-[11px] text-[#79D9F5] font-mono font-bold">
+                            Đã chọn: {recurringData.timeSlots.length} khung giờ
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {['08:30','09:30','10:30','12:00','13:15','14:30','16:00','17:30','19:00','19:30','20:30','21:30','22:30'].map(t => {
                             const sel = recurringData.timeSlots.includes(t);
                             return (
-                              <button key={t} type="button" onClick={() => toggleRecurringSlot(t)}
-                                className={`px-3 py-2 rounded-xl text-xs font-mono font-bold border cursor-pointer transition-all ${
-                                  sel ? 'bg-[#078CA8] text-white border-[#79D9F5] shadow-sm' : 'bg-[#080E1D] text-[#79D9F5] border-slate-700/60 hover:border-[#79D9F5]/60 hover:bg-[#192337]'
+                              <button key={t} type="button"
+                                data-testid={`recurring-slot-preset-${t}`}
+                                onClick={() => toggleRecurringSlot(t)}
+                                className={`px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold border cursor-pointer transition-all ${
+                                  sel
+                                    ? 'bg-[#078CA8] text-white border-[#79D9F5] shadow-sm'
+                                    : 'bg-[#080E1D] text-[#79D9F5] border-slate-700/60 hover:border-[#79D9F5]/60 hover:bg-[#192337]'
                                 }`}>
                                 {t}
                               </button>
@@ -2759,68 +2888,129 @@ const ShowtimeManagePage = () => {
                         <div className="flex gap-2">
                           <input
                             type="text"
-                            placeholder="HH:mm"
+                            data-testid="recurring-manual-time-input"
+                            placeholder="Nhập giờ 24h HH:mm (VD: 15:45)"
+                            list="davenor-24h-time-options"
                             value={recurringData.manualTimeInput}
                             onChange={e => setRecurringData(p => ({ ...p, manualTimeInput: e.target.value }))}
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addManualTimeSlot(); } }}
-                            className="flex-1 bg-[#080E1D] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-[#F1F5F9] font-mono focus:outline-none focus:border-[#79D9F5] placeholder-slate-600"
+                            className="flex-1 bg-[#080E1D] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-[#F1F5F9] font-mono focus:outline-none focus:border-[#79D9F5] placeholder-slate-500"
                             maxLength={5}
                           />
-                          <button type="button" onClick={addManualTimeSlot}
-                            className="px-3 py-2 bg-[#192337] hover:bg-[#202d46] text-[#79D9F5] border border-slate-700/60 rounded-xl text-xs font-bold cursor-pointer transition-colors">
+                          <button type="button"
+                            data-testid="recurring-add-time-btn"
+                            onClick={addManualTimeSlot}
+                            className="px-3.5 py-2 bg-[#192337] hover:bg-[#202d46] text-[#79D9F5] border border-slate-700/60 rounded-xl text-xs font-bold cursor-pointer transition-colors">
                             + Thêm giờ
                           </button>
                         </div>
-                        {/* Selected slots summary */}
+                        {/* Selected slots summary with per-slot availability from Preview */}
                         {recurringData.timeSlots.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1.5">
-                            {recurringData.timeSlots.map(t => (
-                              <span key={t} className="flex items-center gap-1 px-2 py-1 bg-[#192337] border border-[#79D9F5]/30 rounded-lg text-[11px] font-mono text-[#79D9F5]">
-                                {t}
-                                <button type="button" onClick={() => toggleRecurringSlot(t)}
-                                  className="text-[#94A3B8] hover:text-rose-400 cursor-pointer transition-colors ml-0.5">
-                                  ×
-                                </button>
-                              </span>
-                            ))}
+                            {recurringData.timeSlots.map(t => {
+                              const avail = recurringPreview?.slotAvailability?.[t];
+                              return (
+                                <span key={t} className="flex items-center gap-1.5 px-2.5 py-1 bg-[#192337] border border-[#79D9F5]/40 rounded-lg text-[11px] font-mono text-[#79D9F5]">
+                                  <strong>{t}</strong>
+                                  {avail && (
+                                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-sans font-bold ${
+                                      avail.conflict === 0
+                                        ? 'bg-emerald-500/20 text-emerald-300'
+                                        : avail.available > 0
+                                        ? 'bg-amber-500/20 text-amber-300'
+                                        : 'bg-rose-500/20 text-rose-300'
+                                    }`}>
+                                      {avail.available}/{avail.available + avail.conflict} ngày
+                                    </span>
+                                  )}
+                                  <button type="button" onClick={() => toggleRecurringSlot(t)}
+                                    className="text-[#94A3B8] hover:text-rose-400 cursor-pointer transition-colors ml-0.5 font-bold">
+                                    ×
+                                  </button>
+                                </span>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
 
-                      {/* Pricing mode */}
-                      <div className="flex items-center justify-between bg-[#080E1D] border border-slate-800 rounded-xl p-3">
-                        <span className="text-[#94A3B8] font-semibold">Giá vé:</span>
-                        <div className="flex items-center gap-3">
-                          <div className="flex rounded-lg overflow-hidden border border-slate-700/60 bg-[#192337] p-0.5 gap-0.5">
-                            {[{ key: 'fixed', label: 'Cố định' }, { key: 'auto', label: 'Tự động' }].map(({ key, label }) => (
-                              <button key={key} type="button"
-                                onClick={() => setRecurringData(p => ({ ...p, pricingMode: key }))}
-                                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
-                                  recurringData.pricingMode === key
-                                    ? 'bg-[#078CA8] text-white' : 'text-[#94A3B8] hover:text-[#F1F5F9]'
-                                }`}>
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                          {recurringData.pricingMode === 'fixed' && (
-                            <div className="flex items-center gap-1">
-                              <input type="number" step="5000" min="0" value={formData.price}
-                                onChange={e => setFormData(p => ({ ...p, price: Number(e.target.value) }))}
-                                className="w-24 bg-[#192337] border border-slate-700 rounded-lg px-2 py-1 text-right text-[#F1F5F9] font-mono font-bold text-xs focus:outline-none focus:border-[#79D9F5]"
-                              />
-                              <span className="text-[#79D9F5] font-bold">₫</span>
+                      {/* Pricing mode, Cleaning time & Skip conflicts option */}
+                      <div className="bg-[#080E1D] border border-slate-800 rounded-xl p-3 space-y-2.5">
+                        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800/70">
+                          <span className="text-[#94A3B8] font-semibold">Giá vé từng suất:</span>
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex rounded-lg overflow-hidden border border-slate-700/60 bg-[#192337] p-0.5 gap-0.5">
+                              {[
+                                { key: 'auto', label: 'Tự động theo khung giờ/phòng' },
+                                { key: 'fixed', label: 'Cố định' },
+                              ].map(({ key, label }) => (
+                                <button key={key} type="button"
+                                  onClick={() => { setRecurringData(p => ({ ...p, pricingMode: key })); setRecurringPreview(null); }}
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
+                                    recurringData.pricingMode === key
+                                      ? 'bg-[#078CA8] text-white' : 'text-[#94A3B8] hover:text-[#F1F5F9]'
+                                  }`}>
+                                  {label}
+                                </button>
+                              ))}
                             </div>
-                          )}
+                            {recurringData.pricingMode === 'fixed' && (
+                              <div className="flex items-center gap-1">
+                                <input type="number" step="5000" min="0" value={formData.price}
+                                  onChange={e => { setFormData(p => ({ ...p, price: Number(e.target.value) })); setRecurringPreview(null); }}
+                                  className="w-24 bg-[#192337] border border-slate-700 rounded-lg px-2 py-1 text-right text-[#F1F5F9] font-mono font-bold text-xs focus:outline-none focus:border-[#79D9F5]"
+                                />
+                                <span className="text-[#79D9F5] font-bold">₫</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
+
+                        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800/70">
+                          <span className="text-[#94A3B8] font-semibold">Thời gian dọn vệ sinh phòng:</span>
+                          <select
+                            data-testid="recurring-cleaning-select"
+                            value={recurringData.cleaningMinutes || 20}
+                            onChange={(e) => { setRecurringData(p => ({ ...p, cleaningMinutes: Number(e.target.value) })); setRecurringPreview(null); }}
+                            className="bg-[#192337] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-[#F1F5F9] font-bold focus:outline-none focus:border-[#79D9F5] cursor-pointer"
+                          >
+                            <option value={20}>20 phút (Chuẩn vận hành)</option>
+                            <option value={15}>15 phút (Tối thiểu)</option>
+                          </select>
+                        </div>
+
+                        <label className="flex items-center justify-between gap-3 cursor-pointer select-none pt-0.5">
+                          <div>
+                            <span className="text-[#F1F5F9] font-bold block">Bỏ qua các suất bị trùng lịch</span>
+                            <span className="text-[11px] text-[#94A3B8]">
+                              {recurringData.skipConflicts
+                                ? 'Chỉ tạo các suất hợp lệ và tự động bỏ qua suất bị trùng mà không ghi đè suất cũ.'
+                                : 'Chế độ nghiêm ngặt (All-or-Nothing): Chặn tạo nếu có bất kỳ suất nào bị trùng lịch.'}
+                            </span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            data-testid="recurring-skip-conflicts-checkbox"
+                            checked={Boolean(recurringData.skipConflicts)}
+                            onChange={(e) => setRecurringData(p => ({ ...p, skipConflicts: e.target.checked }))}
+                            className="w-4 h-4 accent-[#078CA8] rounded cursor-pointer shrink-0"
+                          />
+                        </label>
                       </div>
 
-                      {/* Summary card */}
-                      <div className="bg-[#192337] border border-[#79D9F5]/20 rounded-xl px-4 py-3 flex items-center justify-between">
-                        <span className="text-[#94A3B8] text-xs">Dự kiến tạo:</span>
-                        <span className="text-[#79D9F5] font-bold text-sm">
+                      {/* Pre-preview Summary card */}
+                      <div className="bg-[#192337] border border-[#79D9F5]/20 rounded-xl px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
+                        <div className="text-[#94A3B8] text-xs">
+                          <span>Dự kiến: </span>
+                          <strong className="text-[#F1F5F9]">{recurringRangeMetrics.matchedDaysCount} ngày</strong>
+                          <span> × </span>
+                          <strong className="text-[#F1F5F9]">{recurringData.timeSlots.length} khung giờ</strong>
+                        </div>
+                        <span className={`font-bold text-sm font-mono ${
+                          recurringExpectedCount > 180 ? 'text-rose-400' : 'text-[#79D9F5]'
+                        }`}>
                           {recurringData.timeSlots.length > 0 && recurringData.daysOfWeek.length > 0
-                            ? `${recurringExpectedCount} suất chiếu`
+                            ? `${recurringExpectedCount} suất chiếu (${recurringExpectedCount * (Number(selectedRoom?.totalSeats) || 88)} ghế)`
                             : '—'}
                         </span>
                       </div>
@@ -2828,107 +3018,178 @@ const ShowtimeManagePage = () => {
                       {/* Preview button */}
                       <button
                         type="button"
+                        data-testid="recurring-preview-btn"
                         onClick={handleRecurringPreview}
-                        disabled={recurringLoading || recurringData.timeSlots.length === 0 || recurringData.daysOfWeek.length === 0}
+                        disabled={
+                          recurringLoading ||
+                          recurringData.timeSlots.length === 0 ||
+                          recurringData.daysOfWeek.length === 0 ||
+                          recurringRangeMetrics.rangeDays > 30 ||
+                          recurringExpectedCount > 180
+                        }
                         className="w-full py-2.5 bg-[#192337] hover:bg-[#202d46] disabled:opacity-40 disabled:cursor-not-allowed border border-[#79D9F5]/40 hover:border-[#79D9F5] text-[#79D9F5] rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
                       >
                         {recurringLoading ? (
-                          <><span className="w-3 h-3 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" /><span>Đang kiểm tra...</span></>
-                        ) : '🔍 Kiểm tra & Xem trước lịch chiếu'}
+                          <><span className="w-3 h-3 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" /><span>Đang kiểm tra xung đột trên từng ngày & từng khung giờ...</span></>
+                        ) : '🔍 Xem trước lịch chiếu'}
                       </button>
 
-                      {/* Preview table */}
-                      {recurringPreview && (
-                        <div className="space-y-2">
-                          {/* Filter + summary */}
-                          <div className="flex items-center justify-between flex-wrap gap-2">
-                            <div className="flex gap-1.5">
-                              {[
-                                { key: 'ALL', label: `Tất cả (${recurringPreview.totalExpected})` },
-                                { key: 'VALID', label: `Hợp lệ (${recurringPreview.validCount})` },
-                                { key: 'CONFLICT', label: `Xung đột (${recurringPreview.conflictCount})` },
-                              ].map(({ key, label }) => (
-                                <button key={key} type="button" onClick={() => setPreviewFilter(key)}
-                                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border cursor-pointer transition-all ${
-                                    previewFilter === key
-                                      ? 'bg-[#078CA8] text-white border-[#79D9F5]/60'
-                                      : 'bg-[#080E1D] text-[#94A3B8] border-slate-700/60 hover:text-[#F1F5F9]'
-                                  }`}>
-                                  {label}
-                                </button>
-                              ))}
+                      {/* Preview Result Panel */}
+                      {recurringPreview && (() => {
+                        const activeValidCount = Math.max(0, (recurringPreview.validCount || 0) - previewRemovedKeys.size);
+                        const seatsPerSlot = Number(recurringPreview.totalSeatsPerShowtime) || Number(selectedRoom?.totalSeats) || 88;
+                        const activeExpectedSeats = activeValidCount * seatsPerSlot;
+                        return (
+                          <div className="space-y-2.5 bg-[#080E1D]/90 border border-[#79D9F5]/30 rounded-xl p-3" data-testid="recurring-preview-panel">
+                            {/* Header Metadata Summary */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800">
+                              <div>
+                                <div className="text-xs font-bold text-white">
+                                  🎬 {recurringPreview.movieTitle || selectedMovie?.title} ({recurringPreview.duration || selectedMovie?.duration} phút)
+                                </div>
+                                <div className="text-[11px] text-[#79D9F5] font-semibold">
+                                  🏛️ {recurringPreview.roomName || selectedRoom?.name} • {recurringPreview.formatFeature || selectedFormat} • Vệ sinh {recurringPreview.cleaningMinutes || 20} phút
+                                </div>
+                              </div>
+                              <div className="text-right font-mono text-[11px] text-[#94A3B8]">
+                                <div>📅 {recurringPreview.startDate} → {recurringPreview.endDate}</div>
+                                <div>Số ngày thực tế được chọn: <strong className="text-white">{recurringPreview.selectedDaysCount} ngày</strong></div>
+                              </div>
                             </div>
-                            <span className="text-[#94A3B8] text-[11px]">
-                              Hợp lệ: <span className="text-emerald-400 font-bold">{recurringPreview.validCount - previewRemovedKeys.size}</span> suất
-                            </span>
-                          </div>
 
-                          {/* Table */}
-                          <div className="max-h-64 overflow-y-auto border border-slate-800 rounded-xl bg-[#080E1D]">
-                            <table className="w-full text-[11px]">
-                              <thead className="sticky top-0 bg-[#101728] border-b border-slate-800">
-                                <tr>
-                                  {['Ngày', 'Thứ', 'Giờ BD', 'Giờ KT', 'Phòng sẵn sàng', 'Giá', 'Trạng thái'].map(h => (
-                                    <th key={h} className="px-2 py-2 text-left text-[#94A3B8] font-semibold">{h}</th>
-                                  ))}
-                                  <th className="px-2 py-2"></th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {[...(recurringPreview.validSlots || []), ...(recurringPreview.conflictSlots || [])]
-                                  .filter(s => previewFilter === 'ALL' || s.status === previewFilter)
-                                  .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                                  .map((s, i) => {
-                                    const key = s.startTime + s.roomId;
-                                    const removed = previewRemovedKeys.has(key);
-                                    const isConflict = s.status === 'CONFLICT';
-                                    const dayNames = ['CN','T2','T3','T4','T5','T6','T7'];
-                                    const toLocalTime = (iso) => iso
-                                      ? new Date(iso).toLocaleTimeString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })
-                                      : '—';
-                                    return (
-                                      <tr key={i}
-                                        className={`border-b border-slate-800/60 ${
-                                          removed ? 'opacity-30 line-through' :
-                                          isConflict ? 'bg-rose-500/5' : 'hover:bg-[#192337]/30'
-                                        }`}>
-                                        <td className="px-2 py-1.5 font-mono text-[#F1F5F9]">{s.date}</td>
-                                        <td className="px-2 py-1.5 text-[#94A3B8]">{dayNames[s.dayOfWeek]}</td>
-                                        <td className="px-2 py-1.5 font-mono text-[#79D9F5]">{toLocalTime(s.startTime)}</td>
-                                        <td className="px-2 py-1.5 font-mono text-[#E5C07B]">{toLocalTime(s.endTime)}</td>
-                                        <td className="px-2 py-1.5 font-mono text-[#34D399]">{toLocalTime(s.cleanReadyTime)}</td>
-                                        <td className="px-2 py-1.5 text-[#F1F5F9]">{s.price ? (s.price / 1000).toFixed(0) + 'k' : '—'}</td>
-                                        <td className="px-2 py-1.5">
-                                          {isConflict
-                                            ? <span className="text-rose-400 font-bold">⚠ {s.conflictReason || 'Xung đột'}</span>
-                                            : <span className="text-emerald-400 font-bold">✓ Hợp lệ</span>
-                                          }
-                                        </td>
-                                        <td className="px-2 py-1.5">
-                                          {!isConflict && (
-                                            <button type="button"
-                                              onClick={() => setPreviewRemovedKeys(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(key)) next.delete(key); else next.add(key);
-                                                return next;
-                                              })}
-                                              className={`text-[10px] px-1.5 py-0.5 rounded cursor-pointer border transition-colors ${
-                                                removed
-                                                  ? 'text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10'
-                                                  : 'text-rose-400 border-rose-500/40 hover:bg-rose-500/10'
-                                              }`}>
-                                              {removed ? '↩ Khôi phục' : '× Bỏ'}
-                                            </button>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                              </tbody>
-                            </table>
+                            {/* 4 KPI cards */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                              <div className="bg-[#101728] border border-slate-800 rounded-xl p-2">
+                                <span className="text-[10px] text-[#94A3B8] block">Tổng số suất dự kiến</span>
+                                <span className="text-sm font-black text-white font-mono" data-testid="recurring-preview-total">
+                                  {recurringPreview.totalExpected}
+                                </span>
+                              </div>
+                              <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-2">
+                                <span className="text-[10px] text-emerald-300 block">Số suất hợp lệ</span>
+                                <span className="text-sm font-black text-emerald-400 font-mono" data-testid="recurring-preview-valid">
+                                  {activeValidCount}
+                                </span>
+                              </div>
+                              <div className="bg-rose-950/30 border border-rose-500/30 rounded-xl p-2">
+                                <span className="text-[10px] text-rose-300 block">Số suất xung đột</span>
+                                <span className="text-sm font-black text-rose-400 font-mono" data-testid="recurring-preview-conflict">
+                                  {recurringPreview.conflictCount}
+                                </span>
+                              </div>
+                              <div className="bg-cyan-950/30 border border-cyan-500/30 rounded-xl p-2">
+                                <span className="text-[10px] text-cyan-300 block">Tổng số ghế hợp lệ</span>
+                                <span className="text-sm font-black text-[#79D9F5] font-mono" data-testid="recurring-preview-seats">
+                                  {activeExpectedSeats.toLocaleString('vi-VN')} ghế
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Warning banner if conflicts exist and skipConflicts is false */}
+                            {recurringPreview.conflictCount > 0 && !recurringData.skipConflicts && (
+                              <div className="bg-rose-950/40 border border-rose-500/50 rounded-xl px-3 py-2 text-[11px] text-rose-200 flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                                <span>
+                                  Phát hiện <strong>{recurringPreview.conflictCount} suất xung đột</strong>. Vui lòng bật tùy chọn <strong>"Bỏ qua các suất bị trùng lịch"</strong> hoặc đổi khung giờ để tiếp tục tạo.
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Filter tabs */}
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex gap-1.5">
+                                {[
+                                  { key: 'ALL', label: `Tất cả (${recurringPreview.totalExpected})` },
+                                  { key: 'VALID', label: `Hợp lệ (${recurringPreview.validCount})` },
+                                  { key: 'CONFLICT', label: `Xung đột (${recurringPreview.conflictCount})` },
+                                ].map(({ key, label }) => (
+                                  <button key={key} type="button" onClick={() => setPreviewFilter(key)}
+                                    className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border cursor-pointer transition-all ${
+                                      previewFilter === key
+                                        ? 'bg-[#078CA8] text-white border-[#79D9F5]/60'
+                                        : 'bg-[#101728] text-[#94A3B8] border-slate-700/60 hover:text-[#F1F5F9]'
+                                    }`}>
+                                    {label}
+                                  </button>
+                                ))}
+                              </div>
+                              <span className="text-[#94A3B8] text-[11px]">
+                                Sẵn sàng tạo: <span className="text-emerald-400 font-bold">{activeValidCount} suất</span> ({activeExpectedSeats} ghế)
+                              </span>
+                            </div>
+
+                            {/* Table */}
+                            <div className="max-h-64 overflow-y-auto border border-slate-800 rounded-xl bg-[#101728]">
+                              <table className="w-full text-[11px]">
+                                <thead className="sticky top-0 bg-[#192337] border-b border-slate-800 z-10">
+                                  <tr>
+                                    {['Ngày chiếu', 'Thứ', 'Bắt đầu', 'Kết thúc', 'Vệ sinh xong', 'Giá vé', 'Trạng thái / Lý do'].map(h => (
+                                      <th key={h} className="px-2 py-2 text-left text-[#94A3B8] font-semibold whitespace-nowrap">{h}</th>
+                                    ))}
+                                    <th className="px-2 py-2"></th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {[...(recurringPreview.validSlots || []), ...(recurringPreview.conflictSlots || [])]
+                                    .filter(s => previewFilter === 'ALL' || s.status === previewFilter)
+                                    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                                    .map((s, i) => {
+                                      const key = s.startTime + s.roomId;
+                                      const removed = previewRemovedKeys.has(key);
+                                      const isConflict = s.status === 'CONFLICT';
+                                      const dayNames = ['CN','T2','T3','T4','T5','T6','T7'];
+                                      const toLocalTime = (iso) => iso
+                                        ? new Date(iso).toLocaleTimeString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })
+                                        : '—';
+                                      return (
+                                        <tr key={i}
+                                          data-testid={`recurring-preview-row-${i}`}
+                                          className={`border-b border-slate-800/60 ${
+                                            removed ? 'opacity-30 line-through' :
+                                            isConflict ? 'bg-rose-950/25' : 'hover:bg-[#192337]/50'
+                                          }`}>
+                                          <td className="px-2 py-1.5 font-mono text-[#F1F5F9] whitespace-nowrap">{s.date}</td>
+                                          <td className="px-2 py-1.5 text-[#94A3B8] whitespace-nowrap">{dayNames[s.dayOfWeek]}</td>
+                                          <td className="px-2 py-1.5 font-mono font-bold text-[#79D9F5] whitespace-nowrap">{s.startTimeText || toLocalTime(s.startTime)}</td>
+                                          <td className="px-2 py-1.5 font-mono text-[#E5C07B] whitespace-nowrap">{s.endTimeText || toLocalTime(s.endTime)}</td>
+                                          <td className="px-2 py-1.5 font-mono text-[#34D399] whitespace-nowrap">
+                                            {s.cleaningEndTimeText || toLocalTime(s.cleanReadyTime)} (+{s.cleaningMinutes || recurringPreview.cleaningMinutes || 20}p)
+                                          </td>
+                                          <td className="px-2 py-1.5 font-mono font-bold text-[#F1F5F9] whitespace-nowrap">
+                                            {s.price ? `${Number(s.price).toLocaleString('vi-VN')}₫` : '—'}
+                                          </td>
+                                          <td className="px-2 py-1.5">
+                                            {isConflict
+                                              ? <span className="text-rose-400 font-bold">⚠ {s.conflictReason || s.reason || 'Xung đột'}</span>
+                                              : <span className="text-emerald-400 font-bold">✓ Hợp lệ ({s.totalSeats || 88} ghế)</span>
+                                            }
+                                          </td>
+                                          <td className="px-2 py-1.5 whitespace-nowrap">
+                                            {!isConflict && (
+                                              <button type="button"
+                                                onClick={() => setPreviewRemovedKeys(prev => {
+                                                  const next = new Set(prev);
+                                                  if (next.has(key)) next.delete(key); else next.add(key);
+                                                  return next;
+                                                })}
+                                                className={`text-[10px] px-1.5 py-0.5 rounded cursor-pointer border transition-colors ${
+                                                  removed
+                                                    ? 'text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10'
+                                                    : 'text-rose-400 border-rose-500/40 hover:bg-rose-500/10'
+                                                }`}>
+                                                {removed ? '↩ Khôi phục' : '× Bỏ'}
+                                              </button>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -3119,19 +3380,25 @@ const ShowtimeManagePage = () => {
                       {recurringPreview && (
                         <button type="button" onClick={() => { setRecurringPreview(null); setPreviewRemovedKeys(new Set()); }}
                           className="px-4 py-2 bg-[#192337] hover:bg-[#202d46] border border-slate-700/40 text-[#94A3B8] hover:text-[#F1F5F9] rounded-xl text-xs font-semibold cursor-pointer transition-colors">
-                          ← Quay lại
+                          ← Chỉnh lại
                         </button>
                       )}
                       <button
                         type="button"
+                        data-testid="recurring-commit-btn"
                         onClick={handleRecurringCommit}
-                        disabled={recurringCommitting || !recurringPreview || (recurringPreview.validCount - previewRemovedKeys.size) === 0}
+                        disabled={
+                          recurringCommitting ||
+                          !recurringPreview ||
+                          (recurringPreview.validCount - previewRemovedKeys.size) <= 0 ||
+                          (!recurringData.skipConflicts && Number(recurringPreview.conflictCount) > 0)
+                        }
                         className="px-5 py-2 bg-[#078CA8] hover:bg-[#067a93] disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer">
                         {recurringCommitting
-                          ? <><span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Đang tạo...</span></>
+                          ? <><span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Đang tạo lịch...</span></>
                           : recurringPreview
-                            ? `Xác nhận tạo ${recurringPreview.validCount - previewRemovedKeys.size} suất hợp lệ`
-                            : 'Kiểm tra trước'}
+                            ? `Xác nhận tạo lịch (${Math.max(0, recurringPreview.validCount - previewRemovedKeys.size)} suất)`
+                            : 'Xác nhận tạo lịch'}
                       </button>
                     </div>
                   )}

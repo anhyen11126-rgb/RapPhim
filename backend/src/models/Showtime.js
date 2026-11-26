@@ -36,6 +36,8 @@ const showtimeSchema = new mongoose.Schema(
     cancelledAt: Date,
     cancelReason: { type: String, default: '' },
     batchId: { type: String, default: null, index: true },
+    requestId: { type: String, default: null, index: true },
+    requestFingerprint: { type: String, default: null },
     creationSource: { type: String, enum: ['MANUAL', 'RECURRING', 'BULK'], default: 'MANUAL' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     bookingRevision: { type: Number, default: 0, select: false },

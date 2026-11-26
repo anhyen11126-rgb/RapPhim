@@ -90,8 +90,8 @@ export default function MovieShowtimesSection({ movie }) {
   const nextMonth = monthStart == null ? null : Date.UTC(
     new Date(monthStart).getUTCFullYear(), new Date(monthStart).getUTCMonth() + 1, 1,
   );
-  const lastDate = nextMonth == null ? null : dateKey(nextMonth - dayMs);
-  const endedRun = lastDate != null && today > lastDate;
+  const lastDate = null;
+  const endedRun = movie.status === 'ENDED';
   const validInitialDate = /^\d{4}-\d{2}-\d{2}$/.test(initialDate ?? '') && Number.isFinite(dateMs(initialDate));
   const [selection, setSelection] = useState(() => ({ day: today, date: validInitialDate ? initialDate : defaultDate }));
   const [result, setResult] = useState(null);
@@ -159,7 +159,6 @@ export default function MovieShowtimesSection({ movie }) {
       for (let step = 1; step <= 7; step++) {
         const candidate = dateKey(dateMs(date) + step * dayMs);
         if (dateMs(candidate) > dateMs(vietnamDate.format(Date.now())) + 7 * dayMs) break;
-        if (movieMonth && candidate.slice(0, 7) !== movieMonth) break;
         const { data } = await api.get('/movies/' + encodeURIComponent(id) + '/schedule', {
           params: { date: candidate }, signal: request.signal,
         });
