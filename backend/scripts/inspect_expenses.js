@@ -2,7 +2,10 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb+srv://davenor:davenor123@movietix.m3q8h.mongodb.net/movietix_db?retryWrites=true&w=majority&appName=movietix';
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
+if (!MONGO_URI) {
+  throw new Error('Missing MONGO_URI or MONGODB_URI in environment');
+}
 
 async function check() {
   await mongoose.connect(MONGO_URI);

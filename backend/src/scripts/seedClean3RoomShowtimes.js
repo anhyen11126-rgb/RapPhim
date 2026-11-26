@@ -1,11 +1,11 @@
-import dns from 'dns';
-dns.setServers(['8.8.8.8', '1.1.1.1']);
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import mongoose from 'mongoose';
+import { configureOptionalDnsServers } from '../config/db.js';
+configureOptionalDnsServers();
 import Movie from '../models/Movie.js';
 import Cinema from '../models/Cinema.js';
 import Showtime from '../models/Showtime.js';

@@ -1,11 +1,11 @@
-import dns from 'dns';
-dns.setServers(['8.8.8.8', '1.1.1.1']);
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import mongoose from 'mongoose';
+import { configureOptionalDnsServers } from '../config/db.js';
+configureOptionalDnsServers();
 import Movie from '../models/Movie.js';
 
 // Phân chia 18 bộ phim đều cho 6 tháng liên tiếp (mỗi tháng đúng 3 bộ phim)

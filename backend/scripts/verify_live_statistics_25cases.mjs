@@ -1,16 +1,9 @@
 import assert from 'node:assert/strict';
-import dns from 'node:dns';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import dotenv from 'dotenv';
-
-try {
-  dns.setServers(['8.8.8.8', '1.1.1.1']);
-} catch {
-  // fallback to system DNS
-}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,7 +11,8 @@ const BACKEND_ROOT = path.resolve(__dirname, '..');
 
 dotenv.config({ path: path.join(BACKEND_ROOT, '.env') });
 
-import { getActiveDbMode, resolveMongoUri } from '../src/config/db.js';
+import { configureOptionalDnsServers, getActiveDbMode, resolveMongoUri } from '../src/config/db.js';
+configureOptionalDnsServers();
 import {
   makeVietnamDate,
   StatisticsPeriodValidationError,

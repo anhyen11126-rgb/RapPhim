@@ -1,8 +1,8 @@
-import dns from 'dns';
-dns.setServers(['8.8.8.8', '1.1.1.1']);
 import dotenv from 'dotenv';
 dotenv.config({ path: './backend/.env' });
 import mongoose from 'mongoose';
+import { configureOptionalDnsServers } from '../config/db.js';
+configureOptionalDnsServers();
 import Movie from '../models/Movie.js';
 
 // 3 bộ phim được chọn làm "Đang chiếu tại rạp"

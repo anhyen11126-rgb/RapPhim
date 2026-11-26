@@ -1,16 +1,10 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
-import dns from 'node:dns';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-try {
-  dns.setServers(['8.8.8.8', '1.1.1.1']);
-} catch {
-  // fallback to system DNS
-}
+import { configureOptionalDnsServers } from '../src/config/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,6 +20,7 @@ const jwt = require(path.join(BACKEND_ROOT, 'node_modules', 'jsonwebtoken'));
 const dotenv = require(path.join(BACKEND_ROOT, 'node_modules', 'dotenv'));
 
 dotenv.config({ path: path.join(BACKEND_ROOT, '.env') });
+configureOptionalDnsServers();
 
 async function isServerUp(url) {
   try {

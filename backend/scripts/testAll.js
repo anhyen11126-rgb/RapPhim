@@ -232,9 +232,12 @@ async function runTests() {
     let jwtToken = '';
     if (adminUser) {
       isPasswordCorrect = await bcrypt.compare('admin123', adminUser.password);
+      if (!process.env.JWT_SECRET) {
+        throw new Error('Missing JWT_SECRET in environment');
+      }
       jwtToken = jwt.sign(
         { id: adminUser._id.toString(), email: adminUser.email, role: adminUser.role },
-        process.env.JWT_SECRET || 'movietix_jwt_secret_key_2026_cdio',
+        process.env.JWT_SECRET,
         { expiresIn: '7d' }
       );
     }

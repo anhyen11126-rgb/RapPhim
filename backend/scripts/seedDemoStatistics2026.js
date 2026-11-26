@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import dns from 'dns';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { configureOptionalDnsServers } from '../src/config/db.js';
 // Tạo 88 ghế chuẩn cho mỗi phòng chiếu (Hàng A-D: STANDARD, E-G: VIP, H: 4 ghế SWEETBOX = 88 ghế)
 function buildStandard88SeatTemplates() {
   const templates = [];
@@ -27,13 +27,26 @@ function buildStandard88SeatTemplates() {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
+configureOptionalDnsServers();
 
-const LIVE_URI =
-  process.env.MONGODB_LIVE_URI ||
-  'mongodb+srv://anhyen11126_db_user:MovieTix123456@movietixcluster.hi1rrqr.mongodb.net/movietix_db?retryWrites=true&w=majority';
+const LIVE_URI = process.env.MONGODB_LIVE_URI || process.env.MONGODB_URI;
+if (!LIVE_URI) {
+  throw new Error('Missing MONGODB_LIVE_URI or MONGODB_URI in backend/.env');
+}
 const DEMO_URI =
   process.env.MONGODB_DEMO_URI ||
   LIVE_URI.replace(/\/movietix_db(\?|$)/, '/movietix_demo_db$1');
+
+if (!/\/movietix_demo_db(\?|$)/.test(DEMO_URI)) {
+  throw new Error(
+    '[SAFETY ABORT] DEMO_URI must explicitly target movietix_demo_db to prevent accidental writes to LIVE database.'
+  );
+}
+if (DEMO_URI === LIVE_URI) {
+  throw new Error(
+    '[SAFETY ABORT] DEMO_URI and LIVE_URI must not be identical.'
+  );
+}
 
 // Deterministic PRNG để chạy lại nhiều lần vẫn ra đúng bộ dữ liệu nhất quán
 function createSeededRandom(seed = 20261126) {
@@ -150,6 +163,13 @@ async function run() {
   await mongoose.connect(LIVE_URI, { serverSelectionTimeoutMS: 15000 });
   const liveConn = mongoose.connection.useDb('movietix_db', { useCache: true });
   const demoConn = mongoose.connection.useDb('movietix_demo_db', { useCache: true });
+
+  if (demoConn.name !== 'movietix_demo_db' || demoConn.name === liveConn.name) {
+    await mongoose.disconnect();
+    throw new Error(
+      `[SAFETY ABORT] Invalid target database for DEMO seed: "${demoConn.name}". Only "movietix_demo_db" is allowed.`
+    );
+  }
 
   try {
     // 1. Sao chép các collection nền từ movietix_db sang movietix_demo_db (giữ nguyên _id và liên kết)

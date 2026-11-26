@@ -6,7 +6,7 @@ import AdminUser from '../../models/AdminUser.js';
 import { getVNDateParts, getRelativeDayLabel } from './timezoneUtils.js';
 import { formatVND } from './pricingService.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'movietix_jwt_secret_key_2026_cdio';
+const getJwtSecret = () => process.env.JWT_SECRET;
 
 const STATUS_LABELS_VI = {
   PAID: 'Đã thanh toán thành công ✅',
@@ -36,8 +36,11 @@ export const extractAuthenticatedUserFromHeader = async (authHeader = '') => {
   const token = authHeader.slice(7).trim();
   if (!token) return null;
 
+  const secret = getJwtSecret();
+  if (!secret) return null;
+
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
     const userId = decoded?.id || decoded?.userId || decoded?._id || null;
 
     if (userId && mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(String(userId))) {

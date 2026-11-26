@@ -7,7 +7,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../../backend/.env') });
 
-const uri = process.env.MONGODB_URI || 'mongodb+srv://admin:admin@cluster0.p7qsl.mongodb.net/movietix?retryWrites=true&w=majority';
+const uri = process.env.MONGODB_URI;
+if (!uri) {
+  throw new Error('Missing MONGODB_URI in environment');
+}
 
 async function run() {
   await mongoose.connect(uri);
