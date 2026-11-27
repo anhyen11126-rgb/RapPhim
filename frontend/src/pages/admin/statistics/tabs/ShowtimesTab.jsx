@@ -12,9 +12,11 @@ const ShowtimesTab = ({
   onRoomFilter,
   onStatusFilter,
   currentStatus = 'ALL',
+  rooms = [],
+  roomId = 'ALL',
+  roomType = 'ALL',
 }) => {
   const [searchInput, setSearchInput] = useState('');
-  const [selectedRoom, setSelectedRoom] = useState('ALL');
 
   if (!loading && error) {
     return (
@@ -44,35 +46,19 @@ const ShowtimesTab = ({
   const total = showtimesData?.total || 0;
   const page = showtimesData?.page || 1;
   const totalPages = showtimesData?.totalPages || 1;
-  const dbRooms = showtimesData?.rooms || [];
-
   const ROOM_OPTIONS = [
-    { value: 'ALL', label: 'Tất cả 9 phòng chiếu (792 ghế)' },
-    { value: 'IMAX Laser', label: '★ Nhóm IMAX Laser (Phòng 01 - 03)' },
-    { value: 'Dolby Atmos', label: '★ Nhóm Dolby Atmos (Phòng 04 - 06)' },
-    { value: 'Gold Class', label: '★ Nhóm Gold Class (Phòng 07 - 09)' },
-    ...(dbRooms.length > 0
-      ? dbRooms.map((r) => ({
-          value: r.id,
-          label: `${r.name} (${r.totalSeats || 88} ghế)`,
-        }))
-      : [
-          { value: 'Phòng 01', label: 'Phòng 01 - IMAX Laser (Grand Hall 1)' },
-          { value: 'Phòng 02', label: 'Phòng 02 - IMAX Laser (Grand Hall 2)' },
-          { value: 'Phòng 03', label: 'Phòng 03 - IMAX Laser (Grand Hall 3)' },
-          { value: 'Phòng 04', label: 'Phòng 04 - Dolby Atmos (VIP Sound 1)' },
-          { value: 'Phòng 05', label: 'Phòng 05 - Dolby Atmos (VIP Sound 2)' },
-          { value: 'Phòng 06', label: 'Phòng 06 - Dolby Atmos (VIP Sound 3)' },
-          { value: 'Phòng 07', label: 'Phòng 07 - Gold Class (Luxury Lounge 1)' },
-          { value: 'Phòng 08', label: 'Phòng 08 - Gold Class (Luxury Lounge 2)' },
-          { value: 'Phòng 09', label: 'Phòng 09 - Gold Class (Luxury Lounge 3)' },
-        ]),
+    { value: 'ALL', label: 'Tất cả phòng' },
+    ...rooms.filter((room) => roomType === 'ALL' || room.roomType === roomType).map((room) => ({
+      value: room.id || room._id,
+      label: room.roomNumber ? `Phòng ${String(room.roomNumber).padStart(2, '0')}` : room.name,
+    })),
   ];
 
   const STATUS_OPTIONS = [
     { value: 'ALL', label: 'Tất cả trạng thái' },
     { value: 'COMPLETED', label: 'Đã chiếu' },
     { value: 'NOW_SHOWING', label: 'Đang chiếu' },
+    { value: 'CLEANING', label: 'Đang dọn phòng' },
     { value: 'UPCOMING', label: 'Sắp chiếu' },
     { value: 'CANCELLED', label: 'Đã hủy' },
   ];
@@ -83,7 +69,6 @@ const ShowtimesTab = ({
   };
 
   const handleRoomChange = (roomVal) => {
-    setSelectedRoom(roomVal);
     if (onRoomFilter) {
       onRoomFilter(roomVal);
     }
@@ -93,27 +78,30 @@ const ShowtimesTab = ({
     const lc = st.lifecycleStatus || st.status;
     if (lc === 'CANCELLED') {
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-950/70 text-rose-400 border-rose-500/40">
+        <span className="whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-950/70 text-rose-400 border-rose-500/40">
           Đã hủy
         </span>
       );
     }
     if (lc === 'NOW_SHOWING') {
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-cyan-950/70 text-cyan-300 border-cyan-500/40">
+        <span className="whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-cyan-950/70 text-cyan-300 border-cyan-500/40">
           Đang chiếu
         </span>
       );
     }
+    if (lc === 'CLEANING') {
+      return <span className="whitespace-nowrap rounded-full border border-amber-500/40 bg-amber-950/70 px-2 py-0.5 text-[10px] font-bold text-amber-300">Đang dọn phòng</span>;
+    }
     if (lc === 'COMPLETED' || lc === 'FINISHED') {
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-[var(--bg-surface)] text-slate-400 border-slate-700">
+        <span className="whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-[var(--bg-surface)] text-slate-400 border-slate-700">
           Đã chiếu
         </span>
       );
     }
     return (
-      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-950/60 text-emerald-400 border-emerald-500/30">
+      <span className="whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-950/60 text-emerald-400 border-emerald-500/30">
         Sắp chiếu
       </span>
     );
@@ -121,12 +109,14 @@ const ShowtimesTab = ({
 
   return (
     <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-5 shadow-xl">
+      {showtimesData?.missingSeatShowtimesOnPage > 0 &&
+        <p role="status" className="text-xs text-amber-300">{showtimesData.missingSeatShowtimesOnPage} suất trên trang thiếu dữ liệu ghế.</p>}
       {/* Header & Tìm kiếm */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[var(--border-default)]/80 pb-4">
         <div>
           <h3 className="text-base sm:text-lg font-bold text-white">Thống Kê Chi Tiết Suất Chiếu ({formatNumber(total)} suất)</h3>
           <p className="text-xs text-slate-400">
-            Giám sát số ghế mở bán (88 ghế/suất), ghế đã bán, ghế trống và doanh thu của từng suất chiếu thực tế
+            Giám sát số ghế mở bán, ghế đã bán, ghế trống và doanh thu của từng suất chiếu thực tế
           </p>
         </div>
 
@@ -150,7 +140,8 @@ const ShowtimesTab = ({
           <div className="flex items-center space-x-1.5 bg-[var(--bg-surface)] border border-slate-700 rounded-xl px-3 py-1.5 text-xs">
             <span className="text-slate-400">Phòng:</span>
             <select
-              value={selectedRoom}
+              aria-label="Phòng trong danh sách suất chiếu"
+              value={roomId}
               onChange={(e) => handleRoomChange(e.target.value)}
               className="bg-transparent text-white font-semibold outline-none cursor-pointer text-xs max-w-[200px] truncate"
             >
@@ -217,7 +208,7 @@ const ShowtimesTab = ({
                     <td className="py-3 px-4">
                       <div className="flex items-center space-x-2.5">
                         <img
-                          src={st.moviePoster}
+                          src={st.moviePoster || undefined}
                           alt={st.movieTitle}
                           className="w-8 h-11 rounded-md object-cover shrink-0 border border-slate-700"
                           onError={(e) => {
@@ -226,6 +217,8 @@ const ShowtimesTab = ({
                         />
                         <div className="min-w-0">
                           <strong className="text-white block truncate">{st.movieTitle}</strong>
+                          {(st.missingRoom || (!st.hasSeatRecords && st.lifecycleStatus !== 'CANCELLED')) &&
+                            <span className="text-amber-300 text-[11px]">{st.missingRoom ? 'Thiếu phòng chiếu' : 'Thiếu dữ liệu ghế'}</span>}
                           <span className="text-[10px] text-slate-400">{st.cinemaName}</span>
                         </div>
                       </div>
@@ -245,7 +238,7 @@ const ShowtimesTab = ({
                             : 'bg-amber-950/70 text-amber-300 border-amber-500/40'
                         }`}
                       >
-                        {st.roomType || st.format}
+                        {{ 'IMAX Laser': 'IMAX', 'Dolby Atmos': 'Dolby', 'Gold Class': 'Gold' }[st.roomType] || '—'}
                       </span>
                     </td>
 
@@ -268,18 +261,21 @@ const ShowtimesTab = ({
                     <td className="py-3 px-2.5 text-center font-bold text-white">
                       {st.bookedSeats ?? 0}{' '}
                       <span className="text-[10px] text-slate-500 font-normal">
-                        / {st.totalSeats ?? 88}
+                        / {st.totalSeats ?? '—'}
                       </span>
                     </td>
 
                     {/* Còn trống */}
                     <td className="py-3 px-2.5 text-center text-emerald-400 font-semibold">
-                      {st.availableSeats ?? 0}
+                      <span>{st.availableSeats ?? '—'}</span>
+                      <span className="block text-[10px] text-slate-400">
+                        Giữ: {st.holdingSeats} • Đóng: {st.closedUnsoldSeats} • Đặt được: {st.bookableAvailableSeats}
+                      </span>
                     </td>
 
                     {/* Tỷ lệ lấp đầy */}
                     <td className="py-3 px-3">
-                      <div className="space-y-1">
+                      <div className="min-w-0 space-y-1">
                         <div className="flex items-center justify-between text-[10px]">
                           <span className={isHot ? 'text-amber-400 font-bold' : 'text-cyan-300'}>
                             {formatPercent(st.occupancyRate || 0)}
@@ -311,7 +307,7 @@ const ShowtimesTab = ({
                         type="button"
                         onClick={() => onSelectShowtime && onSelectShowtime(st.id)}
                         className="px-2.5 py-1 bg-[var(--bg-surface)] hover:bg-violet-600 hover:text-white text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
-                        title="Xem sơ đồ 88 ghế và vé đã đặt"
+                        title="Xem sơ đồ ghế và vé đã đặt"
                       >
                         Sơ đồ ghế
                       </button>

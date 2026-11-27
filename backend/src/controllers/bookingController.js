@@ -1,3 +1,4 @@
+import { getCancellationRefundUpdate } from '../services/bookingRefundService.js';
 import Room from '../models/Room.js';
 import Concession from '../models/Concession.js';
 import { calculatePricesFromConfig, ensurePricingConfig } from '../services/pricingConfigService.js';
@@ -735,21 +736,28 @@ export const cancelBooking = async (req, res) => {
       });
     }
 
-    await mongoose.connection.transaction(async session => {
-      const updated = await Booking.updateOne(
-        { _id: booking._id, status: 'PAID', qrToken: booking.qrToken, isCheckedIn: { $ne: true } },
-        { $set: { status: 'CANCELLED', qrToken: null, refundAmount: booking.totalAmount, refundStatus: 'SIMULATED' } },
-        { session }
-      );
-      if (updated.modifiedCount !== 1) throw new BookingConflict('Đơn vừa thay đổi. Vui lòng tải lại.');
-      await releaseSeats(booking, session);
+    const refund = await mongoose.connection.transaction(async (session) => {
+      const match = {
+        _id: booking._id, status: 'PAID', paymentStatus: 'SIMULATED',
+        qrToken: booking.qrToken, isCheckedIn: { $ne: true },
+      };
+      const current = await Booking.findOne(match).session(session).lean();
+      if (!current) throw new BookingConflict('Đơn vừa thay đổi. Vui lòng tải lại.');
+      const refund = getCancellationRefundUpdate(current);
+      await Booking.updateOne(match, { $set: { status: 'CANCELLED', qrToken: null, ...refund } }, { session });
+      await releaseSeats(current, session);
+      return {
+        refundAmount: Object.hasOwn(refund, 'refundAmount') ? refund.refundAmount : current.refundAmount ?? null,
+        refundStatus: refund.refundStatus ?? current.refundStatus,
+      };
     });
 
     return res.json({
       success: true,
-      message: 'Vé đã hủy. Khoản hoàn tiền ghi nhận chỉ là mô phỏng.',
-      refundAmount: booking.totalAmount,
-      refundStatus: 'SIMULATED',
+      message: refund.refundStatus === 'SIMULATED'
+        ? 'Vé đã hủy. Khoản hoàn tiền ghi nhận chỉ là mô phỏng.'
+        : 'Vé đã hủy. Trạng thái hoàn tiền được ghi nhận bên dưới.',
+      ...refund,
       bookingCode: booking.bookingCode,
     });
   } catch (error) {

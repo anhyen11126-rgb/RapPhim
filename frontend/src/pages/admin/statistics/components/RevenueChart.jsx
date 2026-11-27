@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { formatCurrency, formatNumber } from '../utils/statisticsFormatter';
+import { formatExactCurrency, formatNumber } from '../utils/statisticsFormatter';
 
 /**
  * Tạo đường cong Monotone Cubic Spline (Fritsch-Carlson) qua tập điểm (x, y)
@@ -81,7 +81,7 @@ function formatYAxisLabel(val) {
     return `${String(m).replace('.', ',')} triệu`;
   }
   if (num >= 1000) {
-    return `${Math.round(num / 1000)}k đ`;
+    return `${Math.round(num / 1000)}k ₫`;
   }
   return `${num} đ`;
 }
@@ -145,6 +145,9 @@ function resolveXAxisTickIndices(data) {
   return Array.from(selected).sort((a, b) => a - b);
 }
 
+const hasExpensePoint = (day) =>
+  day.status !== 'FUTURE' && (day.hasExpenseData ?? day.expense != null);
+
 const RevenueChart = ({ data = [], loading = false, showExpenseOverlay = false }) => {
   const [hoverIndex, setHoverIndex] = useState(null);
   const svgRef = useRef(null);
@@ -157,9 +160,10 @@ const RevenueChart = ({ data = [], loading = false, showExpenseOverlay = false }
           (d.netRevenue || 0) > 0 ||
           (d.ticketRevenue || 0) > 0 ||
           (d.concessionRevenue || 0) > 0 ||
-          (d.tickets || 0) > 0
+          (d.tickets || 0) > 0 ||
+          (showExpenseOverlay && hasExpensePoint(d))
       ),
-    [data]
+    [data, showExpenseOverlay]
   );
 
   if (loading) {
@@ -172,7 +176,7 @@ const RevenueChart = ({ data = [], loading = false, showExpenseOverlay = false }
 
   if (!data || data.length === 0 || !hasAnyValue) {
     return (
-      <div className="h-72 flex flex-col items-center justify-center bg-[var(--bg-secondary)]/60 rounded-2xl border border-[var(--border-default)] text-slate-400 text-xs">
+      <div className="min-h-24 flex flex-col items-center justify-center bg-[var(--bg-secondary)]/60 rounded-2xl border border-[var(--border-default)] text-slate-400 text-xs">
         <svg className="w-8 h-8 text-slate-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
@@ -181,7 +185,9 @@ const RevenueChart = ({ data = [], loading = false, showExpenseOverlay = false }
             d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
           />
         </svg>
-        <span>Chưa có phát sinh doanh thu trong khoảng thời gian đã chọn</span>
+        <span>{data?.[0]?.status === 'FUTURE'
+          ? 'Kỳ báo cáo chưa đến'
+          : 'Chưa có phát sinh doanh thu trong khoảng thời gian đã chọn'}</span>
       </div>
     );
   }
@@ -199,7 +205,7 @@ const RevenueChart = ({ data = [], loading = false, showExpenseOverlay = false }
 
   const maxDataVal = Math.max(
     ...data.map((d) =>
-      Math.max(Number(d.ticketRevenue || 0), Number(d.concessionRevenue || 0), Number(d.netRevenue || 0) * 0.85)
+      Math.max(Number(d.ticketRevenue || 0), Number(d.concessionRevenue || 0), Number(d.netRevenue || 0) * 0.85, showExpenseOverlay ? Number(d.expense ?? 0) : 0)
     ),
     1000000
   );
@@ -338,6 +344,10 @@ const RevenueChart = ({ data = [], loading = false, showExpenseOverlay = false }
             />
           )}
 
+          {showExpenseOverlay && data.map((day, index) => hasExpensePoint(day) && (
+            <rect key={day.fullDate || day.date} x={getX(index) - 3} y={getY(day.expense) - 3}
+              width="6" height="6" rx="1" fill="#94A3B8" />
+          ))}
           {/* Các điểm chấm nhỏ trên đường biểu đồ */}
           {ticketPoints.map((pt, idx) => (
             <circle
@@ -431,7 +441,7 @@ const RevenueChart = ({ data = [], loading = false, showExpenseOverlay = false }
                   <span>Doanh thu vé:</span>
                 </span>
                 <strong className="text-purple-300 font-bold">
-                  {formatCurrency(hoveredItem.ticketRevenue || 0)}
+                  {formatExactCurrency(hoveredItem.ticketRevenue || 0)}
                 </strong>
               </div>
               <div className="flex items-center justify-between gap-4">
@@ -440,16 +450,19 @@ const RevenueChart = ({ data = [], loading = false, showExpenseOverlay = false }
                   <span>Doanh thu combo:</span>
                 </span>
                 <strong className="text-amber-300 font-bold">
-                  {formatCurrency(hoveredItem.concessionRevenue || 0)}
+                  {formatExactCurrency(hoveredItem.concessionRevenue || 0)}
                 </strong>
               </div>
               <div className="flex items-center justify-between gap-4 pt-1 border-t border-slate-800/90">
                 <span className="text-slate-200 font-semibold">Tổng doanh thu:</span>
                 <strong className="text-emerald-400 font-black">
-                  {formatCurrency(hoveredItem.netRevenue || 0)}
+                  {formatExactCurrency(hoveredItem.netRevenue || 0)}
                 </strong>
               </div>
               <div className="flex items-center justify-between gap-4 text-slate-400 pt-0.5">
+                {showExpenseOverlay && <span>Chi phí: <strong className="text-white">
+                  {hasExpensePoint(hoveredItem) ? formatExactCurrency(hoveredItem.expense) : 'Chưa ghi nhận chứng từ'}
+                </strong></span>}
                 <span>Số vé đã bán: <strong className="text-cyan-300">{formatNumber(hoveredItem.tickets || 0)} vé</strong></span>
                 <span>Số đơn hợp lệ: <strong className="text-white">{formatNumber(hoveredItem.orders || 0)} đơn</strong></span>
               </div>
@@ -470,8 +483,10 @@ const RevenueChart = ({ data = [], loading = false, showExpenseOverlay = false }
             <span className="text-slate-300 font-medium">Doanh thu bắp nước & Combo</span>
           </span>
         </div>
+        {showExpenseOverlay && data.some(hasExpensePoint) &&
+          <span className="text-slate-300">▪ Chi phí đã ghi nhận</span>}
         <span className="text-[11px] text-slate-500">
-          Đơn vị: VNĐ • Múi giờ chuẩn Asia/Ho_Chi_Minh
+          Đơn vị: VND
         </span>
       </div>
     </div>

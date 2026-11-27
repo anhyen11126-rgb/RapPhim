@@ -6,29 +6,28 @@ const MovieDetailDrawer = ({ movieId, filters = {}, onClose, onSelectShowtime })
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  const { timeRange, month, year, customStart, customEnd, roomId, roomType, cinemaId } = filters;
   useEffect(() => {
     if (!movieId) return;
-    const fetchDetail = async () => {
-      try {
-        setLoading(true);
-        const res = await statisticsApi.getMovieDetail(movieId, {
-          timeRange: filters.timeRange,
-          month: filters.month,
-          year: filters.year,
-          customStart: filters.customStart,
-          customEnd: filters.customEnd,
-        });
-        if (res.data?.data) {
-          setData(res.data.data);
-        }
-      } catch (err) {
-        console.error('Lỗi nạp chi tiết thống kê phim:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDetail();
-  }, [movieId, filters.timeRange, filters.month, filters.year, filters.customStart, filters.customEnd]);
+    const controller = new AbortController();
+    setLoading(true);
+    setData(null);
+    setError('');
+    statisticsApi.getMovieDetail(movieId, {
+      timeRange, month, year, customStart, customEnd, roomId, roomType, cinemaId,
+    }, controller.signal).then((response) => {
+      if (controller.signal.aborted) return;
+      if (!response.data?.data) throw new Error('Thiếu dữ liệu phim');
+      setData(response.data.data);
+    }).catch((failure) => {
+      if (!controller.signal.aborted) setError(failure.response?.data?.message || 'Không tải được chi tiết phim.');
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
+    });
+    return () => controller.abort();
+  }, [movieId, timeRange, month, year, customStart, customEnd, roomId, roomType, cinemaId, retry]);
 
   if (!movieId) return null;
 
@@ -66,15 +65,16 @@ const MovieDetailDrawer = ({ movieId, filters = {}, onClose, onSelectShowtime })
             <p className="text-xs text-slate-400">Đang tải phân tích tác phẩm & danh sách suất chiếu...</p>
           </div>
         ) : !data ? (
-          <div className="py-12 text-center text-slate-400 text-xs">
-            Không tìm thấy thông tin chi tiết cho bộ phim này.
+          <div role="alert" className="space-y-3 text-center text-rose-300">
+            <p>{error || 'Chưa có dữ liệu phim.'}</p>
+            <button type="button" className="cinema-action rounded-lg px-3 py-2" onClick={() => setRetry((value) => value + 1)}>Thử lại</button>
           </div>
         ) : (
           <div className="space-y-6">
             {/* Banner tóm tắt phim */}
             <div className="flex gap-4 p-4 rounded-2xl bg-[var(--bg-surface)]/50 border border-slate-700/60">
               <img
-                src={data.movie.poster}
+                src={data.movie.poster || undefined}
                 alt={data.movie.title}
                 className="w-24 h-36 rounded-xl object-cover shrink-0 border border-slate-700 shadow"
                 onError={(e) => {
@@ -127,9 +127,9 @@ const MovieDetailDrawer = ({ movieId, filters = {}, onClose, onSelectShowtime })
                   </span>
                 </div>
                 <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
-                  <span className="text-[11px] text-slate-400 block">Vé đã bán</span>
+                  <span className="text-[11px] text-slate-400 block">Vé giao dịch</span>
                   <span className="text-sm font-bold text-cyan-300 block mt-1">
-                    {formatNumber(data.stats.totalTickets)} vé
+                    {formatNumber(data.stats.transactionTicketsSold)} vé
                   </span>
                 </div>
                 <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
@@ -244,6 +244,8 @@ const MovieDetailDrawer = ({ movieId, filters = {}, onClose, onSelectShowtime })
               </div>
             )}
 
+            {data.stats.missingSeatShowtimesCount > 0 &&
+              <p role="status" className="text-xs text-amber-300">{data.stats.missingSeatShowtimesCount} suất thiếu dữ liệu ghế.</p>}
             {/* 4. Danh sách từng suất chiếu của phim (MỤC VI.4: Ngày, Giờ, Phòng, Tổng ghế, Đã bán, Chưa bán, Lấp đầy, Doanh thu) */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
@@ -292,9 +294,9 @@ const MovieDetailDrawer = ({ movieId, filters = {}, onClose, onSelectShowtime })
                         <td className="py-2 px-3">
                           <span className="font-semibold text-slate-200">{st.roomName}</span>
                         </td>
-                        <td className="py-2 px-2 text-center text-slate-400">{st.totalSeats || 88}</td>
+                        <td className="py-2 px-2 text-center text-slate-400">{st.totalSeats ?? '—'}</td>
                         <td className="py-2 px-2 text-center font-bold text-cyan-300">{st.soldSeats || 0}</td>
-                        <td className="py-2 px-2 text-center text-slate-400">{st.unsoldSeats ?? 88}</td>
+                        <td className="py-2 px-2 text-center text-slate-400">{st.unsoldSeats ?? '—'}</td>
                         <td className="py-2 px-2.5 text-center font-bold text-amber-400">
                           {st.occupancyRate || 0}%
                         </td>

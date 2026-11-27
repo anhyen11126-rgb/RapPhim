@@ -12,7 +12,7 @@ export const statisticsApi = {
 
   // 3. Thống kê Phim (Tỷ lệ bán vé, Công suất, Doanh thu, Chi phí, Lợi nhuận từng phim)
   getMovies: (params = {}, signal) => api.get('/admin/statistics/movies', { params, signal }),
-  getMovieDetail: (id, params = {}) => api.get(`/admin/statistics/movies/${id}`, { params }),
+  getMovieDetail: (id, params = {}, signal) => api.get(`/admin/statistics/movies/${id}`, { params, signal }),
 
   // 4. Thống kê Suất chiếu
   getShowtimes: (params = {}, signal) => api.get('/admin/statistics/showtimes', { params, signal }),
@@ -34,7 +34,7 @@ export const statisticsApi = {
   },
 
   // 8. Quản lý chi phí rạp & phim (Expense CRUD)
-  getExpenses: (params = {}) => api.get('/admin/statistics/expenses', { params }),
+  getExpenses: (params = {}, signal) => api.get('/admin/statistics/expenses', { params, signal }),
   createExpense: (data) => api.post('/admin/statistics/expenses', data),
   updateExpense: (id, data) => api.put(`/admin/statistics/expenses/${id}`, data),
   deleteExpense: (id) => api.delete(`/admin/statistics/expenses/${id}`),
@@ -43,7 +43,7 @@ export const statisticsApi = {
   getFilterMovies: (params = {}, signal) =>
     api.get('/admin/statistics/filter-movies', { params, signal }),
   getCinemas: () => api.get('/cinemas'),
-  getRooms: () => api.get('/rooms'),
+  getRooms: (signal) => api.get('/rooms', { signal }),
 };
 
 export default statisticsApi;

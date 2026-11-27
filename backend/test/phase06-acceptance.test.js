@@ -258,11 +258,21 @@ test('RC-6: Admin CANCEL_WITH_REFUND concurrently with Admin check-in never leav
     }),
   ]);
 
-  assert.equal(cancelRes.status, 200);
   const finalBooking = await Booking.findById(ck.body.booking._id).lean();
-  assert.equal(finalBooking.status, 'CANCELLED');
-  assert.equal(finalBooking.qrToken, null, 'Cancelled booking must have qrToken invalidated');
-  assert.ok([200, 400, 404, 409].includes(checkInRes.status));
+  if (cancelRes.status === 200) {
+    assert.ok([400, 404, 409].includes(checkInRes.status));
+    assert.equal(finalBooking.status, 'CANCELLED');
+    assert.equal(finalBooking.qrToken, null);
+    assert.equal(finalBooking.isCheckedIn, false);
+    assert.equal(finalBooking.refundAmount, finalBooking.totalAmount);
+  } else {
+    assert.equal(cancelRes.status, 409);
+    assert.equal(checkInRes.status, 200);
+    assert.equal(finalBooking.status, 'PAID');
+    assert.equal(finalBooking.isCheckedIn, true);
+    assert.equal(finalBooking.refundStatus, 'NONE');
+    assert.ok(!(await Showtime.findById(st._id)).cancelledAt);
+  }
 });
 
 test('RC-7: Customer exchangeBooking concurrently with another Customer holdSeats on target seat yields single owner', async () => {

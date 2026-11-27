@@ -64,34 +64,34 @@ const MoviesTab = ({
   const renderPerformanceBadge = (m) => {
     if (m.performanceStatus === 'HIGH') {
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-950/70 text-emerald-400 border-emerald-500/40">
+        <span className="inline-block whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-950/70 text-emerald-400 border-emerald-500/40">
           {m.performanceLabel}
         </span>
       );
     }
     if (m.performanceStatus === 'MEDIUM') {
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-cyan-950/70 text-cyan-300 border-cyan-500/40">
+        <span className="inline-block whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-cyan-950/70 text-cyan-300 border-cyan-500/40">
           {m.performanceLabel}
         </span>
       );
     }
     if (m.performanceStatus === 'LOW') {
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-950/70 text-amber-300 border-amber-500/40">
+        <span className="inline-block whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-950/70 text-amber-300 border-amber-500/40">
           {m.performanceLabel}
         </span>
       );
     }
     if (m.performanceStatus === 'ZERO_SALES') {
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-950/70 text-rose-300 border-rose-500/40">
+        <span className="inline-block whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-950/70 text-rose-300 border-rose-500/40">
           {m.performanceLabel}
         </span>
       );
     }
     return (
-      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-slate-800/80 text-slate-400 border-slate-700">
+      <span className="inline-block whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-slate-800/80 text-slate-400 border-slate-700">
         {m.performanceLabel || 'Chưa có suất chiếu'}
       </span>
     );
@@ -100,33 +100,33 @@ const MoviesTab = ({
   const renderProfitBadge = (m) => {
     if (!m.hasExpenseData || m.profitStatus === 'INSUFFICIENT_DATA') {
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-950/70 text-amber-300 border-amber-500/40">
+        <span className="inline-block whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-950/70 text-amber-300 border-amber-500/40">
           Chưa đủ dữ liệu tính lợi nhuận
         </span>
       );
     }
     if (m.profitStatus === 'PROFIT') {
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-950/70 text-emerald-400 border-emerald-500/40">
+        <span className="inline-block whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-950/70 text-emerald-400 border-emerald-500/40">
           Có lãi
         </span>
       );
     }
     if (m.profitStatus === 'BREAKEVEN') {
       return (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-cyan-950/70 text-cyan-300 border-cyan-500/40">
+        <span className="inline-block whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-cyan-950/70 text-cyan-300 border-cyan-500/40">
           Hòa vốn
         </span>
       );
     }
     return (
-      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-950/70 text-rose-400 border-rose-500/40">
+      <span className="inline-block whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-950/70 text-rose-400 border-rose-500/40">
         Thua lỗ
       </span>
     );
   };
 
-  const maxActiveSellable = Math.max(...allActiveMovies.map((m) => m.totalSellableSeats || 0), 88);
+  const maxActiveSellable = Math.max(...allActiveMovies.map((m) => m.totalSellableSeats || 0), 1);
 
   return (
     <div className="space-y-6">
@@ -138,23 +138,22 @@ const MoviesTab = ({
             <span>Bán nhiều vé nhất</span>
             <span className="text-sm">🎟️</span>
           </div>
-          {rankings.topSold ? (
+          {rankings.topSold?.transactionTicketsSold > 0 ? (
             <div
-              onClick={() => onSelectMovie && onSelectMovie(rankings.topSold.id)}
+              onClick={rankings.topSold.tieCount > 1 ? undefined : () => onSelectMovie?.(rankings.topSold.id)}
               className="cursor-pointer group"
             >
-              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 truncate">
-                {rankings.topSold.title}
+              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 line-clamp-2">
+                {rankings.topSold.tieCount > 1 ? `${rankings.topSold.tieCount} phim đồng hạng` : rankings.topSold.title}
               </h5>
               <div className="text-sm font-black text-cyan-300 mt-1">
-                {formatNumber(rankings.topSold.ticketsSold)}{' '}
-                <span className="text-[10px] text-slate-400 font-normal">
-                  / {formatNumber(rankings.topSold.totalSellableSeats)} ghế
-                </span>
+                {formatNumber(rankings.topSold.transactionTicketsSold)} vé giao dịch
               </div>
+              {!(rankings.topSold.tieCount > 1) && (
               <span className="text-[10px] text-slate-500">
                 Lấp đầy: {rankings.topSold.occupancyRate}% ({rankings.topSold.showtimesCount} suất)
               </span>
+              )}
             </div>
           ) : (
             <span className="text-xs text-slate-500">Chưa có phim hoạt động</span>
@@ -167,20 +166,22 @@ const MoviesTab = ({
             <span>Lấp đầy cao nhất</span>
             <span className="text-sm">🌟</span>
           </div>
-          {rankings.topOccupancy ? (
+          {rankings.topOccupancy?.occupancyRate > 0 ? (
             <div
-              onClick={() => onSelectMovie && onSelectMovie(rankings.topOccupancy.id)}
+              onClick={rankings.topOccupancy.tieCount > 1 ? undefined : () => onSelectMovie?.(rankings.topOccupancy.id)}
               className="cursor-pointer group"
             >
-              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 truncate">
-                {rankings.topOccupancy.title}
+              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 line-clamp-2">
+                {rankings.topOccupancy.tieCount > 1 ? `${rankings.topOccupancy.tieCount} phim đồng hạng` : rankings.topOccupancy.title}
               </h5>
               <div className="text-sm font-black text-amber-400 mt-1">
                 {rankings.topOccupancy.occupancyRate}%
               </div>
+              {!(rankings.topOccupancy.tieCount > 1) && (
               <span className="text-[10px] text-slate-500">
-                {formatNumber(rankings.topOccupancy.ticketsSold)} vé / {formatNumber(rankings.topOccupancy.totalSellableSeats)} ghế
+                {formatNumber(rankings.topOccupancy.showtimeBookedSeats)} vé / {formatNumber(rankings.topOccupancy.totalSellableSeats)} ghế
               </span>
+              )}
             </div>
           ) : (
             <span className="text-xs text-slate-500">Chưa có dữ liệu</span>
@@ -193,20 +194,22 @@ const MoviesTab = ({
             <span>Doanh thu cao nhất</span>
             <span className="text-sm">💳</span>
           </div>
-          {rankings.topRevenue ? (
+          {rankings.topRevenue?.revenue > 0 ? (
             <div
-              onClick={() => onSelectMovie && onSelectMovie(rankings.topRevenue.id)}
+              onClick={rankings.topRevenue.tieCount > 1 ? undefined : () => onSelectMovie?.(rankings.topRevenue.id)}
               className="cursor-pointer group"
             >
-              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 truncate">
-                {rankings.topRevenue.title}
+              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 line-clamp-2">
+                {rankings.topRevenue.tieCount > 1 ? `${rankings.topRevenue.tieCount} phim đồng hạng` : rankings.topRevenue.title}
               </h5>
-              <div className="text-sm font-black text-emerald-400 mt-1 truncate">
+              <div className="text-sm font-black text-emerald-400 mt-1 whitespace-nowrap">
                 {rankings.topRevenue.revenueFormatted}
               </div>
+              {!(rankings.topRevenue.tieCount > 1) && (
               <span className="text-[10px] text-slate-500">
                 {formatNumber(rankings.topRevenue.ticketsSold)} vé đã bán
               </span>
+              )}
             </div>
           ) : (
             <span className="text-xs text-slate-500">Chưa có doanh thu</span>
@@ -224,11 +227,11 @@ const MoviesTab = ({
               onClick={() => onSelectMovie && onSelectMovie(rankings.topProfit.id)}
               className="cursor-pointer group"
             >
-              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 truncate">
+              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 line-clamp-2">
                 {rankings.topProfit.title}
               </h5>
               <div
-                className={`text-sm font-black mt-1 truncate ${
+                className={`text-sm font-black mt-1 whitespace-nowrap ${
                   (rankings.topProfit.profit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                 }`}
               >
@@ -254,19 +257,21 @@ const MoviesTab = ({
           </div>
           {rankings.lowestSold ? (
             <div
-              onClick={() => onSelectMovie && onSelectMovie(rankings.lowestSold.id)}
+              onClick={rankings.lowestSold.tieCount > 1 ? undefined : () => onSelectMovie?.(rankings.lowestSold.id)}
               className="cursor-pointer group"
             >
-              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 truncate">
-                {rankings.lowestSold.title}
+              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 line-clamp-2">
+                {rankings.lowestSold.tieCount > 1 ? `${rankings.lowestSold.tieCount} phim đồng hạng` : rankings.lowestSold.title}
               </h5>
               <div className="text-sm font-bold text-slate-300 mt-1">
                 {formatNumber(rankings.lowestSold.ticketsSold)}{' '}
                 <span className="text-[10px] text-slate-400 font-normal">vé</span>
               </div>
+              {!(rankings.lowestSold.tieCount > 1) && (
               <span className="text-[10px] text-slate-500">
                 Lấp đầy: {rankings.lowestSold.occupancyRate}% ({rankings.lowestSold.showtimesCount} suất)
               </span>
+              )}
             </div>
           ) : (
             <span className="text-xs text-slate-500">—</span>
@@ -289,10 +294,10 @@ const MoviesTab = ({
               onClick={() => onSelectMovie && onSelectMovie(rankings.topLoss.id)}
               className="cursor-pointer group"
             >
-              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 truncate">
+              <h5 className="text-xs font-bold text-white group-hover:text-cyan-300 line-clamp-2">
                 {rankings.topLoss.title}
               </h5>
-              <div className="text-sm font-bold text-rose-400 mt-1 truncate">
+              <div className="text-sm font-bold text-rose-400 mt-1 whitespace-nowrap">
                 {rankings.topLoss.profitFormatted}
               </div>
               <span className="text-[10px] text-rose-400 font-bold">{rankings.topLoss.statusLabel}</span>
@@ -331,18 +336,18 @@ const MoviesTab = ({
                   className="space-y-1.5 cursor-pointer group"
                 >
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-white group-hover:text-cyan-300 truncate max-w-[240px]">
+                    <span className="font-bold text-white group-hover:text-cyan-300 line-clamp-2 max-w-[240px]">
                       {m.title} ({m.showtimesCount} suất)
                     </span>
                     <span className="font-mono text-slate-300">
-                      <strong className="text-cyan-300">{m.occupancyRate}%</strong> ({formatNumber(m.ticketsSold)} /{' '}
+                      <strong className="text-cyan-300">{m.occupancyRate}%</strong> ({formatNumber(m.showtimeBookedSeats)} /{' '}
                       {formatNumber(m.totalSellableSeats)} ghế)
                     </span>
                   </div>
                   <div className="h-2.5 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-cyan-400 to-violet-500 rounded-full transition-all duration-700"
-                      style={{ width: `${Math.min(100, Math.max(m.ticketsSold > 0 ? 4 : 0, m.occupancyRate))}%` }}
+                      style={{ width: `${Math.min(100, Math.max(m.showtimeBookedSeats > 0 ? 4 : 0, m.occupancyRate))}%` }}
                     ></div>
                   </div>
                 </div>
@@ -356,7 +361,7 @@ const MoviesTab = ({
               <div>
                 <h3 className="text-base font-bold text-white">Cơ Cấu Ghế Mở Bán Theo Từng Bộ Phim</h3>
                 <p className="text-xs text-slate-400">
-                  Phân tách ghế đã bán, ghế không bán được (suất đã chiếu) và ghế còn có thể đặt (suất sắp chiếu)
+                  Ghế đã bán, đang giữ, trống đã đóng bán và còn đặt được
                 </p>
               </div>
               <span className="text-xs font-bold text-violet-400">
@@ -367,46 +372,26 @@ const MoviesTab = ({
             <div className="space-y-3.5">
               {allActiveMovies.slice(0, 8).map((m) => {
                 const widthRatio = Math.max(15, Math.round(((m.totalSellableSeats || 0) / maxActiveSellable) * 100));
-                const soldPct = m.totalSellableSeats > 0 ? (m.ticketsSold / m.totalSellableSeats) * 100 : 0;
-                const completedUnsoldPct =
-                  m.totalSellableSeats > 0 ? (m.completedUnsoldSeats / m.totalSellableSeats) * 100 : 0;
-                const upcomingAvailPct = Math.max(0, 100 - soldPct - completedUnsoldPct);
-
+                const segments = [
+                  { label: 'Đã bán', seats: m.showtimeBookedSeats, color: 'bg-cyan-400' },
+                  { label: 'Đang giữ', seats: m.holdingSeats, color: 'bg-amber-500' },
+                  { label: 'Đóng bán', seats: m.closedUnsoldSeats, color: 'bg-slate-600' },
+                  { label: 'Còn đặt được', seats: m.upcomingAvailableSeats, color: 'bg-emerald-500/50' },
+                ];
                 return (
                   <div key={m.id} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-white truncate max-w-[200px]">{m.title}</span>
-                      <div className="text-[11px] space-x-2">
-                        <span className="text-cyan-300 font-bold">Đã bán: {formatNumber(m.ticketsSold)}</span>
-                        <span className="text-slate-400">• Không bán được: {formatNumber(m.completedUnsoldSeats)}</span>
-                        <span className="text-emerald-400">• Còn đặt được: {formatNumber(m.upcomingAvailableSeats)}</span>
+                    <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
+                      <span className="font-bold text-white">{m.title}</span>
+                      <div className="flex flex-wrap gap-x-2 text-[11px] text-slate-300">
+                        {segments.map(({ label, seats, color }) => <span key={label} className="inline-flex items-center gap-1"><i className={`h-2 w-2 rounded-full ${color}`} />{label}: {formatNumber(seats)}</span>)}
                       </div>
                     </div>
-                    <div
-                      style={{ width: `${widthRatio}%` }}
-                      className="h-2.5 bg-[var(--bg-surface)] rounded-full overflow-hidden flex"
-                    >
-                      {soldPct > 0 && (
-                        <div
-                          style={{ width: `${Math.max(3, soldPct)}%` }}
-                          className="h-full bg-cyan-400"
-                          title={`Đã bán: ${m.ticketsSold} ghế`}
-                        ></div>
-                      )}
-                      {completedUnsoldPct > 0 && (
-                        <div
-                          style={{ width: `${completedUnsoldPct}%` }}
-                          className="h-full bg-slate-600"
-                          title={`Ghế không bán được (suất đã chiếu): ${m.completedUnsoldSeats} ghế`}
-                        ></div>
-                      )}
-                      {upcomingAvailPct > 0 && (
-                        <div
-                          style={{ width: `${upcomingAvailPct}%` }}
-                          className="h-full bg-emerald-500/50"
-                          title={`Ghế còn có thể đặt (suất sắp chiếu): ${m.upcomingAvailableSeats} ghế`}
-                        ></div>
-                      )}
+                    <div style={{ width: `${widthRatio}%` }}
+                      className="h-2.5 bg-[var(--bg-surface)] rounded-full overflow-hidden flex">
+                      {segments.map(({ label, seats, color }) => (
+                        <div key={label} className={color} title={`${label}: ${seats} ghế`}
+                          style={{ width: `${m.totalSellableSeats ? (seats / m.totalSellableSeats) * 100 : 0}%` }} />
+                      ))}
                     </div>
                   </div>
                 );
@@ -523,8 +508,8 @@ const MoviesTab = ({
                   <th className="py-3 px-3 min-w-[220px]">Bộ phim & Thể loại</th>
                   <th className="py-3 px-2.5 text-center">Số suất chiếu</th>
                   <th className="py-3 px-2.5 text-center">Tổng ghế mở bán</th>
-                  <th className="py-3 px-2.5 text-center font-bold text-cyan-300">Số vé đã bán</th>
-                  <th className="py-3 px-2.5 text-center">Ghế chưa bán</th>
+                  <th className="py-3 px-2.5 text-center font-bold text-cyan-300">Vé giao dịch</th>
+                  <th className="py-3 px-2.5 text-center">Ghế trống</th>
                   <th className="py-3 px-2.5 text-center">Suất cháy vé</th>
                   <th className="py-3 px-3 min-w-[140px]">Tỷ lệ lấp đầy (%)</th>
                   <th className="py-3 px-3 text-right">Doanh thu</th>
@@ -553,7 +538,7 @@ const MoviesTab = ({
                         <td className="py-3 px-3">
                           <div className="flex items-center space-x-3">
                             <img
-                              src={m.poster}
+                              src={m.poster || undefined}
                               alt={m.title}
                               className="w-10 h-14 rounded-lg object-cover shrink-0 border border-slate-700 shadow"
                               onError={(e) => {
@@ -569,7 +554,7 @@ const MoviesTab = ({
                               </div>
                               <h4
                                 onClick={() => onSelectMovie && onSelectMovie(m.id)}
-                                className="text-xs font-bold text-white hover:text-cyan-300 cursor-pointer transition-colors truncate"
+                                className="text-xs font-bold text-white hover:text-cyan-300 cursor-pointer transition-colors line-clamp-2"
                               >
                                 {m.title}
                               </h4>
@@ -595,7 +580,8 @@ const MoviesTab = ({
 
                         {/* Số vé đã bán */}
                         <td className="py-3 px-2.5 text-center font-black text-cyan-300 text-sm">
-                          {formatNumber(m.ticketsSold)}
+                          {formatNumber(m.transactionTicketsSold)}
+                          <span className="block text-[10px] font-normal text-slate-400">Ghế đã đặt: {formatNumber(m.showtimeBookedSeats)}</span>
                         </td>
 
                         {/* Số ghế chưa bán (Tách rõ Đã chiếu không bán được vs Sắp chiếu còn đặt được) */}
@@ -603,7 +589,7 @@ const MoviesTab = ({
                           <strong className="text-slate-300 block">{formatNumber(m.availableSeats)}</strong>
                           {m.showtimesCount > 0 && (
                             <span className="text-[10px] text-slate-500 block">
-                              Trống đã chiếu: {formatNumber(m.completedUnsoldSeats)} • Còn mở: {formatNumber(m.upcomingAvailableSeats)}
+                              Đóng bán: {formatNumber(m.closedUnsoldSeats)} • Còn mở: {formatNumber(m.upcomingAvailableSeats)}
                             </span>
                           )}
                         </td>
@@ -632,7 +618,7 @@ const MoviesTab = ({
                                 className={`h-full rounded-full transition-all duration-700 ${
                                   isHot ? 'bg-gradient-to-r from-amber-500 to-rose-500' : 'bg-cyan-400'
                                 }`}
-                                style={{ width: `${Math.min(100, Math.max(m.ticketsSold > 0 ? 4 : 0, m.occupancyRate))}%` }}
+                                style={{ width: `${Math.min(100, Math.max(m.showtimeBookedSeats > 0 ? 4 : 0, m.occupancyRate))}%` }}
                               ></div>
                             </div>
                             <div className="text-[9px] text-slate-400 flex items-center justify-between">
@@ -651,7 +637,7 @@ const MoviesTab = ({
                         <td className="py-3 px-2.5 text-center">
                           {m.showtimesCount > 0 || m.ticketsSold > 0 ? (
                             <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-xs font-bold text-white">
-                              #{m.salesRank}
+                              {m.salesRank ? `#${m.salesRank}` : '—'}
                             </span>
                           ) : (
                             <span className="text-slate-500">—</span>
@@ -723,7 +709,7 @@ const MoviesTab = ({
                         <td className="py-3 px-3">
                           <div className="flex items-center space-x-3">
                             <img
-                              src={m.poster}
+                              src={m.poster || undefined}
                               alt={m.title}
                               className="w-9 h-12 rounded-lg object-cover shrink-0 border border-slate-700 shadow"
                               onError={(e) => {
@@ -733,19 +719,20 @@ const MoviesTab = ({
                             <div className="min-w-0">
                               <h4
                                 onClick={() => onSelectMovie && onSelectMovie(m.id)}
-                                className="text-xs font-bold text-white hover:text-cyan-300 cursor-pointer transition-colors truncate"
+                                className="text-xs font-bold text-white hover:text-cyan-300 cursor-pointer transition-colors line-clamp-2"
                               >
                                 {m.title}
                               </h4>
                               <span className="text-[10px] text-slate-400 block">
-                                {m.showtimesCount} suất chiếu ({m.allocationSharePercent || 0}% phân bổ)
+                                {m.showtimesCount} suất chiếu ({m.allocationSharePercent == null ? '—' : `${m.allocationSharePercent}%`} phân bổ)
                               </span>
                             </div>
                           </div>
                         </td>
 
                         <td className="py-3 px-2 text-center font-bold text-cyan-300">
-                          {formatNumber(m.ticketsSold)}
+                          {formatNumber(m.transactionTicketsSold)}
+                          <span className="block text-[10px] font-normal text-slate-400">Ghế đã đặt: {formatNumber(m.showtimeBookedSeats)}</span>
                         </td>
 
                         <td className="py-3 px-3 text-right text-slate-300">

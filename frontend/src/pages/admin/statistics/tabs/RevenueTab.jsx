@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import StatisticCard from '../components/StatisticCard';
 import RevenueChart from '../components/RevenueChart';
 import statisticsApi from '../services/statisticsApi';
@@ -31,6 +31,8 @@ const EXPENSE_TYPE_LABELS = {
   OTHER: 'Chi phí khác',
 };
 
+const keepCurrencyUnit = (value) => value?.replace(/ (?=[đ₫]$)/, '\u00a0');
+
 const RevenueTab = ({
   data,
   loading,
@@ -50,6 +52,8 @@ const RevenueTab = ({
   // State Quản lý Chi phí thực tế (CRUD Expense)
   const [expensesList, setExpensesList] = useState([]);
   const [loadingExpenses, setLoadingExpenses] = useState(false);
+  const [expenseError, setExpenseError] = useState('');
+  const expenseController = useRef(null);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [expenseForm, setExpenseForm] = useState({
@@ -60,7 +64,7 @@ const RevenueTab = ({
     roomId: '',
     date: new Date().toISOString().slice(0, 10),
     month: filters?.month || 11,
-    year: filters?.year || 2026,
+    year: filters?.year || new Date().getFullYear(),
     notes: '',
   });
   const [expenseFeedback, setExpenseFeedback] = useState('');
@@ -74,24 +78,27 @@ const RevenueTab = ({
 
   // Tải danh sách chi phí thực tế theo bộ lọc kỳ hiện tại
   const fetchExpensesData = useCallback(async () => {
+    expenseController.current?.abort();
+    const controller = new AbortController();
+    expenseController.current = controller;
+    setExpenseError('');
+    setLoadingExpenses(true);
     try {
-      setLoadingExpenses(true);
-      const expRes = await statisticsApi.getExpenses({
-        ...filters,
-        limit: 100,
-      });
-      if (expRes.data?.data) {
-        setExpensesList(expRes.data.data.items || []);
-      }
+      const response = await statisticsApi.getExpenses({ ...filters, limit: 100 }, controller.signal);
+      if (controller.signal.aborted) return;
+      if (!Array.isArray(response.data?.data?.items)) throw new Error('Thiếu dữ liệu chứng từ');
+      setExpensesList(response.data.data.items);
     } catch (err) {
-      console.warn('Lỗi nạp danh sách chi phí:', err.message);
+      if (!controller.signal.aborted) setExpenseError(err.response?.data?.message || 'Không tải được chứng từ chi phí.');
     } finally {
-      setLoadingExpenses(false);
+      if (!controller.signal.aborted) setLoadingExpenses(false);
     }
   }, [filters]);
 
   useEffect(() => {
+    setExpensesList([]);
     fetchExpensesData();
+    return () => expenseController.current?.abort();
   }, [fetchExpensesData]);
 
   // Xử lý mở Modal thêm / sửa chi phí
@@ -109,7 +116,7 @@ const RevenueTab = ({
       roomId: filters?.roomId && filters.roomId !== 'ALL' ? filters.roomId : '',
       date: defaultDate,
       month: filters?.month || 11,
-      year: filters?.year || 2026,
+      year: filters?.year || new Date().getFullYear(),
       notes: '',
     });
     setShowExpenseModal(true);
@@ -125,7 +132,7 @@ const RevenueTab = ({
       roomId: item.roomId?._id || item.roomId || '',
       date: item.date ? new Date(item.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
       month: item.month || filters?.month || 11,
-      year: item.year || filters?.year || 2026,
+      year: item.year || filters?.year || new Date().getFullYear(),
       notes: item.notes || '',
     });
     setShowExpenseModal(true);
@@ -317,7 +324,7 @@ const RevenueTab = ({
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">
         <StatisticCard
           title="Doanh Thu Thuần"
-          value={metrics.netFormatted || '0 đ'}
+          value={keepCurrencyUnit(metrics.netFormatted) || '0 đ'}
           exactValue={`Trước chiết khấu: ${metrics.grossFormatted || '0 đ'}`}
           tooltip="Doanh thu thuần hợp lệ = Tổng tiền thanh toán thành công (Vé + Bắp nước - Voucher)"
           loading={loading}
@@ -327,7 +334,7 @@ const RevenueTab = ({
 
         <StatisticCard
           title="Tổng Chi Phí"
-          value={metrics.expensesFormatted || '0 đ'}
+          value={keepCurrencyUnit(metrics.expensesFormatted) || '0 đ'}
           exactValue={
             metrics.hasExpenseData
               ? `Trực tiếp phim: ${formatCurrency(metrics.directMovieExpenses || 0)} | Vận hành: ${formatCurrency(metrics.sharedOperationalExpenses || 0)}`
@@ -340,8 +347,8 @@ const RevenueTab = ({
         />
 
         <StatisticCard
-          title="Lợi Nhuận Rạp"
-          value={metrics.hasExpenseData ? metrics.profitFormatted : 'Chưa đủ dữ liệu'}
+          title="Lợi nhuận theo chi phí đã ghi nhận"
+          value={metrics.hasExpenseData ? keepCurrencyUnit(metrics.profitFormatted) : 'Chưa đủ dữ liệu'}
           valueColor={
             !metrics.hasExpenseData
               ? 'text-amber-300'
@@ -351,7 +358,7 @@ const RevenueTab = ({
           }
           subtitle={
             metrics.hasExpenseData
-              ? `${metrics.profitStatusLabel} • Biên LN: ${metrics.profitMargin}%${metrics.roi != null ? ` • ROI: ${metrics.roi}%` : ''}`
+              ? `${metrics.profitStatusLabel} • Biên LN: ${metrics.profitMargin == null ? '—' : `${metrics.profitMargin}%`} • ROI: ${metrics.roi == null ? '—' : `${metrics.roi}%`}`
               : 'Chưa đủ dữ liệu tính lợi nhuận'
           }
           tooltip="Lợi nhuận = Doanh thu thuần - Tổng chi phí"
@@ -362,7 +369,7 @@ const RevenueTab = ({
 
         <StatisticCard
           title="Doanh Thu Vé"
-          value={metrics.ticketFormatted || '0 đ'}
+          value={keepCurrencyUnit(metrics.ticketFormatted) || '0 đ'}
           exactValue={`${formatNumber(metrics.totalTicketsSold || 0)} vé (${metrics.ticketPercent || 0}%)`}
           tooltip="Doanh thu trực tiếp từ bán vé xem phim các định dạng IMAX Laser, Dolby Atmos, Gold Class"
           loading={loading}
@@ -372,7 +379,7 @@ const RevenueTab = ({
 
         <StatisticCard
           title="Doanh Thu Bắp Nước"
-          value={metrics.concessionFormatted || '0 đ'}
+          value={keepCurrencyUnit(metrics.concessionFormatted) || '0 đ'}
           exactValue={`Tỷ trọng: ${metrics.concessionPercent || 0}% tổng doanh thu`}
           tooltip="Doanh thu từ các combo bắp rang bơ và đồ uống đi kèm đơn đặt vé"
           loading={loading}
@@ -381,8 +388,8 @@ const RevenueTab = ({
         />
 
         <StatisticCard
-          title="Tiền Đã Hoàn / Hủy"
-          value={metrics.refundedFormatted || '0 đ'}
+          title="Tổng tiền đã hoàn"
+          value={keepCurrencyUnit(formatCurrency(metrics.totalRefundedAmount))}
           exactValue={`${formatNumber(metrics.cancelledOrders || 0)} đơn hủy (${formatCurrency(metrics.cancelledAmount || 0)})`}
           tooltip="Tổng tiền đã hoàn lại cho khách hàng do hủy vé hoặc hủy suất chiếu"
           loading={loading}
@@ -390,6 +397,25 @@ const RevenueTab = ({
           iconBg="bg-slate-700/40 text-slate-300"
         />
       </div>
+
+      {!loading && data && (
+        <div className="grid gap-2 rounded-2xl border border-slate-700 bg-[var(--bg-secondary)] p-4 text-xs text-slate-300 sm:grid-cols-2">
+          <span>Doanh thu xác minh: {formatCurrency(metrics.verifiedRevenue)}</span>
+          <span>Doanh thu mô phỏng: {formatCurrency(metrics.simulatedRevenue)}</span>
+          <span>Hoàn xác minh: {formatCurrency(metrics.verifiedRefundedAmount)}</span>
+          <span>Hoàn mô phỏng: {formatCurrency(metrics.simulatedRefundedAmount)}</span>
+          <span>Chờ hoàn: {formatCurrency(metrics.pendingRefundAmount)}</span>
+          <span>Giá trị đơn đã hủy: {formatCurrency(metrics.cancelledAmount)}</span>
+          {metrics.missingRefundAmountCount > 0 && <p role="status" className="sm:col-span-2 text-amber-300">
+            {metrics.missingRefundAmountCount} đơn có trạng thái hoàn hoặc chờ hoàn nhưng thiếu số tiền xác định. Các tổng chỉ gồm khoản có số tiền ghi nhận.
+          </p>}
+          {metrics.refundDateKnown === false && <p className="sm:col-span-2 text-slate-400">Tiền hoàn thống kê theo nhóm đơn tạo trong kỳ.</p>}
+          <span>Chi phí trực tiếp phim và phòng: {formatCurrency(metrics.directMovieExpenses + metrics.directRoomExpenses)}</span>
+          <span>Chi phí chung đã phân bổ: {formatCurrency(metrics.sharedOperationalExpenses - (metrics.unallocatedSharedExpenses ?? 0))}</span>
+          <span>Chi phí chưa phân bổ: {formatCurrency(metrics.unallocatedExpenses)}</span>
+          {metrics.revenueSplitWarning && <p role="status" className="sm:col-span-2 text-amber-300">Chưa phân loại {formatCurrency(metrics.unclassifiedRevenue)} do thiếu chi tiết giá giao dịch.</p>}
+        </div>
+      )}
 
       {/* 2. BIỂU ĐỒ KẾT HỢP DOANH THU - CHI PHÍ - LỢI NHUẬN */}
       <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
@@ -399,7 +425,7 @@ const RevenueTab = ({
               Biểu Đồ Doanh Thu (Vé + Bắp Nước) & Chi Phí Theo Ngày
             </h3>
             <p className="text-xs text-slate-400">
-              Diễn biến dòng tiền thực tế từng ngày trong kỳ {data?.timeRangeLabel}
+              Doanh thu hợp lệ theo ngày giao dịch trong kỳ {data?.timeRangeLabel}
             </p>
           </div>
           <button
@@ -411,6 +437,13 @@ const RevenueTab = ({
           </button>
         </div>
 
+        {data?.missingSeatShowtimesCount > 0 && <p role="status" className="text-xs text-amber-300">
+          {data.missingSeatShowtimesCount} suất thiếu dữ liệu ghế.
+        </p>}
+        {!loading && data && <p className="text-xs text-slate-400">
+          {metrics.hasExpenseData ? 'Chi phí đánh dấu tại ngày có chứng từ.' : 'Chưa ghi nhận chi phí trong kỳ.'}
+          {' '}Trục ngày hiển thị đến hôm nay hoặc ngày kết thúc kỳ.
+        </p>}
         <RevenueChart data={data?.revenueChartData || []} loading={loading} showExpenseOverlay={true} />
       </div>
 
@@ -423,7 +456,7 @@ const RevenueTab = ({
               <h3 className="text-base font-bold text-white">Cơ Cấu Chi Phí Hoạt Động Rạp</h3>
               <p className="text-xs text-slate-400">Phân bổ các danh mục chi phí thực tế trong kỳ</p>
             </div>
-            <span className="text-xs font-semibold text-rose-400">{metrics.expensesFormatted || '0 đ'}</span>
+            <span className="text-xs font-semibold text-rose-400">{keepCurrencyUnit(metrics.expensesFormatted) || '0 đ'}</span>
           </div>
 
           <div className="space-y-3">
@@ -457,7 +490,7 @@ const RevenueTab = ({
               <h3 className="text-base font-bold text-white">Cơ Cấu Doanh Thu & Phương Thức Thanh Toán</h3>
               <p className="text-xs text-slate-400">Tỷ trọng giữa Vé xem phim, Bắp nước và Cổng thanh toán</p>
             </div>
-            <span className="text-xs font-semibold text-emerald-400">{metrics.netFormatted || '0 đ'}</span>
+            <span className="text-xs font-semibold text-emerald-400">{keepCurrencyUnit(metrics.netFormatted) || '0 đ'}</span>
           </div>
 
           <div className="space-y-3">
@@ -467,7 +500,7 @@ const RevenueTab = ({
                   <span className="w-2.5 h-2.5 rounded-sm bg-cyan-400"></span>
                   <span>Vé xem phim ({metrics.ticketPercent || 0}%)</span>
                 </span>
-                <span className="font-bold text-cyan-300">{metrics.ticketFormatted || '0 đ'}</span>
+                <span className="font-bold text-cyan-300">{keepCurrencyUnit(metrics.ticketFormatted) || '0 đ'}</span>
               </div>
               <div className="h-2.5 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                 <div
@@ -483,7 +516,7 @@ const RevenueTab = ({
                   <span className="w-2.5 h-2.5 rounded-sm bg-amber-500"></span>
                   <span>Bắp nước & Combo ({metrics.concessionPercent || 0}%)</span>
                 </span>
-                <span className="font-bold text-amber-400">{metrics.concessionFormatted || '0 đ'}</span>
+                <span className="font-bold text-amber-400">{keepCurrencyUnit(metrics.concessionFormatted) || '0 đ'}</span>
               </div>
               <div className="h-2.5 bg-[var(--bg-surface)] rounded-full overflow-hidden">
                 <div
@@ -501,10 +534,13 @@ const RevenueTab = ({
                 className="p-2.5 rounded-xl bg-[var(--bg-surface)]/50 border border-slate-700/50 text-center"
               >
                 <span className="text-[10px] text-slate-400 block font-semibold">
-                  {pm.method === 'MOMO' ? '🌸 MoMo' : pm.method === 'VNPAY' ? '💳 VNPAY' : '💵 Tiền mặt'}
+                  {pm.method === 'MOMO' ? '🌸 MoMo' : pm.method === 'VNPAY' ? '💳 VNPAY' : pm.method}
+                  {pm.simulatedAmount > 0 && pm.simulatedAmount === pm.amount && ' · Mô phỏng'}
                 </span>
                 <span className="text-xs font-bold text-white block mt-0.5">{pm.percent}%</span>
-                <span className="text-[10px] text-slate-500 block truncate">{formatCurrency(pm.amount)}</span>
+                <span className="text-[10px] text-slate-500 block">{formatCurrency(pm.amount)}</span>
+                {pm.simulatedAmount > 0 && pm.simulatedAmount < pm.amount &&
+                  <span className="text-[10px] text-slate-400">Mô phỏng: {formatCurrency(pm.simulatedAmount)}</span>}
               </div>
             ))}
           </div>
@@ -632,7 +668,7 @@ const RevenueTab = ({
                           className="flex items-center space-x-2.5 cursor-pointer group"
                         >
                           <img
-                            src={mv.poster}
+                            src={mv.poster || undefined}
                             alt={mv.title}
                             className="w-8 h-11 rounded-lg object-cover shrink-0 border border-slate-700 shadow"
                             onError={(e) => {
@@ -640,11 +676,11 @@ const RevenueTab = ({
                             }}
                           />
                           <div className="min-w-0">
-                            <span className="font-bold text-white group-hover:text-cyan-300 block truncate">
+                            <span className="font-bold text-white group-hover:text-cyan-300 block line-clamp-2">
                               {mv.title}
                             </span>
                             <span className="text-[10px] text-slate-500">
-                              Tỷ trọng phân bổ: {mv.allocationSharePercent || 0}%
+                              Tỷ trọng phân bổ: {mv.allocationSharePercent == null ? '—' : `${mv.allocationSharePercent}%`}
                             </span>
                           </div>
                         </div>
@@ -716,6 +752,10 @@ const RevenueTab = ({
                       Đang tải danh sách chi phí...
                     </td>
                   </tr>
+                ) : expenseError ? (
+                  <tr><td colSpan="8" className="p-4 text-center text-rose-300" role="alert">
+                    {expenseError} <button type="button" className="ml-2 underline" onClick={fetchExpensesData}>Thử lại</button>
+                  </td></tr>
                 ) : paginatedItems.length > 0 ? (
                   paginatedItems.map((exp) => (
                     <tr key={exp._id || exp.id} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
@@ -875,7 +915,7 @@ const RevenueTab = ({
                           (r.profit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
-                        {formatCurrency(r.profit)}
+                        {r.profit == null ? '—' : formatCurrency(r.profit)}
                       </td>
                     </tr>
                   ))
