@@ -8,7 +8,11 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
+    setData(null);
+    setError('');
     if (!showtimeId) return;
     let activeController = null;
     let isInFlight = false;
@@ -26,12 +30,12 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
         if (!isSilent) setLoading(true);
         const res = await statisticsApi.getShowtimeDetail(showtimeId, { signal: controller.signal });
         if (isDisposed || controller.signal.aborted || mySeq !== requestSeq) return;
-        if (res.data?.data) {
-          setData(res.data.data);
-        }
+        if (!res.data?.data) throw new Error('Thiếu dữ liệu suất chiếu');
+        setData(res.data.data);
+        setError('');
       } catch (err) {
         if (!controller.signal.aborted && err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
-          console.error('Lỗi nạp chi tiết suất chiếu:', err);
+          setError(err.response?.data?.message || 'Không tải được chi tiết suất chiếu.');
         }
       } finally {
         isInFlight = false;
@@ -61,7 +65,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
       clearInterval(syncInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [showtimeId]);
+  }, [showtimeId, retry]);
 
   if (!showtimeId) return null;
 
@@ -100,7 +104,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
                     startTime: data.showtime?.startTime,
                     endTime: data.showtime?.endTime,
                     bookedSeats: data.stats?.bookedCount || 0,
-                    totalSeats: data.stats?.totalSeats || 88,
+                    totalSeats: data.stats?.totalSeats ?? 0,
                     price: data.showtime?.price || 0,
                     movieId: {
                       title: data.showtime?.movieTitle,
@@ -125,6 +129,10 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
           </div>
         </div>
 
+        {error && <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-rose-300">
+          <span>{error}</span>
+          <button type="button" className="cinema-action rounded-lg px-3 py-2" onClick={() => setRetry((value) => value + 1)}>Thử lại</button>
+        </div>}
         {loading ? (
           <div className="py-24 flex flex-col items-center justify-center space-y-3">
             <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
@@ -152,17 +160,13 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
               </div>
               <div className="bg-[var(--bg-surface)]/60 border border-slate-700/70 p-3 rounded-xl">
                 <span className="text-[11px] text-slate-400 block">
-                  {data.showtime?.isBookableUpcoming ? 'Ghế còn đặt được' : 'Ghế trống vật lý'}
+                  Ghế còn đặt được
                 </span>
                 <span className="text-sm sm:text-base font-bold text-slate-200 block mt-1">
-                  {data.stats.availableCount} ghế
+                  {data.stats.bookableAvailableCount} ghế
                 </span>
                 <span className="text-[10px] text-slate-400 block mt-0.5">
-                  {data.showtime?.isBookableUpcoming
-                    ? `Mở bán: ${data.stats.bookableAvailableCount ?? data.stats.availableCount} ghế`
-                    : data.showtime?.isLocked
-                    ? 'Suất tạm khóa (0 ghế mở bán)'
-                    : 'Đã/đang chiếu (0 ghế mở bán)'}
+                  Trống đã đóng bán: {data.stats.closedUnsoldCount} ghế
                 </span>
               </div>
               {data.stats.holdingCount > 0 && (
@@ -181,6 +185,8 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
               </div>
             </div>
 
+            {data.stats.missingRoom && <p role="status" className="text-amber-300 text-xs">Thiếu dữ liệu phòng chiếu.</p>}
+            {!data.stats.hasSeatRecords && <p role="status" className="text-amber-300 text-xs">Thiếu sơ đồ ghế cho suất chiếu.</p>}
             {/* SƠ ĐỒ MA TRẬN 88 GHẾ THỰC TẾ (CHỈ XEM THEO DÕI) */}
             <div className="bg-slate-950 border border-[var(--border-default)] p-5 rounded-2xl space-y-4 text-center">
               <div className="relative mb-5">
@@ -191,7 +197,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
               </div>
 
               {/* Các hàng ghế A -> H (A–G: 12 ghế 6+6, H: 4 ghế 2+2 = 88 ghế, lối đi AISLE chính giữa) */}
-              <div className="space-y-2 max-w-xl mx-auto select-none">
+              <div className="overflow-x-auto"><div className="space-y-2 min-w-[410px] max-w-xl mx-auto select-none">
                 {data.seatMatrix.map((r) => {
                   const ordered = (r.seats || []).slice().sort((a, b) => Number(a.col) - Number(b.col));
                   const aisleAfterCol = resolveRowAisleSplitCol(ordered);
@@ -203,7 +209,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
                     return (
                       <div
                         key={s.code}
-                        title={`${s.code} (${s.type}) - ${isBooked ? 'Đã đặt' : isHolding ? 'Đang giữ tạm (10p)' : 'Còn trống'}`}
+                        title={`${s.code} (${s.type}) - ${isBooked ? 'Đã đặt' : isHolding ? 'Đang giữ tạm (10p)' : data.showtime.isBookableUpcoming ? 'Còn đặt được' : 'Trống, đã đóng bán'}`}
                         className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md text-[9px] font-bold flex items-center justify-center pointer-events-none transition-all ${
                           isBooked
                             ? 'bg-red-600 text-white border border-red-500 shadow-sm shadow-red-600/30'
@@ -235,6 +241,7 @@ const ShowtimeDetailDrawer = ({ showtimeId, onClose, onRequestDelete }) => {
                 })}
               </div>
 
+              </div>
               {/* Chú giải trạng thái ghế */}
               <div className="flex flex-wrap items-center justify-center gap-3.5 text-xs text-slate-400 pt-4 border-t border-[var(--border-default)]">
                 <span className="flex items-center space-x-1.5">

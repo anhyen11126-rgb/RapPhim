@@ -1,3 +1,4 @@
+import '../models/Cinema.js';
 import { summarizeReviews } from './reviewSummary.js';
 import { opensMoreThanSevenDaysAhead } from './bookingPolicy.js';
 import { DEFAULT_CLEANING_MINUTES, normalizeCleaningMinutes } from './showtimeLifecycleService.js';
@@ -8,7 +9,7 @@ import ShowtimeSeat from '../models/ShowtimeSeat.js';
 import Movie from '../models/Movie.js';
 import Room from '../models/Room.js';
 import User from '../models/User.js';
-import Expense, { DIRECT_MOVIE_EXPENSE_TYPES, EXPENSE_CATEGORY_LABELS } from '../models/Expense.js';
+import Expense, { EXPENSE_CATEGORY_LABELS } from '../models/Expense.js';
 import {
   parseDateFilter,
   calculateGrowth,
@@ -20,101 +21,71 @@ import {
   getVietnamParts,
   makeVietnamDate,
   formatVietnamDateKey,
-  CINEMA_OPERATION_START,
-  CINEMA_OPERATION_START_YEAR,
-  CINEMA_OPERATION_START_MONTH,
-  CINEMA_OPERATION_START_LABEL,
 } from '../utils/statisticsUtils.js';
 
 const validPayments = { $in: ['VERIFIED', 'SIMULATED'] };
 const verifiedRevenue = (booking) =>
   ['VERIFIED', 'SIMULATED'].includes(booking.paymentStatus) ? Number(booking.totalAmount || 0) : 0;
-const verifiedRefund = (booking) =>
-  booking.refundStatus === 'REFUNDED' &&
-  ['VERIFIED', 'SIMULATED'].includes(booking.paymentStatus)
-    ? Number(booking.refundAmount || 0)
-    : 0;
+const sumRefunds = (bookings) => {
+  const result = {
+    verifiedRefundedAmount: 0,
+    simulatedRefundedAmount: 0,
+    pendingRefundAmount: 0,
+    cancelledAmount: 0,
+    missingRefundAmountCount: 0,
+  };
+  for (const booking of bookings) {
+    result.cancelledAmount += Number(booking.totalAmount || 0);
+    const amount = Number(booking.refundAmount ?? 0);
+    if (['REFUNDED', 'SIMULATED', 'PENDING'].includes(booking.refundStatus) &&
+        (!Number.isFinite(amount) || amount < 0 ||
+          (amount === 0 && (booking.refundAmount == null || booking.totalAmount > 0)))) {
+      result.missingRefundAmountCount += 1;
+      continue;
+    }
+    if (booking.refundStatus === 'REFUNDED' && booking.paymentStatus === 'VERIFIED') {
+      result.verifiedRefundedAmount += amount;
+    }
+    if (booking.refundStatus === 'SIMULATED' ||
+        (booking.refundStatus === 'REFUNDED' && booking.paymentStatus === 'SIMULATED')) {
+      result.simulatedRefundedAmount += amount;
+    }
+    if (booking.refundStatus === 'PENDING') result.pendingRefundAmount += amount;
+  }
+  return {
+    ...result,
+    totalRefundedAmount: result.verifiedRefundedAmount + result.simulatedRefundedAmount,
+    refundPeriodBasis: 'CANCELLED_BOOKING_CREATED_AT',
+    refundDateKnown: false,
+  };
+};
 
 class StatisticsService {
-  /**
-   * Giải quyết khoảng thời gian lọc từ request query của Admin Statistics.
-   * Bật strictValidation khi truy vấn theo tháng cụ thể (by_month), tháng trước (last_month),
-   * cả năm (this_year) hoặc khoảng ngày tùy chỉnh (custom) để trả lỗi 400 rõ ràng nếu toàn bộ kỳ < 01/11/2026.
-   */
   resolvePeriodFilter(filters = {}) {
-    const {
-      timeRange = 'this_month',
-      customStart,
-      customEnd,
-      month,
-      year,
-      strictValidation,
-    } = filters;
-
-    const shouldStrict =
-      strictValidation !== undefined
-        ? Boolean(strictValidation)
-        : ['by_month', 'last_month', 'this_year', 'custom'].includes(timeRange) ||
-          (month != null && year != null);
-
-    return parseDateFilter({
-      timeRange,
-      customStart,
-      customEnd,
-      month,
-      year,
-      strictValidation: shouldStrict,
-    });
+    return parseDateFilter(filters);
   }
 
-  /**
-   * Helper tách doanh thu vé, bắp nước và chiết khấu từ 1 booking
-   */
-  resolveBookingSplit(booking, showtimePrice = 95000) {
-    const seatCount = countSeatsFromString(booking.seats);
+  resolveBookingSplit(booking) {
     const netAmount = verifiedRevenue(booking);
-    if (!['VERIFIED', 'SIMULATED'].includes(booking.paymentStatus)) {
-      return { ticketRev: 0, concessionRev: 0, discountAmount: 0, grossAmount: 0 };
-    }
-
-    const discountAmount = Number(booking.priceSnapshot?.discount || 0);
-
-    if (booking.priceSnapshot?.tickets?.length || booking.priceSnapshot?.combos?.length) {
-      const rawTicketRev = (booking.priceSnapshot.tickets || []).reduce(
-        (sum, t) => sum + Number(t.price || showtimePrice || 0),
-        0
-      );
-      const rawComboRev = (booking.priceSnapshot.combos || []).reduce(
-        (sum, c) => sum + Number(c.price || 0) * Number(c.quantity || 1),
-        0
-      );
-      const concessionRev = Math.min(netAmount, rawComboRev);
-      const ticketRev = Math.max(0, netAmount - concessionRev);
-      return {
-        ticketRev,
-        concessionRev,
-        discountAmount,
-        grossAmount: Math.max(netAmount + discountAmount, rawTicketRev + rawComboRev),
-      };
-    }
-
-    const estTicketRev = seatCount > 0 ? seatCount * (showtimePrice || 95000) : netAmount;
-    let ticketRev = netAmount;
-    let concessionRev = 0;
-
-    if (booking.concessions && booking.concessions.trim().length > 0) {
-      if (netAmount > estTicketRev) {
-        ticketRev = estTicketRev;
-        concessionRev = netAmount - estTicketRev;
-      } else {
-        ticketRev = Math.round(netAmount * 0.75);
-        concessionRev = netAmount - ticketRev;
-      }
-    }
-
+    const snapshot = booking.priceSnapshot;
+    const discountAmount = Number(snapshot?.discount || 0);
+    const combos = snapshot?.combos || [];
+    const tickets = snapshot?.tickets || [];
+    const hasConcessions = Boolean(booking.concessions?.trim() || combos.length);
+    const completeSnapshot = tickets.length === countSeatsFromString(booking.seats) &&
+      tickets.length > 0 && tickets.every(({ price }) => Number.isFinite(price)) &&
+      (!hasConcessions || (combos.length > 0 && combos.every(
+        ({ price, quantity }) => Number.isFinite(price) && Number.isFinite(quantity)
+      )));
+    const comboAmount = combos.reduce((sum, combo) => sum + combo.price * combo.quantity, 0);
+    const ticketAmount = tickets.reduce((sum, ticket) => sum + ticket.price, 0);
+    const reconciles = completeSnapshot && ticketAmount + comboAmount - discountAmount === netAmount;
+    const concessionRev = reconciles ? Math.min(netAmount, comboAmount) : 0;
+    const ticketRev = !hasConcessions || reconciles ? netAmount - concessionRev : 0;
     return {
       ticketRev,
       concessionRev,
+      unclassifiedRevenue: netAmount - ticketRev - concessionRev,
       discountAmount,
       grossAmount: netAmount + discountAmount,
     };
@@ -123,9 +94,9 @@ class StatisticsService {
   /**
    * Xác định trạng thái vòng đời thực tế của suất chiếu theo thời gian hiện tại:
    * - CANCELLED: cancelledAt != null hoặc lifecycleStatus === 'CANCELLED'
-   * - COMPLETED: now >= cleaningEndTime hoặc lifecycleStatus === 'COMPLETED'
-   * - CLEANING: endTime <= now < cleaningEndTime hoặc lifecycleStatus === 'CLEANING'
-   * - NOW_SHOWING: startTime <= now < endTime hoặc lifecycleStatus === 'NOW_SHOWING'
+   * - COMPLETED: now >= cleaningEndTime
+   * - CLEANING: endTime <= now < cleaningEndTime
+   * - NOW_SHOWING: startTime <= now < endTime
    * - UPCOMING: now < startTime (chưa bắt đầu chiếu)
    */
   resolveShowtimeLifecycle(showtime, now = new Date()) {
@@ -146,13 +117,13 @@ class StatisticsService {
       : endMs + cleaningMinutes * 60 * 1000;
     const nowMs = now.getTime();
 
-    if (nowMs >= cleaningEndMs || showtime.lifecycleStatus === 'COMPLETED') {
+    if (nowMs >= cleaningEndMs) {
       return 'COMPLETED';
     }
-    if ((nowMs >= endMs && nowMs < cleaningEndMs) || showtime.lifecycleStatus === 'CLEANING') {
+    if (nowMs >= endMs) {
       return 'CLEANING';
     }
-    if ((nowMs >= startMs && nowMs < endMs) || showtime.lifecycleStatus === 'NOW_SHOWING') {
+    if (nowMs >= startMs) {
       return 'NOW_SHOWING';
     }
     return 'UPCOMING';
@@ -173,7 +144,7 @@ class StatisticsService {
     const notStarted = lifecycle === 'UPCOMING' && startDate.getTime() > now.getTime();
     const notCancelled = !showtime.cancelledAt && lifecycle !== 'CANCELLED';
     const notLocked = !showtime.isLocked;
-    const roomStatus = String(roomDoc?.status || showtime.roomId?.status || 'ACTIVE').toUpperCase();
+    const roomStatus = String(roomDoc?.status || showtime.roomId?.status || (roomDoc || showtime.roomId?._id ? 'ACTIVE' : '')).toUpperCase();
     const roomActive = roomStatus === 'ACTIVE';
     const withinSevenDayWindow = notStarted && !opensMoreThanSevenDaysAhead(startDate, now);
 
@@ -305,7 +276,7 @@ class StatisticsService {
 
     // 3. Từ các giao dịch hủy có hoàn tiền hợp lệ trong kỳ (để đối soát tài chính, KHÔNG tính vào giới hạn 3 phim xếp lịch/tháng)
     for (const cb of cancelledBookings) {
-      if (verifiedRefund(cb) > 0 || ['VERIFIED', 'SIMULATED'].includes(cb.paymentStatus)) {
+      if (sumRefunds([cb]).totalRefundedAmount > 0 || ['VERIFIED', 'SIMULATED'].includes(cb.paymentStatus)) {
         const mId = extractMovieId(cb.movieId) || extractMovieId(cb.showtimeId?.movieId);
         if (mId) activeMovieIdSet.add(mId);
       }
@@ -390,14 +361,14 @@ class StatisticsService {
       .populate('movieId', 'title slug poster posterUrl duration genre status ageRating')
       .lean();
 
-    const showtimeIds = periodShowtimes.map((s) => s._id);
     const bookingMatch = {
       createdAt: { $gte: start, $lte: end },
       status: 'PAID',
       paymentStatus: validPayments,
     };
     if (Object.keys(showtimeFilterMatch).length > 0) {
-      bookingMatch.showtimeId = { $in: showtimeIds };
+      const ids = await Showtime.find(showtimeFilterMatch).distinct('_id');
+      bookingMatch.showtimeId = { $in: ids };
     }
 
     const [periodBookings, periodExpenses] = await Promise.all([
@@ -408,10 +379,7 @@ class StatisticsService {
       this.findExpensesInPeriod({
         start,
         end,
-        month: targetMonth,
-        year: targetYear,
-        timeRange: filters.timeRange || 'by_month',
-        roomId,
+        match: showtimeFilterMatch,
       }),
     ]);
 
@@ -548,7 +516,7 @@ class StatisticsService {
 
       const agg = seatMap.get(stId);
       const roomDoc = roomMap.get(String(st.roomId?._id || st.roomId));
-      const fallbackRoomCap = Number(roomDoc?.totalSeats || st.roomId?.totalSeats || 88);
+      const fallbackRoomCap = Number(roomDoc?.totalSeats || st.roomId?.totalSeats || 0);
       const hasSeatRecords = Boolean(agg && agg.totalSeats > 0);
 
       if (!hasSeatRecords) {
@@ -617,7 +585,7 @@ class StatisticsService {
         isBookableUpcoming: bookability.isBookableUpcoming,
         isWithinImmediateSalesWindow: bookability.isWithinImmediateSalesWindow,
         withinSevenDayWindow: bookability.withinSevenDayWindow,
-        bookableAvailableSeats,
+        bookableAvailableSeats: bookability.isWithinImmediateSalesWindow ? bookableAvailableSeats : 0,
         lockedUpcomingUnsoldSeats,
         lifecycle,
       });
@@ -647,90 +615,79 @@ class StatisticsService {
   /**
    * Helper lấy danh sách chi phí khớp với kỳ báo cáo
    */
-  async findExpensesInPeriod({ start, end, month, year, timeRange, movieId, roomId }) {
-    const query = {};
-    if (timeRange === 'by_month' && month && year) {
-      query.$or = [
-        { month: Number(month), year: Number(year) },
-        { date: { $gte: start, $lte: end } },
-      ];
-    } else {
-      query.date = { $gte: start, $lte: end };
+  async loadExpenseAllocation({ start, end } = {}) {
+    const expenseQuery = start ? { date: { $gte: start, $lte: end } } : {};
+    const expenses = await Expense.find(expenseQuery).sort({ date: -1 }).lean();
+    const monthStarts = new Map();
+    for (const expense of expenses) {
+      const { year, month } = getVietnamParts(expense.date);
+      monthStarts.set(`${year}-${month}`, {
+        $gte: makeVietnamDate(year, month),
+        $lt: makeVietnamDate(year, month + 1),
+      });
     }
-
-    if (roomId && roomId !== 'ALL' && mongoose.Types.ObjectId.isValid(roomId)) {
-      query.roomId = new mongoose.Types.ObjectId(roomId);
-    }
-
-    const expenses = await Expense.find(query)
-      .populate('movieId', 'title poster posterUrl duration')
-      .populate('roomId', 'roomNumber name shortName roomType')
-      .sort({ date: -1 })
-      .lean();
-
-    if (movieId && movieId !== 'ALL' && mongoose.Types.ObjectId.isValid(movieId)) {
-      return expenses.filter(
-        (e) => !e.movieId || String(e.movieId._id || e.movieId) === String(movieId)
-      );
-    }
-    return expenses;
+    const months = [...monthStarts.values()];
+    const showtimes = months.length ? await Showtime.find({
+      cancelledAt: null,
+      lifecycleStatus: { $ne: 'CANCELLED' },
+      $or: months.map((startTime) => ({ startTime })),
+    }).select('movieId roomId cinemaId startTime').sort({ _id: 1 }).lean() : [];
+    return { expenses, showtimes };
   }
 
-  /**
-   * Helper phân bổ chi phí vận hành dùng chung cho các bộ phim trong kỳ
-   * Đảm bảo tổng chi phí phân bổ của các phim khớp chính xác 100% với totalSharedOperationalExpenses (không lệch 1-2đ do làm tròn).
-   */
-  allocateSharedExpensesToMovies(
-    movieEntries = [],
-    totalSharedOperationalExpenses = 0,
-    { allocationMethod = 'SHOWTIMES', totalTheaterShowtimes = 0, totalTheaterScreeningMinutes = 0, totalNetRevenue = 0 } = {}
-  ) {
-    if (!Array.isArray(movieEntries) || movieEntries.length === 0) return;
-
-    const activeCount = movieEntries.length;
-    const rawShares = movieEntries.map((mv) => {
-      const stCount = Number(mv.showtimesCount || 0);
-      const rev = Number(mv.netRevenue ?? mv.revenue ?? 0);
-      const mins = Number(mv.screeningMinutes || stCount * Number(mv.duration || 120));
-
-      if (allocationMethod === 'DURATION' && totalTheaterScreeningMinutes > 0) {
-        return mins / totalTheaterScreeningMinutes;
-      }
-      if (allocationMethod === 'REVENUE' && totalNetRevenue > 0) {
-        return rev / totalNetRevenue;
-      }
-      if (totalTheaterShowtimes > 0) {
-        return stCount / totalTheaterShowtimes;
-      }
-      if (totalNetRevenue > 0) {
-        return rev / totalNetRevenue;
-      }
-      return 1 / activeCount;
-    });
-
-    let allocatedSum = 0;
-    let primaryIdx = 0;
-    let maxWeight = -1;
-
-    movieEntries.forEach((mv, idx) => {
-      const shareRatio = rawShares[idx] || 0;
-      if (shareRatio > maxWeight) {
-        maxWeight = shareRatio;
-        primaryIdx = idx;
-      }
-      mv.allocationSharePercent = Number((shareRatio * 100).toFixed(2));
-      const rounded = Math.round(totalSharedOperationalExpenses * shareRatio);
-      mv._allocatedCost = rounded;
-      allocatedSum += rounded;
-    });
-
-    const roundingDiff = totalSharedOperationalExpenses - allocatedSum;
-    if (roundingDiff !== 0 && movieEntries[primaryIdx] && totalSharedOperationalExpenses > 0) {
-      movieEntries[primaryIdx]._allocatedCost = Math.max(
-        0,
-        movieEntries[primaryIdx]._allocatedCost + roundingDiff
-      );
+  scopeExpenses({ expenses, showtimes }, match = {}) {
+    const idMatches = (id, filter) => {
+      if (filter == null) return true;
+      return filter.$in
+        ? filter.$in.some((value) => String(value) === String(id))
+        : String(filter) === String(id);
+    };
+    const inScope = (slot) =>
+      idMatches(slot.movieId, match.movieId) && idMatches(slot.roomId, match.roomId) &&
+      idMatches(slot.cinemaId, match.cinemaId);
+    const byMonth = new Map();
+    const monthKey = (date) => {
+      const { year, month } = getVietnamParts(date);
+      return `${year}-${month}`;
+    };
+    for (const slot of showtimes) {
+      const key = monthKey(slot.startTime);
+      if (!byMonth.has(key)) byMonth.set(key, []);
+      byMonth.get(key).push(slot);
     }
+    return expenses.flatMap((expense) => {
+      const { movieId, roomId, cinemaId } = expense;
+      if ((movieId && !idMatches(movieId, match.movieId)) ||
+          (roomId && !idMatches(roomId, match.roomId)) ||
+          (cinemaId && !idMatches(cinemaId, match.cinemaId))) return [];
+      const kind = movieId ? 'DIRECT_MOVIE' : roomId ? 'DIRECT_ROOM' : 'SHARED';
+      const originalAmount = Number(expense.amount || 0);
+      const eligible = (byMonth.get(monthKey(expense.date)) || []).filter((slot) =>
+        idMatches(slot.movieId, movieId) && idMatches(slot.roomId, roomId) && idMatches(slot.cinemaId, cinemaId)
+      );
+      const needsAllocation = (!movieId && match.movieId) || (!roomId && match.roomId) ||
+        (!cinemaId && match.cinemaId);
+      if (match.roomId?.$in?.length === 0) return [];
+      if (!eligible.length && needsAllocation) return [];
+      let amount = originalAmount;
+      if (needsAllocation) {
+        const base = Math.floor(originalAmount / eligible.length);
+        const remainder = originalAmount - base * eligible.length;
+        amount = 0;
+        let matched = 0;
+        eligible.forEach((slot, index) => {
+          if (!inScope(slot)) return;
+          matched += 1;
+          amount += base + Math.min(1, Math.max(0, remainder - index));
+        });
+        if (!matched) return [];
+      }
+      return [{ ...expense, amount, kind, unallocatedAmount: eligible.length ? 0 : originalAmount }];
+    });
+  }
+
+  async findExpensesInPeriod({ start, end, match }) {
+    return this.scopeExpenses(await this.loadExpenseAllocation({ start, end }), match);
   }
 
   /**
@@ -761,7 +718,6 @@ class StatisticsService {
       hasValidPreviousPeriod,
       isFirstOperatingMonth,
       momComparisonNote,
-      wasClampedToOperationStart,
     } = parsedDate;
 
     const allRooms = await Room.find({}).sort({ roomNumber: 1 }).lean();
@@ -795,10 +751,7 @@ class StatisticsService {
     // Đơn hủy/hoàn tiền trong kỳ: khớp theo ngày tạo đơn HOẶC ngày xử lý hoàn tiền (updatedAt) trong kỳ để hỗ trợ hoàn tiền khác tháng mà không thất thoát
     const cancelledBookingMatch = {
       status: 'CANCELLED',
-      $or: [
-        { createdAt: { $gte: start, $lte: end } },
-        { refundStatus: 'REFUNDED', updatedAt: { $gte: start, $lte: end } },
-      ],
+      createdAt: { $gte: start, $lte: end },
     };
 
     if (filteredShowtimeIds !== null) {
@@ -833,11 +786,7 @@ class StatisticsService {
         ? this.findExpensesInPeriod({
             start: prevStart,
             end: prevEnd,
-            month: getVietnamParts(prevStart).month,
-            year: getVietnamParts(prevStart).year,
-            timeRange: timeRange === 'by_month' ? 'by_month' : timeRange,
-            movieId,
-            roomId,
+            match: showtimeFilterMatch,
           })
         : Promise.resolve([]);
 
@@ -871,11 +820,7 @@ class StatisticsService {
       this.findExpensesInPeriod({
         start,
         end,
-        month: targetMonth,
-        year: targetYear,
-        timeRange,
-        movieId,
-        roomId,
+        match: showtimeFilterMatch,
       }),
       prevExpensesPromise,
     ]);
@@ -905,7 +850,6 @@ class StatisticsService {
     // Xác định động danh sách phim có hoạt động trong kỳ báo cáo (Mục IV)
     const {
       movies: activeMoviesDocsInPeriod,
-      activeMovieIds,
       schedulePolicyWarning,
       monthlyScheduledMoviesBreakdown,
     } = await this.resolveActiveMoviesInPeriod({
@@ -944,7 +888,6 @@ class StatisticsService {
         if (mId) screenedMovieIdsInPeriod.add(mId);
       } else if (lifecycle === 'CLEANING') {
         cleaningShowtimesCount += 1;
-        completedShowtimesCount += 1;
         if (mId) screenedMovieIdsInPeriod.add(mId);
       } else if (lifecycle === 'NOW_SHOWING') {
         nowShowingShowtimesCount += 1;
@@ -958,7 +901,9 @@ class StatisticsService {
     }
 
     const totalActiveShowtimesCount = activePeriodShowtimes.length;
-    const distinctMoviesCount = activeMovieIds.length;
+    const distinctMoviesCount = new Set(activePeriodShowtimes.map(
+      (slot) => slot.movieId?._id ?? slot.movieId
+    ).filter(Boolean).map(String)).size;
     const screenedMoviesCount = screenedMovieIdsInPeriod.size;
 
     // 1. Tính toán DOANH THU & VÉ THEO THỜI ĐIỂM GHI NHẬN GIAO DỊCH (Booking.createdAt trong kỳ)
@@ -981,8 +926,7 @@ class StatisticsService {
       const count = countSeatsFromString(b.seats);
       validTicketsSold += count;
 
-      const stPrice = b.showtimeId?.price || 95000;
-      const split = this.resolveBookingSplit(b, stPrice);
+      const split = this.resolveBookingSplit(b);
       totalTicketRevenue += split.ticketRev;
       totalConcessionRevenue += split.concessionRev;
       totalDiscountAmount += split.discountAmount;
@@ -1000,7 +944,7 @@ class StatisticsService {
 
     // 2. Gom số ghế & doanh thu THEO SUẤT CHIẾU DIỄN RA TRONG KỲ (Showtime.startTime trong kỳ)
     const showtimeRevenueMap = new Map();
-    const showtimeSoldMap = new Map();
+    const showtimeOrderCount = new Map();
     let preBookedFromEarlierPeriodTicketsCount = 0; // Vé của suất chiếu kỳ này nhưng khách đã đặt từ kỳ trước
     let preBookedFromEarlierPeriodRevenue = 0;
 
@@ -1010,7 +954,7 @@ class StatisticsService {
       const netAmt = verifiedRevenue(b);
       const count = countSeatsFromString(b.seats);
       showtimeRevenueMap.set(stId, (showtimeRevenueMap.get(stId) || 0) + netAmt);
-      showtimeSoldMap.set(stId, (showtimeSoldMap.get(stId) || 0) + count);
+      showtimeOrderCount.set(stId, (showtimeOrderCount.get(stId) || 0) + 1);
 
       const createdMs = new Date(b.createdAt).getTime();
       if (createdMs < start.getTime() || createdMs > end.getTime()) {
@@ -1025,14 +969,8 @@ class StatisticsService {
       (sum, b) => sum + countSeatsFromString(b.seats),
       0
     );
-    const totalRefunded = cancelledBookings.reduce((sum, b) => {
-      const refTimestamp = b.updatedAt ? new Date(b.updatedAt).getTime() : new Date(b.createdAt).getTime();
-      const inPeriod =
-        (refTimestamp >= start.getTime() && refTimestamp <= end.getTime()) ||
-        (new Date(b.createdAt).getTime() >= start.getTime() &&
-          new Date(b.createdAt).getTime() <= end.getTime());
-      return inPeriod ? sum + verifiedRefund(b) : sum;
-    }, 0);
+    const refunds = sumRefunds(cancelledBookings);
+    const totalRefunded = refunds.verifiedRefundedAmount;
 
     // Doanh thu & vé kỳ trước (chỉ tính nếu hasValidPreviousPeriod === true)
     let prevNetRevenue = 0;
@@ -1051,14 +989,12 @@ class StatisticsService {
       ? prevPeriodShowtimes.filter((st) => !st.cancelledAt && st.lifecycleStatus !== 'CANCELLED')
       : [];
     const prevShowtimesCount = prevActiveShowtimes.length;
-    const prevSellableSeats = prevActiveShowtimes.reduce(
-      (sum, st) =>
-        sum + Number(st.roomId?.totalSeats || roomMap.get(String(st.roomId))?.totalSeats || 88),
-      0
-    );
+    const prevSeatStats = await this.computeShowtimeSeatStats(prevActiveShowtimes, roomMap, now);
+    const prevBookedSeats = [...prevSeatStats.perShowtimeMap.values()].reduce((sum, info) => sum + info.bookedSeatsFromSeatDoc, 0);
+    const prevSellableSeats = prevSeatStats.totalSellableSeats;
     const prevOccupancyRate =
       prevSellableSeats > 0
-        ? Number(((prevTicketsSold / prevSellableSeats) * 100).toFixed(2))
+        ? Number(((prevBookedSeats / prevSellableSeats) * 100).toFixed(2))
         : 0;
 
     // Công suất ghế kỳ hiện tại (Mục VII & Final Validation Mục 1, 2, 4):
@@ -1072,16 +1008,11 @@ class StatisticsService {
     const totalHoldingPeriod = seatStats.totalHoldingSeats || 0;
     let completedSoldSeats = 0;
     let upcomingSoldSeats = 0;
-    let upcomingBookableSoldSeats = 0;
-    let lockedUpcomingSoldSeats = 0;
 
     for (const st of activePeriodShowtimes) {
       const stId = String(st._id);
       const info = seatStats.perShowtimeMap.get(stId);
-      const soldForSt = Math.max(
-        info?.bookedSeatsFromSeatDoc || 0,
-        showtimeSoldMap.get(stId) || 0
-      );
+      const soldForSt = info?.bookedSeatsFromSeatDoc || 0;
       if (
         info?.lifecycle === 'COMPLETED' ||
         info?.lifecycle === 'NOW_SHOWING' ||
@@ -1090,11 +1021,6 @@ class StatisticsService {
         completedSoldSeats += soldForSt;
       } else {
         upcomingSoldSeats += soldForSt;
-        if (info?.isLocked) {
-          lockedUpcomingSoldSeats += soldForSt;
-        } else if (info?.isBookableUpcoming) {
-          upcomingBookableSoldSeats += soldForSt;
-        }
       }
     }
 
@@ -1107,17 +1033,9 @@ class StatisticsService {
       0,
       seatStats.totalCompletedSeats - completedSoldSeats - (seatStats.totalCompletedHoldingSeats || 0)
     );
-    const lockedUpcomingUnsoldSeats = Math.max(
-      0,
-      (seatStats.totalLockedUpcomingSeats || 0) - lockedUpcomingSoldSeats
-    );
+    const lockedUpcomingUnsoldSeats = seatStats.totalLockedUpcomingUnsoldSeats;
     // Ghế thực sự còn được phép đặt: chỉ thuộc các suất sắp chiếu hợp lệ (!isLocked, có ShowtimeSeat, chưa bắt đầu, chưa hủy)
-    const upcomingAvailableSeats = Math.max(
-      0,
-      seatStats.totalUpcomingVerifiedSeats -
-        upcomingBookableSoldSeats -
-        (seatStats.totalUpcomingHoldingSeats || 0)
-    );
+    const upcomingAvailableSeats = seatStats.totalImmediateWindowBookableSeats;
 
     // 3 Tỷ lệ công suất chuẩn hóa theo đúng mẫu số (Final Validation Mục 4):
     // (1) Tỷ lệ bán vé trên tổng ghế mở bán toàn kỳ
@@ -1144,19 +1062,7 @@ class StatisticsService {
 
     // Chi phí & Lợi nhuận kỳ hiện tại
     const hasExpenseData = currentExpenses.length > 0;
-    let totalExpenses = 0;
-    if (movieId && movieId !== 'ALL' && mongoose.Types.ObjectId.isValid(movieId)) {
-      const directMovieCost = currentExpenses
-        .filter((e) => e.movieId && String(e.movieId._id || e.movieId) === String(movieId))
-        .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-      const sharedCost = currentExpenses
-        .filter((e) => !e.movieId && !DIRECT_MOVIE_EXPENSE_TYPES.includes(e.type))
-        .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-      totalExpenses =
-        directMovieCost + Math.round(sharedCost / Math.max(1, distinctMoviesCount || 1));
-    } else {
-      totalExpenses = currentExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
-    }
+    const totalExpenses = currentExpenses.reduce((sum, expense) => sum + expense.amount, 0);
 
     const prevHasExpenseData = hasValidPreviousPeriod && prevExpenses.length > 0;
     const prevTotalExpenses = hasValidPreviousPeriod
@@ -1171,8 +1077,6 @@ class StatisticsService {
     const profitMargin =
       profitKnown && netRevenue > 0
         ? Number(((profit / netRevenue) * 100).toFixed(1))
-        : profitKnown && totalExpenses > 0
-        ? -100
         : null;
 
     const profitStatus = !profitKnown
@@ -1191,7 +1095,7 @@ class StatisticsService {
       ? 'Hòa vốn'
       : 'Thua lỗ';
 
-    // So sánh tăng trưởng MoM (Nếu Tháng 11/2026 là tháng đầu vận hành -> hasValidPreviousPeriod = false -> growth = null)
+    // So sánh với kỳ trước; giá trị tăng trưởng null khi mẫu số bằng 0.
     const revenueGrowth = calculateGrowth(netRevenue, prevNetRevenue, hasValidPreviousPeriod);
     const ticketsGrowth = calculateGrowth(validTicketsSold, prevTicketsSold, hasValidPreviousPeriod);
     const showtimesGrowth = calculateGrowth(
@@ -1226,12 +1130,16 @@ class StatisticsService {
       1,
       Math.round(((chartEnd || end).getTime() - start.getTime()) / (24 * 60 * 60 * 1000))
     );
-    const avgRevenuePerShowtime =
-      totalActiveShowtimesCount > 0 ? Math.round(netRevenue / totalActiveShowtimesCount) : 0;
-    const avgRevenuePerScreenedShowtime =
-      completedShowtimesCount + nowShowingShowtimesCount > 0
-        ? Math.round(netRevenue / (completedShowtimesCount + nowShowingShowtimesCount))
-        : 0;
+    const screenedShowtimes = activePeriodShowtimes.filter(
+      (slot) => seatStats.perShowtimeMap.get(String(slot._id))?.lifecycle !== 'UPCOMING'
+    );
+    const showtimeRevenue = (slots) => slots.reduce(
+      (sum, slot) => sum + (showtimeRevenueMap.get(String(slot._id)) || 0), 0
+    );
+    const avgRevenuePerShowtime = totalActiveShowtimesCount
+      ? Math.round(showtimeRevenue(activePeriodShowtimes) / totalActiveShowtimesCount) : 0;
+    const avgRevenuePerScreenedShowtime = screenedShowtimes.length
+      ? Math.round(showtimeRevenue(screenedShowtimes) / screenedShowtimes.length) : 0;
     const avgRevenuePerDay = Math.round(netRevenue / totalCalendarDaysInPeriod);
 
     // Thống kê theo từng phòng chiếu (9 phòng vật lý) & theo loại phòng (IMAX Laser, Dolby Atmos, Gold Class)
@@ -1243,14 +1151,17 @@ class StatisticsService {
         roomName: r.name,
         shortName: r.shortName,
         roomType: r.roomType,
-        physicalSeats: Number(r.totalSeats || 88),
+        physicalSeats: Number(r.totalSeats || 0),
         status: r.status,
         showtimesCount: 0,
         completedShowtimesCount: 0,
         upcomingShowtimesCount: 0,
+        nowShowingShowtimesCount: 0,
+        cleaningShowtimesCount: 0,
         totalSellableSeats: 0,
         soldSeats: 0,
         holdingSeats: 0,
+        bookableAvailableSeats: 0,
         unsoldSeats: 0,
         occupancyRate: 0,
         revenue: 0,
@@ -1264,10 +1175,12 @@ class StatisticsService {
         roomsCount: allRooms.filter((r) => r.roomType === 'IMAX Laser').length,
         physicalSeats: allRooms
           .filter((r) => r.roomType === 'IMAX Laser')
-          .reduce((s, r) => s + Number(r.totalSeats || 88), 0),
+          .reduce((s, r) => s + Number(r.totalSeats || 0), 0),
         showtimesCount: 0,
         totalSellableSeats: 0,
         soldSeats: 0,
+        holdingSeats: 0,
+        bookableAvailableSeats: 0,
         unsoldSeats: 0,
         occupancyRate: 0,
         revenue: 0,
@@ -1277,10 +1190,12 @@ class StatisticsService {
         roomsCount: allRooms.filter((r) => r.roomType === 'Dolby Atmos').length,
         physicalSeats: allRooms
           .filter((r) => r.roomType === 'Dolby Atmos')
-          .reduce((s, r) => s + Number(r.totalSeats || 88), 0),
+          .reduce((s, r) => s + Number(r.totalSeats || 0), 0),
         showtimesCount: 0,
         totalSellableSeats: 0,
         soldSeats: 0,
+        holdingSeats: 0,
+        bookableAvailableSeats: 0,
         unsoldSeats: 0,
         occupancyRate: 0,
         revenue: 0,
@@ -1290,10 +1205,12 @@ class StatisticsService {
         roomsCount: allRooms.filter((r) => r.roomType === 'Gold Class').length,
         physicalSeats: allRooms
           .filter((r) => r.roomType === 'Gold Class')
-          .reduce((s, r) => s + Number(r.totalSeats || 88), 0),
+          .reduce((s, r) => s + Number(r.totalSeats || 0), 0),
         showtimesCount: 0,
         totalSellableSeats: 0,
         soldSeats: 0,
+        holdingSeats: 0,
+        bookableAvailableSeats: 0,
         unsoldSeats: 0,
         occupancyRate: 0,
         revenue: 0,
@@ -1304,33 +1221,33 @@ class StatisticsService {
       const stId = String(st._id);
       const rId = String(st.roomId?._id || st.roomId || '');
       const seatInfo = seatStats.perShowtimeMap.get(stId);
-      const stCap = seatInfo?.totalSeats || 88;
-      const stSold = Math.max(
-        seatInfo?.bookedSeatsFromSeatDoc || 0,
-        showtimeSoldMap.get(stId) || 0
-      );
+      const stCap = seatInfo?.totalSeats || 0;
+      const stSold = seatInfo?.bookedSeatsFromSeatDoc || 0;
       const stHold = seatInfo?.holdingSeats || 0;
       const stRev = showtimeRevenueMap.get(stId) || 0;
 
       const rEntry = roomBreakdownMap.get(rId);
       if (rEntry) {
         rEntry.showtimesCount += 1;
-        if (seatInfo?.lifecycle === 'COMPLETED' || seatInfo?.lifecycle === 'NOW_SHOWING') {
-          rEntry.completedShowtimesCount += 1;
-        } else {
-          rEntry.upcomingShowtimesCount += 1;
-        }
+        const counters = {
+          COMPLETED: 'completedShowtimesCount', NOW_SHOWING: 'nowShowingShowtimesCount',
+          CLEANING: 'cleaningShowtimesCount', UPCOMING: 'upcomingShowtimesCount',
+        };
+        rEntry[counters[seatInfo.lifecycle]] += 1;
         rEntry.totalSellableSeats += stCap;
         rEntry.soldSeats += stSold;
         rEntry.holdingSeats += stHold;
+        rEntry.bookableAvailableSeats += seatInfo?.bookableAvailableSeats || 0;
         rEntry.revenue += stRev;
       }
 
-      const rType = rEntry?.roomType || st.roomId?.roomType || 'IMAX Laser';
+      const rType = rEntry?.roomType || st.roomId?.roomType;
       if (roomTypeBreakdownMap[rType]) {
         roomTypeBreakdownMap[rType].showtimesCount += 1;
         roomTypeBreakdownMap[rType].totalSellableSeats += stCap;
         roomTypeBreakdownMap[rType].soldSeats += stSold;
+        roomTypeBreakdownMap[rType].holdingSeats += stHold;
+        roomTypeBreakdownMap[rType].bookableAvailableSeats += seatInfo?.bookableAvailableSeats || 0;
         roomTypeBreakdownMap[rType].revenue += stRev;
       }
     }
@@ -1344,13 +1261,14 @@ class StatisticsService {
       return {
         ...r,
         unsoldSeats: unsold,
+        closedUnsoldSeats: unsold - r.bookableAvailableSeats,
         occupancyRate: occ,
         revenueFormatted: formatCurrency(r.revenue),
       };
     });
 
     const roomTypeBreakdown = Object.values(roomTypeBreakdownMap).map((rt) => {
-      const unsold = Math.max(0, rt.totalSellableSeats - rt.soldSeats);
+      const unsold = Math.max(0, rt.totalSellableSeats - rt.soldSeats - rt.holdingSeats);
       const occ =
         rt.totalSellableSeats > 0
           ? Number(Math.min(100, (rt.soldSeats / rt.totalSellableSeats) * 100).toFixed(2))
@@ -1360,6 +1278,7 @@ class StatisticsService {
       return {
         ...rt,
         unsoldSeats: unsold,
+        closedUnsoldSeats: unsold - rt.bookableAvailableSeats,
         occupancyRate: occ,
         revenueSharePercent: revShare,
         revenueFormatted: formatCurrency(rt.revenue),
@@ -1367,7 +1286,7 @@ class StatisticsService {
     });
 
     // Chuỗi dữ liệu biểu đồ theo ngày trong kỳ (Asia/Ho_Chi_Minh)
-    const revenueTrendMap = {};
+    const revenueTrendMap = Object.create(null);
     const startParts = getVietnamParts(start);
     const endParts = getVietnamParts(chartEnd || end);
     let cursorMs = makeVietnamDate(startParts.year, startParts.month, startParts.day, 0, 0, 0, 0).getTime();
@@ -1388,9 +1307,11 @@ class StatisticsService {
         orders: 0,
         showtimesCount: 0,
         sellableSeats: 0,
+        bookedSeats: 0,
         occupancyRate: 0,
         expense: 0,
-        profit: 0,
+        hasExpenseData: false,
+        profit: null,
       };
       cursorMs += 24 * 60 * 60 * 1000;
     }
@@ -1398,7 +1319,7 @@ class StatisticsService {
     currentBookings.forEach((b) => {
       const fullKey = formatVietnamDateKey(b.createdAt, 'DD/MM/YYYY');
       if (revenueTrendMap[fullKey]) {
-        const split = this.resolveBookingSplit(b, b.showtimeId?.price);
+        const split = this.resolveBookingSplit(b);
         revenueTrendMap[fullKey].ticketRevenue += split.ticketRev;
         revenueTrendMap[fullKey].concessionRevenue += split.concessionRev;
         revenueTrendMap[fullKey].netRevenue += verifiedRevenue(b);
@@ -1412,7 +1333,8 @@ class StatisticsService {
       if (revenueTrendMap[fullKey]) {
         const seatInfo = seatStats.perShowtimeMap.get(String(st._id));
         revenueTrendMap[fullKey].showtimesCount += 1;
-        revenueTrendMap[fullKey].sellableSeats += seatInfo?.totalSeats || 88;
+        revenueTrendMap[fullKey].sellableSeats += seatInfo?.totalSeats || 0;
+        revenueTrendMap[fullKey].bookedSeats += seatInfo?.bookedSeatsFromSeatDoc || 0;
       }
     });
 
@@ -1420,18 +1342,21 @@ class StatisticsService {
       const fullKey = formatVietnamDateKey(e.date, 'DD/MM/YYYY');
       if (revenueTrendMap[fullKey]) {
         revenueTrendMap[fullKey].expense += Number(e.amount || 0);
+        revenueTrendMap[fullKey].hasExpenseData = true;
       }
     });
 
     Object.values(revenueTrendMap).forEach((d) => {
-      d.profit = d.netRevenue - d.expense;
+      d.profit = d.hasExpenseData ? d.netRevenue - d.expense : null;
       d.occupancyRate =
         d.sellableSeats > 0
-          ? Number(Math.min(100, (d.tickets / d.sellableSeats) * 100).toFixed(2))
+          ? Number(Math.min(100, (d.bookedSeats / d.sellableSeats) * 100).toFixed(2))
           : 0;
     });
 
-    const revenueChartData = Object.values(revenueTrendMap);
+    const revenueChartData = Object.values(revenueTrendMap).map((day) => start > now
+      ? { ...day, status: 'FUTURE', netRevenue: null, ticketRevenue: null, concessionRevenue: null }
+      : day);
 
     // Thống kê các bộ phim thực sự có hoạt động trong kỳ (KHÔNG dùng dữ liệu tĩnh m.stats từ Movie model!)
     const movieStatsMap = {};
@@ -1479,7 +1404,8 @@ class StatisticsService {
       }
       const seatInfo = seatStats.perShowtimeMap.get(String(st._id));
       movieStatsMap[mId].showtimesCount += 1;
-      movieStatsMap[mId].totalSellableSeats += seatInfo?.totalSeats || 88;
+      movieStatsMap[mId].totalSellableSeats += seatInfo?.totalSeats || 0;
+      movieStatsMap[mId].bookedSeats = (movieStatsMap[mId].bookedSeats || 0) + (seatInfo?.bookedSeatsFromSeatDoc || 0);
     });
 
     currentBookings.forEach((b) => {
@@ -1504,7 +1430,7 @@ class StatisticsService {
           occupancyRate: 0,
         };
       }
-      const split = this.resolveBookingSplit(b, b.showtimeId?.price);
+      const split = this.resolveBookingSplit(b);
       movieStatsMap[mId].revenue += verifiedRevenue(b);
       movieStatsMap[mId].ticketRevenue += split.ticketRev;
       movieStatsMap[mId].concessionRevenue += split.concessionRev;
@@ -1515,7 +1441,7 @@ class StatisticsService {
     Object.values(movieStatsMap).forEach((m) => {
       m.occupancyRate =
         m.totalSellableSeats > 0
-          ? Number(Math.min(100, (m.tickets / m.totalSellableSeats) * 100).toFixed(2))
+          ? Number(Math.min(100, ((m.bookedSeats || 0) / m.totalSellableSeats) * 100).toFixed(2))
           : 0;
     });
 
@@ -1527,8 +1453,8 @@ class StatisticsService {
         a.title.localeCompare(b.title)
     );
 
-    const topRevenueMovies = allPeriodMovies.slice(0, 5);
-    const topTicketsMovies = [...allPeriodMovies]
+    const topRevenueMovies = allPeriodMovies.filter((movie) => movie.revenue > 0).slice(0, 5);
+    const topTicketsMovies = allPeriodMovies.filter((movie) => movie.tickets > 0)
       .sort(
         (a, b) =>
           b.tickets - a.tickets ||
@@ -1539,6 +1465,8 @@ class StatisticsService {
 
     // Phân tích theo khung giờ chiếu (Time Slot Performance)
     const timeSlotBuckets = [
+      { key: 'EARLY_MORNING', slot: '02:00 - 08:00', minHour: 2, maxHour: 8,
+        showtimesCount: 0, sellableSeats: 0, tickets: 0, bookings: 0, revenue: 0 },
       {
         key: 'MORNING',
         slot: '08:00 - 12:00 (Sáng)',
@@ -1587,7 +1515,7 @@ class StatisticsService {
 
     const findBucketForDate = (dt) => {
       const { hour } = getVietnamParts(dt);
-      const normHour = hour < 6 ? hour + 24 : hour;
+      const normHour = hour < 2 ? hour + 24 : hour;
       return (
         timeSlotBuckets.find((b) => normHour >= b.minHour && normHour < b.maxHour) ||
         timeSlotBuckets[timeSlotBuckets.length - 1]
@@ -1598,15 +1526,15 @@ class StatisticsService {
       const bucket = findBucketForDate(st.startTime);
       const seatInfo = seatStats.perShowtimeMap.get(String(st._id));
       bucket.showtimesCount += 1;
-      bucket.sellableSeats += seatInfo?.totalSeats || 88;
+      bucket.sellableSeats += seatInfo?.totalSeats || 0;
     });
 
-    currentBookings.forEach((b) => {
-      const refTime = b.showtimeId?.startTime || b.createdAt;
-      const bucket = findBucketForDate(refTime);
-      bucket.tickets += countSeatsFromString(b.seats);
-      bucket.bookings += 1;
-      bucket.revenue += verifiedRevenue(b);
+    activePeriodShowtimes.forEach((st) => {
+      const bucket = findBucketForDate(st.startTime);
+      const id = String(st._id);
+      bucket.tickets += seatStats.perShowtimeMap.get(id)?.bookedSeatsFromSeatDoc || 0;
+      bucket.revenue += showtimeRevenueMap.get(id) || 0;
+      bucket.bookings += showtimeOrderCount.get(id) || 0;
     });
 
     const peakHours = timeSlotBuckets.map((b) => ({
@@ -1652,7 +1580,7 @@ class StatisticsService {
       cancelledBookings.length > 0 ||
       currentExpenses.length > 0;
 
-    const dbMode = String(process.env.DB_MODE || 'LIVE').trim().toUpperCase();
+    const dbMode = String(process.env.DB_MODE || 'LIVE').trim().toUpperCase() === 'DEMO' ? 'DEMO' : 'LIVE';
     const isSimulatedMode =
       dbMode === 'DEMO' ||
       (simulatedRevenueTotal > 0 && verifiedRevenueTotal === 0) ||
@@ -1662,18 +1590,21 @@ class StatisticsService {
       timeRangeLabel: label,
       dbMode,
       databaseName: mongoose.connection?.name || 'movietix_db',
-      operationStartDate: CINEMA_OPERATION_START,
-      operationStartLabel: CINEMA_OPERATION_START_LABEL,
-      wasClampedToOperationStart,
+      wasClampedToOperationStart: false,
       isFirstOperatingMonth,
       hasValidPreviousPeriod,
       momComparisonNote,
+      previousPeriodHasData: Boolean(prevBookings.length || prevActiveShowtimes.length || prevExpenses.length),
       schedulePolicyWarning,
       monthlyScheduledMoviesBreakdown,
       isSimulatedMode,
-      revenueSourceBadge: isSimulatedMode ? 'Doanh thu mô phỏng' : 'Dòng tiền thực',
+      revenueSourceBadge: verifiedRevenueTotal > 0 && simulatedRevenueTotal > 0
+        ? 'Doanh thu xác minh và mô phỏng'
+        : verifiedRevenueTotal > 0 ? 'Doanh thu xác minh'
+        : simulatedRevenueTotal > 0 ? 'Doanh thu mô phỏng' : 'Chưa phát sinh doanh thu',
       crossPeriodReconciliation: {
         recognitionBasis: {
+          paymentDateKnown: false,
           revenueBasis: 'TRANSACTION_DATE (Booking.createdAt)',
           capacityBasis: 'SHOWTIME_DATE (Showtime.startTime)',
         },
@@ -1704,11 +1635,13 @@ class StatisticsService {
         simulatedRevenueFormatted: formatExactCurrency(simulatedRevenueTotal),
       },
       profitKnown,
+      profitBasis: hasExpenseData ? 'RECORDED_EXPENSES_ONLY' : null,
+      unallocatedExpenses: currentExpenses.reduce((sum, expense) => sum + expense.unallocatedAmount, 0),
       hasExpenseData,
       cinemaCapacity: {
         physicalRoomsCount,
         activePhysicalRoomsCount: activePhysicalRooms.length,
-        seatsPerRoom: 88,
+        seatsPerRoom: allRooms.length ? allRooms.reduce((total, room) => total + Number(room.totalSeats || 0), 0) / allRooms.length : 0,
         totalPhysicalSeats,
         periodActiveShowtimesCount: totalActiveShowtimesCount,
         periodCompletedShowtimesCount: completedShowtimesCount,
@@ -1722,6 +1655,7 @@ class StatisticsService {
         transactionTicketsSold: validTicketsSold,
         periodHoldingSeats: totalHoldingPeriod,
         periodUnsoldSeats: availableSeatsPeriod,
+        closedUnsoldSeats: availableSeatsPeriod - upcomingAvailableSeats,
         completedSellableSeats: seatStats.totalCompletedSeats,
         completedSoldSeats,
         completedUnsoldSeats,
@@ -1769,6 +1703,9 @@ class StatisticsService {
           simulatedRevenue: simulatedRevenueTotal,
           grossRevenue: totalGrossRevenue,
           discountAmount: totalDiscountAmount,
+          unclassifiedRevenue: netRevenue - totalTicketRevenue - totalConcessionRevenue,
+          revenueSplitWarning: netRevenue !== totalTicketRevenue + totalConcessionRevenue ? 'INCOMPLETE_PRICE_SNAPSHOT' : null,
+          ...refunds,
           refundedAmount: totalRefunded,
           growth: revenueGrowth,
           subtitle: !hasValidPreviousPeriod ? 'Tháng đầu vận hành' : undefined,
@@ -1804,6 +1741,7 @@ class StatisticsService {
         // 5. Số bộ phim có suất chiếu thực tế trong kỳ
         distinctMovies: {
           value: distinctMoviesCount,
+          financialActivityMoviesCount: allPeriodMovies.filter((movie) => movie.bookingsCount > 0).length,
           screenedMoviesCount,
           formatted: `${distinctMoviesCount} phim`,
           growth: null,
@@ -1815,6 +1753,7 @@ class StatisticsService {
           value: totalActiveShowtimesCount,
           completedCount: completedShowtimesCount,
           nowShowingCount: nowShowingShowtimesCount,
+          cleaningCount: cleaningShowtimesCount,
           upcomingCount: upcomingShowtimesCount,
           cancelledCount: cancelledShowtimesCount,
           formatted: `${totalActiveShowtimesCount.toLocaleString('vi-VN')} suất`,
@@ -1850,11 +1789,13 @@ class StatisticsService {
             : 'Chưa ghi nhận chi phí trong kỳ',
           growth: profitGrowth,
           margin: profitMargin,
+          profitMargin,
+          roi: profitKnown && totalExpenses > 0 ? Number(((profit / totalExpenses) * 100).toFixed(1)) : null,
           status: profitStatus,
           statusLabel: profitStatusLabel,
           title: 'Lợi nhuận rạp',
           tooltip: profitKnown
-            ? `Lợi nhuận = Doanh thu thuần (${formatExactCurrency(netRevenue)}) - Chi phí (${formatExactCurrency(totalExpenses)}). Biên LN: ${profitMargin}%`
+            ? `Lợi nhuận = Doanh thu thuần (${formatExactCurrency(netRevenue)}) - Chi phí (${formatExactCurrency(totalExpenses)}), theo chi phí đã ghi nhận`
             : 'Cần nhập chi phí thực tế tại Tab Doanh thu & Chi phí để tính lợi nhuận và biên lợi nhuận chính xác',
         },
         // 9. Tỷ lệ bán vé / Công suất lấp đầy (phân biệt rõ 3 tỷ lệ theo mẫu số)
@@ -1875,6 +1816,7 @@ class StatisticsService {
         },
         // 10. Doanh thu trung bình / suất & / ngày
         averages: {
+          showtimeRevenueBasis: 'SHOWTIME_START_TIME',
           avgRevenuePerShowtime,
           avgRevenuePerShowtimeFormatted: formatExactCurrency(avgRevenuePerShowtime),
           avgRevenuePerScreenedShowtime,
@@ -1888,7 +1830,7 @@ class StatisticsService {
         bookedSeats: {
           value: periodShowtimeBookedSeats,
           formatted: `${periodShowtimeBookedSeats.toLocaleString('vi-VN')} ghế`,
-          growth: ticketsGrowth,
+          growth: calculateGrowth(periodShowtimeBookedSeats, prevBookedSeats),
           title: 'Ghế đã đặt của suất trong kỳ',
           tooltip: `Số ghế đã đặt trên tổng ${totalSellablePeriod.toLocaleString('vi-VN')} ghế mở bán của các suất chiếu trong kỳ`,
         },
@@ -1942,7 +1884,7 @@ class StatisticsService {
         exactRate: exactOccupancyRatio,
         roomCount: physicalRoomsCount,
         activeRoomCount: activePhysicalRooms.length,
-        seatsPerRoom: 88,
+        seatsPerRoom: allRooms.length ? allRooms.reduce((total, room) => total + Number(room.totalSeats || 0), 0) / allRooms.length : 0,
         totalPhysicalSeats,
         activeShowtimesCount: totalActiveShowtimesCount,
         completedShowtimesCount,
@@ -1954,6 +1896,7 @@ class StatisticsService {
         missingSeatShowtimesCount: seatStats.missingSeatShowtimesCount,
       },
       roomOccupancyBreakdown,
+      missingRoomShowtimesCount: activePeriodShowtimes.filter((slot) => !slot.roomId).length,
       roomTypeBreakdown,
       revenueChartData,
       topRevenueMovies,
@@ -1994,13 +1937,13 @@ class StatisticsService {
       roomId,
       roomType,
       room,
-      allocationMethod = 'SHOWTIMES',
     } = filters;
 
     const parsedDate = this.resolvePeriodFilter(filters);
     const {
       start,
       end,
+      chartEnd,
       showtimeEnd,
       label,
       month: targetMonth,
@@ -2028,10 +1971,7 @@ class StatisticsService {
     };
     const cancelledMatch = {
       status: 'CANCELLED',
-      $or: [
-        { createdAt: { $gte: start, $lte: end } },
-        { refundStatus: 'REFUNDED', updatedAt: { $gte: start, $lte: end } },
-      ],
+      createdAt: { $gte: start, $lte: end },
     };
     if (filteredShowtimeIds !== null) {
       bookingMatch.showtimeId = { $in: filteredShowtimeIds };
@@ -2045,7 +1985,7 @@ class StatisticsService {
       startTime: { $gte: start, $lte: showtimeEnd || end },
     };
 
-    const [bookings, cancelledBookings, expenses, periodShowtimes] = await Promise.all([
+    const [bookings, cancelledBookings, periodAllocation, periodShowtimes] = await Promise.all([
       Booking.find(bookingMatch)
         .populate({
           path: 'showtimeId',
@@ -2063,21 +2003,14 @@ class StatisticsService {
           populate: { path: 'movieId', select: 'title poster posterUrl duration genre' },
         })
         .lean(),
-      this.findExpensesInPeriod({
-        start,
-        end,
-        month: targetMonth,
-        year: targetYear,
-        timeRange,
-        movieId,
-        roomId,
-      }),
+      this.loadExpenseAllocation({ start, end }),
       Showtime.find(periodShowtimeQuery)
         .populate('movieId', 'title poster posterUrl duration genre status')
         .populate('roomId', 'roomNumber name shortName roomType totalSeats')
         .lean(),
     ]);
 
+    const expenses = this.scopeExpenses(periodAllocation, showtimeFilterMatch);
     const { movies: activeMoviesDocsInPeriod, schedulePolicyWarning } =
       await this.resolveActiveMoviesInPeriod({
         periodShowtimes,
@@ -2094,6 +2027,7 @@ class StatisticsService {
     let concessionRevenue = 0;
     let totalTickets = 0;
     const paymentMethodsMap = { MOMO: 0, VNPAY: 0, CASH: 0 };
+    const simulatedByMethod = {};
     const paymentMethodsCount = { MOMO: 0, VNPAY: 0, CASH: 0 };
     const cinemaMap = {};
     const dailyMap = {};
@@ -2143,21 +2077,16 @@ class StatisticsService {
       ensureMovieProfitEntry(mv);
     }
 
-    let totalTheaterShowtimesInPeriod = 0;
-    let totalTheaterScreeningMinutes = 0;
+    const seatStats = await this.computeShowtimeSeatStats(periodShowtimes, roomMap);
 
     periodShowtimes.forEach((st) => {
       const entry = ensureMovieProfitEntry(st.movieId);
       if (!entry) return;
-      const roomCap = Number(
-        st.roomId?.totalSeats || roomMap.get(String(st.roomId))?.totalSeats || 88
-      );
+      const roomCap = seatStats.perShowtimeMap.get(String(st._id))?.totalSeats || 0;
       const dur = Number(st.movieId?.duration || 120);
       entry.showtimesCount += 1;
       entry.screeningMinutes += dur;
       entry.totalSellableSeats += roomCap;
-      totalTheaterShowtimesInPeriod += 1;
-      totalTheaterScreeningMinutes += dur;
     });
 
     bookings.forEach((b) => {
@@ -2168,7 +2097,7 @@ class StatisticsService {
       const seatsCount = countSeatsFromString(b.seats);
       totalTickets += seatsCount;
 
-      const split = this.resolveBookingSplit(b, b.showtimeId?.price);
+      const split = this.resolveBookingSplit(b);
       ticketRevenue += split.ticketRev;
       concessionRevenue += split.concessionRev;
       totalDiscountAmount += split.discountAmount;
@@ -2176,6 +2105,7 @@ class StatisticsService {
 
       const method = b.paymentMethod || 'MOMO';
       paymentMethodsMap[method] = (paymentMethodsMap[method] || 0) + amount;
+      if (b.paymentStatus === 'SIMULATED') simulatedByMethod[method] = (simulatedByMethod[method] ?? 0) + amount;
       paymentMethodsCount[method] = (paymentMethodsCount[method] || 0) + 1;
 
       const cinemaName = b.showtimeId?.cinemaId?.name || "D'AVENOR Thanh Khê Plaza";
@@ -2221,15 +2151,12 @@ class StatisticsService {
     });
 
     cancelledBookings.forEach((cb) => {
-      const refAmt = verifiedRefund(cb);
-      const refDate =
-        cb.refundStatus === 'REFUNDED' &&
-        cb.updatedAt &&
-        new Date(cb.updatedAt) >= start &&
-        new Date(cb.updatedAt) <= end
-          ? cb.updatedAt
-          : cb.createdAt;
-      const dayStr = formatVietnamDateKey(refDate, 'DD/MM/YYYY');
+      const refAmt = sumRefunds([cb]).totalRefundedAmount;
+      const dayStr = formatVietnamDateKey(cb.createdAt, 'DD/MM/YYYY');
+      dailyMap[dayStr] ??= {
+        rawDate: cb.createdAt, date: dayStr, orders: 0, tickets: 0, ticketRev: 0,
+        concessionRev: 0, netRev: 0, refunded: 0, expense: 0,
+      };
       if (dailyMap[dayStr]) {
         dailyMap[dayStr].refunded += refAmt;
       }
@@ -2239,8 +2166,10 @@ class StatisticsService {
       }
     });
 
-    let totalDirectMovieExpenses = 0;
-    let totalSharedOperationalExpenses = 0;
+    const totalDirectMovieExpenses = expenses.filter((expense) => expense.kind === 'DIRECT_MOVIE')
+      .reduce((sum, expense) => sum + expense.amount, 0);
+    const totalSharedOperationalExpenses = expenses.filter((expense) => expense.kind === 'SHARED')
+      .reduce((sum, expense) => sum + expense.amount, 0);
 
     expenses.forEach((e) => {
       const amt = Number(e.amount || 0);
@@ -2260,6 +2189,7 @@ class StatisticsService {
         };
       }
       dailyMap[dayStr].expense += amt;
+      dailyMap[dayStr].hasExpenseData = true;
 
       if (e.movieId) {
         const entry = ensureMovieProfitEntry(e.movieId);
@@ -2272,36 +2202,25 @@ class StatisticsService {
             entry.directOtherCost += amt;
           }
           entry.directExpenses += amt;
-          totalDirectMovieExpenses += amt;
         }
-      } else {
-        totalSharedOperationalExpenses += amt;
       }
     });
 
     const totalRevenue = verifiedRevenueTotal + simulatedRevenueTotal;
     const netRevenue = totalRevenue;
-    const refundedAmount = cancelledBookings.reduce((sum, b) => sum + verifiedRefund(b), 0);
-    const cancelledAmount = cancelledBookings.reduce(
-      (sum, b) => sum + Number(b.totalAmount || 0),
-      0
-    );
+    const refunds = sumRefunds(cancelledBookings);
+    const refundedAmount = refunds.verifiedRefundedAmount;
     const aov = bookings.length > 0 ? Math.round(netRevenue / bookings.length) : 0;
 
     const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
     const hasExpenseData = expenses.length > 0;
 
-    const hasVerifiedBookings = bookings.some((order) =>
-      ['VERIFIED', 'SIMULATED'].includes(order.paymentStatus)
-    );
-    const profitKnown = hasExpenseData || hasVerifiedBookings;
+    const profitKnown = hasExpenseData;
     const profit = profitKnown ? netRevenue - totalExpenses : null;
     const profitMargin =
       hasExpenseData && netRevenue > 0
         ? Number(((profit / netRevenue) * 100).toFixed(1))
-        : hasExpenseData && totalExpenses > 0
-        ? -100
-        : 0;
+        : null;
     const roi =
       hasExpenseData && totalExpenses > 0
         ? Number(((profit / totalExpenses) * 100).toFixed(1))
@@ -2324,32 +2243,29 @@ class StatisticsService {
       : 'Thua lỗ';
 
     Object.values(dailyMap).forEach((d) => {
-      d.profit = d.netRev - d.expense;
+      d.profit = d.hasExpenseData ? d.netRev - d.expense : null;
     });
 
     const movieEntries = Object.values(movieProfitMap);
-    this.allocateSharedExpensesToMovies(movieEntries, totalSharedOperationalExpenses, {
-      allocationMethod,
-      totalTheaterShowtimes: totalTheaterShowtimesInPeriod,
-      totalTheaterScreeningMinutes,
-      totalNetRevenue: netRevenue,
-    });
 
     movieEntries.forEach((mv) => {
-      mv.allocatedOperationalCost = mv._allocatedCost || 0;
-      delete mv._allocatedCost;
+      const scoped = this.scopeExpenses(periodAllocation, {
+        ...showtimeFilterMatch, movieId: mv.movieId,
+      });
+      mv.directExpenses = scoped.filter((entry) => entry.kind === 'DIRECT_MOVIE')
+        .reduce((sum, entry) => sum + entry.amount, 0);
+      mv.allocatedOperationalCost = scoped.filter((entry) => entry.kind !== 'DIRECT_MOVIE')
+        .reduce((sum, entry) => sum + entry.amount, 0);
       mv.totalCost = mv.directExpenses + mv.allocatedOperationalCost;
-      mv.hasExpenseData =
-        mv.directExpenses > 0 || mv.allocatedOperationalCost > 0 || hasExpenseData;
+      mv.hasExpenseData = scoped.length > 0;
+      mv.profitKnown = mv.hasExpenseData;
 
       if (mv.hasExpenseData) {
         mv.profit = mv.netRevenue - mv.totalCost;
         mv.profitMargin =
           mv.netRevenue > 0
             ? Number(((mv.profit / mv.netRevenue) * 100).toFixed(1))
-            : mv.totalCost > 0
-            ? -100
-            : 0;
+            : null;
         mv.roi =
           mv.totalCost > 0
             ? Number(((mv.profit / mv.totalCost) * 100).toFixed(1))
@@ -2428,17 +2344,12 @@ class StatisticsService {
       }));
 
     // Báo cáo các tháng kinh doanh của năm (Asia/Ho_Chi_Minh)
-    // Năm 2026: Rạp bắt đầu hoạt động từ Tháng 11/2026 nên bảng tháng chỉ bắt đầu từ Tháng 11/2026.
-    const reportYear = Math.max(
-      CINEMA_OPERATION_START_YEAR,
-      Number(targetYear) || getVietnamParts(start).year || CINEMA_OPERATION_START_YEAR
-    );
-    const startMonthOfYear =
-      reportYear === CINEMA_OPERATION_START_YEAR ? CINEMA_OPERATION_START_MONTH : 1;
+    const reportYear = Number(targetYear) || getVietnamParts(start).year;
+    const startMonthOfYear = 1;
     const yearStart = makeVietnamDate(reportYear, startMonthOfYear, 1, 0, 0, 0, 0);
     const yearEnd = makeVietnamDate(reportYear, 12, 31, 23, 59, 59, 999);
 
-    const [yearBookings, yearExpenses, yearShowtimes] = await Promise.all([
+    const [yearBookings, yearAllocation, yearShowtimes] = await Promise.all([
       Booking.find({
         createdAt: { $gte: yearStart, $lte: yearEnd },
         status: 'PAID',
@@ -2447,19 +2358,7 @@ class StatisticsService {
       })
         .select('createdAt totalAmount seats paymentStatus')
         .lean(),
-      Expense.find({
-        $and: [
-          { date: { $gte: CINEMA_OPERATION_START } },
-          {
-            $or: [
-              { year: reportYear, month: { $gte: startMonthOfYear } },
-              { date: { $gte: yearStart, $lte: yearEnd } },
-            ],
-          },
-        ],
-      })
-        .select('date month year amount')
-        .lean(),
+      this.loadExpenseAllocation({ start: yearStart, end: yearEnd }),
       Showtime.find({
         ...showtimeFilterMatch,
         cancelledAt: null,
@@ -2486,14 +2385,12 @@ class StatisticsService {
         }
       });
 
-      yearExpenses.forEach((e) => {
-        const eMonth = e.month || getVietnamParts(e.date).month;
-        const eYear = e.year || getVietnamParts(e.date).year;
-        if (eYear === reportYear && eMonth === m) {
-          mExpenses += Number(e.amount || 0);
-          mExpenseRecords += 1;
-        }
-      });
+      const monthExpenses = this.scopeExpenses({
+        expenses: yearAllocation.expenses.filter((entry) => getVietnamParts(entry.date).month === m),
+        showtimes: yearAllocation.showtimes,
+      }, showtimeFilterMatch);
+      mExpenses = monthExpenses.reduce((sum, entry) => sum + entry.amount, 0);
+      mExpenseRecords = monthExpenses.length;
 
       yearShowtimes.forEach((st) => {
         const p = getVietnamParts(st.startTime);
@@ -2507,8 +2404,6 @@ class StatisticsService {
       const mMargin =
         mHasExpense && mNetRevenue > 0
           ? Number(((mProfit / mNetRevenue) * 100).toFixed(1))
-          : mHasExpense && mExpenses > 0
-          ? -100
           : null;
       const mStatus = !mHasExpense
         ? 'INSUFFICIENT_DATA'
@@ -2539,6 +2434,8 @@ class StatisticsService {
         hasExpenseData: mHasExpense,
         formattedExpenses: formatCurrency(mExpenses),
         profit: mProfit,
+        profitKnown: mHasExpense,
+        roi: mHasExpense && mExpenses > 0 ? Number(((mProfit / mExpenses) * 100).toFixed(1)) : null,
         formattedProfit: mHasExpense ? formatCurrency(mProfit) : 'Chưa đủ dữ liệu',
         profitMargin: mMargin,
         profitStatus: mStatus,
@@ -2546,19 +2443,25 @@ class StatisticsService {
       });
     }
 
-    const combinedChartData = Object.values(dailyMap)
-      .sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate))
-      .map((d) => ({
-        date: d.date.slice(0, 5),
-        fullDate: d.date,
-        netRevenue: d.netRev,
-        expense: d.expense,
-        profit: d.profit,
-        ticketRevenue: d.ticketRev,
-        concessionRevenue: d.concessionRev,
-        tickets: d.tickets,
-        orders: d.orders,
-      }));
+    const combinedChartData = [];
+    const isFuture = start > new Date();
+    for (let day = +start; day <= +chartEnd; day += 86_400_000) {
+      // The shared chart boundary includes one axis label for an entirely future period.
+      const fullDate = formatVietnamDateKey(new Date(day), 'DD/MM/YYYY');
+      const row = dailyMap[fullDate];
+      combinedChartData.push({
+        date: fullDate.slice(0, 5),
+        fullDate,
+        status: isFuture ? 'FUTURE' : 'OBSERVED',
+        netRevenue: isFuture ? null : row?.netRev ?? 0,
+        expense: !isFuture && row?.hasExpenseData ? row.expense : null,
+        profit: isFuture ? null : row?.profit ?? null,
+        ticketRevenue: isFuture ? null : row?.ticketRev ?? 0,
+        concessionRevenue: isFuture ? null : row?.concessionRev ?? 0,
+        tickets: isFuture ? null : row?.tickets ?? 0,
+        orders: isFuture ? null : row?.orders ?? 0,
+      });
+    }
 
     const sortedMovieProfitRows = movieEntries.sort(
       (a, b) =>
@@ -2570,17 +2473,20 @@ class StatisticsService {
 
     return {
       timeRangeLabel: label,
-      operationStartDate: CINEMA_OPERATION_START,
-      operationStartLabel: CINEMA_OPERATION_START_LABEL,
+      revenuePeriodBasis: 'BOOKING_CREATED_AT',
+      capacityPeriodBasis: 'SHOWTIME_START_TIME',
       schedulePolicyWarning,
-      allocationMethod,
+      allocationMethod: 'SHOWTIMES',
       hasExpenseData,
+      missingSeatShowtimesCount: seatStats.missingSeatShowtimesCount,
       periodMovies: sortedMovieProfitRows,
       revenueChartData: combinedChartData,
       combinedChartData,
       monthlyBreakdown,
       metrics: {
         profitKnown,
+        profitBasis: hasExpenseData ? 'RECORDED_EXPENSES_ONLY' : null,
+        unallocatedExpenses: expenses.reduce((sum, expense) => sum + expense.unallocatedAmount, 0),
         hasExpenseData,
         grossRevenue: Math.max(grossRevenue, netRevenue),
         grossFormatted: formatCurrency(Math.max(grossRevenue, netRevenue)),
@@ -2591,10 +2497,12 @@ class StatisticsService {
         simulatedRevenue: simulatedRevenueTotal,
         simulatedRevenueFormatted: formatCurrency(simulatedRevenueTotal),
         totalRevenue,
-        cancelledAmount,
+        ...refunds,
         netRevenue,
         netFormatted: formatCurrency(netRevenue),
         ticketRevenue,
+        unclassifiedRevenue: netRevenue - ticketRevenue - concessionRevenue,
+        revenueSplitWarning: netRevenue !== ticketRevenue + concessionRevenue ? 'INCOMPLETE_PRICE_SNAPSHOT' : null,
         ticketFormatted: formatCurrency(ticketRevenue),
         concessionRevenue,
         concessionFormatted: formatCurrency(concessionRevenue),
@@ -2602,7 +2510,10 @@ class StatisticsService {
         refundedFormatted: formatCurrency(refundedAmount),
         totalExpenses,
         directMovieExpenses: totalDirectMovieExpenses,
+        directRoomExpenses: expenses.filter((expense) => expense.kind === 'DIRECT_ROOM').reduce((sum, expense) => sum + expense.amount, 0),
         sharedOperationalExpenses: totalSharedOperationalExpenses,
+        unallocatedSharedExpenses: expenses.filter((expense) => expense.kind === 'SHARED')
+          .reduce((sum, expense) => sum + expense.unallocatedAmount, 0),
         expensesFormatted: formatCurrency(totalExpenses),
         profit,
         profitFormatted: hasExpenseData
@@ -2618,7 +2529,7 @@ class StatisticsService {
         cancelledOrders: cancelledBookings.length,
         totalTicketsSold: totalTickets,
         ticketPercent:
-          netRevenue > 0 ? Number(((ticketRevenue / netRevenue) * 100).toFixed(1)) : 100,
+          netRevenue > 0 ? Number(((ticketRevenue / netRevenue) * 100).toFixed(1)) : 0,
         concessionPercent:
           netRevenue > 0 ? Number(((concessionRevenue / netRevenue) * 100).toFixed(1)) : 0,
       },
@@ -2626,6 +2537,7 @@ class StatisticsService {
       paymentMethods: Object.keys(paymentMethodsMap).map((k) => ({
         method: k,
         amount: paymentMethodsMap[k],
+        simulatedAmount: simulatedByMethod[k] ?? 0,
         count: paymentMethodsCount[k],
         percent: netRevenue > 0 ? Number(((paymentMethodsMap[k] / netRevenue) * 100).toFixed(1)) : 0,
       })),
@@ -2648,6 +2560,8 @@ class StatisticsService {
       sortOrder = 'desc',
       page = 1,
       limit = 20,
+      movieId,
+      cinemaId,
       roomId,
       roomType,
       room,
@@ -2667,7 +2581,7 @@ class StatisticsService {
     const allRooms = await Room.find({}).sort({ roomNumber: 1 }).lean();
     const roomMap = new Map(allRooms.map((r) => [String(r._id), r]));
     const { match: showtimeFilterMatch } = await this.buildShowtimeFilter(
-      { roomId, roomType, room },
+      { movieId, cinemaId, roomId, roomType, room },
       allRooms
     );
 
@@ -2676,28 +2590,21 @@ class StatisticsService {
       startTime: { $gte: start, $lte: showtimeEnd || end },
     };
 
-    const [periodShowtimes, allPeriodExpenses] = await Promise.all([
+    const [periodShowtimes, periodAllocation] = await Promise.all([
       Showtime.find(periodShowtimeQuery)
         .populate('roomId', 'roomNumber name shortName roomType totalSeats')
         .populate('movieId', 'title duration genre poster posterUrl status ageRating slug reviews')
         .lean(),
-      this.findExpensesInPeriod({
-        start,
-        end,
-        month: targetMonth,
-        year: targetYear,
-        timeRange,
-        roomId,
-      }),
+      this.loadExpenseAllocation({ start, end }),
     ]);
 
+    const allPeriodExpenses = this.scopeExpenses(periodAllocation, showtimeFilterMatch);
     const now = new Date();
     const seatStats = await this.computeShowtimeSeatStats(periodShowtimes, roomMap, now);
     const activePeriodShowtimes = periodShowtimes.filter(
       (st) => !st.cancelledAt && st.lifecycleStatus !== 'CANCELLED'
     );
     const activeShowtimeIds = activePeriodShowtimes.map((st) => st._id);
-    const activeShowtimeIdSet = new Set(activeShowtimeIds.map((id) => String(id)));
 
     const hasRoomEntityFilter = Object.keys(showtimeFilterMatch).length > 0;
     let filteredShowtimeIds = null;
@@ -2713,10 +2620,7 @@ class StatisticsService {
     };
     const cancelledBookingMatch = {
       status: 'CANCELLED',
-      $or: [
-        { createdAt: { $gte: start, $lte: end } },
-        { refundStatus: 'REFUNDED', updatedAt: { $gte: start, $lte: end } },
-      ],
+      createdAt: { $gte: start, $lte: end },
     };
     if (filteredShowtimeIds !== null) {
       bookingMatch.showtimeId = { $in: filteredShowtimeIds };
@@ -2775,7 +2679,6 @@ class StatisticsService {
 
     // 1. Gom booking THEO NGÀY GIAO DỊCH TRONG KỲ (Booking.createdAt) cho báo cáo doanh thu tài chính
     const movieBookingsMap = {};
-    let theaterTotalNetRevenue = 0;
 
     allPeriodBookings.forEach((b) => {
       const mv = b.showtimeId?.movieId || b.movieId;
@@ -2795,7 +2698,7 @@ class StatisticsService {
       }
       const count = countSeatsFromString(b.seats);
       const netAmt = verifiedRevenue(b);
-      const split = this.resolveBookingSplit(b, b.showtimeId?.price);
+      const split = this.resolveBookingSplit(b);
 
       movieBookingsMap[mId].tickets += count;
       movieBookingsMap[mId].orders += 1;
@@ -2804,43 +2707,33 @@ class StatisticsService {
       movieBookingsMap[mId].netRevenue += netAmt;
       movieBookingsMap[mId].grossRevenue += split.grossAmount;
       movieBookingsMap[mId].discountAmount += split.discountAmount;
-      theaterTotalNetRevenue += netAmt;
 
-      const stId = String(b.showtimeId?._id || b.showtimeId || '');
-      if (stId && !activeShowtimeIdSet.has(stId)) {
+      if (b.showtimeId?.startTime > end) {
         movieBookingsMap[mId].advanceTicketsForFutureShowtimes += count;
       }
     });
 
     // 2. Gom ghế đã đặt & doanh thu THEO SUẤT CHIẾU DIỄN RA TRONG KỲ (Showtime.startTime)
-    const showtimeTicketsMap = new Map();
     const showtimeRevenueMap = new Map();
     showtimeBoundBookings.forEach((b) => {
       const stId = String(b.showtimeId?._id || b.showtimeId || '');
       if (!stId) return;
-      const count = countSeatsFromString(b.seats);
       const netAmt = verifiedRevenue(b);
-      showtimeTicketsMap.set(stId, (showtimeTicketsMap.get(stId) || 0) + count);
       showtimeRevenueMap.set(stId, (showtimeRevenueMap.get(stId) || 0) + netAmt);
     });
 
     // Gom suất chiếu theo phim
     const showtimesByMovieMap = new Map();
-    let totalTheaterActiveShowtimes = 0;
 
     for (const st of periodShowtimes) {
       const mId = String(st.movieId?._id || st.movieId || '');
       if (!mId) continue;
       if (!showtimesByMovieMap.has(mId)) showtimesByMovieMap.set(mId, []);
       showtimesByMovieMap.get(mId).push(st);
-      if (!st.cancelledAt && st.lifecycleStatus !== 'CANCELLED') {
-        totalTheaterActiveShowtimes += 1;
-      }
     }
 
     // Gom chi phí trực tiếp theo phim & chi phí vận hành chung
     const movieDirectExpensesMap = {};
-    let theaterSharedExpenses = 0;
     const hasTheaterExpenseData = allPeriodExpenses.length > 0;
 
     allPeriodExpenses.forEach((e) => {
@@ -2858,8 +2751,6 @@ class StatisticsService {
           movieDirectExpensesMap[mId].other += amt;
         }
         movieDirectExpensesMap[mId].total += amt;
-      } else {
-        theaterSharedExpenses += amt;
       }
     });
 
@@ -2880,16 +2771,12 @@ class StatisticsService {
       let totalSellableSeats = 0;
       let completedSellableSeats = 0;
       let upcomingSellableSeats = 0;
-      let upcomingVerifiedSellableSeats = 0;
-      let lockedUpcomingSellableSeats = 0;
       let completedSoldSeats = 0;
+      let inProgressSeats = 0;
+      let inProgressSold = 0;
       let upcomingSoldSeats = 0;
-      let upcomingVerifiedSoldSeats = 0;
-      let lockedUpcomingSoldSeats = 0;
       let bookedFromSeatDocs = 0;
-      let showtimeBoundTicketsSold = 0;
       let holdingSeatsCount = 0;
-      let upcomingHoldingSeatsCount = 0;
       let completedHoldingSeatsCount = 0;
 
       for (const st of movieShowtimes) {
@@ -2903,14 +2790,10 @@ class StatisticsService {
         }
 
         activeShowtimesCount += 1;
-        const stCap = seatInfo?.totalSeats || 88;
-        const stSold = Math.max(
-          seatInfo?.bookedSeatsFromSeatDoc || 0,
-          showtimeTicketsMap.get(stId) || 0
-        );
+        const stCap = seatInfo?.totalSeats || 0;
+        const stSold = (seatInfo?.bookedSeatsFromSeatDoc || 0);
         const stHold = seatInfo?.holdingSeats || 0;
         bookedFromSeatDocs += seatInfo?.bookedSeatsFromSeatDoc || 0;
-        showtimeBoundTicketsSold += stSold;
         holdingSeatsCount += stHold;
 
         totalSellableSeats += stCap;
@@ -2925,12 +2808,13 @@ class StatisticsService {
           completedHoldingSeatsCount += stHold;
         } else if (lifecycle === 'CLEANING') {
           cleaningShowtimesCount += 1;
-          completedShowtimesCount += 1;
           completedSellableSeats += stCap;
           completedSoldSeats += stSold;
           completedHoldingSeatsCount += stHold;
         } else if (lifecycle === 'NOW_SHOWING') {
           nowShowingShowtimesCount += 1;
+          inProgressSeats += stCap;
+          inProgressSold += stSold;
           completedSellableSeats += stCap;
           completedSoldSeats += stSold;
           completedHoldingSeatsCount += stHold;
@@ -2940,12 +2824,6 @@ class StatisticsService {
           upcomingSoldSeats += stSold;
           if (seatInfo?.isLocked) {
             lockedUpcomingShowtimesCount += 1;
-            lockedUpcomingSellableSeats += stCap;
-            lockedUpcomingSoldSeats += stSold;
-          } else if (seatInfo?.isBookableUpcoming) {
-            upcomingHoldingSeatsCount += stHold;
-            upcomingVerifiedSellableSeats += seatInfo.verifiedSeatDocsCount || stCap;
-            upcomingVerifiedSoldSeats += stSold;
           }
         }
       }
@@ -2962,11 +2840,10 @@ class StatisticsService {
       };
 
       // Số ghế đã đặt của các suất chiếu diễn ra trong kỳ (tử số của Tỷ lệ lấp đầy công suất)
-      const periodShowtimeBookedSeats = Math.max(showtimeBoundTicketsSold, bookedFromSeatDocs);
+      const periodShowtimeBookedSeats = bookedFromSeatDocs;
       // Số vé bán theo ngày phát sinh giao dịch trong kỳ
       const transactionTicketsSold = bookingData.tickets;
-      const ticketsSold =
-        activeShowtimesCount > 0 ? periodShowtimeBookedSeats : transactionTicketsSold;
+      const ticketsSold = transactionTicketsSold;
       const revenue = bookingData.netRevenue;
       const ticketRevenue = bookingData.ticketRevenue;
       const concessionRevenue = bookingData.concessionRevenue;
@@ -2979,13 +2856,11 @@ class StatisticsService {
         0,
         completedSellableSeats - completedSoldSeats - completedHoldingSeatsCount
       );
-      const lockedUpcomingUnsoldSeats = Math.max(
-        0,
-        lockedUpcomingSellableSeats - lockedUpcomingSoldSeats
+      const lockedUpcomingUnsoldSeats = movieShowtimes.reduce(
+        (sum, slot) => sum + (seatStats.perShowtimeMap.get(String(slot._id))?.lockedUpcomingUnsoldSeats || 0), 0
       );
-      const upcomingAvailableSeats = Math.max(
-        0,
-        upcomingVerifiedSellableSeats - upcomingVerifiedSoldSeats - upcomingHoldingSeatsCount
+      const upcomingAvailableSeats = movieShowtimes.reduce(
+        (sum, showtime) => sum + (seatStats.perShowtimeMap.get(String(showtime._id))?.bookableAvailableSeats || 0), 0
       );
 
       // 3 Tỷ lệ công suất chuẩn hóa theo đúng mẫu số (Final Validation Mục 4)
@@ -3007,16 +2882,25 @@ class StatisticsService {
           ? Number(((soldOutShowtimesCount / activeShowtimesCount) * 100).toFixed(1))
           : 0;
 
+      const evaluatedCapacity = completedSellableSeats - inProgressSeats;
+      const evaluatedSales = completedSoldSeats - inProgressSold;
+      const evaluatedOccupancy = evaluatedCapacity > 0 ? evaluatedSales / evaluatedCapacity * 100 : 0;
       let performanceStatus = 'NO_SHOWTIMES';
       let performanceLabel = 'Chưa có suất chiếu';
-      if (activeShowtimesCount > 0) {
-        if (occupancyRate >= 20) {
+      if (activeShowtimesCount > 0 && completedShowtimesCount + cleaningShowtimesCount === 0) {
+        performanceStatus = 'INSUFFICIENT_SCREENINGS';
+        performanceLabel = 'Chưa đủ suất đã chiếu để đánh giá';
+      } else if (activeShowtimesCount > 0 && evaluatedCapacity === 0) {
+        performanceStatus = 'INSUFFICIENT_SCREENINGS';
+        performanceLabel = 'Chưa đủ dữ liệu sức chứa';
+      } else if (activeShowtimesCount > 0) {
+        if (evaluatedOccupancy >= 20) {
           performanceStatus = 'HIGH';
           performanceLabel = 'Bán chạy cao';
-        } else if (occupancyRate >= 8) {
+        } else if (evaluatedOccupancy >= 8) {
           performanceStatus = 'MEDIUM';
           performanceLabel = 'Hiệu suất ổn định';
-        } else if (ticketsSold > 0) {
+        } else if (evaluatedSales > 0) {
           performanceStatus = 'LOW';
           performanceLabel = 'Cần tối ưu suất';
         } else {
@@ -3043,7 +2927,7 @@ class StatisticsService {
         duration: m.duration || 120,
         genre: m.genre || 'Điện ảnh',
         showtimesCount: activeShowtimesCount,
-        screenedShowtimesCount: completedShowtimesCount + nowShowingShowtimesCount,
+        screenedShowtimesCount: completedShowtimesCount + nowShowingShowtimesCount + cleaningShowtimesCount,
         completedShowtimesCount,
         nowShowingShowtimesCount,
         cleaningShowtimesCount,
@@ -3059,6 +2943,7 @@ class StatisticsService {
         upcomingSoldSeats,
         ticketsSold,
         showtimeBookedSeats: periodShowtimeBookedSeats,
+        showtimeBoundRevenue: movieShowtimes.reduce((sum, slot) => sum + (showtimeRevenueMap.get(String(slot._id)) || 0), 0),
         transactionTicketsSold,
         advanceTicketsForFutureShowtimes: bookingData.advanceTicketsForFutureShowtimes || 0,
         bookedSeats: periodShowtimeBookedSeats,
@@ -3067,6 +2952,7 @@ class StatisticsService {
         completedUnsoldSeats,
         lockedUpcomingUnsoldSeats,
         upcomingAvailableSeats,
+        closedUnsoldSeats: availableSeats - upcomingAvailableSeats,
         occupancyRate,
         overallOccupancyRate: occupancyRate,
         completedOccupancyRate,
@@ -3077,6 +2963,7 @@ class StatisticsService {
         grossRevenue: bookingData.grossRevenue,
         discountAmount: bookingData.discountAmount,
         ticketRevenue,
+        unclassifiedRevenue: revenue - ticketRevenue - concessionRevenue,
         ticketRevenueFormatted: formatCurrency(ticketRevenue),
         concessionRevenue,
         concessionRevenueFormatted: formatCurrency(concessionRevenue),
@@ -3091,7 +2978,7 @@ class StatisticsService {
         directExpensesFormatted: formatCurrency(directObj.total),
         allocatedExpenses: 0,
         allocatedExpensesFormatted: '0 đ',
-        allocationSharePercent: 0,
+        allocationSharePercent: null,
         totalExpenses: directObj.total,
         totalExpensesFormatted: formatCurrency(directObj.total),
         profit: null,
@@ -3108,24 +2995,21 @@ class StatisticsService {
     });
 
     // Phân bổ chi phí vận hành chính xác (không lệch số làm tròn)
-    this.allocateSharedExpensesToMovies(moviesStatsList, theaterSharedExpenses, {
-      allocationMethod: 'SHOWTIMES',
-      totalTheaterShowtimes: totalTheaterActiveShowtimes,
-      totalNetRevenue: theaterTotalNetRevenue,
-    });
-
     moviesStatsList.forEach((item) => {
-      const allocatedExpenses = item._allocatedCost || 0;
-      delete item._allocatedCost;
+      const scoped = this.scopeExpenses(periodAllocation, {
+        ...showtimeFilterMatch, movieId: item.movieId,
+      });
+      item.directExpenses = scoped.filter((entry) => entry.kind === 'DIRECT_MOVIE')
+        .reduce((sum, entry) => sum + entry.amount, 0);
+      const allocatedExpenses = scoped.filter((entry) => entry.kind !== 'DIRECT_MOVIE')
+        .reduce((sum, entry) => sum + entry.amount, 0);
       const totalExpenses = item.directExpenses + allocatedExpenses;
-      const hasExpenseData =
-        item.directExpenses > 0 || allocatedExpenses > 0 || hasTheaterExpenseData;
+      const hasExpenseData = scoped.length > 0;
+      item.profitKnown = hasExpenseData;
       const profit = hasExpenseData ? item.revenue - totalExpenses : null;
       const profitMargin =
         hasExpenseData && item.revenue > 0
           ? Number(((profit / item.revenue) * 100).toFixed(1))
-          : hasExpenseData && totalExpenses > 0
-          ? -100
           : null;
       const roi =
         hasExpenseData && totalExpenses > 0
@@ -3161,9 +3045,9 @@ class StatisticsService {
     });
 
     // Gán thứ hạng bán chạy (salesRank) theo số vé bán -> tỷ lệ lấp đầy -> doanh thu
-    const rankedBySales = [...moviesStatsList].sort(
+    const rankedBySales = moviesStatsList.filter((movie) => movie.transactionTicketsSold > 0).sort(
       (a, b) =>
-        b.ticketsSold - a.ticketsSold ||
+        b.transactionTicketsSold - a.transactionTicketsSold ||
         b.occupancyRate - a.occupancyRate ||
         b.revenue - a.revenue ||
         b.showtimesCount - a.showtimesCount ||
@@ -3177,7 +3061,7 @@ class StatisticsService {
     // Tính toán Xếp hạng tổng kết (Rankings) từ các phim có hoạt động thực tế trong kỳ
     const activeMovies = moviesStatsList.filter((m) => m.showtimesCount > 0 || m.ticketsSold > 0);
     const sortedBySold = [...activeMovies].sort(
-      (a, b) => b.ticketsSold - a.ticketsSold || b.occupancyRate - a.occupancyRate
+      (a, b) => b.transactionTicketsSold - a.transactionTicketsSold || b.occupancyRate - a.occupancyRate
     );
     const sortedByOccupancy = [...activeMovies].sort(
       (a, b) => b.occupancyRate - a.occupancyRate || b.ticketsSold - a.ticketsSold
@@ -3188,12 +3072,23 @@ class StatisticsService {
     const moviesWithExpense = activeMovies.filter((m) => m.hasExpenseData && m.profit !== null);
     const sortedByProfit = [...moviesWithExpense].sort((a, b) => b.profit - a.profit);
 
-    const topSold = sortedBySold[0] || null;
-    const lowestSold = sortedBySold.length > 0 ? sortedBySold[sortedBySold.length - 1] : null;
-    const topOccupancy = sortedByOccupancy[0] || null;
-    const lowestOccupancy =
-      sortedByOccupancy.length > 0 ? sortedByOccupancy[sortedByOccupancy.length - 1] : null;
-    const topRevenue = sortedByRevenue[0] || null;
+    const withTies = (rows, metric, { lowest = false } = {}) => {
+      const target = lowest ? rows.at(-1) : rows[0];
+      if (!target || (!lowest && target[metric] <= 0)) return null;
+      const tied = rows.filter((movie) => movie[metric] === target[metric])
+        .sort((left, right) => left.title.localeCompare(right.title, 'vi') ||
+          String(left.id).localeCompare(String(right.id)));
+      return { ...tied[0], tieCount: tied.length };
+    };
+    const topSold = withTies(sortedBySold, 'transactionTicketsSold');
+    const salesComparison = sortedBySold.filter((movie) =>
+      movie.completedShowtimesCount > 0 || movie.cleaningShowtimesCount > 0
+    );
+    const lowestSold = salesComparison.length > 1 && salesComparison.some((movie) => movie.transactionTicketsSold > 0)
+      ? withTies(salesComparison, 'transactionTicketsSold', { lowest: true }) : null;
+    const topOccupancy = withTies(sortedByOccupancy, 'occupancyRate');
+    const lowestOccupancy = sortedByOccupancy.at(-1) ?? null;
+    const topRevenue = withTies(sortedByRevenue, 'revenue');
     const topProfit = sortedByProfit[0] || null;
     const topLoss =
       sortedByProfit.length > 0 && sortedByProfit[sortedByProfit.length - 1].profit < 0
@@ -3272,18 +3167,22 @@ class StatisticsService {
       (s, m) => s + m.soldOutShowtimesCount,
       0
     );
-    const totalExpensesAll = moviesStatsList.reduce((s, m) => s + m.totalExpenses, 0);
+    const totalExpensesAll = allPeriodExpenses.reduce((sum, expense) => sum + expense.amount, 0);
     const totalProfitAll = hasTheaterExpenseData ? totalRevenueAll - totalExpensesAll : null;
 
     return {
       timeRangeLabel: label,
-      operationStartDate: CINEMA_OPERATION_START,
-      operationStartLabel: CINEMA_OPERATION_START_LABEL,
+      salesRankBasis: 'BOOKING_CREATED_AT',
+      occupancyBasis: 'SHOWTIME_START_TIME',
       schedulePolicyWarning,
       monthlyScheduledMoviesBreakdown,
       hasExpenseData: hasTheaterExpenseData,
+      profitKnown: hasTheaterExpenseData,
+      profitBasis: hasTheaterExpenseData ? 'RECORDED_EXPENSES_ONLY' : null,
+      unallocatedExpenses: allPeriodExpenses.reduce((sum, expense) => sum + expense.unallocatedAmount, 0),
       total: totalItems,
-      activeMoviesCount: activeMovies.length,
+      activeMoviesCount: moviesStatsList.filter((movie) => movie.showtimesCount > 0).length,
+      financialActivityMoviesCount: moviesStatsList.filter((movie) => movie.ordersCount > 0 || movie.hasExpenseData).length,
       page: Number(page),
       totalPages: Math.ceil(totalItems / Number(limit)) || 1,
       items: paginatedItems,
@@ -3299,7 +3198,8 @@ class StatisticsService {
         topLoss,
       },
       summary: {
-        activeMoviesCount: activeMovies.length,
+        activeMoviesCount: moviesStatsList.filter((movie) => movie.showtimesCount > 0).length,
+      financialActivityMoviesCount: moviesStatsList.filter((movie) => movie.ordersCount > 0 || movie.hasExpenseData).length,
         totalShowtimes: totalShowtimesAll,
         totalSoldOutShowtimes: totalSoldOutShowtimesAll,
         totalRevenue: totalRevenueAll,
@@ -3379,8 +3279,6 @@ class StatisticsService {
         $gte: periodRange.start,
         $lte: periodRange.showtimeEnd || periodRange.end,
       };
-    } else {
-      showtimeQuery.startTime = { $gte: CINEMA_OPERATION_START };
     }
 
     const showtimes = await Showtime.find(showtimeQuery)
@@ -3402,8 +3300,6 @@ class StatisticsService {
     };
     if (periodRange) {
       txBookingQuery.createdAt = { $gte: periodRange.start, $lte: periodRange.end };
-    } else {
-      txBookingQuery.createdAt = { $gte: CINEMA_OPERATION_START };
     }
 
     const allMovieShowtimeIds = await Showtime.find({
@@ -3438,7 +3334,7 @@ class StatisticsService {
     transactionBookings.forEach((b) => {
       const netAmt = verifiedRevenue(b);
       const count = countSeatsFromString(b.seats);
-      const split = this.resolveBookingSplit(b, 95000);
+      const split = this.resolveBookingSplit(b);
 
       totalRevenue += netAmt;
       totalTicketRevenue += split.ticketRev;
@@ -3452,12 +3348,10 @@ class StatisticsService {
     });
 
     // Tính số vé & doanh thu gắn với từng suất chiếu diễn ra trong kỳ từ showtimeBoundBookings
-    let showtimeBoundTicketsTotal = 0;
     let showtimeBoundRevenueTotal = 0;
     showtimeBoundBookings.forEach((b) => {
       const netAmt = verifiedRevenue(b);
       const count = countSeatsFromString(b.seats);
-      showtimeBoundTicketsTotal += count;
       showtimeBoundRevenueTotal += netAmt;
 
       const sId = String(b.showtimeId);
@@ -3477,13 +3371,10 @@ class StatisticsService {
     let bookedFromSeatDocs = 0;
     let completedSoldSeats = 0;
     let upcomingSoldSeats = 0;
-    let upcomingBookableSoldSeats = 0;
-    let lockedUpcomingSoldSeats = 0;
     for (const st of activeShowtimes) {
       const sId = String(st._id);
       const seatInfo = seatStats.perShowtimeMap.get(sId);
-      const bkInfo = stBookingStatsMap.get(sId) || { tickets: 0 };
-      const soldForSt = Math.max(seatInfo?.bookedSeatsFromSeatDoc || 0, bkInfo.tickets);
+      const soldForSt = seatInfo?.bookedSeatsFromSeatDoc || 0;
       bookedFromSeatDocs += seatInfo?.bookedSeatsFromSeatDoc || 0;
       if (
         seatInfo?.lifecycle === 'COMPLETED' ||
@@ -3493,30 +3384,17 @@ class StatisticsService {
         completedSoldSeats += soldForSt;
       } else {
         upcomingSoldSeats += soldForSt;
-        if (seatInfo?.isLocked) {
-          lockedUpcomingSoldSeats += soldForSt;
-        } else if (seatInfo?.isBookableUpcoming) {
-          upcomingBookableSoldSeats += soldForSt;
-        }
       }
     }
 
-    const bookedSeats = Math.max(showtimeBoundTicketsTotal, bookedFromSeatDocs);
+    const bookedSeats = bookedFromSeatDocs;
     const availableSeats = Math.max(0, totalSellable - bookedSeats - totalHolding);
     const completedUnsoldSeats = Math.max(
       0,
       seatStats.totalCompletedSeats - completedSoldSeats - (seatStats.totalCompletedHoldingSeats || 0)
     );
-    const lockedUpcomingUnsoldSeats = Math.max(
-      0,
-      (seatStats.totalLockedUpcomingSeats || 0) - lockedUpcomingSoldSeats
-    );
-    const upcomingAvailableSeats = Math.max(
-      0,
-      seatStats.totalUpcomingVerifiedSeats -
-        upcomingBookableSoldSeats -
-        (seatStats.totalUpcomingHoldingSeats || 0)
-    );
+    const lockedUpcomingUnsoldSeats = seatStats.totalLockedUpcomingUnsoldSeats;
+    const upcomingAvailableSeats = seatStats.totalImmediateWindowBookableSeats;
     const avgOccupancy =
       totalSellable > 0
         ? Number(Math.min(100, (bookedSeats / totalSellable) * 100).toFixed(2))
@@ -3534,65 +3412,19 @@ class StatisticsService {
           )
         : 0;
 
-    const expQuery = { movieId: movie._id };
-    const sharedExpQuery = { movieId: null };
-    const totalStQuery = {
-      ...roomFilterMatch,
-      cancelledAt: null,
-      lifecycleStatus: { $ne: 'CANCELLED' },
-    };
-    if (periodRange) {
-      expQuery.date = { $gte: periodRange.start, $lte: periodRange.end };
-      sharedExpQuery.date = { $gte: periodRange.start, $lte: periodRange.end };
-      totalStQuery.startTime = {
-        $gte: periodRange.start,
-        $lte: periodRange.showtimeEnd || periodRange.end,
-      };
-    } else {
-      expQuery.date = { $gte: CINEMA_OPERATION_START };
-      sharedExpQuery.date = { $gte: CINEMA_OPERATION_START };
-      totalStQuery.startTime = { $gte: CINEMA_OPERATION_START };
-    }
-
-    const [movieExpenses, allSharedExpenses, allActiveTheaterShowtimes] = await Promise.all([
-      Expense.find(expQuery).sort({ date: -1 }).lean(),
-      Expense.find(sharedExpQuery).lean(),
-      Showtime.find(totalStQuery).select('movieId').lean(),
-    ]);
-
-    const directExpenses = movieExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
-    const sharedExpenses = allSharedExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
-
-    // Sử dụng cùng thuật toán allocateSharedExpensesToMovies để khớp 100% đến từng đồng với bảng
-    const showtimeCountsByMovie = new Map();
-    for (const st of allActiveTheaterShowtimes) {
-      const mId = String(st.movieId);
-      showtimeCountsByMovie.set(mId, (showtimeCountsByMovie.get(mId) || 0) + 1);
-    }
-    const targetMovieIdStr = String(movie._id);
-    if (!showtimeCountsByMovie.has(targetMovieIdStr) && activeShowtimes.length > 0) {
-      showtimeCountsByMovie.set(targetMovieIdStr, activeShowtimes.length);
-    }
-    const tempEntries = Array.from(showtimeCountsByMovie.entries()).map(([mId, stCount]) => ({
-      movieId: mId,
-      showtimesCount: stCount,
-      netRevenue: mId === targetMovieIdStr ? totalRevenue : 0,
-    }));
-    this.allocateSharedExpensesToMovies(tempEntries, sharedExpenses, {
-      allocationMethod: 'SHOWTIMES',
-      totalTheaterShowtimes: allActiveTheaterShowtimes.length,
+    const movieExpenses = await this.findExpensesInPeriod({
+      ...periodRange, match: { ...roomFilterMatch, movieId: movie._id },
     });
-    const matchedAlloc = tempEntries.find((e) => e.movieId === targetMovieIdStr);
-    const allocatedExpenses = matchedAlloc ? matchedAlloc._allocatedCost || 0 : 0;
-
+    const directExpenses = movieExpenses.filter((entry) => entry.kind === 'DIRECT_MOVIE')
+      .reduce((sum, entry) => sum + entry.amount, 0);
+    const allocatedExpenses = movieExpenses.filter((entry) => entry.kind !== 'DIRECT_MOVIE')
+      .reduce((sum, entry) => sum + entry.amount, 0);
     const totalExpenses = directExpenses + allocatedExpenses;
-    const hasExpenseData = movieExpenses.length > 0 || allSharedExpenses.length > 0;
+    const hasExpenseData = movieExpenses.length > 0;
     const profit = hasExpenseData ? totalRevenue - totalExpenses : null;
     const profitMargin =
       hasExpenseData && totalRevenue > 0
         ? Number(((profit / totalRevenue) * 100).toFixed(1))
-        : hasExpenseData && totalExpenses > 0
-        ? -100
         : null;
     const roi =
       hasExpenseData && totalExpenses > 0
@@ -3603,8 +3435,8 @@ class StatisticsService {
       const sId = String(st._id);
       const seatInfo = seatStats.perShowtimeMap.get(sId);
       const bkInfo = stBookingStatsMap.get(sId) || { tickets: 0, revenue: 0, orders: 0 };
-      const totalSeats = seatInfo?.totalSeats || Number(st.roomId?.totalSeats || 88);
-      const soldSeats = Math.max(seatInfo?.bookedSeatsFromSeatDoc || 0, bkInfo.tickets);
+      const totalSeats = seatInfo?.totalSeats ?? 0;
+      const soldSeats = seatInfo?.bookedSeatsFromSeatDoc || 0;
       const holdingSeats = seatInfo?.holdingSeats || 0;
       const unsoldSeats = Math.max(0, totalSeats - soldSeats - holdingSeats);
       const occ =
@@ -3627,6 +3459,8 @@ class StatisticsService {
         soldSeats,
         holdingSeats,
         unsoldSeats,
+        bookableAvailableSeats: seatInfo?.bookableAvailableSeats || 0,
+        closedUnsoldSeats: unsoldSeats - (seatInfo?.bookableAvailableSeats || 0),
         occupancyRate: occ,
         isSoldOut: soldSeats >= totalSeats && totalSeats > 0,
         revenue: bkInfo.revenue,
@@ -3659,10 +3493,11 @@ class StatisticsService {
       stats: {
         totalRevenue,
         showtimeBoundRevenue: showtimeBoundRevenueTotal,
+        unclassifiedRevenue: totalRevenue - totalTicketRevenue - totalConcessionRevenue,
         ticketRevenue: totalTicketRevenue,
         concessionRevenue: totalConcessionRevenue,
         revenueFormatted: formatCurrency(totalRevenue),
-        totalTickets: activeShowtimes.length > 0 ? bookedSeats : totalTickets,
+        totalTickets,
         transactionTicketsSold: totalTickets,
         bookedSeats,
         holdingSeats: totalHolding,
@@ -3681,6 +3516,9 @@ class StatisticsService {
         cancelledShowtimesCount: showtimes.length - activeShowtimes.length,
         soldOutShowtimesCount,
         missingSeatShowtimesCount: seatStats.missingSeatShowtimesCount,
+        closedUnsoldSeats: availableSeats - upcomingAvailableSeats,
+        profitKnown: hasExpenseData,
+        profitBasis: hasExpenseData ? 'RECORDED_EXPENSES_ONLY' : null,
         avgOccupancy,
         overallOccupancyRate: avgOccupancy,
         hasExpenseData,
@@ -3763,7 +3601,7 @@ class StatisticsService {
     let showtimes = await Showtime.find(query)
       .populate('movieId', 'title poster posterUrl status duration genre')
       .populate('cinemaId', 'name city')
-      .populate('roomId', 'roomNumber name shortName roomType formatFeature totalSeats')
+      .populate('roomId', 'roomNumber name shortName roomType formatFeature totalSeats status')
       .sort({ startTime: -1 })
       .lean();
 
@@ -3797,39 +3635,15 @@ class StatisticsService {
     const pageShowtimes = showtimes.slice(startIndex, startIndex + Number(limit));
     const ids = pageShowtimes.map((slot) => slot._id);
 
-    const [orders, counts] = await Promise.all([
+    const [orders, seatStats] = await Promise.all([
       Booking.find({
         showtimeId: { $in: ids },
         status: 'PAID',
         paymentStatus: validPayments,
       })
-        .select('showtimeId userId customerPhone seats totalAmount paymentStatus')
+        .select('showtimeId userId customerPhone totalAmount paymentStatus')
         .lean(),
-      ShowtimeSeat.aggregate([
-        { $match: { showtimeId: { $in: ids } } },
-        {
-          $group: {
-            _id: '$showtimeId',
-            total: { $sum: 1 },
-            booked: { $sum: { $cond: [{ $eq: ['$status', 'BOOKED'] }, 1, 0] } },
-            holding: {
-              $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      { $eq: ['$status', 'HOLDING'] },
-                      { $gt: ['$holdExpiresAt', now] },
-                    ],
-                  },
-                  1,
-                  0,
-                ],
-              },
-            },
-            available: { $sum: { $cond: [{ $eq: ['$status', 'AVAILABLE'] }, 1, 0] } },
-          },
-        },
-      ]),
+      this.computeShowtimeSeatStats(pageShowtimes, roomMap, now),
     ]);
 
     const orderMap = new Map();
@@ -3838,7 +3652,6 @@ class StatisticsService {
       if (!orderMap.has(id)) orderMap.set(id, []);
       orderMap.get(id).push(order);
     }
-    const seatCounts = new Map(counts.map((count) => [String(count._id), count]));
 
     const items = pageShowtimes.map((st) => {
       const bookings = orderMap.get(String(st._id)) || [];
@@ -3846,26 +3659,15 @@ class StatisticsService {
         bookings.map((booking) => String(booking.userId || booking.customerPhone || booking._id))
       );
       const revenue = bookings.reduce((sum, booking) => sum + verifiedRevenue(booking), 0);
-      const bookedFromOrders = bookings.reduce(
-        (sum, booking) => sum + countSeatsFromString(booking.seats),
-        0
-      );
 
-      const c = seatCounts.get(String(st._id));
+      const seats = seatStats.perShowtimeMap.get(String(st._id));
       const roomDoc = roomMap.get(String(st.roomId?._id || st.roomId));
-      const hasSeatRecords = Boolean(c && c.total > 0);
-      const totalSeats = hasSeatRecords
-        ? c.total
-        : Number(st.roomId?.totalSeats || roomDoc?.totalSeats || 88);
-      const bookedSeats = hasSeatRecords ? Math.max(c.booked, bookedFromOrders) : bookedFromOrders;
-      const holdingSeats = hasSeatRecords ? c.holding || 0 : 0;
+      const { lifecycle, totalSeats, holdingSeats, hasSeatRecords, bookableAvailableSeats } = seats;
+      const bookedSeats = seats.bookedSeatsFromSeatDoc;
       const availableSeats = Math.max(0, totalSeats - bookedSeats - holdingSeats);
-      const occupancyRate =
-        totalSeats > 0
-          ? Number(Math.min(100, (bookedSeats / totalSeats) * 100).toFixed(2))
-          : 0;
-
-      const lifecycle = this.resolveShowtimeLifecycle(st, now);
+      const occupancyRate = totalSeats > 0
+        ? Number(((bookedSeats / totalSeats) * 100).toFixed(2))
+        : 0;
       let showtimeStatus = 'UPCOMING';
       if (lifecycle === 'CANCELLED') showtimeStatus = 'CANCELLED';
       else if (lifecycle === 'COMPLETED') showtimeStatus = 'FINISHED';
@@ -3873,19 +3675,9 @@ class StatisticsService {
       else if (lifecycle === 'NOW_SHOWING') showtimeStatus = 'NOW_SHOWING';
       else if (st.isLocked) showtimeStatus = 'LOCKED';
 
-      const bookability = this.evaluateShowtimeBookability(st, {
-        lifecycle,
-        hasSeatRecords,
-        roomDoc,
-        now,
-      });
-      const isBookableUpcoming = bookability.isBookableUpcoming;
-      const bookableAvailableSeats = isBookableUpcoming ? availableSeats : 0;
-      const lockedUpcomingUnsoldSeats = bookability.isLockedUpcoming ? availableSeats : 0;
-      const completedUnsoldSeats =
-        lifecycle === 'COMPLETED' || lifecycle === 'NOW_SHOWING' || lifecycle === 'CLEANING'
-          ? availableSeats
-          : 0;
+      const lockedUpcomingUnsoldSeats = seats.lockedUpcomingUnsoldSeats;
+      const completedUnsoldSeats = ['COMPLETED', 'NOW_SHOWING', 'CLEANING'].includes(lifecycle)
+        ? availableSeats : 0;
 
       const customerCount = customers.size > 0 ? customers.size : bookings.length;
 
@@ -3899,7 +3691,7 @@ class StatisticsService {
         roomNumber: st.roomId?.roomNumber || roomDoc?.roomNumber || null,
         roomName: st.roomId?.name || st.roomName,
         shortRoomName: st.roomId?.shortName || roomDoc?.shortName || st.roomName,
-        roomType: st.roomId?.roomType || roomDoc?.roomType || 'IMAX Laser',
+        roomType: st.roomId?.roomType || roomDoc?.roomType || null,
         format: st.roomId?.roomType || st.formatFeature || 'IMAX Laser',
         startTime: st.startTime,
         endTime: st.endTime,
@@ -3911,10 +3703,12 @@ class StatisticsService {
         holdingSeats,
         availableSeats,
         bookableAvailableSeats,
+        closedUnsoldSeats: availableSeats - bookableAvailableSeats,
+        missingRoom: !roomDoc,
         lockedUpcomingUnsoldSeats,
         completedUnsoldSeats,
-        isBookableUpcoming,
-        isWithinImmediateSalesWindow: bookability.isWithinImmediateSalesWindow,
+        isBookableUpcoming: Boolean(seats.isWithinImmediateSalesWindow),
+        isWithinImmediateSalesWindow: Boolean(seats.isWithinImmediateSalesWindow),
         isLocked: Boolean(st.isLocked),
         occupancyRate,
         isSoldOut: bookedSeats >= totalSeats && totalSeats > 0,
@@ -3927,10 +3721,10 @@ class StatisticsService {
 
     return {
       timeRangeLabel: label,
-      operationStartDate: CINEMA_OPERATION_START,
-      operationStartLabel: CINEMA_OPERATION_START_LABEL,
       schedulePolicyWarning,
       total,
+      capacityPeriodBasis: 'SHOWTIME_START_TIME',
+      missingSeatShowtimesOnPage: seatStats.missingSeatShowtimesCount,
       page: Number(page),
       totalPages: Math.ceil(total / Number(limit)) || 1,
       items,
@@ -3952,13 +3746,13 @@ class StatisticsService {
   }
 
   /**
-   * 4.1 CHI TIẾT 1 SUẤT CHIẾU & SƠ ĐỒ 88 GHẾ THỰC TẾ
+   * 4.1 CHI TIẾT 1 SUẤT CHIẾU & SƠ ĐỒ GHẾ THỰC TẾ
    */
   async getShowtimeDetailStats(showtimeId) {
     const showtime = await Showtime.findById(showtimeId)
       .populate('movieId')
       .populate('cinemaId')
-      .populate('roomId', 'roomNumber name shortName roomType formatFeature totalSeats')
+      .populate('roomId', 'roomNumber name shortName roomType formatFeature totalSeats status')
       .lean();
 
     if (!showtime) {
@@ -4006,19 +3800,17 @@ class StatisticsService {
     }
     const seatMatrix = [...rows.values()];
     const hasSeatRecords = dbSeats.length > 0;
-    const totalRoomSeats = hasSeatRecords ? dbSeats.length : null;
-    const bookedCount = hasSeatRecords
+    const totalRoomSeats = lifecycle === 'CANCELLED' ? 0 : hasSeatRecords ? dbSeats.length : Number(showtime.roomId?.totalSeats || 0);
+    const bookedCount = totalRoomSeats && hasSeatRecords
       ? dbSeats.filter((seat) => seat.status === 'BOOKED').length
-      : null;
-    const holdingCount = hasSeatRecords
+      : 0;
+    const holdingCount = totalRoomSeats && hasSeatRecords
       ? dbSeats.filter(
           (seat) =>
             seat.status === 'HOLDING' && seat.holdExpiresAt && new Date(seat.holdExpiresAt) > now
         ).length
       : 0;
-    const availableCount = hasSeatRecords
-      ? Math.max(0, totalRoomSeats - bookedCount - holdingCount)
-      : null;
+    const availableCount = Math.max(0, totalRoomSeats - bookedCount - holdingCount);
     const bookability = this.evaluateShowtimeBookability(showtime, {
       lifecycle,
       hasSeatRecords,
@@ -4026,7 +3818,7 @@ class StatisticsService {
       now,
     });
     const bookableAvailableCount =
-      hasSeatRecords && bookability.isBookableUpcoming ? availableCount : 0;
+      hasSeatRecords && bookability.isWithinImmediateSalesWindow ? availableCount : 0;
     const lockedUpcomingUnsoldCount =
       hasSeatRecords && bookability.isLockedUpcoming ? availableCount : 0;
     const completedUnsoldCount =
@@ -4034,7 +3826,7 @@ class StatisticsService {
       (lifecycle === 'COMPLETED' || lifecycle === 'NOW_SHOWING' || lifecycle === 'CLEANING')
         ? availableCount
         : 0;
-    const occupancyRate = hasSeatRecords
+    const occupancyRate = totalRoomSeats > 0
       ? Number(((bookedCount / totalRoomSeats) * 100).toFixed(2))
       : null;
 
@@ -4053,7 +3845,7 @@ class StatisticsService {
         price: showtime.price,
         isLocked: Boolean(showtime.isLocked),
         lifecycleStatus: lifecycle,
-        isBookableUpcoming: bookability.isBookableUpcoming,
+        isBookableUpcoming: bookability.isWithinImmediateSalesWindow,
         isWithinImmediateSalesWindow: bookability.isWithinImmediateSalesWindow,
         format:
           showtime.roomId?.roomType ||
@@ -4067,6 +3859,8 @@ class StatisticsService {
         bookedCount,
         availableCount,
         bookableAvailableCount,
+        closedUnsoldCount: availableCount - bookableAvailableCount,
+        missingRoom: !showtime.roomId,
         lockedUpcomingUnsoldCount,
         completedUnsoldCount,
         holdingCount,
@@ -4106,8 +3900,11 @@ class StatisticsService {
       createdAt: { $gte: start, $lte: end },
     });
 
+    const { match } = await this.buildShowtimeFilter(filters);
+    const slotIds = Object.keys(match).length ? await Showtime.find(match).distinct('_id') : null;
     const bookings = await Booking.find({
-      createdAt: { $gte: CINEMA_OPERATION_START },
+      createdAt: { $gte: start, $lte: end },
+      ...(slotIds ? { showtimeId: { $in: slotIds } } : {}),
       status: 'PAID',
       paymentStatus: validPayments,
     })
@@ -4264,7 +4061,7 @@ class StatisticsService {
 
   /**
    * 7. XUẤT BÁO CÁO FILE CSV (UTF-8 BOM CHO EXCEL TIẾNG VIỆT - MỤC XI)
-   * Khớp 100% với bộ lọc hiện tại, mốc vận hành 01/11/2026 và số liệu đang hiển thị trên UI
+   * Dùng cùng dữ liệu với các API thống kê.
    */
   async exportStatistics(type = 'revenue', filters = {}) {
     const { start, end, label } = this.resolvePeriodFilter(filters);
@@ -4288,6 +4085,7 @@ class StatisticsService {
       csvContent += `Tổng suất chiếu hoạt động,${data.kpis.totalShowtimes.value}\n`;
       csvContent += `Suất đã chiếu,${data.kpis.totalShowtimes.completedCount}\n`;
       csvContent += `Suất đang chiếu,${data.kpis.totalShowtimes.nowShowingCount}\n`;
+      csvContent += `Suất đang dọn phòng,${data.kpis.totalShowtimes.cleaningCount}\n`;
       csvContent += `Suất sắp chiếu,${data.kpis.totalShowtimes.upcomingCount}\n`;
       csvContent += `Suất đã hủy,${data.kpis.totalShowtimes.cancelledCount}\n`;
       csvContent += `Tổng số ghế mở bán của các suất trong kỳ,${data.occupancy.totalSellable}\n`;
@@ -4299,11 +4097,18 @@ class StatisticsService {
       csvContent += `Tỷ lệ bán vé trên tổng ghế mở bán toàn kỳ (%),${data.occupancy.rate}%\n`;
       csvContent += `Tỷ lệ lấp đầy của các suất đã chiếu (%),${data.occupancy.completedOccupancyRate ?? 0}%\n`;
       csvContent += `Tỷ lệ đặt trước của các suất sắp chiếu (%),${data.occupancy.upcomingOccupancyRate ?? 0}%\n`;
+      const refunds = data.kpis.netRevenue;
+      csvContent += `Giá trị đơn đã hủy,${refunds.cancelledAmount}\n`;
+      csvContent += `Tổng số tiền đã hoàn,${refunds.totalRefundedAmount}\n`;
+      csvContent += `Hoàn tiền xác minh,${refunds.verifiedRefundedAmount}\n`;
+      csvContent += `Hoàn tiền mô phỏng,${refunds.simulatedRefundedAmount}\n`;
+      csvContent += `Chờ hoàn tiền,${refunds.pendingRefundAmount}\n`;
+      csvContent += `Đơn thiếu số tiền hoàn,${refunds.missingRefundAmountCount}\n`;
       csvContent += `Tổng chi phí trong kỳ,${data.kpis.totalExpenses.value}\n`;
       csvContent += `Lợi nhuận rạp,${data.kpis.profit.value ?? 'Chưa đủ dữ liệu'}\n`;
       csvContent += `Biên lợi nhuận (%),${data.kpis.profit.margin != null ? data.kpis.profit.margin + '%' : 'Chưa đủ dữ liệu'}\n\n`;
 
-      csvContent += `HIỆU SUẤT CÔNG SUẤT THEO 9 PHÒNG VẬT LÝ\n`;
+      csvContent += `HIỆU SUẤT CÔNG SUẤT THEO PHÒNG VẬT LÝ\n`;
       csvContent += `Phòng,Loại phòng,Ghế vật lý,Số suất chiếu,Tổng ghế mở bán,Ghế đã bán,Ghế trống,Tỷ lệ lấp đầy (%),Doanh thu (đ)\n`;
       (data.roomOccupancyBreakdown || []).forEach((r) => {
         csvContent += `"${r.roomName}","${r.roomType}",${r.physicalSeats},${r.showtimesCount},${r.totalSellableSeats},${r.soldSeats},${r.unsoldSeats},${r.occupancyRate}%,${r.revenue}\n`;
@@ -4317,15 +4122,20 @@ class StatisticsService {
       csvContent += `Doanh thu thực đã xác minh,${data.metrics.verifiedRevenue}\n`;
       csvContent += `Doanh thu mô phỏng,${data.metrics.simulatedRevenue}\n`;
       csvContent += `Tổng doanh thu hợp lệ,${data.metrics.totalRevenue}\n`;
-      csvContent += `Tổng doanh thu trước hoàn tiền,${data.metrics.grossRevenue}\n`;
-      csvContent += `Tổng số tiền đã hoàn,${data.metrics.refundedAmount}\n`;
+      csvContent += `Doanh thu gộp trước chiết khấu,${data.metrics.grossRevenue}\n`;
+      csvContent += `Tổng số tiền đã hoàn,${data.metrics.totalRefundedAmount}\n`;
+      csvContent += `Hoàn tiền xác minh,${data.metrics.verifiedRefundedAmount}\n`;
+      csvContent += `Hoàn tiền mô phỏng,${data.metrics.simulatedRefundedAmount}\n`;
+      csvContent += `Đơn thiếu số tiền hoàn,${data.metrics.missingRefundAmountCount}\n`;
+      csvContent += `Chờ hoàn tiền,${data.metrics.pendingRefundAmount}\n`;
+      csvContent += `Doanh thu chưa phân loại,${data.metrics.unclassifiedRevenue}\n`;
       csvContent += `Giá trị đơn đã hủy,${data.metrics.cancelledAmount}\n`;
       csvContent += `Doanh thu thuần,${data.metrics.netRevenue}\n`;
       csvContent += `Doanh thu vé xem phim,${data.metrics.ticketRevenue}\n`;
       csvContent += `Doanh thu bắp nước,${data.metrics.concessionRevenue}\n`;
       csvContent += `Tổng chi phí phát sinh,${data.metrics.totalExpenses}\n`;
       csvContent += `Lợi nhuận rạp (Lãi/Lỗ),${data.metrics.hasExpenseData ? data.metrics.profit : 'Chưa đủ dữ liệu'}\n`;
-      csvContent += `Tỷ suất lợi nhuận (%),${data.metrics.hasExpenseData ? data.metrics.profitMargin + '%' : 'Chưa đủ dữ liệu'}\n`;
+      csvContent += `Tỷ suất lợi nhuận (%),${data.metrics.profitMargin != null ? data.metrics.profitMargin + '%' : 'Chưa đủ dữ liệu'}\n`;
       csvContent += `Trạng thái kinh doanh,${data.metrics.profitStatusLabel}\n`;
       csvContent += `Tổng số vé bán ra,${data.metrics.totalTicketsSold}\n\n`;
 
@@ -4335,7 +4145,7 @@ class StatisticsService {
         csvContent += `"${mv.title}",${mv.showtimesCount},${mv.tickets},${mv.ticketRevenue},${mv.concessionRevenue},${mv.netRevenue},${mv.directExpenses},${mv.allocatedOperationalCost},${mv.totalCost},${mv.profit ?? 'N/A'},${mv.profitMargin != null ? mv.profitMargin + '%' : 'N/A'},${mv.roi != null ? mv.roi + '%' : 'N/A'},"${mv.statusLabel}"\n`;
       });
 
-      csvContent += `\nBẢNG KINH DOANH THEO THÁNG TRONG NĂM (TỪ THÁNG 11/2026)\n`;
+      csvContent += `\nBẢNG KINH DOANH THEO THÁNG TRONG NĂM\n`;
       csvContent += `Tháng,Số vé bán,Số suất chiếu,Doanh thu thuần (đ),Chi phí (đ),Lợi nhuận (đ),Biên LN (%),Trạng thái\n`;
       data.monthlyBreakdown.forEach((m) => {
         csvContent += `"${m.monthLabel}",${m.ticketsSold},${m.showtimesCount},${m.netRevenue},${m.expenses},${m.profit ?? 'N/A'},${m.profitMargin != null ? m.profitMargin + '%' : 'N/A'},"${m.statusLabel}"\n`;
@@ -4344,30 +4154,30 @@ class StatisticsService {
       csvContent += `\nCHI TIẾT THEO NGÀY\n`;
       csvContent += `Ngày,Số đơn hàng,Số vé bán,Doanh thu thuần (đ),Chi phí (đ),Lợi nhuận (đ)\n`;
       data.revenueTableRows.forEach((r) => {
-        csvContent += `"${r.date}",${r.orders},${r.tickets},${r.netRev},${r.expense},${r.profit}\n`;
+        csvContent += `"${r.date}",${r.orders},${r.tickets},${r.netRev},${r.expense},${r.profit ?? 'N/A'}\n`;
       });
     } else if (type === 'movies') {
       const data = await this.getMoviesStats({ ...filters, limit: 200 });
       csvContent += `BÁO CÁO HIỆU SUẤT BÁN VÉ, CÔNG SUẤT & LỢI NHUẬN TỪNG PHIM - D'AVENOR CINEMA\n`;
       csvContent += `Khoảng thời gian: ${label}\n`;
       csvContent += `Thời điểm xuất: ${nowStr}\n\n`;
-      csvContent += `Hạng,Tên phim,Thể loại,Trạng thái,Số suất chiếu,Suất đã chiếu,Suất sắp chiếu,Suất cháy vé,Tổng ghế mở bán,Vé đã bán (Suất trong kỳ),Ghế không bán được (Đã chiếu),Ghế thực sự còn đặt được (Sắp chiếu),Tỷ lệ bán vé toàn kỳ (%),Tỷ lệ lấp đầy suất đã chiếu (%),Tỷ lệ đặt trước suất sắp chiếu (%),Doanh thu thuần (đ),Chi phí trực tiếp (đ),Chi phí phân bổ (đ),Tổng chi phí (đ),Lợi nhuận (đ),Biên LN (%),ROI (%),Trạng thái LN\n`;
+      csvContent += `Hạng,Tên phim,Thể loại,Trạng thái,Số suất chiếu,Suất đã chiếu,Suất sắp chiếu,Suất cháy vé,Tổng ghế mở bán,Vé giao dịch trong kỳ,Ghế đã đặt (Suất trong kỳ),Ghế không bán được (Đã chiếu),Ghế thực sự còn đặt được (Sắp chiếu),Tỷ lệ bán vé toàn kỳ (%),Tỷ lệ lấp đầy suất đã chiếu (%),Tỷ lệ đặt trước suất sắp chiếu (%),Doanh thu thuần (đ),Chi phí trực tiếp (đ),Chi phí phân bổ (đ),Tổng chi phí (đ),Lợi nhuận (đ),Biên LN (%),ROI (%),Trạng thái LN\n`;
 
       data.items.forEach((m) => {
-        csvContent += `${m.salesRank || ''},"${m.title}","${m.genre}","${m.status}",${m.showtimesCount},${m.screenedShowtimesCount},${m.upcomingShowtimesCount},${m.soldOutShowtimesCount},${m.totalSellableSeats},${m.ticketsSold},${m.completedUnsoldSeats},${m.upcomingAvailableSeats},${m.occupancyRate}%,${m.completedOccupancyRate ?? 0}%,${m.upcomingOccupancyRate ?? 0}%,${m.revenue},${m.directExpenses},${m.allocatedExpenses},${m.totalExpenses},${m.profit ?? 'N/A'},${m.profitMargin != null ? m.profitMargin + '%' : 'N/A'},${m.roi != null ? m.roi + '%' : 'N/A'},"${m.statusLabel}"\n`;
+        csvContent += `${m.salesRank || ''},"${m.title}","${m.genre}","${m.status}",${m.showtimesCount},${m.screenedShowtimesCount},${m.upcomingShowtimesCount},${m.soldOutShowtimesCount},${m.totalSellableSeats},${m.transactionTicketsSold},${m.showtimeBookedSeats},${m.completedUnsoldSeats},${m.upcomingAvailableSeats},${m.occupancyRate}%,${m.completedOccupancyRate ?? 0}%,${m.upcomingOccupancyRate ?? 0}%,${m.revenue},${m.directExpenses},${m.allocatedExpenses},${m.totalExpenses},${m.profit ?? 'N/A'},${m.profitMargin != null ? m.profitMargin + '%' : 'N/A'},${m.roi != null ? m.roi + '%' : 'N/A'},"${m.statusLabel}"\n`;
       });
     } else if (type === 'showtimes') {
       const data = await this.getShowtimesStats({ ...filters, limit: 500 });
       csvContent += `BÁO CÁO THỐNG KÊ SUẤT CHIẾU - D'AVENOR CINEMA\n`;
       csvContent += `Khoảng thời gian: ${label}\n`;
       csvContent += `Thời điểm xuất: ${nowStr}\n\n`;
-      csvContent += `Tên phim,Cụm rạp,Phòng chiếu,Loại phòng,Thời gian chiếu,Tổng ghế,Khách đặt vé,Ghế đã bán,Ghế đang giữ,Ghế còn trống,Tỷ lệ lấp đầy (%),Doanh thu (đ),Trạng thái\n`;
+      csvContent += `Tên phim,Cụm rạp,Phòng chiếu,Loại phòng,Thời gian chiếu,Tổng ghế,Khách đặt vé,Ghế đã bán,Ghế đang giữ,Ghế còn trống,Ghế đóng bán,Ghế còn đặt được,Tỷ lệ lấp đầy (%),Doanh thu (đ),Trạng thái\n`;
 
       data.items.forEach((st) => {
         const timeFormatted = new Date(st.startTime).toLocaleString('vi-VN', {
           timeZone: 'Asia/Ho_Chi_Minh',
         });
-        csvContent += `"${st.movieTitle}","${st.cinemaName}","${st.roomName}","${st.roomType}","${timeFormatted}",${st.totalSeats},${st.customerCount},${st.bookedSeats},${st.holdingSeats},${st.availableSeats},${st.occupancyRate}%,${st.revenue},"${st.status}"\n`;
+        csvContent += `"${st.movieTitle}","${st.cinemaName}","${st.roomName}","${st.roomType}","${timeFormatted}",${st.totalSeats},${st.customerCount},${st.bookedSeats},${st.holdingSeats},${st.availableSeats},${st.closedUnsoldSeats},${st.bookableAvailableSeats},${st.occupancyRate}%,${st.revenue},"${st.status}"\n`;
       });
     } else if (type === 'customers') {
       const data = await this.getCustomersStats({ ...filters, limit: 200 });

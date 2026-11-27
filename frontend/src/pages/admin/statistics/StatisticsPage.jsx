@@ -2,10 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import SidebarAdmin from '../../../components/admin/SidebarAdmin';
 import TopbarAdmin from '../../../components/admin/TopbarAdmin';
 import StatisticsHeader from './components/StatisticsHeader';
-import StatisticsFilter, {
-  CINEMA_OPERATION_START_YEAR,
-  CINEMA_OPERATION_START_MONTH,
-} from './components/StatisticsFilter';
+import StatisticsFilter from './components/StatisticsFilter';
 import OverviewTab from './tabs/OverviewTab';
 import RevenueTab from './tabs/RevenueTab';
 import MoviesTab from './tabs/MoviesTab';
@@ -34,22 +31,15 @@ const StatisticsPage = () => {
     }).formatToParts(new Date());
     const rawMonth = Number(parts.find((part) => part.type === 'month').value);
     const rawYear = Number(parts.find((part) => part.type === 'year').value);
-    const validYear = Math.max(CINEMA_OPERATION_START_YEAR, rawYear);
-    const validMonth =
-      validYear === CINEMA_OPERATION_START_YEAR
-        ? Math.max(CINEMA_OPERATION_START_MONTH, rawMonth)
-        : rawMonth;
-
     return {
       timeRange: 'by_month',
-      month: validMonth,
-      year: validYear,
+      month: rawMonth,
+      year: rawYear,
       customStart: '',
       customEnd: '',
       movieId: 'ALL',
       roomId: 'ALL',
       roomType: 'ALL',
-      room: 'ALL',
       sortBy: 'ticketsSold',
       sortOrder: 'desc',
       status: 'ALL',
@@ -66,6 +56,9 @@ const StatisticsPage = () => {
   // Danh mục phim trong kỳ & 9 phòng chiếu cho thanh lọc
   const [moviesList, setMoviesList] = useState([]);
   const [roomsList, setRoomsList] = useState([]);
+  const [roomError, setRoomError] = useState('');
+  const [movieError, setMovieError] = useState('');
+  const [catalogRevision, setCatalogRevision] = useState(0);
 
   // Trạng thái tải dữ liệu & Chống Race-condition khi chuyển bộ lọc nhanh
   const requestControllerRef = useRef(null);
@@ -73,6 +66,8 @@ const StatisticsPage = () => {
   const filterMoviesControllerRef = useRef(null);
   const filterMoviesSeqRef = useRef(0);
 
+  const requestKey = JSON.stringify([activeReport, filters]);
+  const [settledKey, setSettledKey] = useState('');
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -86,9 +81,11 @@ const StatisticsPage = () => {
 
   // 1. Nạp danh sách 9 phòng chiếu vật lý
   useEffect(() => {
+    const controller = new AbortController();
     const fetchRooms = async () => {
       try {
-        const roomsRes = await statisticsApi.getRooms();
+        const roomsRes = await statisticsApi.getRooms(controller.signal);
+        if (controller.signal.aborted) return;
         const roomsArr = Array.isArray(roomsRes.data)
           ? roomsRes.data
           : Array.isArray(roomsRes.data?.data)
@@ -96,22 +93,25 @@ const StatisticsPage = () => {
           : Array.isArray(roomsRes.data?.rooms)
           ? roomsRes.data.rooms
           : [];
-        if (roomsArr.length > 0) setRoomsList(roomsArr);
+        setRoomsList(roomsArr);
+        setRoomError(roomsArr.length ? '' : 'Thiếu danh mục phòng chiếu.');
       } catch (err) {
-        console.warn('Lỗi nạp danh mục phòng chiếu:', err.message);
+        if (!controller.signal.aborted) setRoomError('Không tải được danh mục phòng chiếu.');
       }
     };
     fetchRooms();
-  }, []);
+    return () => controller.abort();
+  }, [catalogRevision]);
 
   // 1.2. Nạp danh sách Phim động theo đúng kỳ báo cáo và phạm vi phòng đang chọn
-  // Nếu movieId đang chọn không thuộc kỳ báo cáo mới -> tự động reset movieId về 'ALL' (Mục V.7 & V.9)
   useEffect(() => {
     filterMoviesControllerRef.current?.abort();
     const controller = new AbortController();
     filterMoviesControllerRef.current = controller;
     const mySeq = ++filterMoviesSeqRef.current;
 
+    setMoviesList([]);
+    setMovieError('');
     const fetchPeriodMovies = async () => {
       try {
         const res = await statisticsApi.getFilterMovies(
@@ -123,7 +123,6 @@ const StatisticsPage = () => {
             customEnd: filters.customEnd,
             roomType: filters.roomType,
             roomId: filters.roomId,
-            room: filters.room,
           },
           controller.signal
         );
@@ -137,20 +136,10 @@ const StatisticsPage = () => {
 
         setMoviesList(periodMovies);
 
-        if (filters.movieId && filters.movieId !== 'ALL') {
-          const existsInNewPeriod = periodMovies.some(
-            (m) => String(m.id || m._id || m.movieId) === String(filters.movieId)
-          );
-          if (!existsInNewPeriod) {
-            setFilters((prev) =>
-              prev.movieId !== 'ALL' ? { ...prev, movieId: 'ALL', page: 1 } : prev
-            );
-          }
-        }
       } catch (err) {
         if (!controller.signal.aborted && err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
           if (mySeq === filterMoviesSeqRef.current) {
-            setMoviesList([]);
+            setMovieError('Không tải được phim trong kỳ.');
           }
         }
       }
@@ -166,8 +155,7 @@ const StatisticsPage = () => {
     filters.customEnd,
     filters.roomType,
     filters.roomId,
-    filters.room,
-    filters.movieId,
+    catalogRevision,
   ]);
 
   // 2. Nạp dữ liệu theo Tab và Bộ lọc đang kích hoạt (Chống race-condition bằng requestSeqRef + AbortController)
@@ -179,35 +167,29 @@ const StatisticsPage = () => {
       const mySeq = ++requestSeqRef.current;
 
       setLoadError('');
+      if (!isManualRefresh) {
+        setOverviewData(null);
+        setRevenueData(null);
+        setMoviesData(null);
+        setShowtimesData(null);
+      }
       try {
         if (isManualRefresh) setIsRefreshing(true);
         else setLoading(true);
 
         const currentFilters = { ...filters };
 
-        if (activeReport === 'overview') {
-          const res = await statisticsApi.getOverview(currentFilters, controller.signal);
-          if (!controller.signal.aborted && mySeq === requestSeqRef.current && res.data?.data) {
-            setOverviewData(res.data.data);
-          }
-        } else if (activeReport === 'revenue') {
-          const res = await statisticsApi.getRevenue(currentFilters, controller.signal);
-          if (!controller.signal.aborted && mySeq === requestSeqRef.current && res.data?.data) {
-            setRevenueData(res.data.data);
-          }
-        } else if (activeReport === 'movies') {
-          const res = await statisticsApi.getMovies(currentFilters, controller.signal);
-          if (!controller.signal.aborted && mySeq === requestSeqRef.current && res.data?.data) {
-            setMoviesData(res.data.data);
-          }
-        } else if (activeReport === 'showtimes') {
-          const res = await statisticsApi.getShowtimes(currentFilters, controller.signal);
-          if (!controller.signal.aborted && mySeq === requestSeqRef.current && res.data?.data) {
-            setShowtimesData(res.data.data);
-          }
-        }
-
+        const reports = {
+          overview: [statisticsApi.getOverview, setOverviewData],
+          revenue: [statisticsApi.getRevenue, setRevenueData],
+          movies: [statisticsApi.getMovies, setMoviesData],
+          showtimes: [statisticsApi.getShowtimes, setShowtimesData],
+        };
+        const [loadReport, setReport] = reports[activeReport];
+        const response = await loadReport(currentFilters, controller.signal);
         if (controller.signal.aborted || mySeq !== requestSeqRef.current) return;
+        if (!response.data?.data) throw new Error('Thiếu dữ liệu báo cáo');
+        setReport(response.data.data);
         const now = new Date();
         setLastUpdated(
           now.toLocaleTimeString('vi-VN', {
@@ -230,12 +212,13 @@ const StatisticsPage = () => {
         }
       } finally {
         if (!controller.signal.aborted && mySeq === requestSeqRef.current) {
+          setSettledKey(requestKey);
           setLoading(false);
           setIsRefreshing(false);
         }
       }
     },
-    [activeReport, filters]
+    [activeReport, filters, requestKey]
   );
 
   useEffect(() => {
@@ -259,6 +242,7 @@ const StatisticsPage = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
       setNotification(`✓ Xuất file báo cáo ${exportType.toUpperCase()} thành công!`);
       setTimeout(() => setNotification(''), 4000);
@@ -271,10 +255,13 @@ const StatisticsPage = () => {
     }
   };
 
+  const currentRequest = settledKey === requestKey;
+  const visibleLoading = loading || !currentRequest;
+  const visibleError = currentRequest ? loadError : '';
   const currentSortValue = `${filters.sortBy || 'ticketsSold'}:${filters.sortOrder || 'desc'}`;
 
   return (
-    <div className="flex bg-[var(--bg-main)] min-h-screen text-slate-200 font-sans">
+    <div className="flex overflow-x-clip bg-[var(--bg-main)] min-h-screen text-slate-200 font-sans">
       {/* Sidebar Admin bên trái */}
       <SidebarAdmin />
 
@@ -282,12 +269,12 @@ const StatisticsPage = () => {
       <div className="flex-1 flex flex-col min-w-0">
         <TopbarAdmin />
 
-        <main className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1720px] mx-auto w-full">
+        <main className="min-w-0 p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1720px] mx-auto w-full">
           {/* 1. Header Trang Thống Kê & Báo Cáo */}
           <StatisticsHeader
             lastUpdated={lastUpdated}
             hasError={Boolean(loadError)}
-            onRefresh={() => fetchTabData(true)}
+            onRefresh={() => { setCatalogRevision((value) => value + 1); fetchTabData(true); }}
             onExport={handleExportReport}
             isRefreshing={isRefreshing}
             isExporting={isExporting}
@@ -307,10 +294,14 @@ const StatisticsPage = () => {
           {/* 2. Global Filter Bar dùng chung: Thời gian, Phim trong kỳ, Loại phòng, Phòng vật lý */}
           <StatisticsFilter
             filters={filters}
-            onChange={(newFilters) => setFilters(newFilters)}
+            onChange={(newFilters) => {
+              setSelectedMovieId(null);
+              setSelectedShowtimeId(null);
+              setFilters(newFilters);
+            }}
             movies={moviesList}
             rooms={roomsList}
-            showMovieFilter={activeReport !== 'movies'}
+            catalogError={[roomError, movieError].filter(Boolean).join(' ')}
           />
 
           {/* 3. Dãy 3 Tabs điều hướng chính: Tổng hợp, Doanh thu & Chi phí, Hiệu suất */}
@@ -336,12 +327,12 @@ const StatisticsPage = () => {
           </div>
 
           {/* 4. Nội dung chi tiết của Tab đang chọn */}
-          <div className="transition-all duration-300">
+          <div className="min-w-0 transition-all duration-300">
             {activeTab === 'overview' && (
               <OverviewTab
-                data={overviewData}
-                loading={loading}
-                error={loadError}
+                data={currentRequest ? overviewData : null}
+                loading={visibleLoading}
+                error={visibleError}
                 onRetry={() => fetchTabData(true)}
                 onSelectMovie={(id) => setSelectedMovieId(id)}
                 onSelectShowtime={(id) => setSelectedShowtimeId(id)}
@@ -351,9 +342,9 @@ const StatisticsPage = () => {
 
             {activeTab === 'revenue' && (
               <RevenueTab
-                data={revenueData}
-                loading={loading}
-                error={loadError}
+                data={currentRequest ? revenueData : null}
+                loading={visibleLoading}
+                error={visibleError}
                 onRetry={() => fetchTabData(true)}
                 filters={filters}
                 moviesList={moviesList}
@@ -367,7 +358,7 @@ const StatisticsPage = () => {
               <div className="mb-4 flex flex-wrap gap-2">
                 {[
                   ['movies', 'Hiệu suất Phim & Lợi nhuận'],
-                  ['showtimes', 'Chi tiết Suất chiếu & 88 Ghế'],
+                  ['showtimes', 'Chi tiết Suất chiếu & Ghế'],
                 ].map(([key, label]) => (
                   <button
                     type="button"
@@ -387,9 +378,9 @@ const StatisticsPage = () => {
 
             {activeReport === 'movies' && (
               <MoviesTab
-                moviesData={moviesData}
-                loading={loading}
-                error={loadError}
+                moviesData={currentRequest ? moviesData : null}
+                loading={visibleLoading}
+                error={visibleError}
                 onRetry={() => fetchTabData(true)}
                 onSelectMovie={(id) => setSelectedMovieId(id)}
                 onPageChange={(p) => setFilters({ ...filters, page: p })}
@@ -403,9 +394,9 @@ const StatisticsPage = () => {
 
             {activeReport === 'showtimes' && (
               <ShowtimesTab
-                showtimesData={showtimesData}
-                loading={loading}
-                error={loadError}
+                showtimesData={currentRequest ? showtimesData : null}
+                loading={visibleLoading}
+                error={visibleError}
                 onRetry={() => fetchTabData(true)}
                 onSelectShowtime={(id) => setSelectedShowtimeId(id)}
                 onPageChange={(p) => setFilters({ ...filters, page: p })}
@@ -413,11 +404,13 @@ const StatisticsPage = () => {
                 onRoomFilter={(roomVal) =>
                   setFilters({
                     ...filters,
-                    room: roomVal,
                     roomId: roomVal,
                     page: 1,
                   })
                 }
+                rooms={roomsList}
+                roomId={filters.roomId}
+                roomType={filters.roomType}
                 currentStatus={filters.status || 'ALL'}
                 onStatusFilter={(st) => setFilters({ ...filters, status: st, page: 1 })}
               />

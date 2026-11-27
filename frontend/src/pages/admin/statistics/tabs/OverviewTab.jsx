@@ -2,7 +2,7 @@ import React from 'react';
 import StatisticCard from '../components/StatisticCard';
 import RevenueChart from '../components/RevenueChart';
 import OccupancyChart from '../components/OccupancyChart';
-import { formatCurrency, formatNumber, formatPercent } from '../utils/statisticsFormatter';
+import { formatExactCurrency, formatNumber, formatPercent } from '../utils/statisticsFormatter';
 
 const ROOM_TYPE_COLORS = {
   'IMAX Laser': {
@@ -20,6 +20,21 @@ const ROOM_TYPE_COLORS = {
     bar: 'bg-amber-400',
     text: 'text-amber-300',
   },
+};
+
+const ROOM_TYPE_SHORT_LABELS = {
+  'IMAX Laser': 'IMAX',
+  'Dolby Atmos': 'Dolby',
+  'Gold Class': 'Gold',
+};
+
+const getShortRoomTypeLabel = (roomType = '') => {
+  if (ROOM_TYPE_SHORT_LABELS[roomType]) return ROOM_TYPE_SHORT_LABELS[roomType];
+  const lower = String(roomType).toLowerCase();
+  if (lower.includes('imax')) return 'IMAX';
+  if (lower.includes('dolby')) return 'Dolby';
+  if (lower.includes('gold')) return 'Gold';
+  return roomType;
 };
 
 const OverviewTab = ({
@@ -64,20 +79,23 @@ const OverviewTab = ({
   const mom = data?.momComparison || {};
   const roomOccupancyBreakdown = data?.roomOccupancyBreakdown || [];
   const roomTypeBreakdown = data?.roomTypeBreakdown || [];
-  const topRevenueMovies = data?.topRevenueMovies || [];
-  const peakHours = data?.peakHours || [];
+  const topRevenueMovies = (data?.topRevenueMovies || []).filter((movie) => movie.revenue > 0);
+  const peakHours = (data?.peakHours || []).filter((slot) =>
+    slot.key !== 'EARLY_MORNING' ||
+    [slot.showtimesCount, slot.sellableSeats, slot.tickets, slot.bookings, slot.revenue].some(Boolean)
+  );
   const upcomingShowtimes = data?.upcomingShowtimes || [];
   const revenueSplit = data?.revenueSplitByPaymentStatus || {};
 
-  const physicalRoomsCount = cinemaCapacity.physicalRoomsCount || occupancy.roomCount || 9;
-  const totalPhysicalSeats = cinemaCapacity.totalPhysicalSeats || occupancy.totalPhysicalSeats || 792;
+  const physicalRoomsCount = cinemaCapacity.physicalRoomsCount ?? occupancy.roomCount ?? 0;
+  const totalPhysicalSeats = cinemaCapacity.totalPhysicalSeats ?? occupancy.totalPhysicalSeats ?? 0;
 
   const isSimulatedMode =
     data?.isSimulatedMode ??
     ((data?.paymentCounts?.SIMULATED || 0) > 0 && (data?.paymentCounts?.VERIFIED || 0) === 0);
 
   const revenueBadgeLabel =
-    data?.revenueSourceBadge || (isSimulatedMode ? 'Doanh thu mô phỏng' : 'Dòng tiền thực');
+    data?.revenueSourceBadge || 'Chưa phát sinh doanh thu';
 
   const profitValueColor = !data?.profitKnown
     ? 'text-amber-300'
@@ -99,7 +117,7 @@ const OverviewTab = ({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-700/80 bg-[var(--bg-secondary)]/90 px-4 py-3 text-xs text-slate-300 shadow">
           <div className="flex flex-wrap items-center gap-3">
             <span className="font-bold text-cyan-300">
-              Cấu hình rạp chuẩn: {physicalRoomsCount} phòng chiếu vật lý × 88 ghế = {formatNumber(totalPhysicalSeats)} ghế vật lý
+              Cấu hình rạp chuẩn: {physicalRoomsCount} phòng chiếu vật lý • {formatNumber(totalPhysicalSeats)} ghế vật lý
             </span>
             <span className="text-slate-600">|</span>
             <span>
@@ -142,7 +160,7 @@ const OverviewTab = ({
       {!loading && data && !data.hasActivityInPeriod && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-xs text-amber-200 flex items-center justify-between">
           <span>
-            ℹ️ Chưa có dữ liệu giao dịch hoặc suất chiếu trong kỳ <strong>{data.timeRangeLabel}</strong>. Bạn có thể chọn kỳ báo cáo khác (ví dụ Tháng 11/2026) để xem số liệu hoạt động.
+            ℹ️ Chưa có dữ liệu giao dịch hoặc suất chiếu trong kỳ <strong>{data.timeRangeLabel}</strong>.
           </span>
         </div>
       )}
@@ -153,6 +171,7 @@ const OverviewTab = ({
         <StatisticCard
           title={kpis.netRevenue?.title || 'Doanh thu thuần'}
           value={kpis.netRevenue?.formatted || '0 ₫'}
+          valueTitle={kpis.netRevenue?.value == null ? undefined : formatExactCurrency(kpis.netRevenue.value)}
           exactValue={
             kpis.netRevenue?.value != null
               ? `Vé: ${kpis.netRevenue?.ticketRevenueFormatted || '0 ₫'} | Combo: ${kpis.netRevenue?.concessionRevenueFormatted || '0 ₫'}`
@@ -169,8 +188,8 @@ const OverviewTab = ({
 
         {/* KPI 2: Vé Hợp Lệ Đã Bán */}
         <StatisticCard
-          title={kpis.validTicketsSold?.title || 'Vé hợp lệ đã bán'}
-          value={kpis.validTicketsSold?.formatted || '0 vé'}
+          title="Vé giao dịch hợp lệ"
+          value={`${formatNumber(data?.crossPeriodReconciliation?.transactionTicketsSoldInPeriod ?? 0)} vé`}
           exactValue={
             kpis.validTicketsSold
               ? `${formatNumber(kpis.validTicketsSold.successfulOrders || 0)} đơn hợp lệ`
@@ -207,7 +226,7 @@ const OverviewTab = ({
           value={kpis.totalShowtimes?.formatted || '0 suất'}
           exactValue={
             kpis.totalShowtimes
-              ? `Đã chiếu: ${kpis.totalShowtimes.completedCount || 0} | Sắp chiếu: ${kpis.totalShowtimes.upcomingCount || 0}`
+              ? `Sắp chiếu: ${kpis.totalShowtimes.upcomingCount} • Đang chiếu: ${kpis.totalShowtimes.nowShowingCount} • Đang dọn: ${kpis.totalShowtimes.cleaningCount} • Hoàn thành: ${kpis.totalShowtimes.completedCount} • Hủy: ${kpis.totalShowtimes.cancelledCount}`
               : ''
           }
           growth={kpis.totalShowtimes?.growth}
@@ -227,6 +246,7 @@ const OverviewTab = ({
         <StatisticCard
           title={kpis.totalExpenses?.title || 'Tổng chi phí'}
           value={kpis.totalExpenses?.formatted || '0 ₫'}
+          valueTitle={kpis.totalExpenses?.value == null ? undefined : formatExactCurrency(kpis.totalExpenses.value)}
           exactValue={
             kpis.totalExpenses?.hasExpenseData
               ? `${kpis.totalExpenses.expenseRecordsCount} chứng từ (${kpis.totalExpenses.exactFormatted})`
@@ -242,8 +262,9 @@ const OverviewTab = ({
 
         {/* KPI 6: Lợi Nhuận Rạp */}
         <StatisticCard
-          title={kpis.profit?.title || 'Lợi nhuận rạp'}
+          title={'Lợi nhuận theo chi phí đã ghi nhận'}
           value={kpis.profit?.formatted || 'Chưa đủ dữ liệu'}
+          valueTitle={kpis.profit?.value == null ? undefined : formatExactCurrency(kpis.profit.value)}
           exactValue={kpis.profit?.exactFormatted || ''}
           growth={kpis.profit?.growth}
           valueColor={profitValueColor}
@@ -265,7 +286,7 @@ const OverviewTab = ({
         />
       </div>
 
-      {/* 1.2 DÃY CHỈ SỐ BỔ SUNG THÁNG & SO SÁNH THÁNG TRƯỚC (MoM) */}
+      {/* 1.2 DÃY CHỈ SỐ BỔ SUNG THÁNG & SO SÁNH THÁNG TRƯỚC */}
       {!loading && data && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-4 flex items-center justify-between">
@@ -288,7 +309,7 @@ const OverviewTab = ({
                 {kpis.averages?.avgRevenuePerDayFormatted || '0 ₫'}
               </strong>
               <span className="text-[10px] text-slate-500">
-                Vé: {kpis.ticketRevenue?.formatted || '0 ₫'} • Combo: {kpis.concessionRevenue?.formatted || '0 ₫'}
+                Vé: {formatExactCurrency(kpis.ticketRevenue?.value)} • Combo: {formatExactCurrency(kpis.concessionRevenue?.value)}
               </span>
             </div>
             <span className="text-lg">📅</span>
@@ -310,17 +331,17 @@ const OverviewTab = ({
           <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-2xl p-4 flex items-center justify-between">
             <div>
               <span className="text-[11px] text-slate-400 font-semibold block">
-                {mom.hasValidPreviousPeriod === false
-                  ? 'So sánh kỳ trước (MoM)'
-                  : `So sánh với ${mom.previousPeriodLabel || 'Kỳ trước'} (MoM)`}
+                {data.previousPeriodHasData === false
+                  ? 'So sánh kỳ trước'
+                  : `So sánh với ${mom.previousPeriodLabel || 'Kỳ trước'}`}
               </span>
-              {mom.hasValidPreviousPeriod === false ? (
+              {data.previousPeriodHasData === false ? (
                 <>
                   <strong className="text-xs sm:text-sm font-bold text-amber-300 mt-0.5 block">
-                    Tháng đầu vận hành
+                    Chưa đủ dữ liệu so sánh
                   </strong>
                   <span className="text-[10px] text-slate-400">
-                    Chưa có kỳ trước để so sánh (Rạp hoạt động từ 01/11/2026)
+                    Chưa có kỳ trước để so sánh
                   </span>
                 </>
               ) : (
@@ -341,10 +362,12 @@ const OverviewTab = ({
         </div>
       )}
 
+      {(data?.missingRoomShowtimesCount > 0 || cinemaCapacity.missingSeatShowtimesCount > 0) &&
+        <p role="status" className="text-xs text-amber-300">Một số suất chiếu thiếu dữ liệu phòng hoặc ghế.</p>}
       {/* 2. KHỐI BIỂU ĐỒ DIỄN BIẾN DOANH THU & DONUT TỶ LỆ BÁN VÉ / CÔNG SUẤT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Cột trái (7 cols): Biểu đồ Diễn biến Doanh thu (Area + Line Chart) */}
-        <div className="lg:col-span-7 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+        <div className="lg:col-span-7 min-w-0 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
           <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white">Diễn biến Doanh thu</h3>
@@ -363,11 +386,19 @@ const OverviewTab = ({
             </span>
           </div>
 
+          <p className="text-xs text-slate-300 flex flex-wrap gap-x-3 gap-y-1">
+            <span>Xác minh: {formatExactCurrency(data?.revenueSplitByPaymentStatus?.verifiedRevenue)}</span>
+            <span>Mô phỏng: {formatExactCurrency(data?.revenueSplitByPaymentStatus?.simulatedRevenue)}</span>
+            <span>Tổng hợp lệ: {formatExactCurrency(kpis.netRevenue?.value)}</span>
+          </p>
+          {kpis.netRevenue?.revenueSplitWarning && <p role="status" className="text-xs text-amber-300">
+            Chưa phân loại {formatExactCurrency(kpis.netRevenue.unclassifiedRevenue)} do thiếu chi tiết giá giao dịch.
+          </p>}
           <RevenueChart data={data?.revenueChartData || []} loading={loading} showExpenseOverlay={true} />
         </div>
 
         {/* Cột phải (5 cols): Tỷ lệ bán vé trung bình & công suất phòng chiếu */}
-        <div className="lg:col-span-5 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl flex flex-col justify-between">
+        <div className="lg:col-span-5 min-w-0 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white">Tỷ Lệ Bán Vé & Công Suất</h3>
@@ -380,7 +411,7 @@ const OverviewTab = ({
             </span>
           </div>
 
-          <OccupancyChart occupancy={occupancy} loading={loading} />
+          <OccupancyChart occupancy={{ ...occupancy, closedUnsoldSeats: cinemaCapacity.closedUnsoldSeats }} loading={loading} />
 
           <div className="pt-2 border-t border-[var(--border-default)]/60 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2">
             <span>
@@ -400,7 +431,7 @@ const OverviewTab = ({
       {/* 3. KHỐI THÔNG TIN BỔ SUNG: TOP 5 PHIM DOANH THU CAO NHẤT & KHUNG GIỜ CAO ĐIỂM */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Top Phim trong kỳ (6 cols) */}
-        <div className="lg:col-span-6 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+        <div className="lg:col-span-6 min-w-0 self-start bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
           <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
             <div>
               <h3 className="text-base font-bold text-white">Top 5 Phim Doanh Thu Cao Nhất</h3>
@@ -432,7 +463,7 @@ const OverviewTab = ({
                       {idx + 1}
                     </span>
                     <img
-                      src={m.poster}
+                      src={m.poster || undefined}
                       alt={m.title}
                       className="w-9 h-12 rounded-lg object-cover shrink-0 border border-slate-700"
                       onError={(e) => {
@@ -450,7 +481,7 @@ const OverviewTab = ({
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="text-xs font-bold text-emerald-400 block">{formatCurrency(m.revenue)}</span>
+                    <span className="text-xs font-bold text-emerald-400 block">{formatExactCurrency(m.revenue)}</span>
                     <span className="text-[10px] text-slate-500">Doanh thu thuần</span>
                   </div>
                 </div>
@@ -468,15 +499,15 @@ const OverviewTab = ({
             <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
               <div>
                 <h3 className="text-base font-bold text-white">Hiệu Suất Theo Khung Giờ Chiếu</h3>
-                <p className="text-xs text-slate-400">Phân bổ suất chiếu, vé bán và doanh thu theo 4 ca trong ngày</p>
+                <p className="text-xs text-slate-400">Phân bổ suất chiếu, vé bán và doanh thu theo {peakHours.length} nhóm khung giờ</p>
               </div>
               <span className="text-xs font-bold text-amber-400">Ca chiếu</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {peakHours.map((slot, idx) => (
+              {peakHours.map((slot) => (
                 <div
-                  key={idx}
+                  key={slot.key || slot.slot}
                   className="bg-[var(--bg-surface)]/40 border border-slate-700/60 rounded-2xl p-3.5 flex items-center justify-between"
                 >
                   <div>
@@ -488,7 +519,7 @@ const OverviewTab = ({
                   <div className="text-right">
                     <span className="text-sm font-black text-cyan-300 block">{formatNumber(slot.tickets)} vé</span>
                     <span className="text-[10px] text-emerald-400 font-semibold block">
-                      {slot.revenueFormatted || formatCurrency(slot.revenue || 0)}
+                      {formatExactCurrency(slot.revenue)}
                     </span>
                   </div>
                 </div>
@@ -499,8 +530,8 @@ const OverviewTab = ({
           {/* Suất chiếu sắp diễn ra */}
           <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-3.5 shadow-xl">
             <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
-              <h3 className="text-base font-bold text-white">Suất Chiếu Sắp Bắt Đầu</h3>
-              <span className="text-xs text-slate-400">Bấm vào suất để xem sơ đồ 88 ghế</span>
+              <h3 className="text-base font-bold text-white">Suất chiếu sắp bắt đầu</h3>
+              <span className="text-xs text-slate-400">Các suất tiếp theo tính từ thời điểm hiện tại.</span>
             </div>
 
             <div className="space-y-2">
@@ -599,41 +630,44 @@ const OverviewTab = ({
           </div>
 
           {/* Cột phải (8 cols): Bảng công suất 9 phòng chiếu vật lý */}
-          <div className="lg:col-span-8 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-6 space-y-4 shadow-xl">
+          <div className="lg:col-span-8 min-w-0 bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-3xl p-3 sm:p-4 space-y-4 shadow-xl">
             <div className="flex items-center justify-between border-b border-[var(--border-default)]/80 pb-3">
               <div>
-                <h3 className="text-base font-bold text-white">Công Suất 9 Phòng Chiếu Vật Lý</h3>
+                <h3 className="text-base font-bold text-white">Công Suất Phòng Chiếu Vật Lý</h3>
                 <p className="text-xs text-slate-400">
-                  Thống kê số suất chiếu, tổng sức chứa trong kỳ, ghế đã bán và doanh thu của từng phòng (88 ghế/phòng)
+                  Thống kê số suất chiếu, tổng sức chứa trong kỳ, ghế đã bán và doanh thu của từng phòng
                 </p>
               </div>
-              <span className="text-xs font-bold text-cyan-300">9 Phòng × 88 Ghế = 792 Ghế</span>
+              <span className="text-xs font-bold text-cyan-300">{physicalRoomsCount} phòng • {formatNumber(totalPhysicalSeats)} ghế</span>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
+              <table className="w-full min-w-[520px] text-left text-xs text-slate-300">
                 <thead className="bg-[var(--bg-surface)]/80 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-700">
                   <tr>
-                    <th className="py-2.5 px-3">Phòng chiếu</th>
-                    <th className="py-2.5 px-2.5">Loại phòng</th>
-                    <th className="py-2.5 px-2 text-center">Ghế vật lý</th>
-                    <th className="py-2.5 px-2 text-center">Số suất</th>
-                    <th className="py-2.5 px-2.5 text-center">Sức chứa kỳ</th>
-                    <th className="py-2.5 px-2.5 text-center">Đã bán</th>
-                    <th className="py-2.5 px-2.5 text-center">Chưa bán</th>
-                    <th className="py-2.5 px-3 min-w-[110px]">Lấp đầy (%)</th>
-                    <th className="py-2.5 px-3 text-right">Doanh thu</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Phòng chiếu</th>
+                    <th className="py-2.5 px-2 w-[58px] text-center whitespace-nowrap">Loại phòng</th>
+                    <th className="py-2.5 px-2 text-center whitespace-nowrap">Ghế vật lý</th>
+                    <th className="py-2.5 px-2 text-center whitespace-nowrap">Số suất</th>
+                    <th className="py-2.5 px-1 text-center">Sức chứa kỳ</th>
+                    <th className="py-2.5 px-1 text-center">Đã bán</th>
+                    <th className="py-2.5 px-1 text-center">Chưa bán</th>
+                    <th className="py-2.5 px-1 min-w-[52px]">Lấp đầy (%)</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Doanh thu</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80 font-medium">
                   {roomOccupancyBreakdown.map((r) => {
                     const style = ROOM_TYPE_COLORS[r.roomType] || ROOM_TYPE_COLORS['IMAX Laser'];
+                    const shortRoomType = getShortRoomTypeLabel(r.roomType);
                     return (
                       <tr key={r.roomId} className="hover:bg-[var(--bg-surface)]/40 transition-colors">
-                        <td className="py-2.5 px-3 font-bold text-white">{r.roomName}</td>
-                        <td className="py-2.5 px-2.5">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${style.badge}`}>
-                            {r.roomType}
+                        <td className="py-2.5 px-1 font-bold text-white whitespace-nowrap" title={r.roomName}>{r.roomNumber ? `Phòng ${String(r.roomNumber).padStart(2, '0')}` : r.roomName}</td>
+                        <td className="py-2.5 px-2 w-[58px] text-center align-middle">
+                          <span
+                            className={`inline-flex items-center justify-center w-[52px] h-[22px] px-2.5 py-0.5 rounded-md border text-[10px] font-bold leading-none whitespace-nowrap ${style.badge}`}
+                          >
+                            {shortRoomType}
                           </span>
                         </td>
                         <td className="py-2.5 px-2 text-center text-slate-400">{r.physicalSeats}</td>

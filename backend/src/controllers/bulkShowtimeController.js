@@ -1,3 +1,4 @@
+import { getCancellationRefundUpdate } from '../services/bookingRefundService.js';
 import mongoose from 'mongoose';
 import Showtime from '../models/Showtime.js';
 import ShowtimeSeat from '../models/ShowtimeSeat.js';
@@ -484,107 +485,68 @@ export const deleteShowtimeSafe = async (req, res) => {
   if (!mongoose.isObjectIdOrHexString(id)) return res.sendStatus(400);
 
   try {
-    const slot = await Showtime.findById(id).populate('movieId', 'title');
-    if (!slot) {
-      return res.status(404).json({ message: 'Không tìm thấy suất chiếu cần xóa hoặc suất đã bị xóa.' });
-    }
-
-    // Nếu suất chiếu đã được hủy trước đó -> trả về idempotent, không tạo hoàn tiền trùng lặp và không xóa cứng lịch sử
-    if (slot.cancelledAt) {
-      return res.json({
-        success: true,
-        alreadyCancelled: true,
-        deletedCompletely: false,
-        affectedOrdersCount: 0,
-        message: 'Suất chiếu này đã được hủy trước đó.',
-      });
-    }
-
-    // Kiểm tra các đơn đặt vé gắn với suất chiếu này
-    const orders = await Booking.find({
-      showtimeId: slot._id,
-      status: { $in: ['PAID', 'EXCHANGED', 'PENDING'] },
-    }).lean();
-
-    // TRƯỜNG HỢP 1: Suất chiếu chưa có bất kỳ đơn đặt vé nào (0 vé)
-    // -> Kiểm tra xem có khách đang giữ ghế HOLDING còn hạn không trước khi cho phép xóa cứng
-    if (!orders || orders.length === 0) {
-      const activeHoldingCount = await ShowtimeSeat.countDocuments({
-        showtimeId: slot._id,
-        status: 'HOLDING',
-        holdExpiresAt: { $gt: new Date() },
-      });
-      if (activeHoldingCount > 0) {
-        return res.status(409).json({
-          message: `Không thể xóa hoàn toàn: Suất chiếu đang có ${activeHoldingCount} ghế được khách giữ tạm thời.`,
-          hasActiveHolds: true,
-          holdingCount: activeHoldingCount,
-        });
+    const outcome = await mongoose.connection.transaction(async (session) => {
+      const slot = await Showtime.findById(id).populate('movieId', 'title').session(session);
+      if (!slot) return { status: 404, message: 'Không tìm thấy suất chiếu cần xóa.' };
+      if (slot.cancelledAt || slot.lifecycleStatus === 'CANCELLED') {
+        return {
+          success: true, alreadyCancelled: true, deletedCompletely: false, affectedOrdersCount: 0,
+          message: 'Suất chiếu này đã được hủy trước đó.',
+        };
       }
 
-      await mongoose.connection.transaction(async (session) => {
-        if (slot.roomId) {
-          await lockRoomForDelete(slot.roomId, session);
-        }
-        await ShowtimeSeat.deleteMany({ showtimeId: slot._id }, { session });
-        await Showtime.deleteOne({ _id: slot._id }, { session });
-      });
-
-      // Ghi nhật ký thao tác
-      await AuditLog.create({
+      const orders = await Booking.find({
+        showtimeId: slot._id,
+        status: { $in: ['PAID', 'EXCHANGED', 'PENDING'] },
+      }).session(session).lean();
+      const actor = {
         adminId: req.user?._id || null,
         adminEmail: req.user?.email || 'admin@davenor.vn',
-        actionType: 'SINGLE_DELETE',
         showtimeIds: [slot._id],
-        deletedShowtimesInfo: [{
-          showtimeId: String(slot._id),
-          movieTitle: slot.movieId?.title || slot.roomName,
-          roomName: slot.roomName,
-          startTime: slot.startTime,
-        }],
-        reason: reason || 'Xóa suất chiếu chưa có giao dịch',
-        resultSummary: { requestedCount: 1, deletedCount: 1, skippedCount: 0, failedCount: 0 },
-      });
+      };
 
-      return res.json({
-        success: true,
-        deletedCompletely: true,
-        message: 'Đã xóa hoàn toàn suất chiếu và giải phóng toàn bộ ghế phòng chiếu thành công!',
-      });
-    }
+      if (!orders.length) {
+        const holdingCount = await ShowtimeSeat.countDocuments({
+          showtimeId: slot._id,
+          status: 'HOLDING',
+          holdExpiresAt: { $gt: new Date() },
+        }).session(session);
+        if (holdingCount > 0) {
+          return {
+            status: 409, hasActiveHolds: true, holdingCount,
+            message: 'Không thể xóa hoàn toàn: Suất chiếu đang có ghế được khách giữ tạm thời.',
+          };
+        }
 
-    // TRƯỜNG HỢP 2: Suất chiếu đã có khách đặt vé
-    // Tách biệt nghiệp vụ: Không tự động chuyển thành hủy nếu Admin chỉ yêu cầu xóa thông thường
-    if (action !== 'CANCEL_WITH_REFUND') {
-      return res.status(409).json({
-        message: `Không thể xóa hoàn toàn: Suất chiếu đã có ${orders.length} đơn đặt vé của khách hàng. Để bảo vệ quyền lợi khách hàng và dữ liệu tài chính, vui lòng sử dụng chức năng Hủy suất chiếu chuyên biệt.`,
-        hasBookings: true,
-        ordersCount: orders.length,
-      });
-    }
+        if (slot.roomId) await lockRoomForDelete(slot.roomId, session);
+        await Showtime.deleteOne({ _id: slot._id }, { session });
+        await ShowtimeSeat.deleteMany({ showtimeId: slot._id }, { session });
+        await AuditLog.create([{
+          ...actor,
+          actionType: 'SINGLE_DELETE',
+          deletedShowtimesInfo: [{
+            showtimeId: String(slot._id),
+            movieTitle: slot.movieId?.title || slot.roomName,
+            roomName: slot.roomName,
+            startTime: slot.startTime,
+          }],
+          reason: reason || 'Xóa suất chiếu chưa có giao dịch',
+          resultSummary: { requestedCount: 1, deletedCount: 1, skippedCount: 0, failedCount: 0 },
+        }], { session });
+        return { success: true, deletedCompletely: true, message: 'Đã xóa suất chiếu và giải phóng ghế.' };
+      }
 
-    // Nếu suất chiếu đã được hủy trước đó -> trả về idempotent, không tạo hoàn tiền trùng lặp
-    if (slot.cancelledAt) {
-      return res.json({
-        success: true,
-        alreadyCancelled: true,
-        deletedCompletely: false,
-        affectedOrdersCount: 0,
-        message: 'Suất chiếu này đã được hủy trước đó.',
-      });
-    }
+      if (action !== 'CANCEL_WITH_REFUND') {
+        return {
+          status: 409, hasBookings: true, ordersCount: orders.length,
+          message: 'Suất chiếu đã có đơn đặt vé. Vui lòng sử dụng chức năng Hủy suất chiếu.',
+        };
+      }
+      if (orders.some((order) => order.isCheckedIn)) {
+        return { status: 409, message: 'Không thể hủy suất chiếu: Đã có vé được check-in.' };
+      }
 
-    // Nếu Admin xác nhận Hủy suất chiếu & hoàn tiền
-    if (orders.some(order => order.isCheckedIn)) {
-      return res.status(409).json({
-        message: 'Không thể hủy suất chiếu: Đã có vé được check-in vào phòng chiếu.',
-      });
-    }
-
-    const affectedOrderCodes = orders.map((o) => o.bookingCode);
-
-    await mongoose.connection.transaction(async (session) => {
-      await Showtime.findByIdAndUpdate(slot._id, {
+      await Showtime.updateOne({ _id: slot._id }, {
         $set: {
           isLocked: true,
           cancelledAt: new Date(),
@@ -594,54 +556,42 @@ export const deleteShowtimeSafe = async (req, res) => {
       }, { session });
 
       for (const order of orders) {
-        const nextRefundStatus = order.paymentStatus === 'VERIFIED' ? 'PENDING' : 'SIMULATED';
-        await Booking.updateOne(
-          { _id: order._id, status: { $in: ['PAID', 'EXCHANGED', 'PENDING'] } },
-          {
-            $set: {
-              status: 'CANCELLED',
-              qrToken: null,
-              refundStatus: nextRefundStatus,
-              refundAmount: order.totalAmount || 0,
-            },
-          },
-          { session }
-        );
+        const newRefund = getCancellationRefundUpdate(order);
+        await Booking.updateOne({ _id: order._id }, {
+          $set: { status: 'CANCELLED', qrToken: null, ...newRefund },
+        }, { session });
       }
 
-      await ShowtimeSeat.updateMany(
-        { showtimeId: slot._id },
-        {
-          $set: {
-            status: 'AVAILABLE',
-            bookingId: null,
-            holdId: null,
-            holdOwnerId: null,
-            holdCreatedAt: null,
-            holdExpiresAt: null,
-          },
+      await ShowtimeSeat.updateMany({ showtimeId: slot._id }, {
+        $set: {
+          status: 'AVAILABLE',
+          bookingId: null,
+          holdId: null,
+          holdOwnerId: null,
+          holdCreatedAt: null,
+          holdExpiresAt: null,
         },
-        { session }
-      );
+      }, { session });
+
+      await AuditLog.create([{
+        ...actor,
+        actionType: 'CANCEL_SHOWTIME',
+        reason: reason || 'Hủy suất chiếu đã bán vé',
+        resultSummary: { requestedCount: 1, deletedCount: 0, skippedCount: 0, failedCount: 0 },
+        details: { affectedOrdersCount: orders.length },
+      }], { session });
+
+      return {
+        success: true,
+        deletedCompletely: false,
+        affectedOrdersCount: orders.length,
+        affectedOrders: orders.map((order) => order.bookingCode),
+        message: 'Đã hủy suất chiếu và ghi nhận trạng thái hoàn tiền của các đơn bị ảnh hưởng.',
+      };
     });
 
-    await AuditLog.create({
-      adminId: req.user?._id || null,
-      adminEmail: req.user?.email || 'admin@davenor.vn',
-      actionType: 'CANCEL_SHOWTIME',
-      showtimeIds: [slot._id],
-      reason: reason || 'Hủy suất chiếu đã bán vé',
-      resultSummary: { requestedCount: 1, deletedCount: 0, skippedCount: 0, failedCount: 0 },
-      details: { affectedOrdersCount: orders.length },
-    });
-
-    return res.json({
-      success: true,
-      deletedCompletely: false,
-      affectedOrdersCount: orders.length,
-      affectedOrders: affectedOrderCodes,
-      message: `Đã hủy suất chiếu thành công. Có ${orders.length} đơn đặt vé bị ảnh hưởng đã được chuyển sang trạng thái hủy và ghi nhận hoàn tiền.`,
-    });
+    const { status = 200, ...payload } = outcome;
+    return res.status(status).json(payload);
   } catch (error) {
     console.error('Lỗi khi xóa suất chiếu:', error);
     return res.status(500).json({ message: 'Lỗi máy chủ khi xóa suất chiếu: ' + error.message });

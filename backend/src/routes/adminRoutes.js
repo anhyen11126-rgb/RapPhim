@@ -16,7 +16,6 @@ import {
   getAdminShowtimes,
   getAvailableShowtimeSlots,
   batchScheduleShowtimes,
-  deleteShowtime,
   previewRecurringShowtimes,
   commitRecurringShowtimes,
   getAdminPricingConfig,

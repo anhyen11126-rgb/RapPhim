@@ -13,7 +13,8 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
   const booked = Number(occupancy.booked || 0);
   const holding = Number(occupancy.holding || 0);
   const total = Number(occupancy.totalSellable ?? 0);
-  const available = Math.max(0, Number(occupancy.available ?? total - booked - holding));
+  const bookable = Number(occupancy.upcomingAvailableSeats ?? 0);
+  const closed = Number(occupancy.closedUnsoldSeats ?? 0);
 
   const exactRate =
     occupancy.rate != null
@@ -22,18 +23,17 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
       ? Number(((booked / total) * 100).toFixed(2))
       : 0;
 
-  const roomCount = Number(occupancy.roomCount || 9);
-  const seatsPerRoom = Number(occupancy.seatsPerRoom || 88);
-  const totalPhysicalSeats = Number(occupancy.totalPhysicalSeats || roomCount * seatsPerRoom);
+  const roomCount = Number(occupancy.roomCount ?? 0);
+  const totalPhysicalSeats = Number(occupancy.totalPhysicalSeats ?? 0);
   const activeShowtimesCount = Number(occupancy.activeShowtimesCount || 0);
 
   if (total === 0 && activeShowtimesCount === 0) {
     return (
-      <div className="h-64 flex flex-col items-center justify-center bg-[var(--bg-secondary)]/60 rounded-2xl border border-[var(--border-default)] text-slate-400 text-xs p-4 text-center">
+      <div className="min-h-24 flex flex-col items-center justify-center bg-[var(--bg-secondary)]/60 rounded-2xl border border-[var(--border-default)] text-slate-400 text-xs p-4 text-center">
         <span className="text-2xl mb-2">🪑</span>
-        <span className="font-semibold text-slate-300">Chưa có suất chiếu mở bán trong kỳ được chọn</span>
+        <span className="font-semibold text-slate-300">Chưa có suất chiếu hoạt động trong kỳ</span>
         <span className="text-[11px] text-slate-500 mt-1">
-          Sức chứa vật lý cụm rạp: {roomCount} phòng × {seatsPerRoom} ghế = {formatNumber(totalPhysicalSeats)} ghế
+          Sức chứa vật lý cụm rạp: {roomCount} phòng • {formatNumber(totalPhysicalSeats)} ghế
         </span>
       </div>
     );
@@ -49,12 +49,15 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
   const bookedDash = bookedFraction * circumference;
   const holdingDash = holdingFraction * circumference;
 
-  const bookedPct = total > 0 ? Number(((booked / total) * 100).toFixed(2)) : 0;
-  const availablePct = total > 0 ? Number(((available / total) * 100).toFixed(2)) : 0;
-  const holdingPct = total > 0 ? Number(((holding / total) * 100).toFixed(2)) : 0;
+  const legend = [
+    { label: 'Ghế đã bán', count: booked, color: 'bg-cyan-400', text: 'text-cyan-300' },
+    { label: 'Ghế đang giữ', count: holding, color: 'bg-amber-500', text: 'text-amber-400' },
+    { label: 'Ghế trống đã đóng bán', count: closed, color: 'bg-slate-600', text: 'text-slate-200' },
+    { label: 'Ghế thực sự còn đặt được', count: bookable, color: 'bg-emerald-400', text: 'text-emerald-400' },
+  ];
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-around gap-6 py-2">
+    <div className="flex flex-col xl:flex-row items-center justify-around gap-6 py-2">
       {/* Vòng tròn Donut Chart SVG */}
       <div className="relative w-44 h-44 flex items-center justify-center shrink-0">
         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 160 160">
@@ -68,6 +71,11 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
             fill="transparent"
           />
 
+          {bookable > 0 && total > 0 && (
+            <circle cx="80" cy="80" r={radius} stroke="#34D399" strokeWidth="16" fill="none"
+              strokeDasharray={`${(bookable / total) * circumference} ${circumference}`}
+              strokeDashoffset={-bookedDash - holdingDash} />
+          )}
           {/* Vòng Ghế đang giữ tạm (Màu vàng cam #F59E0B) */}
           {holding > 0 && (
             <circle
@@ -114,51 +122,21 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
 
       {/* Legend và chi tiết số lượng ghế */}
       <div className="space-y-2.5 text-xs w-full sm:w-auto">
-        {/* 1. Ghế đã bán (Cyan) */}
-        <div className="flex items-center justify-between sm:space-x-6">
-          <div className="flex items-center space-x-2">
-            <span className="w-3 h-3 rounded-full bg-cyan-400"></span>
-            <span className="text-slate-300 font-medium">Ghế đã bán:</span>
+        {legend.map(({ label, count, color, text }) => (
+          <div key={label} className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className={`h-3 w-3 shrink-0 rounded-full ${color}`} />
+              <span className="font-medium text-slate-300">{label}:</span>
+            </div>
+            <div className="shrink-0 text-right">
+              <strong className={text}>{formatNumber(count)}</strong>
+              <span className="ml-1 text-[11px] text-slate-400">
+                ({formatPercent(total > 0 ? count / total * 100 : 0, 2)})
+              </span>
+            </div>
           </div>
-          <div className="text-right">
-            <strong className="text-cyan-300 font-bold">{formatNumber(booked)}</strong>
-            <span className="text-slate-400 text-[11px] ml-1">({formatPercent(bookedPct, 2)})</span>
-          </div>
-        </div>
-
-        {/* 2. Ghế chưa bán (Xanh xám) */}
-        <div className="flex items-center justify-between sm:space-x-6">
-          <div className="flex items-center space-x-2">
-            <span className="w-3 h-3 rounded-full bg-slate-600"></span>
-            <span className="text-slate-300 font-medium">Ghế chưa bán:</span>
-          </div>
-          <div className="text-right">
-            <strong className="text-slate-200 font-bold">{formatNumber(available)}</strong>
-            <span className="text-slate-400 text-[11px] ml-1">({formatPercent(availablePct, 2)})</span>
-          </div>
-        </div>
-
-        {/* 3. Ghế đang giữ (Vàng cam) */}
-        <div className="flex items-center justify-between sm:space-x-6">
-          <div className="flex items-center space-x-2">
-            <span className="w-3 h-3 rounded-full bg-amber-500"></span>
-            <span className="text-slate-300 font-medium">Ghế đang giữ:</span>
-          </div>
-          <div className="text-right">
-            <strong className="text-amber-400 font-bold">{formatNumber(holding)}</strong>
-            <span className="text-slate-400 text-[11px] ml-1">({formatPercent(holdingPct, 2)})</span>
-          </div>
-        </div>
-
-        {/* Phân biệt rõ Tổng sức chứa trong kỳ, 3 tỷ lệ theo mẫu số vs Cấu hình 9 phòng vật lý (792 ghế) */}
+        ))}
         <div className="pt-2 border-t border-[var(--border-default)] space-y-1 text-[11px] text-slate-400">
-          <div className="flex items-center justify-between gap-4">
-            <span>Trống đã chiếu / Còn đặt được (Sắp chiếu):</span>
-            <span className="font-semibold text-slate-200">
-              {formatNumber(occupancy.completedUnsoldSeats || 0)} /{' '}
-              <strong className="text-emerald-400">{formatNumber(occupancy.upcomingAvailableSeats || 0)} ghế</strong>
-            </span>
-          </div>
           <div className="flex items-center justify-between gap-4">
             <span>Lấp đầy suất đã chiếu / Đặt trước sắp chiếu:</span>
             <span className="font-semibold text-amber-300">
@@ -171,7 +149,7 @@ const OccupancyChart = ({ occupancy = {}, loading = false }) => {
             <span className="font-bold text-white">{formatNumber(total)} ghế</span>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <span>Ghế vật lý toàn rạp ({roomCount} phòng × {seatsPerRoom} ghế):</span>
+            <span>Ghế vật lý toàn rạp ({roomCount} phòng):</span>
             <span className="font-bold text-cyan-300">{formatNumber(totalPhysicalSeats)} ghế</span>
           </div>
         </div>

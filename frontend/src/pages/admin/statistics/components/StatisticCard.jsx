@@ -4,6 +4,7 @@ const StatisticCard = ({
   title,
   value,
   exactValue = '',
+  valueTitle,
   growth = null,
   showGrowthNA = false,
   growthLabel = 'so kỳ trước',
@@ -29,23 +30,23 @@ const StatisticCard = ({
 
   const isPositive = growth !== null && growth !== undefined && growth > 0;
   const isNegative = growth !== null && growth !== undefined && growth < 0;
-  const hoverTip = tooltip || exactValue || '';
+  const hoverTip = [valueTitle, tooltip || exactValue].filter(Boolean).join(' • ');
 
   return (
     <div
-      title={exactValue ? `Giá trị chính xác: ${exactValue}` : tooltip || undefined}
+      title={valueTitle || tooltip || exactValue || undefined}
       className="bg-[var(--bg-secondary)] border border-[var(--border-default)] hover:border-slate-700/80 rounded-2xl p-4 sm:p-5 h-full min-h-[128px] flex flex-col justify-between transition-all relative group shadow-md"
     >
       {/* Tooltip khi hover */}
       {hoverTip && (
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-950/95 border border-slate-700 text-slate-200 text-[11px] rounded-lg px-2.5 py-1.5 absolute -top-8 left-2 z-20 pointer-events-none shadow-xl whitespace-nowrap max-w-xs truncate">
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-950/95 border border-slate-700 text-slate-200 text-[11px] rounded-lg px-2.5 py-1.5 absolute bottom-full mb-1 left-2 z-20 pointer-events-none shadow-xl w-max max-w-[min(18rem,70vw)] whitespace-normal break-words">
           {hoverTip}
         </div>
       )}
 
       {/* Header card: Tiêu đề và Icon */}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-slate-400 truncate">{title}</span>
+        <span className="min-w-0 text-xs font-semibold text-slate-400 break-words">{title}</span>
         <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0 ${iconBg}`}>
           {icon}
         </div>
@@ -53,11 +54,11 @@ const StatisticCard = ({
 
       {/* Số liệu chính */}
       <div className="my-1">
-        <div className={`text-lg sm:text-xl font-black tracking-tight truncate cursor-default ${valueColor}`}>
+        <div className={`text-lg sm:text-xl font-black tracking-tight break-words cursor-default ${valueColor}`}>
           {value}
         </div>
         {exactValue && exactValue !== value && (
-          <span className="text-[10px] text-slate-400 block truncate font-mono mt-0.5">
+          <span className="text-[10px] text-slate-400 block break-words font-mono mt-0.5">
             {exactValue}
           </span>
         )}
@@ -66,7 +67,7 @@ const StatisticCard = ({
       {/* Footer card: Biến động tăng trưởng hoặc phụ đề */}
       <div className="text-xs min-h-[16px] flex items-center justify-between gap-1">
         {growth !== null && growth !== undefined ? (
-          <div className="flex items-center space-x-1">
+          <div className="flex flex-wrap items-center gap-x-1">
             <span
               className={`font-bold text-[11px] flex items-center space-x-0.5 ${
                 isPositive ? 'text-emerald-400' : isNegative ? 'text-rose-400' : 'text-slate-400'
@@ -78,7 +79,7 @@ const StatisticCard = ({
             <span className="text-slate-400 text-[11px] font-normal">{growthLabel}</span>
           </div>
         ) : subtitle ? (
-          <span className="text-slate-400 text-[11px] truncate">{subtitle}</span>
+          <span className="text-slate-400 text-[11px] break-words">{subtitle}</span>
         ) : showGrowthNA ? (
           <span className="text-slate-500 text-[10px]">So kỳ trước: N/A (Kỳ trước = 0)</span>
         ) : null}

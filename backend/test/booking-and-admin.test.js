@@ -232,6 +232,14 @@ test('failed exchange keeps the original seat and successful exchange rotates QR
   assert.equal(exchanged.status, 200, JSON.stringify(exchanged.data));
   assert.notEqual(exchanged.data.booking.qrToken, data.booking.qrToken);
   assert.equal(exchanged.data.priceDiff, 20000);
+  const { default: statistics } = await import('../src/services/statisticsService.js');
+  const [sourceStats, destinationStats] = await Promise.all([
+    statistics.getShowtimeDetailStats(source._id),
+    statistics.getShowtimeDetailStats(destination._id),
+  ]);
+  assert.equal(sourceStats.stats.totalRevenue, 0);
+  assert.equal(destinationStats.stats.totalRevenue, 280000);
+
   assert.equal((await request('/bookings/check-in', { method: 'POST', account: admin, data: { qrToken: data.booking.qrToken } })).status, 404);
   assert.equal((await ShowtimeSeat.findOne({ showtimeId: source._id, seatNumber: 'A1' })).status, 'AVAILABLE');
 });
@@ -437,4 +445,453 @@ test('Group B protection: direct DELETE returns 409 and CANCEL_WITH_REFUND prese
   assert.equal(await Booking.countDocuments({ showtimeId: slot._id }), 1);
 
   assert.equal((await request(path + '/toggle-lock', { account: admin, method: 'PUT' })).status, 409);
+});
+
+test('STAT-T01..T06 and T08: historical periods, revenue, refunds, seat scope, expenses and CSV', async () => {
+  const { default: statistics } = await import('../src/services/statisticsService.js');
+  const { default: Expense } = await import('../src/models/Expense.js');
+  const { parseDateFilter } = await import('../src/utils/statisticsUtils.js');
+  const reportCinema = await Cinema.create({ name: 'Phase 02 Cinema', slug: 'phase02-cinema', address: 'Test' });
+  const reportMovie = await Movie.create({
+    title: 'Phase 02 report movie', posterUrl: '/test.jpg', genre: 'Test', duration: 100,
+  });
+  const oct = { timeRange: 'by_month', month: 10, year: 2026, movieId: String(reportMovie._id) };
+  const nov = { ...oct, month: 11 };
+  const empty = { ...oct, year: 2025 };
+  const today = new Date('2027-01-01T05:00:00.000+07:00');
+
+  assert.equal(parseDateFilter({ timeRange: 'yesterday', now: today }).end.toISOString(), '2026-12-31T16:59:59.999Z');
+  assert.equal(parseDateFilter({ timeRange: 'this_week', now: today }).start.toISOString(), '2026-12-27T17:00:00.000Z');
+  assert.equal(parseDateFilter({ timeRange: '7_days', now: today }).start.toISOString(), '2026-12-25T17:00:00.000Z');
+  assert.equal(parseDateFilter('custom', '2028-02-29', '2028-02-29').end.toISOString(), '2028-02-29T16:59:59.999Z');
+  assert.throws(() => parseDateFilter('custom', '2027-02-29', '2027-03-01'), { statusCode: 400 });
+  assert.throws(() => parseDateFilter('custom', '2027-03-02', '2027-03-01'), { statusCode: 400 });
+  assert.throws(() => parseDateFilter('by_month', null, null, 13, 2026), { statusCode: 400 });
+  for (const year of [2025, 2026, 2027]) {
+    for (let month = 1; month <= 12; month++) {
+      const p = parseDateFilter({ timeRange: 'by_month', month, year });
+      assert.equal(p.year, year);
+      assert.equal(p.month, month);
+    }
+  }
+
+  const fixtureRoom = await Room.create({
+    name: 'Statistics Dolby', roomNumber: 4, roomType: 'Dolby Atmos',
+    cinemaId: reportCinema._id, totalSeats: 4,
+  });
+  const otherMovie = await Movie.create({ title: 'Statistics no sales', posterUrl: '/test.jpg', genre: 'Test', duration: 100 });
+  const showtime = (movieId, startTime, slotRoom = fixtureRoom) => Showtime.create({
+    movieId, roomId: slotRoom._id, roomName: slotRoom.name, cinemaId: reportCinema._id,
+    startTime: new Date(startTime), price: 999999,
+  });
+  const [bookedSlot, emptySlot] = await Promise.all([
+    showtime(reportMovie._id, '2026-11-01T00:00:00+07:00'),
+    showtime(otherMovie._id, '2026-11-03T13:00:00+07:00'),
+  ]);
+  const order = (bookingCode, createdAt, extra = {}) => ({
+    bookingCode, createdAt: new Date(createdAt), updatedAt: new Date('2027-09-01T00:00:00Z'),
+    showtimeId: bookedSlot._id, seats: 'A1', totalAmount: 100, status: 'PAID',
+    paymentStatus: 'SIMULATED', ...extra,
+  });
+  await Booking.collection.insertMany([
+    order('P02-OCT', '2026-10-31T23:59:59.999+07:00', { concessions: 'legacy combo' }),
+    order('P02-NOV', '2026-11-01T00:00:00+07:00', { paymentStatus: 'VERIFIED', totalAmount: 200, customerName: 'Phase 02 customer', customerPhone: '0911111111' }),
+    order('P02-RV', '2026-11-01T01:00:00+07:00', { status: 'CANCELLED', paymentStatus: 'VERIFIED', refundStatus: 'REFUNDED', refundAmount: 80 }),
+    order('P02-RS', '2026-11-01T02:00:00+07:00', { status: 'CANCELLED', refundStatus: 'SIMULATED', refundAmount: 60 }),
+    order('P02-RP', '2026-11-01T03:00:00+07:00', { status: 'CANCELLED', refundStatus: 'PENDING', refundAmount: 20 }),
+    order('P02-MISSING', '2026-11-01T03:30:00+07:00', { status: 'CANCELLED', refundStatus: 'SIMULATED' }),
+    order('P02-DEFAULTZERO', '2026-11-01T03:35:00+07:00', { status: 'CANCELLED', refundStatus: 'SIMULATED', refundAmount: 0 }),
+    order('P02-NONE', '2026-11-01T03:40:00+07:00', { status: 'CANCELLED', refundStatus: 'NONE' }),
+    order('P02-P', '2026-11-01T04:00:00+07:00', { status: 'PENDING', paymentStatus: 'PENDING' }),
+    order('P02-F', '2026-11-01T05:00:00+07:00', { paymentStatus: 'FAILED' }),
+  ]);
+
+  const noCost = await statistics.getRevenueStats(nov);
+  assert.equal(noCost.metrics.profitKnown, false);
+  assert.equal(noCost.metrics.profit, null);
+  assert.equal(noCost.metrics.profitMargin, null);
+  assert.equal(noCost.metrics.roi, null);
+  const octoberRevenue = await statistics.getRevenueStats(oct);
+  assert.equal(octoberRevenue.metrics.netRevenue, 100);
+  assert.equal(octoberRevenue.metrics.unclassifiedRevenue, 100);
+  const emptyRevenue = await statistics.getRevenueStats(empty);
+  assert.equal(emptyRevenue.metrics.netRevenue, 0);
+  assert.equal(emptyRevenue.metrics.ticketPercent, 0);
+  assert.equal(emptyRevenue.metrics.concessionPercent, 0);
+  assert.equal(emptyRevenue.monthlyBreakdown.length, 12);
+  const emptyRankings = await statistics.getMoviesStats({ ...nov, movieId: String(otherMovie._id) });
+  for (const key of ['topSold', 'topRevenue', 'topOccupancy', 'lowestSold']) {
+    assert.equal(emptyRankings.rankings[key], null);
+  }
+
+  const expense = (costCode, amount, extra = {}) => ({
+    costCode, title: costCode, date: new Date('2026-11-02T00:00:00+07:00'),
+    type: 'OTHER', amount, ...extra,
+  });
+  await Expense.create(expense('P02-ZERO', 0, { movieId: reportMovie._id }));
+  const zeroCost = await statistics.getRevenueStats(nov);
+  assert.equal(zeroCost.metrics.profitKnown, true);
+  assert.equal(zeroCost.metrics.profit, 200);
+  assert.equal(zeroCost.metrics.roi, null);
+
+  await Expense.create([
+    expense('P02-SHARED', 1001, { cinemaId: reportCinema._id }),
+    expense('P02-FILM-ROOM', 100, { movieId: reportMovie._id, roomId: fixtureRoom._id }),
+    expense('P02-ROOM', 20, { roomId: fixtureRoom._id }),
+    expense('P02-NOSLOT', 50, { date: new Date('2025-10-01T00:00:00+07:00') }),
+  ]);
+
+  const fixtureSeats = [
+    ['A1', 'BOOKED'],
+    ['A2', 'HOLDING', new Date(Date.now() + 3_600_000)],
+    ['A3', 'HOLDING', new Date(Date.now() - 3_600_000)],
+    ['A4', 'AVAILABLE'],
+  ];
+  await ShowtimeSeat.collection.insertMany(fixtureSeats.map(([seatNumber, status, holdExpiresAt], index) => ({
+    showtimeId: bookedSlot._id, roomId: fixtureRoom._id, seatNumber, status,
+    row: 'A', col: index + 1, type: 'STANDARD', holdExpiresAt,
+  })));
+
+  const scope = { ...nov, roomId: String(fixtureRoom._id), roomType: 'Dolby Atmos' };
+  const [overview, revenue, movies, detail, showtimes, slot, year, noSlotCost] = await Promise.all([
+    statistics.getOverviewStats(scope),
+    statistics.getRevenueStats(scope),
+    statistics.getMoviesStats(scope),
+    statistics.getMovieDetailStats(reportMovie._id, scope),
+    statistics.getShowtimesStats(scope),
+    statistics.getShowtimeDetailStats(bookedSlot._id),
+    statistics.getRevenueStats({ timeRange: 'this_year', year: 2026, cinemaId: String(reportCinema._id) }),
+    statistics.getRevenueStats({ ...empty, movieId: 'ALL' }),
+  ]);
+
+  assert.equal(revenue.metrics.netRevenue, 200);
+  assert.equal(revenue.metrics.verifiedRefundedAmount, 80);
+  assert.equal(revenue.metrics.simulatedRefundedAmount, 60);
+  assert.equal(revenue.metrics.totalRefundedAmount, 140);
+  assert.equal(revenue.metrics.pendingRefundAmount, 20);
+  assert.equal(revenue.metrics.cancelledAmount, 600);
+  assert.equal(revenue.metrics.missingRefundAmountCount, 2);
+  assert.equal(overview.kpis.netRevenue.missingRefundAmountCount, 2);
+  assert.deepEqual(revenue.revenueChartData.map((day) => day.fullDate),
+    overview.revenueChartData.map((day) => day.fullDate));
+  assert.equal(revenue.revenueChartData[0].netRevenue, 200);
+  assert.equal(revenue.revenueChartData[0].expense, null);
+  assert.equal(revenue.revenueChartData[1].netRevenue, 0);
+  assert.equal(revenue.revenueChartData[1].expense, revenue.metrics.totalExpenses);
+  assert.equal(revenue.metrics.refundDateKnown, false);
+  assert.equal(overview.kpis.netRevenue.totalRefundedAmount, 140);
+  assert.equal(overview.kpis.netRevenue.value, 200);
+  assert.equal(overview.kpis.netRevenue.growth, 100);
+  assert.ok([610, 611].includes(revenue.metrics.totalExpenses));
+  assert.equal(overview.kpis.totalExpenses.value, revenue.metrics.totalExpenses);
+  assert.equal(movies.items[0].totalExpenses, revenue.metrics.totalExpenses);
+  assert.equal(detail.stats.totalExpenses, revenue.metrics.totalExpenses);
+  assert.equal(year.monthlyBreakdown.length, 12);
+  assert.equal(year.monthlyBreakdown[9].netRevenue, 100);
+  assert.equal(year.monthlyBreakdown[10].netRevenue, 200);
+  assert.equal(noSlotCost.metrics.unallocatedExpenses, 50);
+
+  await showtime(otherMovie._id, '2026-12-01T14:00:00+07:00');
+  await Expense.create(expense('P03-DEC-SHARED', 1000, {
+    cinemaId: reportCinema._id, date: new Date('2026-12-02T12:00:00+07:00'),
+  }));
+  const [yearScope, novemberScope, decemberScope, singleDayScope] = await Promise.all([
+    statistics.getRevenueStats({ ...scope, timeRange: 'this_year' }),
+    statistics.getRevenueStats(scope),
+    statistics.getRevenueStats({ ...scope, month: 12 }),
+    statistics.getRevenueStats({ ...scope, timeRange: 'custom', customStart: '2026-11-02', customEnd: '2026-11-02' }),
+  ]);
+  assert.equal(decemberScope.metrics.totalExpenses, 0);
+  assert.equal(yearScope.metrics.totalExpenses, novemberScope.metrics.totalExpenses);
+  assert.equal(singleDayScope.metrics.totalExpenses, novemberScope.metrics.totalExpenses);
+  assert.equal(yearScope.metrics.totalExpenses, yearScope.monthlyBreakdown.reduce((sum, row) => sum + row.expenses, 0));
+
+
+  assert.equal(overview.cinemaCapacity.periodSoldSeats, 1);
+  assert.equal(overview.cinemaCapacity.periodHoldingSeats, 1);
+  assert.equal(overview.cinemaCapacity.periodUnsoldSeats, 2);
+  assert.equal(overview.cinemaCapacity.closedUnsoldSeats, 2);
+  const roomRow = overview.roomOccupancyBreakdown.find((row) => String(row.roomId) === String(fixtureRoom._id));
+  const typeRow = overview.roomTypeBreakdown.find((row) => row.roomType === 'Dolby Atmos');
+  for (const key of ['showtimesCount', 'totalSellableSeats', 'soldSeats', 'holdingSeats', 'unsoldSeats', 'revenue']) {
+    assert.equal(roomRow[key], typeRow[key], key);
+  }
+  assert.equal(showtimes.items[0].bookedSeats, 1);
+  assert.equal(slot.stats.bookedCount, 1);
+  assert.equal(detail.stats.bookedSeats, 1);
+  assert.equal(movies.items[0].bookedSeats, 1);
+  assert.ok(movies.rankings.topSold);
+  assert.equal(movies.rankings.lowestSold, null);
+  assert.equal(overview.crossPeriodReconciliation.preBookedRevenueFromEarlierPeriodForPeriodShowtimes, 100);
+  assert.equal(overview.peakHours.reduce((sum, bucket) => sum + bucket.revenue, 0), 300);
+  assert.equal(overview.kpis.averages.avgRevenuePerShowtime, 300);
+  assert.equal(overview.revenueChartData.find((day) => day.fullDate === '01/11/2026').occupancyRate, 25);
+  const expenseResponse = await request('/admin/statistics/expenses?' + new URLSearchParams(scope), { account: admin });
+  assert.equal(expenseResponse.status, 200);
+  assert.equal(expenseResponse.data.data.allocatedSummary.totalAmount, revenue.metrics.totalExpenses);
+  for (const endpoint of ['filter-movies', 'customers', 'reviews']) {
+    const response = await request('/admin/statistics/' + endpoint + '?' + new URLSearchParams(scope), { account: admin });
+    assert.equal(response.status, 200, endpoint);
+  }
+
+  assert.equal((await statistics.getShowtimeDetailStats(emptySlot._id)).stats.hasSeatRecords, false);
+
+  const { content: csv } = await statistics.exportStatistics('revenue', scope);
+  assert.equal(csv.codePointAt(0), 0xfeff);
+  assert.match(csv, /Hoàn tiền xác minh,80/);
+  assert.match(csv, /Hoàn tiền mô phỏng,60/);
+  assert.match(csv, /Đơn thiếu số tiền hoàn,2/);
+  assert.match(csv, /Doanh thu thuần,200/);
+  const [overviewCsv, movieCsv, showtimeCsv, customerCsv] = await Promise.all(
+    ['overview', 'movies', 'showtimes', 'customers'].map((type) => statistics.exportStatistics(type, scope))
+  );
+  for (const report of [overviewCsv, movieCsv, showtimeCsv, customerCsv]) {
+    assert.equal(report.content.codePointAt(0), 0xfeff);
+  }
+  assert.ok(overviewCsv.content.includes(`Tổng chi phí trong kỳ,${overview.kpis.totalExpenses.value}`));
+  assert.ok(movieCsv.content.includes(`,25%,25%,0%,200,${movies.items[0].directExpenses},${movies.items[0].allocatedExpenses},${movies.items[0].totalExpenses},`));
+  assert.ok(showtimeCsv.content.includes('"Dolby Atmos"'));
+  assert.ok(showtimeCsv.content.includes(',4,2,1,1,2,2,0,25%,300,"FINISHED"'));
+  assert.ok(customerCsv.content.includes('"Phase 02 customer","09****1111",1,1,200'));
+  const wrongType = await statistics.getRevenueStats({ ...scope, roomType: 'Gold Class' });
+  assert.equal(wrongType.metrics.netRevenue, 0);
+  assert.equal(wrongType.metrics.totalExpenses, 0);
+
+  const invalid = await request('/admin/statistics/revenue?timeRange=custom&customStart=2026-02-30&customEnd=2026-03-01', { account: admin });
+  assert.equal(invalid.status, 400);
+  const denied = await request('/admin/statistics/expenses', { account: first });
+  assert.equal(denied.status, 403);
+});
+
+test('STAT Phase 02: lifecycle, missing Room, bookability and chatbot on isolated MongoDB', async () => {
+  const { default: statistics } = await import('../src/services/statisticsService.js');
+  const { generateChatResponse } = await import('../src/services/aiService.js');
+  const now = Date.now();
+  const minute = 60000;
+  const date = (offset) => new Date(now + offset * minute);
+  const missingRoomId = new mongoose.Types.ObjectId();
+  const missingMovie = await Movie.create({
+    title: 'Phase 02 lifecycle movie', posterUrl: '/test.jpg', genre: 'Test', duration: 100,
+  });
+  const scenarios = [
+    { name: 'live', start: -20, end: 80, lifecycleStatus: 'COMPLETED', expected: 'NOW_SHOWING' },
+    { name: 'cleaning', start: -105, end: -5, expected: 'CLEANING' },
+    { name: 'closed', start: -140, end: -40, expected: 'COMPLETED' },
+    { name: 'locked', start: 60, end: 160, isLocked: true, expected: 'UPCOMING' },
+    { name: 'cancelled', start: 120, end: 220, cancelledAt: new Date(now), expected: 'CANCELLED' },
+    { name: 'early', start: 8 * 1440, end: 8 * 1440 + 100, expected: 'UPCOMING' },
+    { name: 'open', start: 180, end: 280, expected: 'UPCOMING', bookable: 1 },
+    { name: 'orphan', start: 240, end: 340, roomId: missingRoomId, expected: 'UPCOMING' },
+  ];
+  for (const fixture of scenarios) {
+    const slot = await Showtime.create({
+      movieId: missingMovie._id, roomId: fixture.roomId || room._id, roomName: fixture.name,
+      cinemaId: cinema._id, startTime: date(fixture.start), endTime: date(fixture.end),
+      cleaningEndTime: date(fixture.end + 15), lifecycleStatus: fixture.lifecycleStatus,
+      isLocked: fixture.isLocked, cancelledAt: fixture.cancelledAt, price: 100000,
+    });
+    await ShowtimeSeat.create({
+      showtimeId: slot._id, roomId: fixture.roomId || room._id, seatNumber: 'A1',
+      row: 'A', col: 1, type: 'STANDARD', status: 'AVAILABLE',
+    });
+    const detail = await statistics.getShowtimeDetailStats(slot._id);
+    assert.equal(detail.showtime.lifecycleStatus, fixture.expected, fixture.name);
+    assert.equal(detail.stats.bookableAvailableCount, fixture.bookable || 0, fixture.name);
+    assert.equal(detail.stats.totalSeats, fixture.expected === 'CANCELLED' ? 0 : 1);
+    assert.equal(detail.stats.missingRoom, Boolean(fixture.roomId));
+  }
+  const answer = await generateChatResponse('Tôi muốn hỏi giá bắp nước tại rạp', { skipLog: true });
+  assert.ok((answer.reply || answer).length > 20);
+});
+
+test('STAT Phase 02: separate databases keep the LIVE and DEMO totals apart', async () => {
+  const { default: statistics } = await import('../src/services/statisticsService.js');
+  const priorMode = process.env.DB_MODE;
+  const filter = { timeRange: 'by_month', month: 10, year: 2026 };
+  try {
+    process.env.DB_MODE = 'LIVE';
+    const live = await statistics.getOverviewStats(filter);
+    assert.equal(live.dbMode, 'LIVE');
+    assert.equal(live.kpis.netRevenue.value, 100);
+    await mongoose.disconnect();
+    await mongoose.connect(mongo.getUri('phase02_demo'));
+    process.env.DB_MODE = 'DEMO';
+    const demo = await statistics.getOverviewStats(filter);
+    assert.equal(demo.dbMode, 'DEMO');
+    assert.equal(demo.kpis.netRevenue.value, 0);
+    assert.notEqual(live.databaseName, demo.databaseName);
+  } finally {
+    if (priorMode === undefined) delete process.env.DB_MODE;
+    else process.env.DB_MODE = priorMode;
+    await mongoose.disconnect();
+    await mongoose.connect(mongo.getUri('davenor_integration'));
+  }
+});
+
+test('STAT Phase 02: sale today for a screening tomorrow keeps both date bases independent', async () => {
+  const { default: statistics } = await import('../src/services/statisticsService.js');
+  const { parseDateFilter, formatVietnamDateKey } = await import('../src/utils/statisticsUtils.js');
+  const day = parseDateFilter('today');
+  const tomorrow = new Date(+day.end + 1);
+  const advanceMovie = await Movie.create({
+    title: 'Phase 02 advance sale', posterUrl: '/test.jpg', genre: 'Test', duration: 100,
+  });
+  const slot = await Showtime.create({
+    movieId: advanceMovie._id, roomId: room._id, roomName: room.name, cinemaId: cinema._id,
+    startTime: new Date(+tomorrow + 13 * 3600000), price: 123456,
+  });
+  await Booking.collection.insertOne({
+    bookingCode: 'P02-TODAY-TOMORROW', createdAt: day.start, showtimeId: slot._id,
+    seats: 'A1', status: 'PAID', paymentStatus: 'SIMULATED', totalAmount: 123456,
+    customerPhone: '0900000099',
+  });
+  await ShowtimeSeat.create({
+    showtimeId: slot._id, roomId: room._id, seatNumber: 'A1',
+    row: 'A', col: 1, type: 'STANDARD', status: 'BOOKED',
+  });
+  const todayFilter = { timeRange: 'today', movieId: String(advanceMovie._id) };
+  const tomorrowKey = formatVietnamDateKey(tomorrow, 'YYYY-MM-DD');
+  const tomorrowFilter = {
+    ...todayFilter, timeRange: 'custom', customStart: tomorrowKey, customEnd: tomorrowKey,
+  };
+  const [current, future, customers, filters] = await Promise.all([
+    statistics.getOverviewStats(todayFilter),
+    statistics.getOverviewStats(tomorrowFilter),
+    statistics.getCustomersStats(todayFilter),
+    statistics.getPeriodFilterMovies({ ...todayFilter, roomId: String(room._id) }),
+  ]);
+  const efficiency = await statistics.getMoviesStats(tomorrowFilter);
+  assert.equal(efficiency.items[0].performanceStatus, 'INSUFFICIENT_SCREENINGS');
+  assert.equal(efficiency.items[0].upcomingOccupancyRate, 100);
+  assert.equal(current.kpis.netRevenue.value, 123456);
+  assert.equal(current.cinemaCapacity.periodSoldSeats, 0);
+  assert.equal(current.kpis.distinctMovies.value, 0);
+  assert.equal(future.kpis.netRevenue.value, 0);
+  assert.equal(future.cinemaCapacity.periodSoldSeats, 1);
+  assert.equal(future.kpis.averages.avgRevenuePerShowtime, 123456);
+  assert.equal(current.kpis.averages.avgRevenuePerShowtime, 0);
+  assert.equal(customers.customersRanking[0].totalSpend, 123456);
+  assert.ok(JSON.stringify(filters).includes(String(advanceMovie._id)));
+});
+
+test('Final statistics polish keeps four KPI ties and excludes unevaluated screenings', async () => {
+  const { default: statistics } = await import('../src/services/statisticsService.js');
+  const titles = ['A winner', 'B winner', 'C slow', 'D slow'];
+  const films = await Movie.create(titles.map((title) => ({
+    title, genre: 'Test', duration: 100, posterUrl: '/test.jpg',
+  })));
+  const slots = await Showtime.create(films.map((film, index) => ({
+    movieId: film._id, cinemaId: cinema._id, roomId: room._id, roomName: room.name,
+    startTime: new Date(Date.UTC(2024, 1, index + 1, 7)), price: 100,
+  })));
+  await ShowtimeSeat.collection.insertMany(slots.map((slot, index) => ({
+    showtimeId: slot._id, roomId: room._id, seatNumber: 'A1', row: 'A', col: 1,
+    status: index < 2 ? 'BOOKED' : 'AVAILABLE', type: 'STANDARD',
+  })));
+  await Booking.collection.insertMany(slots.slice(0, 2).map((slot, index) => ({
+    bookingCode: 'POLISH-WIN-' + index, showtimeId: slot._id, seats: 'A1',
+    createdAt: slot.startTime, paymentStatus: 'SIMULATED', status: 'PAID',
+    paymentMethod: 'VNPAY', totalAmount: 100,
+  })));
+  const filter = { timeRange: 'by_month', month: 2, year: 2024 };
+  const [movies, revenue, future] = await Promise.all([
+    statistics.getMoviesStats(filter),
+    statistics.getRevenueStats(filter),
+    statistics.getRevenueStats({ timeRange: 'by_month', month: 1, year: 2099 }),
+  ]);
+  for (const key of ['topSold', 'topOccupancy', 'topRevenue', 'lowestSold']) {
+    assert.equal(movies.rankings[key].tieCount, 2, key);
+  }
+  assert.equal(movies.rankings.lowestSold.title, 'C slow');
+  assert.equal(revenue.paymentMethods.find((method) => method.method === 'VNPAY').simulatedAmount, 200);
+  assert.equal(future.revenueChartData[0].status, 'FUTURE');
+  assert.equal(future.revenueChartData[0].netRevenue, null);
+});
+
+test('Admin cancellation records only eligible refunds and commits exactly once under contention', async (t) => {
+  const { default: AuditLog } = await import('../src/models/AuditLog.js');
+  const reportMovie = await Movie.create({
+    title: 'Refund consistency test', posterUrl: '/test.jpg', genre: 'Test', duration: 100,
+  });
+  const slot = await makeShowtime(42);
+  await Showtime.updateOne({ _id: slot._id }, { movieId: reportMovie._id });
+  const purchases = [];
+  for (const seat of ['A1', 'A2', 'B1']) {
+    const purchase = await checkout(slot, first, [seat]);
+    assert.equal(purchase.status, 201);
+    purchases.push(purchase.data.booking);
+  }
+  const paid = await Booking.find({ showtimeId: slot._id }).lean();
+  const simulatedTotal = purchases.slice(0, 2).reduce((sum, booking) => sum + booking.totalAmount, 0);
+  const verifiedAmount = purchases[2].totalAmount;
+  await Booking.updateOne({ _id: purchases[2].id }, { paymentStatus: 'VERIFIED' });
+  await Booking.collection.insertMany([
+    { bookingCode: 'REFUND-PENDING', status: 'PENDING', paymentStatus: 'PENDING', totalAmount: 15, qrToken: 'refund-pending' },
+    { bookingCode: 'REFUND-PRIOR', status: 'PAID', paymentStatus: 'VERIFIED', totalAmount: 57, refundStatus: 'REFUNDED', refundAmount: 37, qrToken: 'refund-prior' },
+    { bookingCode: 'REFUND-HISTORY', status: 'CANCELLED', paymentStatus: 'SIMULATED', totalAmount: 12, refundStatus: 'SIMULATED' },
+  ].map((order) => ({ ...order, showtimeId: slot._id, createdAt: paid[0].createdAt })));
+
+  const path = '/admin/showtimes/' + slot._id;
+  const cancel = () => request(path, { account: admin, method: 'DELETE', data: { action: 'CANCEL_WITH_REFUND' } });
+
+  const writeFailure = t.mock.method(AuditLog, 'create', async () => { throw new Error('Forced rollback'); });
+  try {
+    assert.equal((await cancel()).status, 500);
+  } finally {
+    writeFailure.mock.restore();
+  }
+  assert.ok(!(await Showtime.findById(slot._id)).cancelledAt);
+  assert.equal(await ShowtimeSeat.countDocuments({ showtimeId: slot._id, status: 'BOOKED' }), 3);
+  const beforeRetry = await Booking.findById(purchases[0].id).lean();
+  assert.equal(beforeRetry.status, 'PAID');
+  assert.equal(beforeRetry.qrToken, purchases[0].qrToken);
+  assert.equal(beforeRetry.refundAmount, 0);
+  assert.equal(beforeRetry.refundStatus, 'NONE');
+
+  const results = await Promise.all([cancel(), cancel()]);
+  assert.ok(results.every(({ status }) => status === 200));
+  assert.deepEqual(results.map(({ data }) => data.affectedOrdersCount).sort(), [0, 5]);
+  assert.equal(results.filter(({ data }) => data.alreadyCancelled).length, 1);
+  assert.equal(await AuditLog.countDocuments({ actionType: 'CANCEL_SHOWTIME', showtimeIds: slot._id }), 1);
+  assert.equal((await cancel()).data.alreadyCancelled, true);
+  assert.equal(await ShowtimeSeat.countDocuments({ showtimeId: slot._id, status: 'AVAILABLE', bookingId: null, holdId: null }), 3);
+
+  const rows = await Booking.find({ showtimeId: slot._id }).lean();
+  for (let index = 0; index < purchases.length; index++) {
+    const order = rows.find((row) => String(row._id) === purchases[index].id);
+    assert.equal(order.status, 'CANCELLED');
+    assert.equal(order.qrToken, null);
+    assert.equal(order.refundStatus, index === 2 ? 'PENDING' : 'SIMULATED');
+    assert.equal(order.refundAmount, purchases[index].totalAmount);
+  }
+  for (const [code, status, amount] of [['REFUND-PENDING', 'NONE', 0], ['REFUND-PRIOR', 'REFUNDED', 37]]) {
+    const order = rows.find((row) => row.bookingCode === code);
+    assert.equal(order.status, 'CANCELLED');
+    assert.equal(order.refundStatus, status);
+    assert.equal(order.refundAmount, amount);
+    assert.equal(order.qrToken, null);
+  }
+  assert.equal(rows.find((row) => row.bookingCode === 'REFUND-HISTORY').refundAmount, undefined);
+
+  const params = new URLSearchParams({ timeRange: 'today', movieId: reportMovie.id });
+  const overview = await request('/admin/statistics/overview?' + params, { account: admin });
+  const revenue = await request('/admin/statistics/revenue?' + params, { account: admin });
+  const expected = {
+    verifiedRefundedAmount: 37, simulatedRefundedAmount: simulatedTotal,
+    pendingRefundAmount: verifiedAmount, totalRefundedAmount: simulatedTotal + 37,
+    cancelledAmount: simulatedTotal + verifiedAmount + 15 + 57 + 12, missingRefundAmountCount: 1,
+  };
+  assert.equal(overview.data.data.kpis.netRevenue.value, 0);
+  assert.equal(revenue.data.data.metrics.netRevenue, 0);
+  for (const [key, amount] of Object.entries(expected)) {
+    assert.equal(overview.data.data.kpis.netRevenue[key], amount, key);
+    assert.equal(revenue.data.data.metrics[key], amount, key);
+  }
+  for (const type of ['overview', 'revenue']) {
+    const csv = await request('/admin/statistics/export?' + params + '&type=' + type, { account: admin });
+    assert.equal(csv.status, 200);
+    assert.ok(csv.data.includes('Hoàn tiền mô phỏng,' + simulatedTotal + '\n'));
+    assert.ok(csv.data.includes('Chờ hoàn tiền,' + verifiedAmount + '\n'));
+    assert.ok(csv.data.includes('Đơn thiếu số tiền hoàn,1\n'));
+  }
 });

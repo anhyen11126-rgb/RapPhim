@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import statisticsService from '../services/statisticsService.js';
 import Expense, { DIRECT_MOVIE_EXPENSE_TYPES, EXPENSE_CATEGORY_LABELS } from '../models/Expense.js';
 import {
   getVietnamParts,
@@ -10,7 +11,6 @@ import {
 
 /**
  * Lấy danh sách khoản chi phí (có lọc theo kỳ thời gian, tháng, năm, phim, phòng, phân loại)
- * Tuân thủ mốc vận hành rạp từ 01/11/2026 (Asia/Ho_Chi_Minh).
  */
 export const getExpenses = async (req, res) => {
   try {
@@ -20,8 +20,6 @@ export const getExpenses = async (req, res) => {
       customEnd,
       month,
       year,
-      movieId,
-      roomId,
       type,
       search = '',
       page = 1,
@@ -29,43 +27,18 @@ export const getExpenses = async (req, res) => {
     } = req.query;
 
     const query = {};
-
-    if (timeRange || (month && year)) {
-      const shouldStrict =
-        ['by_month', 'last_month', 'this_year', 'custom'].includes(timeRange) ||
-        (month != null && year != null);
-      const { start, end, month: parsedMonth, year: parsedYear } = parseDateFilter({
-        timeRange: timeRange || 'by_month',
-        customStart,
-        customEnd,
-        month,
-        year,
-        strictValidation: shouldStrict,
-      });
-      if ((timeRange === 'by_month' || (!timeRange && month && year)) && parsedMonth && parsedYear) {
-        query.$or = [
-          { month: Number(parsedMonth), year: Number(parsedYear) },
-          { date: { $gte: start, $lte: end } },
-        ];
-      } else {
-        query.date = { $gte: start, $lte: end };
-      }
+    const period = timeRange || (month && year)
+      ? parseDateFilter({ timeRange: timeRange || 'by_month', customStart, customEnd, month, year })
+      : null;
+    if (period) {
+      query.date = { $gte: period.start, $lte: period.end };
     } else {
-      query.date = { $gte: CINEMA_OPERATION_START };
-      if (month && Number(month) > 0) {
-        query.month = Number(month);
-      }
-      if (year && Number(year) > 0) {
-        query.year = Number(year);
-      }
+      if (month && Number(month) > 0) query.month = Number(month);
+      if (year && Number(year) > 0) query.year = Number(year);
     }
 
-    if (movieId && movieId !== 'ALL' && mongoose.Types.ObjectId.isValid(movieId)) {
-      query.movieId = new mongoose.Types.ObjectId(movieId);
-    }
-    if (roomId && roomId !== 'ALL' && mongoose.Types.ObjectId.isValid(roomId)) {
-      query.roomId = new mongoose.Types.ObjectId(roomId);
-    }
+    const { match } = await statisticsService.buildShowtimeFilter(req.query);
+    Object.assign(query, match);
     if (type && type !== 'ALL') {
       query.type = type;
     }
@@ -75,12 +48,7 @@ export const getExpenses = async (req, res) => {
         { costCode: { $regex: search.trim(), $options: 'i' } },
         { notes: { $regex: search.trim(), $options: 'i' } },
       ];
-      if (query.$or) {
-        query.$and = [{ $or: query.$or }, { $or: searchCond }];
-        delete query.$or;
-      } else {
-        query.$or = searchCond;
-      }
+      query.$or = searchCond;
     }
 
     const total = await Expense.countDocuments(query);
@@ -141,6 +109,29 @@ export const getExpenses = async (req, res) => {
     ]);
 
     const summary = aggregateSummary[0] || { totalAmount: 0, directAmount: 0, sharedAmount: 0 };
+    let allocatedSummary = null;
+    if (period) {
+      const entries = await statisticsService.findExpensesInPeriod({
+        start: period.start, end: period.end, match,
+      });
+      const selected = entries.filter((entry) =>
+        (!query.type || entry.type === query.type) &&
+        (!search.trim() || [entry.title, entry.costCode, entry.notes].some(
+          (value) => String(value || '').toLowerCase().includes(search.trim().toLowerCase())
+        ))
+      );
+      allocatedSummary = {
+        totalAmount: selected.reduce((sum, entry) => sum + entry.amount, 0),
+        directMovieAmount: selected.filter((entry) => entry.kind === 'DIRECT_MOVIE')
+          .reduce((sum, entry) => sum + entry.amount, 0),
+        directRoomAmount: selected.filter((entry) => entry.kind === 'DIRECT_ROOM')
+          .reduce((sum, entry) => sum + entry.amount, 0),
+        sharedAmount: selected.filter((entry) => entry.kind === 'SHARED')
+          .reduce((sum, entry) => sum + entry.amount, 0),
+        unallocatedAmount: selected.reduce((sum, entry) => sum + entry.unallocatedAmount, 0),
+        hasExpenseData: selected.length > 0,
+      };
+    }
 
     res.json({
       success: true,
@@ -150,6 +141,7 @@ export const getExpenses = async (req, res) => {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)) || 1,
         summary,
+        allocatedSummary,
       },
     });
   } catch (error) {
